@@ -69,6 +69,16 @@
     .manufacturerForm .filterrow{max-width:700px}
     .manufacturerForm .filterrow input{flex:1;min-width:0}
     .manufacturerLine{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 3px;border-bottom:1px solid #334c61}
+    .userGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+    .userGrid .wide{grid-column:1/-1}
+    .userCard{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;text-align:left;color:inherit;background:#11273c;border:1px solid #36536a;border-radius:11px;padding:15px;cursor:pointer}
+    .userCard:hover,.userCard:focus-visible{border-color:#62d9b3;outline:none}
+    .userCardName{font-weight:700}.userCardLogin{font-size:13px;color:#adc8dc;margin-top:5px}
+    .userStatus{font-size:12px;border-radius:7px;border:1px solid #3d6078;padding:5px 8px;color:#bfdae9}
+    .userStatus.disabled{color:#ffcaad;border-color:#92574a}
+    .userActions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+    .userExplanation{margin-top:14px;color:#abc2d6;font-size:13px;line-height:1.55}
+    @media(max-width:650px){.userGrid{grid-template-columns:1fr}.userGrid .wide{grid-column:auto}}
     .manufacturerLine strong{color:#62d9b3}
     .manufacturerLine span{color:#abc2d6;font-size:13px}
     #manufacturerNewConfirm{margin:15px 0 0}
@@ -124,26 +134,26 @@
 <div class="wrap">
   <header class="top">
     <div class="brand">EW<span>GEST</span></div>
-    <div class="topactions"><span class="tag">Gestão de obras · liberações e saídas</span><button id="logout" class="btn secondary hidden" type="button">Sair</button></div>
+    <div class="topactions"><span class="tag">Gestão de obras · liberações e saídas</span><button id="myPasswordHeader" class="btn secondary hidden" type="button">Minha senha</button><button id="logout" class="btn secondary hidden" type="button">Sair</button></div>
   </header>
   <main>
     <section id="login" class="panel login">
       <h1>Bem-vindo à EWGEST</h1>
       <p class="muted">Entre para acompanhar as obras e registrar liberações para corte.</p>
       <form id="loginForm" onsubmit="document.getElementById('status').textContent='Clique identificado. Iniciando autenticação…';if(!window.EWGEST_LOGIN){document.getElementById('error').textContent='O aplicativo ainda não iniciou. Verifique a versão exibida abaixo.';return false;}return window.EWGEST_LOGIN(event);">
-        <label for="email">E-mail</label>
-        <input id="email" type="email" required autocomplete="username" placeholder="seu@email.com">
+        <label for="email">Nome de usuário ou e-mail</label>
+        <input id="email" type="text" required autocomplete="username" placeholder="Ex.: ewerton santos">
         <label for="password">Senha</label>
         <input id="password" type="password" required autocomplete="current-password" placeholder="Senha de acesso à EWGEST">
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • cadastro de fabricantes v19.0</div>
+        <div class="build">EWGEST • cadastro de usuários v20.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
     <section id="dashboard" class="hidden">
-      <div class="head"><div><h1 id="heading">Painel de obras</h1><div class="muted" id="userline"></div></div><div class="topactions"><button id="openTypologies" type="button" class="btn secondary hidden">Banco de tipologias</button><button id="openManufacturers" type="button" class="btn secondary hidden">Fabricantes</button><button id="refresh" class="btn secondary">Atualizar dados</button></div></div>
+      <div class="head"><div><h1 id="heading">Painel de obras</h1><div class="muted" id="userline"></div></div><div class="topactions"><button id="openTypologies" type="button" class="btn secondary hidden">Banco de tipologias</button><button id="openManufacturers" type="button" class="btn secondary hidden">Fabricantes</button><button id="openUsers" type="button" class="btn secondary hidden">Usuários</button><button id="refresh" class="btn secondary">Atualizar dados</button></div></div>
       <div id="panelError" class="error"></div>
       <div class="stats">
         <div class="stat"><div class="label">Obras</div><div class="number" id="count">—</div></div>
@@ -176,6 +186,69 @@
           <div class="stat"><div class="label">Folhas enviadas</div><div class="number" id="shipLeavesTotal">—</div></div>
           <div class="stat"><div class="label">Registros de saída</div><div class="number" id="shipEventsTotal">—</div></div>
         </div><div id="detailError" class="feedback" role="alert"></div><div id="items"></div><div id="itemFilterEmpty" class="empty hidden">Nenhuma esquadria encontrada. Busque pelo código da esquadria ou pela tipologia CEM.</div></div>
+    </section>
+
+    <section id="users" class="hidden">
+      <div class="head"><div>
+        <button id="usersBack" class="btn secondary" type="button">← Tela inicial</button>
+        <h1 style="margin-top:18px">Cadastro de usuários</h1>
+        <div class="muted">Apenas administradores podem criar usuários, redefinir senhas ou retirar acessos.</div>
+      </div></div>
+      <div class="section panel">
+        <h2>Cadastrar novo usuário</h2>
+        <form id="createUserForm">
+          <div class="userGrid">
+            <div><label for="createUserLogin">Nome de login</label>
+              <input id="createUserLogin" type="text" autocomplete="off" minlength="3" maxlength="100"
+                 placeholder="Ex.: joao ou joao silva" required></div>
+            <div><label for="createUserName">Nome para exibição</label>
+              <input id="createUserName" type="text" autocomplete="off" minlength="2" maxlength="100"
+                 placeholder="Ex.: João Silva" required></div>
+            <div><label for="createUserRole">Perfil de acesso</label>
+              <select id="createUserRole" required>
+                <option value="tecnico">Técnico</option>
+                <option value="supervisor">Supervisor</option>
+                <option value="consulta">Somente consulta</option>
+                <option value="administrador">Administrador</option>
+              </select></div>
+            <div><label for="createUserPassword">Senha inicial</label>
+              <input id="createUserPassword" type="password" autocomplete="new-password"
+                minlength="12" maxlength="128" required placeholder="Mínimo de 12 caracteres"></div>
+          </div>
+          <div class="userActions"><button id="createUserSubmit" class="btn primary" type="submit">Cadastrar usuário</button></div>
+          <p class="hint">O usuário entrará com o nome de login e a senha inicial. Você poderá redefinir a senha depois, mas não visualizar a senha antiga.</p>
+          <p class="hint">Supervisor pode registrar liberações e saídas. Técnico e Consulta têm acesso aos dados conforme as permissões da empresa.</p>
+        </form>
+        <div id="createUserMessage" class="feedback" role="status" aria-live="polite"></div>
+      </div>
+      <div class="section panel">
+        <div class="row" style="justify-content:space-between;align-items:center;gap:16px">
+          <h2>Usuários cadastrados</h2>
+          <button id="reloadUsers" type="button" class="btn secondary">Atualizar lista</button>
+        </div>
+        <div id="usersMessage" class="hint" role="status" aria-live="polite"></div>
+        <div id="usersList" class="section"></div>
+      </div>
+      <p class="notice">Desativar um usuário bloqueia seu acesso, mas preserva seu histórico de liberações, saídas e outras alterações. Não são armazenadas senhas no banco de cadastro.</p>
+    </section>
+    <section id="myPassword" class="hidden">
+      <div class="head"><div>
+        <button id="myPasswordBack" class="btn secondary" type="button">← Tela inicial</button>
+        <h1 style="margin-top:18px">Alterar minha senha</h1>
+        <div class="muted">Cada usuário pode alterar sua própria senha com segurança.</div>
+      </div></div>
+      <div class="panel" style="max-width:560px">
+        <form id="myPasswordForm">
+          <label for="myOldPassword">Senha atual</label>
+          <input id="myOldPassword" type="password" required autocomplete="current-password">
+          <label for="myNewPassword">Nova senha</label>
+          <input id="myNewPassword" type="password" required minlength="12" maxlength="128" autocomplete="new-password">
+          <label for="myNewPasswordRepeat">Confirme a nova senha</label>
+          <input id="myNewPasswordRepeat" type="password" required minlength="12" maxlength="128" autocomplete="new-password">
+          <button id="myPasswordSubmit" type="submit" class="btn primary full">Alterar minha senha</button>
+          <p id="myPasswordMessage" class="feedback" role="status" aria-live="polite"></p>
+        </form>
+      </div>
     </section>
     <section id="manufacturers" class="hidden">
       <div class="head"><div>
@@ -335,6 +408,41 @@
     </form>
   </div>
 </div>
+
+<div id="userEditOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="userEditTitle">
+    <h2 id="userEditTitle">Editar usuário</h2>
+    <form id="userEditForm">
+      <label for="userEditLogin">Nome de login</label>
+      <input id="userEditLogin" type="text" autocomplete="off" minlength="3" maxlength="100" required>
+      <label for="userEditName">Nome para exibição</label>
+      <input id="userEditName" type="text" autocomplete="off" minlength="2" maxlength="100" required>
+      <label for="userEditRole">Perfil</label>
+      <select id="userEditRole">
+        <option value="administrador">Administrador</option>
+        <option value="supervisor">Supervisor</option>
+        <option value="tecnico">Técnico</option>
+        <option value="consulta">Somente consulta</option>
+      </select>
+      <div class="userActions">
+        <button id="userEditCancel" type="button" class="btn secondary">Fechar</button>
+        <button id="userEditSubmit" type="submit" class="btn primary">Salvar dados</button>
+      </div>
+    </form>
+    <div style="margin-top:25px;border-top:1px solid #38516a;padding-top:15px">
+      <h2>Redefinir senha</h2>
+      <p class="hint">A senha antiga não pode ser visualizada. Digite uma nova senha para substituir a anterior.</p>
+      <label for="userResetPassword">Nova senha</label>
+      <input id="userResetPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128">
+      <button id="userResetSubmit" type="button" class="btn secondary" style="margin-top:12px">Definir nova senha</button>
+    </div>
+    <div class="userActions" style="margin-top:24px;border-top:1px solid #38516a;padding-top:18px">
+      <button id="userToggleActive" type="button" class="btn secondary">Desativar acesso</button>
+    </div>
+    <p class="userExplanation">Desativar retira o acesso, sem apagar o histórico. O usuário poderá ser reativado pelo administrador.</p>
+    <p id="userEditMessage" class="feedback" role="status" aria-live="polite"></p>
+  </div>
+</div>
 <div id="croquiZoomOverlay" class="modaloverlay hidden" style="z-index:25" role="presentation">
   <div class="panel croquiZoomBox" role="dialog" aria-modal="true" aria-labelledby="croquiZoomTitle">
     <div class="row"><h2 id="croquiZoomTitle">Croqui</h2><button id="croquiZoomClose" type="button" class="btn secondary">Fechar</button></div>
@@ -357,7 +465,7 @@ let typologyCatalog=[],typologyOrigins=[],typologyOriginReady=false,editingTypol
 let manufacturerCatalog=[],manufacturerLoadError='',originalManufacturerForEdit='',originalDescriptionForEdit='',manufacturerAutoCandidate='';
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
-function setView(view){for(const id of ['login','dashboard','detail','typologies','manufacturers'])node(id).classList.toggle('hidden',id!==view);node('logout').classList.toggle('hidden',view==='login');}
+function setView(view){for(const id of ['login','dashboard','detail','typologies','manufacturers','users','myPassword'])node(id).classList.toggle('hidden',id!==view);node('logout').classList.toggle('hidden',view==='login');node('myPasswordHeader').classList.toggle('hidden',view==='login');}
 function throwFriendly(error){const e=new Error(error.message||error.msg||error.error_description||error.error||'Erro desconhecido');e.code=error.code||'';throw e;}
 async function request(path,{method='GET',body=null,token=null}={}){
   const controller=new AbortController();
@@ -376,6 +484,26 @@ async function request(path,{method='GET',body=null,token=null}={}){
   finally{clearTimeout(timer);}
 }
 async function apiGet(table,params){const query=new URLSearchParams(params);return request('/rest/v1/'+table+'?'+query.toString(),{token:session.access_token});}
+
+async function userApi(payload,authenticated=true) {
+  if(authenticated)await ensureSession();
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),25000);
+  try{
+    const headers={'Content-Type':'application/json','Accept':'application/json','apikey':PUBLIC_KEY};
+    if(authenticated)headers['Authorization']='Bearer '+session.access_token;
+    const response=await fetch(API_BASE+'/functions/v1/ewgest-acesso',{
+      method:'POST',headers,body:JSON.stringify(payload),signal:controller.signal,cache:'no-store'
+    });
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(result.error||('Erro '+response.status+' ao consultar o acesso.'));
+    return result;
+  }catch(err){
+    if(err.name==='AbortError')throw new Error('O servidor demorou a responder. Confira a conexão.');
+    if(err instanceof TypeError)throw new Error('Não foi possível conectar ao servidor de contas.');
+    throw err;
+  }finally{clearTimeout(timer);}
+}
 function saveSession(data){session={access_token:data.access_token,refresh_token:data.refresh_token,expires_at:Math.floor(Date.now()/1000)+Number(data.expires_in||3600),user:data.user};sessionStorage.setItem('ewgest_session_v3',JSON.stringify(session));}
 async function ensureSession(){if(!session)throw new Error('Sua sessão expirou. Entre novamente.');if(Number(session.expires_at)<Math.floor(Date.now()/1000)+60){const data=await request('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:{refresh_token:session.refresh_token}});saveSession(data);}return session;}
 async function loadPanel(){
@@ -390,6 +518,7 @@ async function loadPanel(){
   membership=rel.find(r=>r.empresa_id===currentCompany.id);
   node('openTypologies').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
   node('openManufacturers').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
+  node('openUsers').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
   const [w,e,tips]=await Promise.all([
     apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'}),
     apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id,rotulo_tipologia_relatorio',empresa_id:'eq.'+currentCompany.id}),
@@ -431,7 +560,14 @@ async function loadPanel(){
   }catch(err){dispatchConfig=[];shipmentHistory=[];dispatchReady=false;dispatchLoadError=err.message;}
 
   node('heading').textContent=currentCompany.nome;
-  node('userline').textContent=(currentUser.email||'Usuário')+' · '+membership.perfil;
+  let displayLogin=currentUser.email||'Usuário';
+  try{
+    const myAccounts=await apiGet('usuarios_login',{
+      select:'nome,login,ativo',usuario_id:'eq.'+currentUser.id
+    });
+    if(myAccounts?.[0])displayLogin=myAccounts[0].nome+' · '+myAccounts[0].login;
+  }catch(e){}
+  node('userline').textContent=displayLogin+' · '+membership.perfil;
   node('panelError').textContent='';
   renderList();setView('dashboard');
 }
@@ -746,11 +882,191 @@ node('releaseForm').addEventListener('submit',async event=>{
   finally{button.disabled=false;button.textContent='Salvar liberação';}
 });
 window.EWGEST_LOGIN=async function(event){event.preventDefault();setError('');setStatus('Botão funcionando. Conferindo usuário e senha…');const b=node('loginButton');b.disabled=true;b.textContent='Verificando…';try{
-  const data=await request('/auth/v1/token?grant_type=password',{method:'POST',body:{email:node('email').value.trim(),password:node('password').value}});
+  const login=node('email').value.trim();
+  const pass=node('password').value;
+  const data=login.includes('@')
+    ?await request('/auth/v1/token?grant_type=password',{
+      method:'POST',body:{email:login,password:pass}
+    })
+    :await userApi({acao:'entrar',login,senha:pass},false);
   if(!data.access_token)throw new Error('O servidor não retornou uma sessão válida.');
   saveSession(data);node('password').value='';setStatus('Login aceito. Carregando obras…');await loadPanel();
  }catch(e){setStatus('Não foi possível entrar.');setError('Detalhe: '+(e.message||'Falha desconhecida')+'\nSe persistir, envie uma captura apenas desta mensagem, sem mostrar a senha.');}
  finally{b.disabled=false;b.textContent='Entrar no painel';}return false;};
+
+let managedAccounts=[];
+let editingManagedAccount=null;
+function canManageUsers(){return String(membership?.perfil||'').toLowerCase()==='administrador';}
+function roleLabel(value){
+  return ({administrador:'Administrador',supervisor:'Supervisor',tecnico:'Técnico',consulta:'Consulta'})[value]||value;
+}
+function closeManagedUserEdit(){
+  node('userEditOverlay').classList.add('hidden');
+  node('userResetPassword').value='';
+  editingManagedAccount=null;
+}
+function renderManagedAccounts(){
+  const rows=managedAccounts.slice().sort((a,b)=>String(a.login).localeCompare(String(b.login),'pt-BR'));
+  node('usersMessage').textContent=rows.length+' usuário(s) cadastrado(s). Clique para editar.';
+  node('usersList').innerHTML=rows.map(user=>
+    '<button type="button" class="userCard" data-user-id="'+escapeHTML(user.usuario_id)+'">'+
+      '<div><div class="userCardName">'+escapeHTML(user.nome)+'</div>'+
+      '<div class="userCardLogin">Login: '+escapeHTML(user.login)+' · '+escapeHTML(roleLabel(user.perfil))+'</div></div>'+
+      '<span class="userStatus '+(user.ativo?'':'disabled')+'">'+
+        (user.ativo?'Ativo':'Desativado')+'</span></button>'
+  ).join('');
+  node('usersList').querySelectorAll('[data-user-id]').forEach(btn=>{
+    btn.addEventListener('click',()=>openManagedUserEdit(btn.dataset.userId));
+  });
+}
+async function reloadManagedUsers(){
+  if(!canManageUsers())throw new Error('Somente administradores podem gerenciar usuários.');
+  const result=await userApi({acao:'listar'});
+  managedAccounts=result.usuarios||[];
+  renderManagedAccounts();
+}
+async function openManagedUsersPage(){
+  if(!canManageUsers())return;
+  node('createUserMessage').textContent='';
+  node('usersMessage').textContent='Consultando usuários…';
+  setView('users');
+  try{await reloadManagedUsers();}
+  catch(e){node('usersMessage').textContent='Não foi possível carregar: '+e.message;}
+}
+function openManagedUserEdit(id){
+  if(!canManageUsers())return;
+  const account=managedAccounts.find(x=>x.usuario_id===id);
+  if(!account)return;
+  editingManagedAccount=account;
+  const self=account.usuario_id===currentUser.id;
+  node('userEditTitle').textContent='Editar usuário · '+account.login;
+  node('userEditLogin').value=account.login;
+  node('userEditName').value=account.nome;
+  node('userEditRole').value=account.perfil;
+  node('userEditRole').disabled=self;
+  node('userResetPassword').value='';
+  node('userEditMessage').textContent='';
+  node('userToggleActive').classList.toggle('hidden',self);
+  node('userToggleActive').textContent=account.ativo?'Desativar acesso':'Reativar acesso';
+  node('userEditOverlay').classList.remove('hidden');
+  node('userEditLogin').focus();
+}
+node('openUsers').addEventListener('click',openManagedUsersPage);
+node('usersBack').addEventListener('click',()=>setView('dashboard'));
+node('reloadUsers').addEventListener('click',async()=>{
+  node('usersMessage').textContent='Atualizando…';
+  try{await reloadManagedUsers();}
+  catch(e){node('usersMessage').textContent='Erro: '+e.message;}
+});
+node('createUserForm').addEventListener('submit',async(event)=>{
+  event.preventDefault();
+  if(!canManageUsers())return;
+  const login=node('createUserLogin').value.trim();
+  const nome=node('createUserName').value.trim();
+  const perfil=node('createUserRole').value;
+  const senha=node('createUserPassword').value;
+  if(senha.length<12){node('createUserMessage').textContent='Senha de no mínimo 12 caracteres.';return;}
+  if(perfil==='administrador' && !confirm('Criar outro administrador? Ele poderá gerenciar usuários, senhas e cadastros.'))return;
+  const button=node('createUserSubmit');
+  button.disabled=true;button.textContent='Cadastrando…';
+  node('createUserMessage').textContent='';
+  let saved=false;
+  try{
+    await userApi({acao:'criar',login,nome,perfil,senha});
+    saved=true;
+    node('createUserPassword').value='';
+    node('createUserLogin').value='';
+    node('createUserName').value='';
+    node('createUserRole').value='tecnico';
+    node('createUserMessage').textContent='Usuário '+login+' cadastrado. Informe a senha inicial a ele por um canal seguro.';
+    try{await reloadManagedUsers();}
+    catch(e){node('usersMessage').textContent='Usuário criado, mas a lista não atualizou: '+e.message;}
+  }catch(e){
+    node('createUserMessage').textContent='Não foi possível cadastrar: '+e.message;
+    if(saved)node('createUserMessage').textContent='Usuário criado. Atualize a lista antes de tentar novamente.';
+  }finally{button.disabled=false;button.textContent='Cadastrar usuário';}
+});
+node('userEditCancel').addEventListener('click',closeManagedUserEdit);
+node('userEditForm').addEventListener('submit',async(event)=>{
+  event.preventDefault();
+  if(!canManageUsers()||!editingManagedAccount)return;
+  const target=editingManagedAccount;
+  const login=node('userEditLogin').value.trim();
+  const nome=node('userEditName').value.trim();
+  const perfil=node('userEditRole').value;
+  const button=node('userEditSubmit');
+  button.disabled=true;button.textContent='Salvando…';
+  try{
+    await userApi({acao:'editar',usuario_id:target.usuario_id,login,nome,perfil});
+    closeManagedUserEdit();
+    node('usersMessage').textContent='Dados salvos no banco.';
+    try{await reloadManagedUsers();}
+    catch(e){node('usersMessage').textContent='Dados salvos, mas a lista não atualizou: '+e.message;}
+    if(target.usuario_id===currentUser.id){
+      node('userline').textContent=nome+' · '+login+' · '+membership.perfil;
+    }
+  }catch(e){node('userEditMessage').textContent='Erro ao salvar: '+e.message;}
+  finally{button.disabled=false;button.textContent='Salvar dados';}
+});
+node('userResetSubmit').addEventListener('click',async()=>{
+  if(!canManageUsers()||!editingManagedAccount)return;
+  const target=editingManagedAccount;
+  const next=node('userResetPassword').value;
+  if(next.length<12){node('userEditMessage').textContent='Nova senha: mínimo de 12 caracteres.';return;}
+  if(!confirm('Redefinir a senha de '+target.login+'? A senha antiga será substituída.'))return;
+  const button=node('userResetSubmit');
+  button.disabled=true;button.textContent='Atualizando senha…';
+  node('userEditMessage').textContent='';
+  try{
+    await userApi({acao:'redefinir_senha',usuario_id:target.usuario_id,nova_senha:next});
+    node('userResetPassword').value='';
+    node('userEditMessage').textContent='Nova senha definida. O usuário já pode usá-la no próximo login.';
+  }catch(e){node('userEditMessage').textContent='Não foi possível redefinir: '+e.message;}
+  finally{button.disabled=false;button.textContent='Definir nova senha';}
+});
+node('userToggleActive').addEventListener('click',async()=>{
+  if(!canManageUsers()||!editingManagedAccount)return;
+  const target=editingManagedAccount;
+  if(target.usuario_id===currentUser.id)return;
+  const action=target.ativo?'desativar':'reativar';
+  const message=target.ativo
+    ?'Desativar '+target.login+'? Ele perderá o acesso à EWGEST. O histórico das obras será preservado.'
+    :'Reativar o acesso de '+target.login+'?';
+  if(!confirm(message))return;
+  const button=node('userToggleActive');
+  button.disabled=true;
+  try{
+    await userApi({acao:action,usuario_id:target.usuario_id});
+    closeManagedUserEdit();
+    try{await reloadManagedUsers();}
+    catch(e){node('usersMessage').textContent='Acesso atualizado, mas a lista não atualizou: '+e.message;}
+    node('usersMessage').textContent='Acesso de '+target.login+(target.ativo?' desativado.':' reativado.');
+  }catch(e){node('userEditMessage').textContent='Erro: '+e.message;}
+  finally{button.disabled=false;}
+});
+node('myPasswordHeader').addEventListener('click',()=>{
+  node('myPasswordForm').reset();
+  node('myPasswordMessage').textContent='';
+  setView('myPassword');
+});
+node('myPasswordBack').addEventListener('click',()=>setView('dashboard'));
+node('myPasswordForm').addEventListener('submit',async(event)=>{
+  event.preventDefault();
+  const old=node('myOldPassword').value;
+  const next=node('myNewPassword').value;
+  const repeat=node('myNewPasswordRepeat').value;
+  if(next!==repeat){node('myPasswordMessage').textContent='As novas senhas não coincidem.';return;}
+  if(next.length<12){node('myPasswordMessage').textContent='A nova senha precisa ter pelo menos 12 caracteres.';return;}
+  const button=node('myPasswordSubmit');
+  button.disabled=true;button.textContent='Atualizando senha…';
+  try{
+    await userApi({acao:'alterar_minha_senha',senha_atual:old,nova_senha:next});
+    node('myPasswordForm').reset();
+    node('myPasswordMessage').textContent='Senha alterada com sucesso. Use a nova senha no próximo login.';
+  }catch(e){node('myPasswordMessage').textContent='Não foi possível alterar: '+e.message;}
+  finally{button.disabled=false;button.textContent='Alterar minha senha';}
+});
+
 node('logout').addEventListener('click',async()=>{const old=session;session=null;sessionStorage.removeItem('ewgest_session_v3');setView('login');setStatus('Sessão encerrada.');if(old)try{await request('/auth/v1/logout',{method:'POST',token:old.access_token});}catch{}});
 node('refresh').addEventListener('click',async()=>{node('panelError').textContent='Atualizando…';try{await loadPanel();}catch(e){node('panelError').textContent='Erro ao atualizar: '+e.message;}});
 node('shipmentKind').addEventListener('change',updateShipmentForm);
@@ -1271,7 +1587,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v19.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v20.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
