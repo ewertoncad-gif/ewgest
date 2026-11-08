@@ -38,13 +38,13 @@ function validName(input) {
   return name;
 }
 function validPassword(input) {
-  if (typeof input !== 'string' || input.length < 12 || input.length > 128)
-    throw new Error('A senha precisa ter entre 12 e 128 caracteres.');
+  if (typeof input !== 'string' || input.length === 0 || input.length > 128)
+    throw new Error('Informe uma senha de até 128 caracteres.');
   return input;
 }
 function normalizeProfile(value) {
   const role = String(value || '');
-  if (!['administrador', 'supervisor', 'tecnico', 'consulta'].includes(role))
+  if (!['administrador', 'tecnico', 'consulta'].includes(role))
     throw new Error('Perfil de usuário inválido.');
   return role;
 }
@@ -169,7 +169,7 @@ Deno.serve(async (req) => {
         email, password: senha, email_confirm: true,
         user_metadata: { nome, sistema: 'EWGEST' },
       });
-      if (authError || !created?.user) throw new Error('Não foi possível criar a conta no Supabase Auth.');
+      if (authError || !created?.user) throw new Error('O Supabase não aceitou o cadastro. Verifique a senha ou tente novamente.');
       const id = created.user.id;
       try {
         const { error: accountError } = await admin.from('usuarios_login').insert({
