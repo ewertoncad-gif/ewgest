@@ -69,6 +69,16 @@
     .manufacturerForm .filterrow{max-width:700px}
     .manufacturerForm .filterrow input{flex:1;min-width:0}
     .manufacturerLine{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 3px;border-bottom:1px solid #334c61}
+    .userGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+    .userGrid .wide{grid-column:1/-1}
+    .userCard{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;text-align:left;color:inherit;background:#11273c;border:1px solid #36536a;border-radius:11px;padding:15px;cursor:pointer}
+    .userCard:hover,.userCard:focus-visible{border-color:#62d9b3;outline:none}
+    .userCardName{font-weight:700}.userCardLogin{font-size:13px;color:#adc8dc;margin-top:5px}
+    .userStatus{font-size:12px;border-radius:7px;border:1px solid #3d6078;padding:5px 8px;color:#bfdae9}
+    .userStatus.disabled{color:#ffcaad;border-color:#92574a}
+    .userActions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+    .userExplanation{margin-top:14px;color:#abc2d6;font-size:13px;line-height:1.55}
+    @media(max-width:650px){.userGrid{grid-template-columns:1fr}.userGrid .wide{grid-column:auto}}
     .manufacturerLine strong{color:#62d9b3}
     .manufacturerLine span{color:#abc2d6;font-size:13px}
     #manufacturerNewConfirm{margin:15px 0 0}
@@ -124,15 +134,15 @@
 <div class="wrap">
   <header class="top">
     <div class="brand">EW<span>GEST</span></div>
-    <div class="topactions"><span class="tag">Gestão de obras · liberações e saídas</span><button id="logout" class="btn secondary hidden" type="button">Sair</button></div>
+    <div class="topactions"><span class="tag">Gestão de obras · liberações e saídas</span><button id="myPasswordHeader" class="btn secondary hidden" type="button">Minha senha</button><button id="logout" class="btn secondary hidden" type="button">Sair</button></div>
   </header>
   <main>
     <section id="login" class="panel login">
       <h1>Bem-vindo à EWGEST</h1>
       <p class="muted">Entre para acompanhar as obras e registrar liberações para corte.</p>
       <form id="loginForm" onsubmit="document.getElementById('status').textContent='Clique identificado. Iniciando autenticação…';if(!window.EWGEST_LOGIN){document.getElementById('error').textContent='O aplicativo ainda não iniciou. Verifique a versão exibida abaixo.';return false;}return window.EWGEST_LOGIN(event);">
-        <label for="email">E-mail</label>
-        <input id="email" type="email" required autocomplete="username" placeholder="seu@email.com">
+        <label for="email">Nome de usuário ou e-mail</label>
+        <input id="email" type="text" required autocomplete="username" placeholder="Ex.: ewerton santos">
         <label for="password">Senha</label>
         <input id="password" type="password" required autocomplete="current-password" placeholder="Senha de acesso à EWGEST">
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
@@ -143,7 +153,7 @@
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
     <section id="dashboard" class="hidden">
-      <div class="head"><div><h1 id="heading">Painel de obras</h1><div class="muted" id="userline"></div></div><div class="topactions"><button id="openTypologies" type="button" class="btn secondary hidden">Banco de tipologias</button><button id="openManufacturers" type="button" class="btn secondary hidden">Fabricantes</button><button id="refresh" class="btn secondary">Atualizar dados</button></div></div>
+      <div class="head"><div><h1 id="heading">Painel de obras</h1><div class="muted" id="userline"></div></div><div class="topactions"><button id="openTypologies" type="button" class="btn secondary hidden">Banco de tipologias</button><button id="openManufacturers" type="button" class="btn secondary hidden">Fabricantes</button><button id="openUsers" type="button" class="btn secondary hidden">Usuários</button><button id="refresh" class="btn secondary">Atualizar dados</button></div></div>
       <div id="panelError" class="error"></div>
       <div class="stats">
         <div class="stat"><div class="label">Obras</div><div class="number" id="count">—</div></div>
@@ -176,6 +186,69 @@
           <div class="stat"><div class="label">Folhas enviadas</div><div class="number" id="shipLeavesTotal">—</div></div>
           <div class="stat"><div class="label">Registros de saída</div><div class="number" id="shipEventsTotal">—</div></div>
         </div><div id="detailError" class="feedback" role="alert"></div><div id="items"></div><div id="itemFilterEmpty" class="empty hidden">Nenhuma esquadria encontrada. Busque pelo código da esquadria ou pela tipologia CEM.</div></div>
+    </section>
+
+    <section id="users" class="hidden">
+      <div class="head"><div>
+        <button id="usersBack" class="btn secondary" type="button">← Tela inicial</button>
+        <h1 style="margin-top:18px">Cadastro de usuários</h1>
+        <div class="muted">Apenas administradores podem criar usuários, redefinir senhas ou retirar acessos.</div>
+      </div></div>
+      <div class="section panel">
+        <h2>Cadastrar novo usuário</h2>
+        <form id="createUserForm">
+          <div class="userGrid">
+            <div><label for="createUserLogin">Nome de login</label>
+              <input id="createUserLogin" type="text" autocomplete="off" minlength="3" maxlength="100"
+                 placeholder="Ex.: joao ou joao silva" required></div>
+            <div><label for="createUserName">Nome para exibição</label>
+              <input id="createUserName" type="text" autocomplete="off" minlength="2" maxlength="100"
+                 placeholder="Ex.: João Silva" required></div>
+            <div><label for="createUserRole">Perfil de acesso</label>
+              <select id="createUserRole" required>
+                <option value="tecnico">Técnico</option>
+                <option value="supervisor">Supervisor</option>
+                <option value="consulta">Somente consulta</option>
+                <option value="administrador">Administrador</option>
+              </select></div>
+            <div><label for="createUserPassword">Senha inicial</label>
+              <input id="createUserPassword" type="password" autocomplete="new-password"
+                minlength="12" maxlength="128" required placeholder="Mínimo de 12 caracteres"></div>
+          </div>
+          <div class="userActions"><button id="createUserSubmit" class="btn primary" type="submit">Cadastrar usuário</button></div>
+          <p class="hint">O usuário entrará com o nome de login e a senha inicial. Você poderá redefinir a senha depois, mas não visualizar a senha antiga.</p>
+          <p class="hint">Supervisor pode registrar liberações e saídas. Técnico e Consulta têm acesso aos dados conforme as permissões da empresa.</p>
+        </form>
+        <div id="createUserMessage" class="feedback" role="status" aria-live="polite"></div>
+      </div>
+      <div class="section panel">
+        <div class="row" style="justify-content:space-between;align-items:center;gap:16px">
+          <h2>Usuários cadastrados</h2>
+          <button id="reloadUsers" type="button" class="btn secondary">Atualizar lista</button>
+        </div>
+        <div id="usersMessage" class="hint" role="status" aria-live="polite"></div>
+        <div id="usersList" class="section"></div>
+      </div>
+      <p class="notice">Desativar um usuário bloqueia seu acesso, mas preserva seu histórico de liberações, saídas e outras alterações. Não são armazenadas senhas no banco de cadastro.</p>
+    </section>
+    <section id="myPassword" class="hidden">
+      <div class="head"><div>
+        <button id="myPasswordBack" class="btn secondary" type="button">← Tela inicial</button>
+        <h1 style="margin-top:18px">Alterar minha senha</h1>
+        <div class="muted">Cada usuário pode alterar sua própria senha com segurança.</div>
+      </div></div>
+      <div class="panel" style="max-width:560px">
+        <form id="myPasswordForm">
+          <label for="myOldPassword">Senha atual</label>
+          <input id="myOldPassword" type="password" required autocomplete="current-password">
+          <label for="myNewPassword">Nova senha</label>
+          <input id="myNewPassword" type="password" required minlength="12" maxlength="128" autocomplete="new-password">
+          <label for="myNewPasswordRepeat">Confirme a nova senha</label>
+          <input id="myNewPasswordRepeat" type="password" required minlength="12" maxlength="128" autocomplete="new-password">
+          <button id="myPasswordSubmit" type="submit" class="btn primary full">Alterar minha senha</button>
+          <p id="myPasswordMessage" class="feedback" role="status" aria-live="polite"></p>
+        </form>
+      </div>
     </section>
     <section id="manufacturers" class="hidden">
       <div class="head"><div>
@@ -335,6 +408,41 @@
     </form>
   </div>
 </div>
+
+<div id="userEditOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="userEditTitle">
+    <h2 id="userEditTitle">Editar usuário</h2>
+    <form id="userEditForm">
+      <label for="userEditLogin">Nome de login</label>
+      <input id="userEditLogin" type="text" autocomplete="off" minlength="3" maxlength="100" required>
+      <label for="userEditName">Nome para exibição</label>
+      <input id="userEditName" type="text" autocomplete="off" minlength="2" maxlength="100" required>
+      <label for="userEditRole">Perfil</label>
+      <select id="userEditRole">
+        <option value="administrador">Administrador</option>
+        <option value="supervisor">Supervisor</option>
+        <option value="tecnico">Técnico</option>
+        <option value="consulta">Somente consulta</option>
+      </select>
+      <div class="userActions">
+        <button id="userEditCancel" type="button" class="btn secondary">Fechar</button>
+        <button id="userEditSubmit" type="submit" class="btn primary">Salvar dados</button>
+      </div>
+    </form>
+    <div style="margin-top:25px;border-top:1px solid #38516a;padding-top:15px">
+      <h2>Redefinir senha</h2>
+      <p class="hint">A senha antiga não pode ser visualizada. Digite uma nova senha para substituir a anterior.</p>
+      <label for="userResetPassword">Nova senha</label>
+      <input id="userResetPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128">
+      <button id="userResetSubmit" type="button" class="btn secondary" style="margin-top:12px">Definir nova senha</button>
+    </div>
+    <div class="userActions" style="margin-top:24px;border-top:1px solid #38516a;padding-top:18px">
+      <button id="userToggleActive" type="button" class="btn secondary">Desativar acesso</button>
+    </div>
+    <p class="userExplanation">Desativar retira o acesso, sem apagar o histórico. O usuário poderá ser reativado pelo administrador.</p>
+    <p id="userEditMessage" class="feedback" role="status" aria-live="polite"></p>
+  </div>
+</div>
 <div id="croquiZoomOverlay" class="modaloverlay hidden" style="z-index:25" role="presentation">
   <div class="panel croquiZoomBox" role="dialog" aria-modal="true" aria-labelledby="croquiZoomTitle">
     <div class="row"><h2 id="croquiZoomTitle">Croqui</h2><button id="croquiZoomClose" type="button" class="btn secondary">Fechar</button></div>
@@ -357,7 +465,7 @@ let typologyCatalog=[],typologyOrigins=[],typologyOriginReady=false,editingTypol
 let manufacturerCatalog=[],manufacturerLoadError='',originalManufacturerForEdit='',originalDescriptionForEdit='',manufacturerAutoCandidate='';
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
-function setView(view){for(const id of ['login','dashboard','detail','typologies','manufacturers'])node(id).classList.toggle('hidden',id!==view);node('logout').classList.toggle('hidden',view==='login');}
+function setView(view){for(const id of ['login','dashboard','detail','typologies','manufacturers','users','myPassword'])node(id).classList.toggle('hidden',id!==view);node('logout').classList.toggle('hidden',view==='login');node('myPasswordHeader').classList.toggle('hidden',view==='login');}
 function throwFriendly(error){const e=new Error(error.message||error.msg||error.error_description||error.error||'Erro desconhecido');e.code=error.code||'';throw e;}
 async function request(path,{method='GET',body=null,token=null}={}){
   const controller=new AbortController();
