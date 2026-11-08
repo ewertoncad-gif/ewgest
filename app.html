@@ -130,7 +130,7 @@
       <div class="head"><div>
         <button id="backTypologies" type="button" class="btn secondary" style="margin-bottom:18px">← Tela inicial</button>
         <h1>Banco de tipologias</h1>
-        <div class="muted">Catálogo mestre de códigos CEM, reservado ao administrador da empresa.</div>
+        <div class="muted">Catálogo mestre de códigos de tipologia identificados no CEM. Os códigos de esquadrias são registrados separadamente.</div>
       </div></div>
       <div class="stats">
         <div class="stat"><div class="label">Tipologias cadastradas</div><div class="number" id="catalogCount">—</div></div>
@@ -145,7 +145,7 @@
         </div>
         <div id="typologyList"></div>
       </div>
-      <p class="notice">Novas esquadrias importadas sem código de tipologia aparecem em “Aguardando classificação”. O sistema não inventa códigos: eles devem vir do relatório CEM ou ser conferidos pelo administrador.</p>
+      <p class="notice">O catálogo reúne apenas tipologias identificadas. Esquadrias sem código de tipologia confirmado aparecem separadamente para revisão; seus códigos não se transformam em tipologias.</p>
     </section>
   </main>
 </div>
@@ -284,10 +284,11 @@ function groupRenderedItems(list){
       group=document.createElement('div');
       group.className='typologyGroup';
       group.dataset.tipologia=code;
+      if(code==='PENDENTE DE CLASSIFICAÇÃO')group.classList.add('pendingGroup');
       const heading=document.createElement('div');
       heading.className='typologyHeading';
       const title=document.createElement('strong');
-      title.textContent='Tipologia: '+code;
+      title.textContent=code==='PENDENTE DE CLASSIFICAÇÃO'?'SEM TIPOLOGIA IDENTIFICADA':'Tipologia: '+code;
       const count=document.createElement('span');
       count.textContent=list.filter(x=>(typologyCode(x)||'PENDENTE DE CLASSIFICAÇÃO')===code).length+' código(s) de esquadria';
       heading.append(title,count);
@@ -591,12 +592,12 @@ function renderTypologiesAdmin() {
     return `<div class="catalogRow"><div class="itemline"><strong class="green">${escapeHTML(t.codigo)}</strong><span class="hint">${c.works} obra(s) · ${c.units} unidade(s)</span></div>
     <p class="muted">${escapeHTML(t.descricao)}</p>
     <div class="catalogMeta"><span>${c.linked.length} código(s) vinculado(s)</span><span>${types.length} descrição(ões) identificada(s)</span></div>
-    <p class="hint">Esquadrias: ${escapeHTML(codes||'Nenhuma ainda')}</p></div>`;
+    <p class="hint">Códigos de esquadrias vinculadas: ${escapeHTML(codes||'Nenhuma ainda')}</p></div>`;
   });
-  const waitingRows=waiting.map(x=>`<div class="catalogRow"><strong>${escapeHTML(x.codigo)}</strong><p class="muted">${escapeHTML(x.descricao)}</p><span class="hint">Sem tipologia vinculada — verificar código CEM no relatório de origem</span></div>`);
+  const waitingRows=waiting.map(x=>`<div class="catalogRow"><strong>${escapeHTML(x.codigo)}</strong><p class="muted">${escapeHTML(x.descricao)}</p><span class="hint">Código de ESQUADRIA — tipologia ainda não confirmada</span></div>`);
   node('typologyFilterCount').textContent=catalog.length+' tipologia(s) cadastrada(s)'+(waiting.length?' · '+waiting.length+' esquadria(s) pendente(s)':'');
   node('typologyList').innerHTML=(catalog.length?rows.join(''):'<div class="empty">Nenhuma tipologia cadastrada corresponde à busca.</div>')
-    +(waitingRows.length?'<h2 style="margin-top:28px">Aguardando classificação</h2>'+waitingRows.join(''):'');
+    +(waitingRows.length?'<h2 style="margin-top:28px">Esquadrias a classificar — fora do catálogo de tipologias</h2>'+waitingRows.join(''):'');
 }
 node('openTypologies').addEventListener('click',()=>{
   if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
