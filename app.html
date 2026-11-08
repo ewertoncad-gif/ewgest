@@ -706,7 +706,10 @@ function refreshCroquiPreview(tipologiaId){
     ?'<img class="croquiPreviewImage" alt="Croqui da tipologia" src="'+src+'">'
     :'<span class="hint">Nenhum croqui cadastrado para esta tipologia.</span>';
   node('croquiOpenLarge').classList.toggle('hidden',!src);
-  node('croquiUploadStatus').textContent=entry?'Origem: '+(entry.origem||'Cadastro do administrador'):'';
+  node('croquiUploadStatus').textContent=entry
+    ?'Croqui de referência'+(entry.codigo_esquadria_referencia?' — '+entry.codigo_esquadria_referencia:'')+
+      '. Fonte: '+(entry.origem||'Cadastro do administrador')
+    :'';
 }
 function showCroquiZoom(tipologiaId){
   const item=typologyCatalog.find(t=>t.id===tipologiaId);
@@ -740,7 +743,7 @@ function renderTypologiesAdmin() {
         <div class="itemline"><strong class="green">${escapeHTML(t.codigo)}</strong>
           <span class="tap">Clique para editar</span></div>
         <p class="muted">${escapeHTML(t.descricao)}</p>
-        <span class="hint">${escapeHTML(status)} · ${croqui?'Croqui disponível':'Croqui não cadastrado'}</span>
+        <span class="hint">${escapeHTML(status)} · ${croqui?('Croqui de referência'+(croquiEntry(t.id)?.codigo_esquadria_referencia?' ('+escapeHTML(croquiEntry(t.id).codigo_esquadria_referencia)+')':'')):'Croqui não cadastrado'}</span>
       </div>${preview}</div>
     </button></div>`;
   });
