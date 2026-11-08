@@ -66,9 +66,7 @@
     .catalogEntry{display:block;width:100%;border:0;background:transparent;color:inherit;text-align:left;padding:0;cursor:pointer}
     .catalogEntry:hover .green,.catalogEntry:focus-visible .green{text-decoration:underline}
     .catalogEntry:focus-visible{outline:2px solid #62d9b3;outline-offset:4px;border-radius:4px}
-    .catalogStatus{font-size:12px;color:#aec6da;border:1px solid #35546c;border-radius:8px;padding:4px 8px}
-    .catalogStatus.review{color:#ffdeb0;border-color:#7a6545}
-    .statAction{text-align:left;width:100%;font:inherit;color:inherit;cursor:pointer}
+        .statAction{text-align:left;width:100%;font:inherit;color:inherit;cursor:pointer}
     .statAction:hover,.statAction:focus-visible{border-color:#62d9b3;outline:none}
     .statAction .statHint{margin-top:7px;font-size:12px;color:#92afc5}
     .typologyEditInput{width:100%}
@@ -83,6 +81,13 @@
     .catalogMeta{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:#abc2d6}
     select{font:inherit;width:100%;background:#0b192c;color:#fff;border:1px solid #46627a;padding:13px 14px;border-radius:9px}
     select:focus{outline:2px solid #62d9b3}
+    .detailSticky{position:sticky;top:0;z-index:5;background:#14283e;margin:-24px -24px 14px;padding:16px 24px 12px;border-radius:18px 18px 0 0;border-bottom:1px solid #38556d;box-shadow:0 9px 16px rgba(5,12,22,.34)}
+    .detailSticky .detailtabs{margin-bottom:12px}
+    .detailSticky h2{margin:0 0 7px}
+    .detailSticky .itemfilter{max-width:none;margin:10px 0 0}
+    .detailSticky .displayoptions{margin:10px 0}
+    .detailSticky .filterrow input{max-width:540px}
+    @media(max-width:700px){.detailSticky{margin:-24px -24px 14px;padding:14px 16px 12px}.detailSticky .detailtabs{gap:7px}.detailSticky .detailtabs .btn{padding:10px 12px}}
     .detailtabs{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px}
     .detailtabs button.active{background:#62d9b3;color:#08231d;border-color:#62d9b3}
     .shipmentoverview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:10px 0 18px}
@@ -111,7 +116,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • tipologias pendentes v14.0</div>
+        <div class="build">EWGEST • filtros fixos v15.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -137,20 +142,24 @@
       </div>
       <div class="qtystats" aria-label="Quantidades de esquadrias"><div class="stat"><div class="label">Unidades totais</div><div class="number" id="detailUnitsTotal">—</div></div><div class="stat"><div class="label">Liberadas para corte</div><div class="number" id="detailUnitsReleased">—</div></div><div class="stat"><div class="label">Aguardando liberação</div><div class="number" id="detailUnitsPending">—</div></div></div>
       <div class="section panel">
+        <div class="detailSticky">
         <div class="detailtabs"><button type="button" class="btn secondary active" id="tabRelease" aria-pressed="true">Liberações para corte</button><button type="button" class="btn secondary" id="tabShip" aria-pressed="false">Saídas para obra</button></div>
         <h2 id="itemListTitle">Itens da obra</h2>
+        
+<div class="itemfilter"><label for="itemSearch">Buscar na lista</label><div class="filterrow"><select id="itemSearchMode" aria-label="Buscar por"><option value="esquadria">Código da esquadria</option><option value="tipologia">Código da tipologia</option></select><input id="itemSearch" type="search" placeholder="Ex.: EA2 ou 2" autocomplete="off" spellcheck="false"><button id="clearItemSearch" type="button" class="btn secondary">Limpar</button></div><div class="displayoptions"><label><input id="showItemDescription" type="checkbox"> Mostrar descrição</label><label><input id="showItemLocation" type="checkbox"> Mostrar localização</label></div><p id="itemFilterCount" class="hint filtercount" role="status" aria-live="polite"></p></div>
+        </div>
         <p id="detailIntro" class="hint">Clique em um item para registrar uma liberação para corte.</p>
-        <div id="shipmentOverview" class="shipmentoverview hidden">
+                <div id="shipmentOverview" class="shipmentoverview hidden">
           <div class="stat"><div class="label">Marcos enviados</div><div class="number" id="shipFramesTotal">—</div></div>
           <div class="stat"><div class="label">Folhas enviadas</div><div class="number" id="shipLeavesTotal">—</div></div>
           <div class="stat"><div class="label">Registros de saída</div><div class="number" id="shipEventsTotal">—</div></div>
-        </div><div class="itemfilter"><label for="itemSearch">Buscar na lista</label><div class="filterrow"><select id="itemSearchMode" aria-label="Buscar por"><option value="esquadria">Código da esquadria</option><option value="tipologia">Código da tipologia</option></select><input id="itemSearch" type="search" placeholder="Ex.: EA2 ou 2" autocomplete="off" spellcheck="false"><button id="clearItemSearch" type="button" class="btn secondary">Limpar</button></div><div class="displayoptions"><label><input id="showItemDescription" type="checkbox"> Mostrar descrição</label><label><input id="showItemLocation" type="checkbox"> Mostrar localização</label></div><p id="itemFilterCount" class="hint filtercount" role="status" aria-live="polite"></p></div><div id="detailError" class="feedback" role="alert"></div><div id="items"></div><div id="itemFilterEmpty" class="empty hidden">Nenhuma esquadria encontrada. Busque pelo código da esquadria ou pela tipologia CEM.</div></div>
+        </div><div id="detailError" class="feedback" role="alert"></div><div id="items"></div><div id="itemFilterEmpty" class="empty hidden">Nenhuma esquadria encontrada. Busque pelo código da esquadria ou pela tipologia CEM.</div></div>
     </section>
     <section id="typologies" class="hidden">
       <div class="head"><div>
         <button id="backTypologies" type="button" class="btn secondary" style="margin-bottom:18px">← Tela inicial</button>
         <h1>Banco de tipologias</h1>
-        <div class="muted">Catálogo mestre de tipologias confirmadas e provisórias. Clique em um cadastro para corrigir código ou descrição.</div>
+        <div class="muted">Catálogo mestre de tipologias. Clique em um cadastro para corrigir código ou descrição.</div>
       </div></div>
       <div class="stats catalogstats">
         <div class="stat"><div class="label">Tipologias cadastradas</div><div class="number" id="catalogCount">—</div></div>
@@ -348,11 +357,7 @@ function groupRenderedItems(list){
       const heading=document.createElement('div');
       heading.className='typologyHeading';
       const title=document.createElement('strong');
-      title.textContent=code==='PENDENTE DE CLASSIFICAÇÃO'
-        ?'SEM TIPOLOGIA IDENTIFICADA'
-        :typologyCatalog.find(t=>t.id===list[i].tipologia_id)?.provisoria
-          ?'Tipologia provisória: '+code
-          :'Tipologia: '+code;
+      title.textContent=code==='PENDENTE DE CLASSIFICAÇÃO'?'SEM TIPOLOGIA IDENTIFICADA':'Tipologia: '+code;
       const count=document.createElement('span');
       count.textContent=list.filter(x=>(typologyCode(x)||'PENDENTE DE CLASSIFICAÇÃO')===code).length+' código(s) de esquadria';
       heading.append(title,count);
@@ -659,7 +664,7 @@ function renderTypologiesAdmin() {
     const status=origin.length?(origin.some(x=>x.ativo)?'Origem reconhecida':'Origem sem reconhecimento automático'):'Sem regra de origem';
     return `<div class="catalogRow"><button type="button" class="catalogEntry" data-tipologia-edit="${escapeHTML(t.id)}">
       <div class="itemline"><strong class="green">${escapeHTML(t.codigo)}</strong>
-        <span class="catalogStatus ${t.provisoria?'review':''}">${t.provisoria?'Provisória — revisar':'Revisada'}</span></div>
+        <span class="tap">Clique para editar</span></div>
       <p class="muted">${escapeHTML(t.descricao)}</p>
       <span class="hint">${escapeHTML(status)} · Clique para editar</span>
     </button></div>`;
@@ -767,9 +772,7 @@ async function saveTypologyEdit(event) {
     node('typologyEditSummary').textContent=pendingItem
       ?'Código original: '+(pendingItem.rotulo_tipologia_relatorio||'Não identificado')+
         '. Código da nova tipologia: '+code+'. Serão associados os itens pendentes com o mesmo código E descrição de origem. As liberações, quantidades e saídas não serão modificadas.'
-      :'Código atual: '+editingTypology.codigo+'. Código corrigido: '+code+'. '+(editingTypology.provisoria
-        ?'Este cadastro será marcado como revisado pelo administrador. '
-        :'')+'Os vínculos históricos das esquadrias não serão alterados.';
+      :'Código atual: '+editingTypology.codigo+'. Código corrigido: '+code+'. Os vínculos históricos das esquadrias não serão alterados.';
     showTypologyEditStep(2);
     return;
   }
@@ -845,7 +848,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v14.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v15.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
