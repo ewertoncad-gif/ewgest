@@ -63,6 +63,18 @@
     .typologyHeading strong{font-size:16px;letter-spacing:.2px;color:#62d9b3}
     .typologyHeading span{color:#a7bfd3;font-size:12px}
     .catalogRow{padding:16px 0;border-bottom:1px solid #334c61}.catalogRow:last-child{border:0}
+    .catalogImageRow{display:flex;align-items:center;gap:20px;justify-content:space-between}
+    .catalogTextArea{min-width:0;flex:1}
+    .croquiThumb{flex:none;width:144px;height:106px;object-fit:contain;border:1px solid #456278;background:#fff;border-radius:8px;padding:4px}
+    .croquiEmpty{flex:none;width:144px;height:86px;background:#0b192c;border:1px dashed #38516d;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#94aec4;font-size:12px;text-align:center}
+    .croquiActions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0}
+    .croquiPreviewImage{max-height:240px;width:100%;max-width:100%;object-fit:contain;background:white;border-radius:8px;border:1px solid #426077;padding:8px}
+    .croquiPreviewArea{margin:12px 0;padding:12px;background:#102338;border:1px solid #344d64;border-radius:12px}
+    .croquiZoomBox{width:min(100%,850px);max-height:92vh;overflow:auto}
+    .croquiZoomImage{display:block;max-width:100%;width:auto;max-height:72vh;margin:12px auto;background:#fff;border-radius:8px}
+    .croquiToolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:12px 0 8px}
+    @media(max-width:600px){.catalogImageRow{align-items:flex-start;gap:10px}.croquiThumb{width:92px;height:80px}.croquiEmpty{width:92px;height:75px}}
+
     .catalogEntry{display:block;width:100%;border:0;background:transparent;color:inherit;text-align:left;padding:0;cursor:pointer}
     .catalogEntry:hover .green,.catalogEntry:focus-visible .green{text-decoration:underline}
     .catalogEntry:focus-visible{outline:2px solid #62d9b3;outline-offset:4px;border-radius:4px}
@@ -116,7 +128,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • tipologias cadastradas v16.0</div>
+        <div class="build">EWGEST • croquis de tipologias v17.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -166,7 +178,14 @@
         <button id="catalogPendingJump" type="button" class="stat statAction" aria-label="Ver esquadrias aguardando classificação"><div class="label">Esquadrias aguardando classificação</div><div class="number" id="catalogPending">—</div><div class="statHint">Clique para ver e revisar</div></button>
       </div>
       <div class="section panel">
-        <h2>Consultar tipologias cadastradas</h2>
+        <div class="croquiToolbar"><h2>Consultar tipologias cadastradas</h2>
+          <div class="croquiActions">
+            <span id="croquiCatalogCount" class="hint">Croquis: —</span>
+            <button id="croquiPackageButton" type="button" class="btn secondary">Importar croquis</button>
+            <input id="croquiPackageInput" type="file" accept=".json,application/json" class="hidden" aria-label="Pacote de croquis EWGEST">
+          </div>
+        </div>
+        <p id="croquiImportStatus" class="hint" role="status" aria-live="polite">Os croquis aparecem somente neste catálogo, para o administrador.</p>
         <div class="itemfilter"><label for="typologySearch">Buscar código ou descrição</label>
           <div class="filterrow"><input id="typologySearch" type="search" placeholder="Ex.: GOLS, JCR202, maxim-ar" autocomplete="off"><button id="clearTypologySearch" type="button" class="btn secondary">Limpar</button></div>
           <p id="typologyFilterCount" class="hint filtercount" role="status"></p>
@@ -222,6 +241,16 @@
   <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="typologyEditTitle">
     <h2 id="typologyEditTitle">Editar tipologia</h2>
     <p id="typologySourceInfo" class="hint"></p>
+    <div id="typologyCroquiArea" class="croquiPreviewArea">
+      <strong>Croqui cadastrado</strong>
+      <div id="typologyCroquiPreview" class="hint" style="margin:12px 0">Sem croqui cadastrado.</div>
+      <div class="croquiActions">
+        <button id="croquiOpenLarge" type="button" class="btn secondary hidden">Ampliar croqui</button>
+        <button id="croquiReplaceButton" type="button" class="btn secondary">Adicionar / trocar croqui</button>
+        <input id="croquiReplaceInput" class="hidden" type="file" accept="image/png,image/jpeg,image/webp">
+      </div>
+      <p id="croquiUploadStatus" class="hint" role="status" aria-live="polite"></p>
+    </div>
     <form id="typologyEditForm">
       <div id="typologyEditFields">
         <label for="typologyEditCode">Código da tipologia</label>
@@ -250,6 +279,13 @@
     </form>
   </div>
 </div>
+<div id="croquiZoomOverlay" class="modaloverlay hidden" style="z-index:25" role="presentation">
+  <div class="panel croquiZoomBox" role="dialog" aria-modal="true" aria-labelledby="croquiZoomTitle">
+    <div class="row"><h2 id="croquiZoomTitle">Croqui</h2><button id="croquiZoomClose" type="button" class="btn secondary">Fechar</button></div>
+    <img id="croquiZoomImage" class="croquiZoomImage" alt="Croqui técnico ampliado da tipologia">
+    <p id="croquiZoomSource" class="hint"></p>
+  </div>
+</div>
 <script>
 'use strict';
 /* EWGEST - v4.0: liberacoes para corte com historico e validacao no Supabase. */
@@ -261,7 +297,7 @@ const escapeHTML = v => String(v??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<'
 const area = (i,q) => Number(i.largura_mm||0)*Number(i.altura_mm||0)*Number(q||0)/1e6;
 let session=null, currentUser=null, currentCompany=null, membership=null, works=[], elements=[], releaseHistory=[], selectedWork=null, selectedItem=null;
 let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='',detailMode='release',currentShipmentRequestId=null;
-let typologyCatalog=[],typologyOrigins=[],typologyOriginReady=false,editingTypology=null,editingPendingItem=null,typologyEditingStep=1;
+let typologyCatalog=[],typologyOrigins=[],typologyOriginReady=false,editingTypology=null,editingPendingItem=null,typologyEditingStep=1,typologyCroquis=[];
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
 function setView(view){for(const id of ['login','dashboard','detail','typologies'])node(id).classList.toggle('hidden',id!==view);node('logout').classList.toggle('hidden',view==='login');}
@@ -302,11 +338,19 @@ async function loadPanel(){
     apiGet('tipologias',{select:'id,codigo,descricao,provisoria',empresa_id:'eq.'+currentCompany.id})
   ]);
   works=w||[];elements=e||[];typologyCatalog=tips||[];
-  typologyOrigins=[];typologyOriginReady=false;
+  typologyOrigins=[];typologyOriginReady=false;typologyCroquis=[];
   if(String(membership?.perfil||'').toLowerCase()==='administrador'){
     try{
       typologyOrigins=await apiGet('tipologias_origens',{select:'tipologia_id,codigo_origem,descricao_origem,ativo,tipo_chave_origem',empresa_id:'eq.'+currentCompany.id});
       typologyOriginReady=true;
+      try {
+        typologyCroquis=await apiGet('tipologias_croquis',{
+          select:'tipologia_id,imagem_base64,origem,codigo_esquadria_referencia,tamanho_bytes',
+          order:'atualizado_em.desc'
+        });
+      }catch(croquiError){
+        typologyCroquis=[];
+      }
     }catch(err){
       typologyOrigins=[];typologyOriginReady=false;
     }
@@ -855,7 +899,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v16.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v17.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
