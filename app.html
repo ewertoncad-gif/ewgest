@@ -484,6 +484,26 @@ async function request(path,{method='GET',body=null,token=null}={}){
   finally{clearTimeout(timer);}
 }
 async function apiGet(table,params){const query=new URLSearchParams(params);return request('/rest/v1/'+table+'?'+query.toString(),{token:session.access_token});}
+
+async function userApi(payload,authenticated=true) {
+  if(authenticated)await ensureSession();
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),25000);
+  try{
+    const headers={'Content-Type':'application/json','Accept':'application/json','apikey':PUBLIC_KEY};
+    if(authenticated)headers['Authorization']='Bearer '+session.access_token;
+    const response=await fetch(API_BASE+'/functions/v1/ewgest-acesso',{
+      method:'POST',headers,body:JSON.stringify(payload),signal:controller.signal,cache:'no-store'
+    });
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(result.error||('Erro '+response.status+' ao consultar o acesso.'));
+    return result;
+  }catch(err){
+    if(err.name==='AbortError')throw new Error('O servidor demorou a responder. Confira a conexão.');
+    if(err instanceof TypeError)throw new Error('Não foi possível conectar ao servidor de contas.');
+    throw err;
+  }finally{clearTimeout(timer);}
+}
 function saveSession(data){session={access_token:data.access_token,refresh_token:data.refresh_token,expires_at:Math.floor(Date.now()/1000)+Number(data.expires_in||3600),user:data.user};sessionStorage.setItem('ewgest_session_v3',JSON.stringify(session));}
 async function ensureSession(){if(!session)throw new Error('Sua sessão expirou. Entre novamente.');if(Number(session.expires_at)<Math.floor(Date.now()/1000)+60){const data=await request('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:{refresh_token:session.refresh_token}});saveSession(data);}return session;}
 async function loadPanel(){
@@ -498,6 +518,7 @@ async function loadPanel(){
   membership=rel.find(r=>r.empresa_id===currentCompany.id);
   node('openTypologies').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
   node('openManufacturers').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
+  node('openUsers').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
   const [w,e,tips]=await Promise.all([
     apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'}),
     apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id,rotulo_tipologia_relatorio',empresa_id:'eq.'+currentCompany.id}),
@@ -539,7 +560,14 @@ async function loadPanel(){
   }catch(err){dispatchConfig=[];shipmentHistory=[];dispatchReady=false;dispatchLoadError=err.message;}
 
   node('heading').textContent=currentCompany.nome;
-  node('userline').textContent=(currentUser.email||'Usuário')+' · '+membership.perfil;
+  let displayLogin=currentUser.email||'Usuário';
+  try{
+    const myAccounts=await apiGet('usuarios_login',{
+      select:'nome,login,ativo',usuario_id:'eq.'+currentUser.id
+    });
+    if(myAccounts?.[0])displayLogin=myAccounts[0].nome+' · '+myAccounts[0].login;
+  }catch(e){}
+  node('userline').textContent=displayLogin+' · '+membership.perfil;
   node('panelError').textContent='';
   renderList();setView('dashboard');
 }
@@ -854,7 +882,13 @@ node('releaseForm').addEventListener('submit',async event=>{
   finally{button.disabled=false;button.textContent='Salvar liberação';}
 });
 window.EWGEST_LOGIN=async function(event){event.preventDefault();setError('');setStatus('Botão funcionando. Conferindo usuário e senha…');const b=node('loginButton');b.disabled=true;b.textContent='Verificando…';try{
-  const data=await request('/auth/v1/token?grant_type=password',{method:'POST',body:{email:node('email').value.trim(),password:node('password').value}});
+  const login=node('email').value.trim();
+  const pass=node('password').value;
+  const data=login.includes('@')
+    ?await request('/auth/v1/token?grant_type=password',{
+      method:'POST',body:{email:login,password:pass}
+    })
+    :await userApi({acao:'entrar',login,senha:pass},false);
   if(!data.access_token)throw new Error('O servidor não retornou uma sessão válida.');
   saveSession(data);node('password').value='';setStatus('Login aceito. Carregando obras…');await loadPanel();
  }catch(e){setStatus('Não foi possível entrar.');setError('Detalhe: '+(e.message||'Falha desconhecida')+'\nSe persistir, envie uma captura apenas desta mensagem, sem mostrar a senha.');}
