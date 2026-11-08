@@ -893,6 +893,180 @@ window.EWGEST_LOGIN=async function(event){event.preventDefault();setError('');se
   saveSession(data);node('password').value='';setStatus('Login aceito. Carregando obras…');await loadPanel();
  }catch(e){setStatus('Não foi possível entrar.');setError('Detalhe: '+(e.message||'Falha desconhecida')+'\nSe persistir, envie uma captura apenas desta mensagem, sem mostrar a senha.');}
  finally{b.disabled=false;b.textContent='Entrar no painel';}return false;};
+
+let managedAccounts=[];
+let editingManagedAccount=null;
+function canManageUsers(){return String(membership?.perfil||'').toLowerCase()==='administrador';}
+function roleLabel(value){
+  return ({administrador:'Administrador',supervisor:'Supervisor',tecnico:'Técnico',consulta:'Consulta'})[value]||value;
+}
+function closeManagedUserEdit(){
+  node('userEditOverlay').classList.add('hidden');
+  node('userResetPassword').value='';
+  editingManagedAccount=null;
+}
+function renderManagedAccounts(){
+  const rows=managedAccounts.slice().sort((a,b)=>String(a.login).localeCompare(String(b.login),'pt-BR'));
+  node('usersMessage').textContent=rows.length+' usuário(s) cadastrado(s). Clique para editar.';
+  node('usersList').innerHTML=rows.map(user=>
+    '<button type="button" class="userCard" data-user-id="'+escapeHTML(user.usuario_id)+'">'+
+      '<div><div class="userCardName">'+escapeHTML(user.nome)+'</div>'+
+      '<div class="userCardLogin">@'+escapeHTML(user.login)+' · '+escapeHTML(roleLabel(user.perfil))+'</div></div>'+
+      '<span class="userStatus '+(user.ativo?'':'disabled')+'">'+
+        (user.ativo?'Ativo':'Desativado')+'</span></button>'
+  ).join('');
+  node('usersList').querySelectorAll('[data-user-id]').forEach(btn=>{
+    btn.addEventListener('click',()=>openManagedUserEdit(btn.dataset.userId));
+  });
+}
+async function reloadManagedUsers(){
+  if(!canManageUsers())throw new Error('Somente administradores podem gerenciar usuários.');
+  const result=await userApi({acao:'listar'});
+  managedAccounts=result.usuarios||[];
+  renderManagedAccounts();
+}
+async function openManagedUsersPage(){
+  if(!canManageUsers())return;
+  node('createUserMessage').textContent='';
+  node('usersMessage').textContent='Consultando usuários…';
+  setView('users');
+  try{await reloadManagedUsers();}
+  catch(e){node('usersMessage').textContent='Não foi possível carregar: '+e.message;}
+}
+function openManagedUserEdit(id){
+  if(!canManageUsers())return;
+  const account=managedAccounts.find(x=>x.usuario_id===id);
+  if(!account)return;
+  editingManagedAccount=account;
+  const self=account.usuario_id===currentUser.id;
+  node('userEditTitle').textContent='Editar usuário · '+account.login;
+  node('userEditLogin').value=account.login;
+  node('userEditName').value=account.nome;
+  node('userEditRole').value=account.perfil;
+  node('userEditRole').disabled=self;
+  node('userResetPassword').value='';
+  node('userEditMessage').textContent='';
+  node('userToggleActive').classList.toggle('hidden',self);
+  node('userToggleActive').textContent=account.ativo?'Desativar acesso':'Reativar acesso';
+  node('userEditOverlay').classList.remove('hidden');
+  node('userEditLogin').focus();
+}
+node('openUsers').addEventListener('click',openManagedUsersPage);
+node('usersBack').addEventListener('click',()=>setView('dashboard'));
+node('reloadUsers').addEventListener('click',async()=>{
+  node('usersMessage').textContent='Atualizando…';
+  try{await reloadManagedUsers();}
+  catch(e){node('usersMessage').textContent='Erro: '+e.message;}
+});
+node('createUserForm').addEventListener('submit',async(event)=>{
+  event.preventDefault();
+  if(!canManageUsers())return;
+  const login=node('createUserLogin').value.trim();
+  const nome=node('createUserName').value.trim();
+  const perfil=node('createUserRole').value;
+  const senha=node('createUserPassword').value;
+  if(senha.length<12){node('createUserMessage').textContent='Senha de no mínimo 12 caracteres.';return;}
+  if(perfil==='administrador' && !confirm('Criar outro administrador? Ele poderá gerenciar usuários, senhas e cadastros.'))return;
+  const button=node('createUserSubmit');
+  button.disabled=true;button.textContent='Cadastrando…';
+  node('createUserMessage').textContent='';
+  let saved=false;
+  try{
+    await userApi({acao:'criar',login,nome,perfil,senha});
+    saved=true;
+    node('createUserPassword').value='';
+    node('createUserLogin').value='';
+    node('createUserName').value='';
+    node('createUserRole').value='tecnico';
+    node('createUserMessage').textContent='Usuário '+login+' cadastrado. Informe a senha inicial a ele por um canal seguro.';
+    try{await reloadManagedUsers();}
+    catch(e){node('usersMessage').textContent='Usuário criado, mas a lista não atualizou: '+e.message;}
+  }catch(e){
+    node('createUserMessage').textContent='Não foi possível cadastrar: '+e.message;
+    if(saved)node('createUserMessage').textContent='Usuário criado. Atualize a lista antes de tentar novamente.';
+  }finally{button.disabled=false;button.textContent='Cadastrar usuário';}
+});
+node('userEditCancel').addEventListener('click',closeManagedUserEdit);
+node('userEditForm').addEventListener('submit',async(event)=>{
+  event.preventDefault();
+  if(!canManageUsers()||!editingManagedAccount)return;
+  const target=editingManagedAccount;
+  const login=node('userEditLogin').value.trim();
+  const nome=node('userEditName').value.trim();
+  const perfil=node('userEditRole').value;
+  const button=node('userEditSubmit');
+  button.disabled=true;button.textContent='Salvando…';
+  try{
+    await userApi({acao:'editar',usuario_id:target.usuario_id,login,nome,perfil});
+    closeManagedUserEdit();
+    node('usersMessage').textContent='Dados salvos no banco.';
+    try{await reloadManagedUsers();}
+    catch(e){node('usersMessage').textContent='Dados salvos, mas a lista não atualizou: '+e.message;}
+    if(target.usuario_id===currentUser.id){
+      node('userline').textContent=nome+' · '+login+' · '+membership.perfil;
+    }
+  }catch(e){node('userEditMessage').textContent='Erro ao salvar: '+e.message;}
+  finally{button.disabled=false;button.textContent='Salvar dados';}
+});
+node('userResetSubmit').addEventListener('click',async()=>{
+  if(!canManageUsers()||!editingManagedAccount)return;
+  const target=editingManagedAccount;
+  const next=node('userResetPassword').value;
+  if(next.length<12){node('userEditMessage').textContent='Nova senha: mínimo de 12 caracteres.';return;}
+  if(!confirm('Redefinir a senha de '+target.login+'? A senha antiga será substituída.'))return;
+  const button=node('userResetSubmit');
+  button.disabled=true;button.textContent='Atualizando senha…';
+  node('userEditMessage').textContent='';
+  try{
+    await userApi({acao:'redefinir_senha',usuario_id:target.usuario_id,nova_senha:next});
+    node('userResetPassword').value='';
+    node('userEditMessage').textContent='Nova senha definida. O usuário já pode usá-la no próximo login.';
+  }catch(e){node('userEditMessage').textContent='Não foi possível redefinir: '+e.message;}
+  finally{button.disabled=false;button.textContent='Definir nova senha';}
+});
+node('userToggleActive').addEventListener('click',async()=>{
+  if(!canManageUsers()||!editingManagedAccount)return;
+  const target=editingManagedAccount;
+  if(target.usuario_id===currentUser.id)return;
+  const action=target.ativo?'desativar':'reativar';
+  const message=target.ativo
+    ?'Desativar '+target.login+'? Ele perderá o acesso à EWGEST. O histórico das obras será preservado.'
+    :'Reativar o acesso de '+target.login+'?';
+  if(!confirm(message))return;
+  const button=node('userToggleActive');
+  button.disabled=true;
+  try{
+    await userApi({acao:action,usuario_id:target.usuario_id});
+    closeManagedUserEdit();
+    try{await reloadManagedUsers();}
+    catch(e){node('usersMessage').textContent='Acesso atualizado, mas a lista não atualizou: '+e.message;}
+    node('usersMessage').textContent='Acesso de '+target.login+(target.ativo?' desativado.':' reativado.');
+  }catch(e){node('userEditMessage').textContent='Erro: '+e.message;}
+  finally{button.disabled=false;}
+});
+node('myPasswordHeader').addEventListener('click',()=>{
+  node('myPasswordForm').reset();
+  node('myPasswordMessage').textContent='';
+  setView('myPassword');
+});
+node('myPasswordBack').addEventListener('click',()=>setView('dashboard'));
+node('myPasswordForm').addEventListener('submit',async(event)=>{
+  event.preventDefault();
+  const old=node('myOldPassword').value;
+  const next=node('myNewPassword').value;
+  const repeat=node('myNewPasswordRepeat').value;
+  if(next!==repeat){node('myPasswordMessage').textContent='As novas senhas não coincidem.';return;}
+  if(next.length<12){node('myPasswordMessage').textContent='A nova senha precisa ter pelo menos 12 caracteres.';return;}
+  const button=node('myPasswordSubmit');
+  button.disabled=true;button.textContent='Atualizando senha…';
+  try{
+    await userApi({acao:'alterar_minha_senha',senha_atual:old,nova_senha:next});
+    node('myPasswordForm').reset();
+    node('myPasswordMessage').textContent='Senha alterada com sucesso. Use a nova senha no próximo login.';
+  }catch(e){node('myPasswordMessage').textContent='Não foi possível alterar: '+e.message;}
+  finally{button.disabled=false;button.textContent='Alterar minha senha';}
+});
+
 node('logout').addEventListener('click',async()=>{const old=session;session=null;sessionStorage.removeItem('ewgest_session_v3');setView('login');setStatus('Sessão encerrada.');if(old)try{await request('/auth/v1/logout',{method:'POST',token:old.access_token});}catch{}});
 node('refresh').addEventListener('click',async()=>{node('panelError').textContent='Atualizando…';try{await loadPanel();}catch(e){node('panelError').textContent='Erro ao atualizar: '+e.message;}});
 node('shipmentKind').addEventListener('change',updateShipmentForm);
