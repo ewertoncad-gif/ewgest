@@ -1,0 +1,45 @@
+name: EWGEST - Ativar controle de saidas
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ativar-saidas-producao.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ewgest-migracao-saidas
+  cancel-in-progress: false
+
+jobs:
+  ativar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Baixar codigo da EWGEST
+        uses: actions/checkout@v4
+
+      - name: Disponibilizar cliente PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+
+      - name: Aplicar migracao e verificar instalacao
+        shell: bash
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_DB_PASSWORD:-}" || { echo 'Secret de banco nao configurado.'; exit 1; }
+          test -s supabase/migrations/20261108_saidas_producao.sql
+          DB_URL="$(python3 -c 'import os; from urllib.parse import quote; print("postgresql://postgres.knsmefqcdvxacvdauezu:" + quote(os.environ["SUPABASE_DB_PASSWORD"], safe="") + "@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require")')"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261108_saidas_producao.sql
+          result="$(psql "$DB_URL" -Atqc "SELECT to_regprocedure('public.registrar_saida_producao(uuid,uuid,text,integer,date,integer)') IS NOT NULL")"
+          test "$result" = t || { echo 'Funcao de registro nao encontrada apos migracao.'; exit 1; }
+          echo 'Controle de saidas ativado; funcao verificada. Nenhuma saida ficticia foi criada.'
