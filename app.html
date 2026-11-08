@@ -52,6 +52,15 @@
     .modalbuttons{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}.feedback{font-size:13px;margin-top:12px;white-space:pre-wrap;color:#ffc5ba}
     .hint{color:#a9bfd3;font-size:13px;line-height:1.5}.tap{color:#62d9b3;font-size:12px}
     .topactions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .displayoptions{display:flex;gap:20px;flex-wrap:wrap;margin:12px 0 18px}
+    .displayoptions label{display:flex;align-items:center;gap:8px;margin:0;color:#bfcee0;font-size:13px;cursor:pointer}
+    .displayoptions input{width:auto;margin:0;accent-color:#62d9b3;padding:0}
+    .typologyGroup{border:1px solid #35546c;border-radius:12px;padding:3px 16px 8px;margin:16px 0;background:#112338}
+    .typologyHeading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 0 8px;border-bottom:1px solid #33506a;flex-wrap:wrap}
+    .typologyHeading strong{font-size:16px;letter-spacing:.2px;color:#62d9b3}
+    .typologyHeading span{color:#a7bfd3;font-size:12px}
+    .catalogRow{padding:16px 0;border-bottom:1px solid #334c61}.catalogRow:last-child{border:0}
+    .catalogMeta{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:#abc2d6}
     select{font:inherit;width:100%;background:#0b192c;color:#fff;border:1px solid #46627a;padding:13px 14px;border-radius:9px}
     select:focus{outline:2px solid #62d9b3}
     .detailtabs{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px}
@@ -87,7 +96,7 @@
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
     <section id="dashboard" class="hidden">
-      <div class="head"><div><h1 id="heading">Painel de obras</h1><div class="muted" id="userline"></div></div><button id="refresh" class="btn secondary">Atualizar dados</button></div>
+      <div class="head"><div><h1 id="heading">Painel de obras</h1><div class="muted" id="userline"></div></div><div class="topactions"><button id="openTypologies" type="button" class="btn secondary hidden">Banco de tipologias</button><button id="refresh" class="btn secondary">Atualizar dados</button></div></div>
       <div id="panelError" class="error"></div>
       <div class="stats">
         <div class="stat"><div class="label">Obras</div><div class="number" id="count">—</div></div>
@@ -115,7 +124,28 @@
           <div class="stat"><div class="label">Marcos enviados</div><div class="number" id="shipFramesTotal">—</div></div>
           <div class="stat"><div class="label">Folhas enviadas</div><div class="number" id="shipLeavesTotal">—</div></div>
           <div class="stat"><div class="label">Registros de saída</div><div class="number" id="shipEventsTotal">—</div></div>
-        </div><div class="itemfilter"><label for="itemSearch">Buscar esquadria pelo código</label><div class="filterrow"><input id="itemSearch" type="search" placeholder="Ex.: EA05 ou 05" autocomplete="off" spellcheck="false"><button id="clearItemSearch" type="button" class="btn secondary">Limpar</button></div><p id="itemFilterCount" class="hint filtercount" role="status" aria-live="polite"></p></div><div id="detailError" class="feedback" role="alert"></div><div id="items"></div><div id="itemFilterEmpty" class="empty hidden">Nenhuma esquadria encontrada com esse código. Tente buscar só uma parte, como EA05 ou 05.</div></div>
+        </div><div class="itemfilter"><label for="itemSearch">Buscar esquadria pelo código</label><div class="filterrow"><input id="itemSearch" type="search" placeholder="Ex.: EA8, EA05 ou GOLS-JCR202" autocomplete="off" spellcheck="false"><button id="clearItemSearch" type="button" class="btn secondary">Limpar</button></div><div class="displayoptions"><label><input id="showItemDescription" type="checkbox"> Mostrar descrição</label><label><input id="showItemLocation" type="checkbox"> Mostrar localização</label></div><p id="itemFilterCount" class="hint filtercount" role="status" aria-live="polite"></p></div><div id="detailError" class="feedback" role="alert"></div><div id="items"></div><div id="itemFilterEmpty" class="empty hidden">Nenhuma esquadria encontrada com esse código. Tente buscar só uma parte, como EA05 ou 05.</div></div>
+    </section>
+    <section id="typologies" class="hidden">
+      <div class="head"><div>
+        <button id="backTypologies" type="button" class="btn secondary" style="margin-bottom:18px">← Tela inicial</button>
+        <h1>Banco de tipologias</h1>
+        <div class="muted">Catálogo mestre de códigos CEM, reservado ao administrador da empresa.</div>
+      </div></div>
+      <div class="stats">
+        <div class="stat"><div class="label">Tipologias cadastradas</div><div class="number" id="catalogCount">—</div></div>
+        <div class="stat"><div class="label">Códigos de esquadrias vinculados</div><div class="number" id="catalogLinked">—</div></div>
+        <div class="stat"><div class="label">Aguardando classificação</div><div class="number" id="catalogPending">—</div></div>
+      </div>
+      <div class="section panel">
+        <h2>Consultar tipologias cadastradas</h2>
+        <div class="itemfilter"><label for="typologySearch">Buscar código ou descrição</label>
+          <div class="filterrow"><input id="typologySearch" type="search" placeholder="Ex.: GOLS, JCR202, maxim-ar" autocomplete="off"><button id="clearTypologySearch" type="button" class="btn secondary">Limpar</button></div>
+          <p id="typologyFilterCount" class="hint filtercount" role="status"></p>
+        </div>
+        <div id="typologyList"></div>
+      </div>
+      <p class="notice">Novas esquadrias importadas sem código de tipologia aparecem em “Aguardando classificação”. O sistema não inventa códigos: eles devem vir do relatório CEM ou ser conferidos pelo administrador.</p>
     </section>
   </main>
 </div>
@@ -174,7 +204,7 @@ let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='
 let typologyCatalog=[];
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
-function setView(view){for(const id of ['login','dashboard','detail'])node(id).classList.toggle('hidden',id!==view);node('logout').classList.toggle('hidden',view==='login');}
+function setView(view){for(const id of ['login','dashboard','detail','typologies'])node(id).classList.toggle('hidden',id!==view);node('logout').classList.toggle('hidden',view==='login');}
 function throwFriendly(error){const e=new Error(error.message||error.msg||error.error_description||error.error||'Erro desconhecido');e.code=error.code||'';throw e;}
 async function request(path,{method='GET',body=null,token=null}={}){
   const controller=new AbortController();
@@ -205,6 +235,7 @@ async function loadPanel(){
   if(!comps?.length)throw new Error('Nenhuma empresa autorizada foi encontrada para seu usuário.');
   currentCompany=comps.find(e=>e.nome==='GVG ESQUADRIAS')||comps[0];
   membership=rel.find(r=>r.empresa_id===currentCompany.id);
+  node('openTypologies').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
   const [w,e,tips]=await Promise.all([
     apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'}),
     apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id',empresa_id:'eq.'+currentCompany.id}),
@@ -234,6 +265,45 @@ function renderList(){const t=totals(elements);node('count').textContent=works.l
 }
 function typologyCode(item){const tip=typologyCatalog.find(t=>t.id===item.tipologia_id);return tip?.codigo||'';}
 function labeledDescription(item){const code=typologyCode(item);return (code?code+' — ':'')+(item.descricao||'');}
+function sortWorkItems(a,b){
+  const ac=typologyCode(a),bc=typologyCode(b);
+  if(!ac&&bc)return 1;
+  if(ac&&!bc)return -1;
+  return ac.localeCompare(bc,'pt-BR',{numeric:true,sensitivity:'base'})
+    ||String(a.codigo||'').localeCompare(String(b.codigo||''),'pt-BR',{numeric:true,sensitivity:'base'});
+}
+function groupRenderedItems(list){
+  const host=node('items');
+  const rows=[...host.querySelectorAll(':scope > .item')];
+  if(rows.length!==list.length)return;
+  host.replaceChildren();
+  let previous=null,group=null;
+  for(let i=0;i<list.length;i++){
+    const code=typologyCode(list[i])||'PENDENTE DE CLASSIFICAÇÃO';
+    if(code!==previous){
+      group=document.createElement('div');
+      group.className='typologyGroup';
+      group.dataset.tipologia=code;
+      const heading=document.createElement('div');
+      heading.className='typologyHeading';
+      const title=document.createElement('strong');
+      title.textContent='Tipologia: '+code;
+      const count=document.createElement('span');
+      count.textContent=list.filter(x=>(typologyCode(x)||'PENDENTE DE CLASSIFICAÇÃO')===code).length+' código(s) de esquadria';
+      heading.append(title,count);
+      group.append(heading);
+      host.append(group);
+      previous=code;
+    }
+    group.append(rows[i]);
+  }
+}
+function applyDetailVisibility(){
+  const showDescription=node('showItemDescription').checked;
+  const showLocation=node('showItemLocation').checked;
+  node('items').querySelectorAll('.itemdescription').forEach(x=>x.classList.toggle('hidden',!showDescription));
+  node('items').querySelectorAll('.itemlocation').forEach(x=>x.classList.toggle('hidden',!showLocation));
+}
 function shipmentStats(item){
   const config=dispatchConfig.find(c=>c.esquadria_id===item.id);
   const per=config?Number(config.folhas_por_unidade):null;
@@ -263,7 +333,7 @@ function changeDetailMode(mode) {
 function renderDetail(w){
   if(selectedWork?.id!==w.id)node('itemSearch').value='';
   selectedWork=w;
-  const list=elements.filter(x=>x.obra_id===w.id);
+  const list=elements.filter(x=>x.obra_id===w.id).sort(sortWorkItems);
   const t=totals(list);
   node('workName').textContent=w.nome;
   node('workMeta').textContent=[w.codigo,w.cliente,w.situacao,w.prazo_previsto?'Prazo: '+w.prazo_previsto:''].filter(Boolean).join(' · ');
@@ -298,7 +368,7 @@ function renderDetail(w){
     node('items').innerHTML=list.length?list.map(x=>{
       const pending=Math.max(0,Number(x.quantidade)-Number(x.qtd_liberada));
       const latest=releaseHistory.find(r=>r.esquadria_id===x.id);
-      return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted">${escapeHTML(x.localizacao||'')}</span></div><p class="muted">${escapeHTML(labeledDescription(x))} · ${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Liberadas: ${Number(x.qtd_liberada)||0}</span><span>Aguardando: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline" style="margin-top:8px"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/')):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button></div>`;
+      return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><div class="hint" style="margin-top:8px">${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Liberadas: ${Number(x.qtd_liberada)||0}</span><span>Aguardando: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline" style="margin-top:8px"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/')):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button></div>`;
     }).join(''):'<div class="empty">Nenhuma esquadria nesta obra.</div>';
     node('items').querySelectorAll('[data-esq]').forEach(b=>b.addEventListener('click',()=>openRelease(b.dataset.esq)));
   }else{
@@ -311,10 +381,12 @@ function renderDetail(w){
         ?'Folhas: composição a confirmar na primeira saída'
         :'Folhas enviadas: '+s.leaves+' / '+s.maxLeaves+' ( '+s.per+' por unidade )';
       const dateText=s.last?'Última saída: '+s.last.data_saida.split('-').reverse().join('/'):'Nenhuma saída registrada';
-      return `<div class="item"><button type="button" class="itemclick" data-ship="${escapeHTML(x.id)}" ${!canShip?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted">${escapeHTML(x.localizacao||'')}</span></div><p class="muted">${escapeHTML(labeledDescription(x))}</p><div class="itemline"><span>Liberadas para corte: ${s.released}</span><span>Marcos enviados: ${s.frames} / ${s.released}</span><span>${escapeHTML(sheetText)}</span></div><div class="itemline" style="margin-top:8px"><span class="hint">${escapeHTML(dateText)}</span><span class="tap">${!dispatchReady?'Configuração pendente':!canEdit?'Somente consulta':s.released===0?'Ainda não liberada':canShip?'Registrar saída':'Tudo expedido'}</span></div></button></div>`;
+      return `<div class="item"><button type="button" class="itemclick" data-ship="${escapeHTML(x.id)}" ${!canShip?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Liberadas para corte: ${s.released}</span><span>Marcos enviados: ${s.frames} / ${s.released}</span><span>${escapeHTML(sheetText)}</span></div><div class="itemline" style="margin-top:8px"><span class="hint">${escapeHTML(dateText)}</span><span class="tap">${!dispatchReady?'Configuração pendente':!canEdit?'Somente consulta':s.released===0?'Ainda não liberada':canShip?'Registrar saída':'Tudo expedido'}</span></div></button></div>`;
     }).join(''):'<div class="empty">Nenhuma esquadria nesta obra.</div>';
     node('items').querySelectorAll('[data-ship]').forEach(b=>b.addEventListener('click',()=>openShipment(b.dataset.ship)));
   }
+  groupRenderedItems(list);
+  applyDetailVisibility();
   applyItemFilter();
   setView('detail');
 }
@@ -324,10 +396,12 @@ function applyItemFilter(){
   let visible=0;
   for(const item of items){
     const code=item.querySelector('.itemline strong')?.textContent||'';
-    const matches=code.toLocaleUpperCase('pt-BR').includes(query);
+    const typology=item.closest('.typologyGroup')?.dataset.tipologia||'';
+    const matches=code.toLocaleUpperCase('pt-BR').includes(query)||typology.toLocaleUpperCase('pt-BR').includes(query);
     item.classList.toggle('hidden',!matches);
     if(matches)visible++;
   }
+  node('items').querySelectorAll('.typologyGroup').forEach(g=>g.classList.toggle('hidden',![...g.querySelectorAll('.item')].some(x=>!x.classList.contains('hidden'))));
   node('itemFilterCount').textContent=query
     ? visible+' código(s) encontrado(s) de '+items.length+'.'
     : items.length+' código(s) na obra. Digite para filtrar.';
@@ -336,6 +410,8 @@ function applyItemFilter(){
 node('tabRelease').addEventListener('click',()=>changeDetailMode('release'));
 node('tabShip').addEventListener('click',()=>changeDetailMode('shipment'));
 node('itemSearch').addEventListener('input',applyItemFilter);
+node('showItemDescription').addEventListener('change',applyDetailVisibility);
+node('showItemLocation').addEventListener('change',applyDetailVisibility);
 node('clearItemSearch').addEventListener('click',()=>{
   node('itemSearch').value='';
   applyItemFilter();
@@ -493,6 +569,49 @@ node('shipmentPart').addEventListener('change',updateShipmentForm);
 node('shipmentLeaves').addEventListener('input',updateShipmentForm);
 node('shipmentCancel').addEventListener('click',closeShipment);
 node('shipmentForm').addEventListener('submit',saveShipment);
+
+function catalogEntryCounts(tipId) {
+  const linked=elements.filter(x=>x.tipologia_id===tipId);
+  return {linked,units:linked.reduce((sum,x)=>sum+(Number(x.quantidade)||0),0),works:new Set(linked.map(x=>x.obra_id)).size};
+}
+function renderTypologiesAdmin() {
+  if(String(membership?.perfil||'').toLowerCase()!=='administrador'){setView('dashboard');return;}
+  node('catalogCount').textContent=typologyCatalog.length.toLocaleString('pt-BR');
+  node('catalogLinked').textContent=elements.filter(x=>x.tipologia_id).length.toLocaleString('pt-BR');
+  const pending=elements.filter(x=>!x.tipologia_id);
+  node('catalogPending').textContent=pending.length.toLocaleString('pt-BR');
+  const query=node('typologySearch').value.trim().toLocaleUpperCase('pt-BR');
+  const catalog=typologyCatalog.slice().sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR',{numeric:true,sensitivity:'base'}))
+    .filter(t=>!query||(t.codigo+' '+t.descricao).toLocaleUpperCase('pt-BR').includes(query));
+  const waiting=pending.filter(x=>!query||(x.codigo+' '+x.descricao).toLocaleUpperCase('pt-BR').includes(query));
+  const rows=catalog.map(t=>{
+    const c=catalogEntryCounts(t.id);
+    const types=[...new Set(c.linked.map(x=>x.descricao).filter(Boolean))];
+    const codes=c.linked.map(x=>x.codigo).sort((a,b)=>a.localeCompare(b,'pt-BR',{numeric:true})).join(', ');
+    return `<div class="catalogRow"><div class="itemline"><strong class="green">${escapeHTML(t.codigo)}</strong><span class="hint">${c.works} obra(s) · ${c.units} unidade(s)</span></div>
+    <p class="muted">${escapeHTML(t.descricao)}</p>
+    <div class="catalogMeta"><span>${c.linked.length} código(s) vinculado(s)</span><span>${types.length} descrição(ões) identificada(s)</span></div>
+    <p class="hint">Esquadrias: ${escapeHTML(codes||'Nenhuma ainda')}</p></div>`;
+  });
+  const waitingRows=waiting.map(x=>`<div class="catalogRow"><strong>${escapeHTML(x.codigo)}</strong><p class="muted">${escapeHTML(x.descricao)}</p><span class="hint">Sem tipologia vinculada — verificar código CEM no relatório de origem</span></div>`);
+  node('typologyFilterCount').textContent=catalog.length+' tipologia(s) cadastrada(s)'+(waiting.length?' · '+waiting.length+' esquadria(s) pendente(s)':'');
+  node('typologyList').innerHTML=(catalog.length?rows.join(''):'<div class="empty">Nenhuma tipologia cadastrada corresponde à busca.</div>')
+    +(waitingRows.length?'<h2 style="margin-top:28px">Aguardando classificação</h2>'+waitingRows.join(''):'');
+}
+node('openTypologies').addEventListener('click',()=>{
+  if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  node('typologySearch').value='';
+  renderTypologiesAdmin();
+  setView('typologies');
+});
+node('backTypologies').addEventListener('click',()=>setView('dashboard'));
+node('typologySearch').addEventListener('input',renderTypologiesAdmin);
+node('clearTypologySearch').addEventListener('click',()=>{
+  node('typologySearch').value='';
+  renderTypologiesAdmin();
+  node('typologySearch').focus();
+});
+
 node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
