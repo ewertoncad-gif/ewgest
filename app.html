@@ -171,6 +171,7 @@ const escapeHTML = v => String(v??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<'
 const area = (i,q) => Number(i.largura_mm||0)*Number(i.altura_mm||0)*Number(q||0)/1e6;
 let session=null, currentUser=null, currentCompany=null, membership=null, works=[], elements=[], releaseHistory=[], selectedWork=null, selectedItem=null;
 let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='',detailMode='release',currentShipmentRequestId=null;
+let typologyCatalog=[];
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
 function setView(view){for(const id of ['login','dashboard','detail'])node(id).classList.toggle('hidden',id!==view);node('logout').classList.toggle('hidden',view==='login');}
@@ -204,11 +205,12 @@ async function loadPanel(){
   if(!comps?.length)throw new Error('Nenhuma empresa autorizada foi encontrada para seu usuário.');
   currentCompany=comps.find(e=>e.nome==='GVG ESQUADRIAS')||comps[0];
   membership=rel.find(r=>r.empresa_id===currentCompany.id);
-  const [w,e]=await Promise.all([
+  const [w,e,tips]=await Promise.all([
     apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'}),
-    apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada',empresa_id:'eq.'+currentCompany.id})
+    apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id',empresa_id:'eq.'+currentCompany.id}),
+    apiGet('tipologias',{select:'id,codigo,descricao',empresa_id:'eq.'+currentCompany.id})
   ]);
-  works=w||[];elements=e||[];
+  works=w||[];elements=e||[];typologyCatalog=tips||[];
   releaseHistory=await apiGet('liberacoes_corte',{select:'esquadria_id,quantidade,data_liberacao',order:'data_liberacao.desc'});
   try{
     const [config,history]=await Promise.all([
@@ -230,6 +232,8 @@ function renderList(){const t=totals(elements);node('count').textContent=works.l
   node('works').innerHTML=works.map((w,i)=>{const sum=totals(elements.filter(x=>x.obra_id===w.id));const pct=sum.total?Math.max(0,Math.min(100,Math.round(sum.released/sum.total*100))):0;return `<button class="work" data-i="${i}" type="button"><h3>${escapeHTML(w.nome)}</h3><p>${escapeHTML(w.codigo||'Sem código')} · ${escapeHTML(w.situacao||'')}</p><div class="line"><span>Total</span><strong>${amount(sum.total)} m²</strong></div><div class="line"><span>Liberada</span><strong>${amount(sum.released)} m²</strong></div><div class="line"><span>A liberar</span><strong>${amount(sum.total-sum.released)} m²</strong></div><div class="line"><span>Unidades liberadas</span><strong>${sum.unitsReleased.toLocaleString("pt-BR")} / ${sum.unitsTotal.toLocaleString("pt-BR")}</strong></div><div class="line"><span>Unidades aguardando</span><strong>${(sum.unitsTotal-sum.unitsReleased).toLocaleString("pt-BR")}</strong></div><div class="progress"><div class="bar" style="width:${pct}%"></div></div></button>`;}).join('');
   node('works').querySelectorAll('[data-i]').forEach(b=>b.addEventListener('click',()=>renderDetail(works[Number(b.dataset.i)])));
 }
+function typologyCode(item){const tip=typologyCatalog.find(t=>t.id===item.tipologia_id);return tip?.codigo||'';}
+function labeledDescription(item){const code=typologyCode(item);return (code?code+' — ':'')+(item.descricao||'');}
 function shipmentStats(item){
   const config=dispatchConfig.find(c=>c.esquadria_id===item.id);
   const per=config?Number(config.folhas_por_unidade):null;
@@ -294,7 +298,7 @@ function renderDetail(w){
     node('items').innerHTML=list.length?list.map(x=>{
       const pending=Math.max(0,Number(x.quantidade)-Number(x.qtd_liberada));
       const latest=releaseHistory.find(r=>r.esquadria_id===x.id);
-      return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted">${escapeHTML(x.localizacao||'')}</span></div><p class="muted">${escapeHTML(x.descricao||'')} · ${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Liberadas: ${Number(x.qtd_liberada)||0}</span><span>Aguardando: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline" style="margin-top:8px"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/')):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button></div>`;
+      return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted">${escapeHTML(x.localizacao||'')}</span></div><p class="muted">${escapeHTML(labeledDescription(x))} · ${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Liberadas: ${Number(x.qtd_liberada)||0}</span><span>Aguardando: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline" style="margin-top:8px"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/')):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button></div>`;
     }).join(''):'<div class="empty">Nenhuma esquadria nesta obra.</div>';
     node('items').querySelectorAll('[data-esq]').forEach(b=>b.addEventListener('click',()=>openRelease(b.dataset.esq)));
   }else{
@@ -307,7 +311,7 @@ function renderDetail(w){
         ?'Folhas: composição a confirmar na primeira saída'
         :'Folhas enviadas: '+s.leaves+' / '+s.maxLeaves+' ( '+s.per+' por unidade )';
       const dateText=s.last?'Última saída: '+s.last.data_saida.split('-').reverse().join('/'):'Nenhuma saída registrada';
-      return `<div class="item"><button type="button" class="itemclick" data-ship="${escapeHTML(x.id)}" ${!canShip?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted">${escapeHTML(x.localizacao||'')}</span></div><p class="muted">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Liberadas para corte: ${s.released}</span><span>Marcos enviados: ${s.frames} / ${s.released}</span><span>${escapeHTML(sheetText)}</span></div><div class="itemline" style="margin-top:8px"><span class="hint">${escapeHTML(dateText)}</span><span class="tap">${!dispatchReady?'Configuração pendente':!canEdit?'Somente consulta':s.released===0?'Ainda não liberada':canShip?'Registrar saída':'Tudo expedido'}</span></div></button></div>`;
+      return `<div class="item"><button type="button" class="itemclick" data-ship="${escapeHTML(x.id)}" ${!canShip?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted">${escapeHTML(x.localizacao||'')}</span></div><p class="muted">${escapeHTML(labeledDescription(x))}</p><div class="itemline"><span>Liberadas para corte: ${s.released}</span><span>Marcos enviados: ${s.frames} / ${s.released}</span><span>${escapeHTML(sheetText)}</span></div><div class="itemline" style="margin-top:8px"><span class="hint">${escapeHTML(dateText)}</span><span class="tap">${!dispatchReady?'Configuração pendente':!canEdit?'Somente consulta':s.released===0?'Ainda não liberada':canShip?'Registrar saída':'Tudo expedido'}</span></div></button></div>`;
     }).join(''):'<div class="empty">Nenhuma esquadria nesta obra.</div>';
     node('items').querySelectorAll('[data-ship]').forEach(b=>b.addEventListener('click',()=>openShipment(b.dataset.ship)));
   }
@@ -374,7 +378,7 @@ function openShipment(id){
   selectedItem=elements.find(e=>e.id===id);
   if(!selectedItem||Number(selectedItem.qtd_liberada)<=0)return;
   const s=shipmentStats(selectedItem);
-  node('shipmentItem').textContent=selectedItem.codigo+' · '+(selectedItem.descricao||'')+' · '+(selectedItem.localizacao||'');
+  node('shipmentItem').textContent=selectedItem.codigo+' · '+labeledDescription(selectedItem)+' · '+(selectedItem.localizacao||'');
   node('shipmentKind').value='completo';
   node('shipmentPart').value='marco';
   node('shipmentLeaves').value=s.per||suggestedLeaves(selectedItem)||'';
@@ -444,7 +448,7 @@ function openRelease(id){
   selectedItem=elements.find(e=>e.id===id);if(!selectedItem)return;
   const pending=Number(selectedItem.quantidade)-Number(selectedItem.qtd_liberada);
   if(pending<=0)return;
-  node('releaseItem').textContent=selectedItem.codigo+' · '+(selectedItem.localizacao||'');
+  node('releaseItem').textContent=selectedItem.codigo+' · '+labeledDescription(selectedItem)+' · '+(selectedItem.localizacao||'');
   node('releaseBalance').textContent='Aguardando liberação: '+pending+' de '+selectedItem.quantidade+' unidades.';
   node('releaseQty').value='';node('releaseQty').max=String(pending);
   node('releaseDate').value=todayLocal();node('releaseError').textContent='';
