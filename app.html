@@ -67,6 +67,7 @@
     .manufacturerFilter select{width:100%;padding:11px 13px}
     .catalogManufacturer{font-size:12px;color:#b6d6e8;margin:8px 0}
     .manufacturerForm .filterrow{max-width:700px}
+    .manufacturerForm .filterrow input{flex:1;min-width:0}
     .manufacturerLine{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 3px;border-bottom:1px solid #334c61}
     .manufacturerLine strong{color:#62d9b3}
     .manufacturerLine span{color:#abc2d6;font-size:13px}
@@ -296,9 +297,11 @@
         <input id="typologyEditCode" class="typologyEditInput" type="text" maxlength="80" required autocomplete="off">
         <label for="typologyEditDescription">Descrição da tipologia</label>
         <textarea id="typologyEditDescription" class="typologyEditInput" maxlength="1000" required rows="4"></textarea>
-        <label for="typologyEditManufacturer">Fabricante</label>
-        <input id="typologyEditManufacturer" class="typologyEditInput" type="text" list="typologyManufacturerSuggestions" maxlength="80" placeholder="Ex.: HYDRO, PERFIL ou fabricante novo" autocomplete="off">
-        <p id="manufacturerSyncHint" class="hint">Ao alterar o fabricante no final da descrição, este campo será atualizado.</p>
+        <div id="typologyManufacturerSection">
+          <label for="typologyEditManufacturer">Fabricante</label>
+          <input id="typologyEditManufacturer" class="typologyEditInput" type="text" list="typologyManufacturerSuggestions" maxlength="80" placeholder="Ex.: HYDRO, PERFIL ou fabricante novo" autocomplete="off">
+          <p id="manufacturerSyncHint" class="hint">Ao alterar o fabricante no final da descrição, este campo será atualizado.</p>
+        </div>
         <datalist id="typologyManufacturerSuggestions">
           <option value="HYDRO"></option>
           <option value="PERFIL"></option>
@@ -1112,6 +1115,85 @@ node('croquiZoomClose').addEventListener('click',()=>{
 node('typologyEditCancel').addEventListener('click',closeTypologyEdit);
 node('typologyEditPrevious').addEventListener('click',()=>showTypologyEditStep(1));
 node('typologyEditForm').addEventListener('submit',saveTypologyEdit);
+
+
+function adminCanManageManufacturers() {
+  return String(membership?.perfil||'').toLowerCase()==='administrador';
+}
+function refreshManufacturerSuggestions(){
+  const list=node('typologyManufacturerSuggestions');
+  list.replaceChildren();
+  for(const item of manufacturerCatalog){
+    const option=document.createElement('option');
+    option.value=item.nome;list.append(option);
+  }
+}
+function renderManufacturers() {
+  if(!adminCanManageManufacturers()){setView('dashboard');return;}
+  const host=node('manufacturerList');
+  const list=manufacturerCatalog.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+  host.innerHTML=list.length?list.map(f=>{
+    const count=typologyCatalog.filter(t=>t.fabricante===f.nome).length;
+    return '<div class="manufacturerLine"><strong>'+escapeHTML(f.nome)+'</strong>'+
+      '<span>'+count+' tipologia(s) vinculada(s)</span></div>';
+  }).join(''):'<div class="empty">Nenhum fabricante cadastrado.</div>';
+  if(manufacturerLoadError){
+    node('manufacturerPageMessage').textContent='Não foi possível consultar o cadastro de fabricantes: '+manufacturerLoadError;
+  }
+}
+function openManufacturersPage(){
+  if(!adminCanManageManufacturers())return;
+  renderManufacturers();
+  setView('manufacturers');
+}
+node('openManufacturers').addEventListener('click',openManufacturersPage);
+node('openManufacturersFromCatalog').addEventListener('click',openManufacturersPage);
+node('backManufacturers').addEventListener('click',()=>setView('dashboard'));
+node('goManufacturersToCatalog').addEventListener('click',()=>{
+  node('typologySearch').value='';
+  renderTypologiesAdmin();setView('typologies');
+});
+node('manufacturerForm').addEventListener('submit',async(event)=>{
+  event.preventDefault();
+  if(!adminCanManageManufacturers())return;
+  const name=node('manufacturerNewName').value.trim().toLocaleUpperCase('pt-BR');
+  if(name.length<2||name.length>80){
+    node('manufacturerPageMessage').textContent='Informe um nome entre 2 e 80 caracteres.';
+    return;
+  }
+  const button=node('manufacturerSaveButton');
+  button.disabled=true;button.textContent='Cadastrando…';
+  node('manufacturerPageMessage').textContent='';
+  let created=false;
+  try {
+    await ensureSession();
+    const res=await request('/rest/v1/rpc/cadastrar_fabricante_admin',{
+      method:'POST',token:session.access_token,
+      body:{p_empresa_id:currentCompany.id,p_nome:name}
+    });
+    created=true;
+    node('manufacturerNewName').value='';
+    node('manufacturerPageMessage').textContent=res.criado
+      ?'Fabricante '+name+' cadastrado com sucesso.'
+      :'O fabricante '+name+' já estava cadastrado. Nenhuma duplicidade foi criada.';
+    try {
+      manufacturerCatalog=await apiGet('fabricantes',{
+        select:'id,empresa_id,nome',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'
+      });
+      manufacturerLoadError='';
+      refreshManufacturerSuggestions();
+      renderManufacturers();
+    }catch(err){
+      manufacturerLoadError=err.message;
+      node('manufacturerPageMessage').textContent=
+        'Fabricante salvo no banco, mas a atualização da lista falhou. Atualize a página antes de tentar novamente.';
+    }
+  } catch(err) {
+    node('manufacturerPageMessage').textContent='Não foi possível cadastrar: '+err.message;
+  } finally {
+    button.disabled=false;button.textContent='Cadastrar fabricante';
+  }
+});
 
 node('openTypologies').addEventListener('click',()=>{
   if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
