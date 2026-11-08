@@ -158,7 +158,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • filtro de tipos v26.0</div>
+        <div class="build">EWGEST • filtro FIXO v27.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -316,6 +316,7 @@
               <select id="typologyTypeFilter">
                 <option value="">Todos os tipos</option>
                 <option value="JANELA">JANELA</option>
+                <option value="FIXO">FIXO</option>
                 <option value="PORTA">PORTA</option>
                 <option value="GRADIL">GRADIL</option>
                 <option value="FACHADA UNITIZADA">FACHADA UNITIZADA</option>
@@ -328,7 +329,7 @@
               </select>
             </div>
           </div>
-          <p class="hint" style="margin:0 0 8px">Classificação pela descrição. Fachadas sem sistema especificado ficam em “Não definida”.</p>
+          <p class="hint" style="margin:0 0 8px">Classificação pela descrição. Fachada tem prioridade; módulos fixos de fachada também aparecem em FIXO. Peitoril fixo não conta como FIXO.</p>
           <p id="typologyFilterCount" class="hint filtercount" role="status"></p>
         </div>
         <div id="typologyAdminMessage" class="feedback" role="status" aria-live="polite"></div><div id="typologyList"></div>
@@ -1165,21 +1166,40 @@ function showCroquiZoom(tipologiaId){
   node('croquiZoomSource').textContent=entry.origem||'Croqui cadastrado na EWGEST';
   node('croquiZoomOverlay').classList.remove('hidden');
 }
-function classificarTipoTipologia(t){
-  const desc=String(t.descricao||'').normalize('NFD')
+function normalizarDescricaoTipologia(t){
+  return String(t.descricao||'').normalize('NFD')
     .replace(/[\u0300-\u036f]/g,'').toLocaleUpperCase('pt-BR');
-  if(/\bGUARDA[\s-]*CORPO\b/.test(desc))return 'GUARDA CORPO';
-  if(/\bSPLIT\b/.test(desc))return 'SPLIT';
-  if(/\bGRADIL\b|\bGRADE\b/.test(desc))return 'GRADIL';
-  if(/\bPORTA\s+DE\s+GIRO\b/.test(desc))return 'PORTA DE GIRO';
-  if(/\bPORTA\b/.test(desc))return 'PORTA';
-  if(/\bJANELA\b|\bMAXIM[\s-]?AR\b|^FIXO\b/.test(desc))return 'JANELA';
+}
+function ehFixoPrincipal(t){
+  const desc=normalizarDescricaoTipologia(t);
+  // "PEITORIL FIXO", "BANDEIRA FIXA" e "FIXO LATERAL" de uma porta
+  // não tornam a esquadria inteira um FIXO.
+  return /^FIXO\b/.test(desc) ||
+    /\b(?:MODULO|PAINEL|VIDRO)\s+(?:DE\s+)?FIX[OA]\b/.test(desc);
+}
+function classificarTipoTipologia(t){
+  const desc=normalizarDescricaoTipologia(t);
+  // O sistema de fachada tem prioridade sobre o modo de abertura do módulo.
   if(/\bFACHADA\b|\bFACADE\b|\bPELE\s+DE\s+VIDRO\b/.test(desc)){
     if(/\bUNITIZAD[AO]S?\b/.test(desc))return 'FACHADA UNITIZADA';
     if(/\bSTICK\b/.test(desc))return 'FACHADA STICK';
     return 'FACHADA_NAO_DEFINIDA';
   }
+  if(/\bGUARDA[\s-]*CORPO\b/.test(desc))return 'GUARDA CORPO';
+  if(/\bSPLIT\b/.test(desc))return 'SPLIT';
+  if(/\bGRADIL\b|\bGRADE\b/.test(desc))return 'GRADIL';
+  if(/\bPORTA\s+DE\s+GIRO\b/.test(desc))return 'PORTA DE GIRO';
+  if(/\bPORTA\b/.test(desc))return 'PORTA';
+  if(ehFixoPrincipal(t))return 'FIXO';
+  if(/\bJANELA\b|\bMAXIM[\s-]?AR\b/.test(desc))return 'JANELA';
   return 'OUTROS';
+}
+function correspondeTipoTipologia(t,tipo){
+  if(!tipo)return true;
+  // Módulos fixos de fachada aparecem tanto em FIXO quanto em sua
+  // categoria de fachada. Um peitoril fixo isolado não conta como FIXO.
+  if(tipo==='FIXO')return ehFixoPrincipal(t);
+  return classificarTipoTipologia(t)===tipo;
 }
 function renderTypologiesAdmin() {
   if(String(membership?.perfil||'').toLowerCase()!=='administrador'){setView('dashboard');return;}
@@ -1210,7 +1230,7 @@ function renderTypologiesAdmin() {
     .filter(t=>manufacturer==='__SEM_FABRICANTE__'
       ?!String(t.fabricante||'').trim()
       :!manufacturer||String(t.fabricante||'').trim().toLocaleUpperCase('pt-BR')===manufacturer)
-    .filter(t=>!selectedType||classificarTipoTipologia(t)===selectedType);
+    .filter(t=>correspondeTipoTipologia(t,selectedType));
   const rows=catalog.map(t=>{
     const origin=typologyOrigins.filter(o=>o.tipologia_id===t.id);
     const status=origin.length?(origin.some(x=>x.ativo)?'Origem reconhecida':'Origem sem reconhecimento automático'):'Sem regra de origem';
@@ -1670,7 +1690,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v26.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v27.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
