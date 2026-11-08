@@ -31,6 +31,9 @@
     .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
     .stat{padding:18px;background:#15283e;border:1px solid #2d4963;border-radius:14px}
     .stat .label{font-size:13px;color:#a3bcd2}.number{font-size:27px;font-weight:800;margin-top:9px}
+    .qtystats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
+    .qtystats .stat{background:#102338}.qtystats .number{font-size:24px}
+    @media(max-width:520px){.qtystats{grid-template-columns:1fr}.qtystats .stat{display:flex;justify-content:space-between;align-items:center;gap:12px}.qtystats .number{margin:0}}
     .section{margin-top:27px}.works{display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:12px}
     .work{width:100%;text-align:left;padding:20px;background:#152a40;color:#edf5ff;border:1px solid #2d4963;border-radius:14px}
     .work:hover{border-color:#62d9b3}.work h3{margin:0 0 8px;font-size:17px}.work p{font-size:13px;color:#a9bfd3}
@@ -69,7 +72,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • liberações v4.0 • sem dependências externas</div>
+        <div class="build">EWGEST • liberações v6.0 • quantidades por obra</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -82,6 +85,7 @@
         <div class="stat"><div class="label">Liberada (m²)</div><div class="number" id="released">—</div></div>
         <div class="stat"><div class="label">A liberar (m²)</div><div class="number" id="pending">—</div></div>
       </div>
+      <div class="qtystats" aria-label="Quantidades de esquadrias"><div class="stat"><div class="label">Unidades totais</div><div class="number" id="allUnitsTotal">—</div></div><div class="stat"><div class="label">Liberadas para corte</div><div class="number" id="allUnitsReleased">—</div></div><div class="stat"><div class="label">Aguardando liberação</div><div class="number" id="allUnitsPending">—</div></div></div>
       <div class="section"><h2>Obras cadastradas</h2><div id="works" class="works"></div></div>
       <p class="notice">Liberações para corte: selecione uma esquadria e informe quantidade e data. Os lançamentos ficam registrados no banco. Confirme medições técnicas antes de usar os totais como medição contratual.</p>
     </section>
@@ -93,6 +97,7 @@
         <div class="stat"><div class="label">A liberar</div><div class="number" id="detailPending">—</div></div>
         <div class="stat"><div class="label">Fabricada</div><div class="number" id="detailMade">—</div></div>
       </div>
+      <div class="qtystats" aria-label="Quantidades de esquadrias"><div class="stat"><div class="label">Unidades totais</div><div class="number" id="detailUnitsTotal">—</div></div><div class="stat"><div class="label">Liberadas para corte</div><div class="number" id="detailUnitsReleased">—</div></div><div class="stat"><div class="label">Aguardando liberação</div><div class="number" id="detailUnitsPending">—</div></div></div>
       <div class="section panel"><h2>Itens da obra</h2><p class="hint">Clique em um item para registrar uma liberação para corte.</p><div class="itemfilter"><label for="itemSearch">Buscar esquadria pelo código</label><div class="filterrow"><input id="itemSearch" type="search" placeholder="Ex.: EA05 ou 05" autocomplete="off" spellcheck="false"><button id="clearItemSearch" type="button" class="btn secondary">Limpar</button></div><p id="itemFilterCount" class="hint filtercount" role="status" aria-live="polite"></p></div><div id="detailError" class="feedback" role="alert"></div><div id="items"></div><div id="itemFilterEmpty" class="empty hidden">Nenhuma esquadria encontrada com esse código. Tente buscar só uma parte, como EA05 ou 05.</div></div>
     </section>
   </main>
@@ -166,13 +171,14 @@ async function loadPanel(){
   node('panelError').textContent='';
   renderList();setView('dashboard');
 }
-function totals(list){return list.reduce((a,x)=>{a.total+=area(x,x.quantidade);a.released+=area(x,x.qtd_liberada);a.made+=area(x,x.qtd_fabricada);return a;},{total:0,released:0,made:0});}
-function renderList(){const t=totals(elements);node('count').textContent=works.length;node('total').textContent=amount(t.total);node('released').textContent=amount(t.released);node('pending').textContent=amount(t.total-t.released);
+function totals(list){return list.reduce((a,x)=>{const q=Number(x.quantidade)||0;const liberadas=Number(x.qtd_liberada)||0;a.total+=area(x,q);a.released+=area(x,liberadas);a.made+=area(x,x.qtd_fabricada);a.unitsTotal+=q;a.unitsReleased+=liberadas;return a;},{total:0,released:0,made:0,unitsTotal:0,unitsReleased:0});}
+function renderUnitCounters(prefix,t){node(prefix+"UnitsTotal").textContent=t.unitsTotal.toLocaleString("pt-BR");node(prefix+"UnitsReleased").textContent=t.unitsReleased.toLocaleString("pt-BR");node(prefix+"UnitsPending").textContent=(t.unitsTotal-t.unitsReleased).toLocaleString("pt-BR");}
+function renderList(){const t=totals(elements);node('count').textContent=works.length;node('total').textContent=amount(t.total);node('released').textContent=amount(t.released);node('pending').textContent=amount(t.total-t.released);renderUnitCounters('all',t);
   if(!works.length){node('works').innerHTML='<div class="empty">Nenhuma obra cadastrada ainda. O painel está conectado para consulta. O cadastro será liberado após os testes de segurança e backup.</div>';return;}
-  node('works').innerHTML=works.map((w,i)=>{const sum=totals(elements.filter(x=>x.obra_id===w.id));const pct=sum.total?Math.max(0,Math.min(100,Math.round(sum.released/sum.total*100))):0;return `<button class="work" data-i="${i}" type="button"><h3>${escapeHTML(w.nome)}</h3><p>${escapeHTML(w.codigo||'Sem código')} · ${escapeHTML(w.situacao||'')}</p><div class="line"><span>Total</span><strong>${amount(sum.total)} m²</strong></div><div class="line"><span>Liberada</span><strong>${amount(sum.released)} m²</strong></div><div class="line"><span>A liberar</span><strong>${amount(sum.total-sum.released)} m²</strong></div><div class="progress"><div class="bar" style="width:${pct}%"></div></div></button>`;}).join('');
+  node('works').innerHTML=works.map((w,i)=>{const sum=totals(elements.filter(x=>x.obra_id===w.id));const pct=sum.total?Math.max(0,Math.min(100,Math.round(sum.released/sum.total*100))):0;return `<button class="work" data-i="${i}" type="button"><h3>${escapeHTML(w.nome)}</h3><p>${escapeHTML(w.codigo||'Sem código')} · ${escapeHTML(w.situacao||'')}</p><div class="line"><span>Total</span><strong>${amount(sum.total)} m²</strong></div><div class="line"><span>Liberada</span><strong>${amount(sum.released)} m²</strong></div><div class="line"><span>A liberar</span><strong>${amount(sum.total-sum.released)} m²</strong></div><div class="line"><span>Unidades liberadas</span><strong>${sum.unitsReleased.toLocaleString("pt-BR")} / ${sum.unitsTotal.toLocaleString("pt-BR")}</strong></div><div class="line"><span>Unidades aguardando</span><strong>${(sum.unitsTotal-sum.unitsReleased).toLocaleString("pt-BR")}</strong></div><div class="progress"><div class="bar" style="width:${pct}%"></div></div></button>`;}).join('');
   node('works').querySelectorAll('[data-i]').forEach(b=>b.addEventListener('click',()=>renderDetail(works[Number(b.dataset.i)])));
 }
-function renderDetail(w){if(selectedWork?.id!==w.id)node('itemSearch').value='';selectedWork=w;const list=elements.filter(x=>x.obra_id===w.id);const t=totals(list);node('workName').textContent=w.nome;node('workMeta').textContent=[w.codigo,w.cliente,w.situacao,w.prazo_previsto?'Prazo: '+w.prazo_previsto:''].filter(Boolean).join(' · ');node('detailTotal').textContent=amount(t.total);node('detailReleased').textContent=amount(t.released);node('detailPending').textContent=amount(t.total-t.released);node('detailMade').textContent=amount(t.made);
+function renderDetail(w){if(selectedWork?.id!==w.id)node('itemSearch').value='';selectedWork=w;const list=elements.filter(x=>x.obra_id===w.id);const t=totals(list);node('workName').textContent=w.nome;node('workMeta').textContent=[w.codigo,w.cliente,w.situacao,w.prazo_previsto?'Prazo: '+w.prazo_previsto:''].filter(Boolean).join(' · ');node('detailTotal').textContent=amount(t.total);node('detailReleased').textContent=amount(t.released);node('detailPending').textContent=amount(t.total-t.released);node('detailMade').textContent=amount(t.made);renderUnitCounters('detail',t);
   const canEdit=['administrador','supervisor'].includes(String(membership?.perfil||'').toLowerCase());
   node('detailError').textContent='';
   node('items').innerHTML=list.length?list.map(x=>{const pending=Math.max(0,Number(x.quantidade)-Number(x.qtd_liberada));const latest=releaseHistory.find(r=>r.esquadria_id===x.id);return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted">${escapeHTML(x.localizacao||'')}</span></div><p class="muted">${escapeHTML(x.descricao||'')} · ${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Liberadas: ${Number(x.qtd_liberada)||0}</span><span>Aguardando: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline" style="margin-top:8px"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/')):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button></div>`;}).join(''):'<div class="empty">Nenhuma esquadria nesta obra.</div>';
@@ -250,7 +256,7 @@ node('refresh').addEventListener('click',async()=>{node('panelError').textConten
 node('back').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v4.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v6.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
