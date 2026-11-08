@@ -37,6 +37,7 @@
     .line{display:flex;justify-content:space-between;gap:12px;font-size:13px;margin-top:9px}
     .progress{height:8px;border-radius:30px;background:#31485c;overflow:hidden;margin-top:18px}.bar{height:100%;background:#62d9b3}
     .empty{border:1px dashed #43627e;border-radius:14px;padding:22px;color:#b8d1e3;line-height:1.6}
+    .itemfilter{max-width:640px;margin:18px 0 18px}.itemfilter label{margin-top:0}.filterrow{display:flex;align-items:center;gap:10px}.filterrow input{min-width:0;flex:1}.filterrow .btn{white-space:nowrap}.filtercount{margin:8px 0 0}
     .item{padding:15px 0;border-bottom:1px solid #334c61}.item:last-child{border:0}
     .itemline{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:13px}
     .notice{font-size:13px;color:#9db7c8;line-height:1.6;margin-top:22px}
@@ -92,7 +93,7 @@
         <div class="stat"><div class="label">A liberar</div><div class="number" id="detailPending">—</div></div>
         <div class="stat"><div class="label">Fabricada</div><div class="number" id="detailMade">—</div></div>
       </div>
-      <div class="section panel"><h2>Itens da obra</h2><p class="hint">Clique em um item para registrar uma liberação para corte.</p><div id="detailError" class="feedback" role="alert"></div><div id="items"></div></div>
+      <div class="section panel"><h2>Itens da obra</h2><p class="hint">Clique em um item para registrar uma liberação para corte.</p><div class="itemfilter"><label for="itemSearch">Buscar esquadria pelo código</label><div class="filterrow"><input id="itemSearch" type="search" placeholder="Ex.: EA05 ou 05" autocomplete="off" spellcheck="false"><button id="clearItemSearch" type="button" class="btn secondary">Limpar</button></div><p id="itemFilterCount" class="hint filtercount" role="status" aria-live="polite"></p></div><div id="detailError" class="feedback" role="alert"></div><div id="items"></div><div id="itemFilterEmpty" class="empty hidden">Nenhuma esquadria encontrada com esse código. Tente buscar só uma parte, como EA05 ou 05.</div></div>
     </section>
   </main>
 </div>
@@ -171,13 +172,35 @@ function renderList(){const t=totals(elements);node('count').textContent=works.l
   node('works').innerHTML=works.map((w,i)=>{const sum=totals(elements.filter(x=>x.obra_id===w.id));const pct=sum.total?Math.max(0,Math.min(100,Math.round(sum.released/sum.total*100))):0;return `<button class="work" data-i="${i}" type="button"><h3>${escapeHTML(w.nome)}</h3><p>${escapeHTML(w.codigo||'Sem código')} · ${escapeHTML(w.situacao||'')}</p><div class="line"><span>Total</span><strong>${amount(sum.total)} m²</strong></div><div class="line"><span>Liberada</span><strong>${amount(sum.released)} m²</strong></div><div class="line"><span>A liberar</span><strong>${amount(sum.total-sum.released)} m²</strong></div><div class="progress"><div class="bar" style="width:${pct}%"></div></div></button>`;}).join('');
   node('works').querySelectorAll('[data-i]').forEach(b=>b.addEventListener('click',()=>renderDetail(works[Number(b.dataset.i)])));
 }
-function renderDetail(w){selectedWork=w;const list=elements.filter(x=>x.obra_id===w.id);const t=totals(list);node('workName').textContent=w.nome;node('workMeta').textContent=[w.codigo,w.cliente,w.situacao,w.prazo_previsto?'Prazo: '+w.prazo_previsto:''].filter(Boolean).join(' · ');node('detailTotal').textContent=amount(t.total);node('detailReleased').textContent=amount(t.released);node('detailPending').textContent=amount(t.total-t.released);node('detailMade').textContent=amount(t.made);
+function renderDetail(w){if(selectedWork?.id!==w.id)node('itemSearch').value='';selectedWork=w;const list=elements.filter(x=>x.obra_id===w.id);const t=totals(list);node('workName').textContent=w.nome;node('workMeta').textContent=[w.codigo,w.cliente,w.situacao,w.prazo_previsto?'Prazo: '+w.prazo_previsto:''].filter(Boolean).join(' · ');node('detailTotal').textContent=amount(t.total);node('detailReleased').textContent=amount(t.released);node('detailPending').textContent=amount(t.total-t.released);node('detailMade').textContent=amount(t.made);
   const canEdit=['administrador','supervisor'].includes(String(membership?.perfil||'').toLowerCase());
   node('detailError').textContent='';
   node('items').innerHTML=list.length?list.map(x=>{const pending=Math.max(0,Number(x.quantidade)-Number(x.qtd_liberada));const latest=releaseHistory.find(r=>r.esquadria_id===x.id);return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted">${escapeHTML(x.localizacao||'')}</span></div><p class="muted">${escapeHTML(x.descricao||'')} · ${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Liberadas: ${Number(x.qtd_liberada)||0}</span><span>Aguardando: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline" style="margin-top:8px"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/')):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button></div>`;}).join(''):'<div class="empty">Nenhuma esquadria nesta obra.</div>';
   node('items').querySelectorAll('[data-esq]').forEach(b=>b.addEventListener('click',()=>openRelease(b.dataset.esq)));
+  applyItemFilter();
   setView('detail');
 }
+function applyItemFilter(){
+  const query=node('itemSearch').value.trim().toLocaleUpperCase('pt-BR');
+  const items=[...node('items').querySelectorAll('.item')];
+  let visible=0;
+  for(const item of items){
+    const code=item.querySelector('.itemline strong')?.textContent||'';
+    const matches=code.toLocaleUpperCase('pt-BR').includes(query);
+    item.classList.toggle('hidden',!matches);
+    if(matches)visible++;
+  }
+  node('itemFilterCount').textContent=query
+    ? visible+' código(s) encontrado(s) de '+items.length+'.'
+    : items.length+' código(s) na obra. Digite para filtrar.';
+  node('itemFilterEmpty').classList.toggle('hidden',visible!==0||items.length===0);
+}
+node('itemSearch').addEventListener('input',applyItemFilter);
+node('clearItemSearch').addEventListener('click',()=>{
+  node('itemSearch').value='';
+  applyItemFilter();
+  node('itemSearch').focus();
+});
 function todayLocal(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 function openRelease(id){
   if(!['administrador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
