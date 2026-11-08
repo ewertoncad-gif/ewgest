@@ -38,8 +38,8 @@ function validName(input) {
   return name;
 }
 function validPassword(input) {
-  if (typeof input !== 'string' || input.length === 0 || input.length > 128)
-    throw new Error('Informe uma senha de até 128 caracteres.');
+  if (typeof input !== 'string' || input.length < 6 || input.length > 128)
+    throw new Error('A senha precisa ter pelo menos 6 caracteres (regra do Supabase Auth).');
   return input;
 }
 function normalizeProfile(value) {
