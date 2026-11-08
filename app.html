@@ -148,7 +148,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • usuários simplificados v21.0</div>
+        <div class="build">EWGEST • sessão e senhas v22.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -212,10 +212,10 @@
               </select></div>
             <div><label for="createUserPassword">Senha inicial</label>
               <input id="createUserPassword" type="password" autocomplete="new-password"
-                minlength="1" maxlength="128" required placeholder="Defina a senha inicial"></div>
+                minlength="6" maxlength="128" required placeholder="Mínimo de 6 caracteres"></div>
           </div>
           <div class="userActions"><button id="createUserSubmit" class="btn primary" type="submit">Cadastrar usuário</button></div>
-          <p class="hint">O usuário entrará com o nome de login e a senha inicial. Você poderá redefinir a senha depois, mas não visualizar a senha antiga.</p>
+          <p class="hint">A senha deve ter pelo menos 6 caracteres, exigência do Supabase. Evite senhas óbvias ou sequenciais. O administrador poderá substituí-la depois, mas não visualizar a anterior.</p>
           <p class="hint">Administrador gerencia o sistema e registra liberações e saídas. Técnico e Consulta têm acesso conforme as permissões da empresa.</p>
         </form>
         <div id="createUserMessage" class="feedback" role="status" aria-live="polite"></div>
@@ -241,9 +241,9 @@
           <label for="myOldPassword">Senha atual</label>
           <input id="myOldPassword" type="password" required autocomplete="current-password">
           <label for="myNewPassword">Nova senha</label>
-          <input id="myNewPassword" type="password" required minlength="1" maxlength="128" autocomplete="new-password">
+          <input id="myNewPassword" type="password" required minlength="6" maxlength="128" autocomplete="new-password">
           <label for="myNewPasswordRepeat">Confirme a nova senha</label>
-          <input id="myNewPasswordRepeat" type="password" required minlength="1" maxlength="128" autocomplete="new-password">
+          <input id="myNewPasswordRepeat" type="password" required minlength="6" maxlength="128" autocomplete="new-password">
           <button id="myPasswordSubmit" type="submit" class="btn primary full">Alterar minha senha</button>
           <p id="myPasswordMessage" class="feedback" role="status" aria-live="polite"></p>
         </form>
@@ -431,7 +431,7 @@
       <h2>Redefinir senha</h2>
       <p class="hint">A senha antiga não pode ser visualizada. Digite uma nova senha para substituir a anterior.</p>
       <label for="userResetPassword">Nova senha</label>
-      <input id="userResetPassword" type="password" autocomplete="new-password" minlength="1" maxlength="128">
+      <input id="userResetPassword" type="password" autocomplete="new-password" minlength="6" maxlength="128">
       <button id="userResetSubmit" type="button" class="btn secondary" style="margin-top:12px">Definir nova senha</button>
     </div>
     <div class="userActions" style="margin-top:24px;border-top:1px solid #38516a;padding-top:18px">
@@ -464,6 +464,17 @@ let manufacturerCatalog=[],manufacturerLoadError='',originalManufacturerForEdit=
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
 function setView(view){for(const id of ['login','dashboard','detail','typologies','manufacturers','users','myPassword'])node(id).classList.toggle('hidden',id!==view);node('logout').classList.toggle('hidden',view==='login');node('myPasswordHeader').classList.toggle('hidden',view==='login');}
+function invalidateAppSession(reason){
+  session=null;
+  sessionStorage.removeItem('ewgest_session_v3');
+  node('userEditOverlay').classList.add('hidden');
+  node('userResetPassword').value='';
+  node('createUserPassword').value='';
+  node('myPasswordForm').reset();
+  setView('login');
+  setStatus(reason);
+  setError(reason);
+}
 function throwFriendly(error){const e=new Error(error.message||error.msg||error.error_description||error.error||'Erro desconhecido');e.code=error.code||'';throw e;}
 async function request(path,{method='GET',body=null,token=null}={}){
   const controller=new AbortController();
@@ -494,7 +505,14 @@ async function userApi(payload,authenticated=true) {
       method:'POST',headers,body:JSON.stringify(payload),signal:controller.signal,cache:'no-store'
     });
     const result=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(result.error||('Erro '+response.status+' ao consultar o acesso.'));
+    if(!response.ok){
+      const failure=result.error||('Erro '+response.status+' ao consultar o acesso.');
+      if(authenticated&&response.status===401){
+        invalidateAppSession('Sua sessão foi encerrada. Entre novamente com sua senha atual.');
+        throw new Error('Sessão encerrada. Faça login novamente; nenhum cadastro foi realizado.');
+      }
+      throw new Error(failure);
+    }
     return result;
   }catch(err){
     if(err.name==='AbortError')throw new Error('O servidor demorou a responder. Confira a conexão.');
@@ -967,7 +985,7 @@ node('createUserForm').addEventListener('submit',async(event)=>{
   const nome=node('createUserName').value.trim();
   const perfil=node('createUserRole').value;
   const senha=node('createUserPassword').value;
-  if(!senha){node('createUserMessage').textContent='Informe uma senha inicial.';return;}
+  if(senha.length<6){node('createUserMessage').textContent='O Supabase exige uma senha com pelo menos 6 caracteres.';return;}
   if(perfil==='administrador' && !confirm('Criar outro administrador? Ele poderá gerenciar usuários, senhas e cadastros.'))return;
   const button=node('createUserSubmit');
   button.disabled=true;button.textContent='Cadastrando…';
@@ -1014,7 +1032,7 @@ node('userResetSubmit').addEventListener('click',async()=>{
   if(!canManageUsers()||!editingManagedAccount)return;
   const target=editingManagedAccount;
   const next=node('userResetPassword').value;
-  if(!next){node('userEditMessage').textContent='Informe a nova senha.';return;}
+  if(next.length<6){node('userEditMessage').textContent='O Supabase exige uma senha com pelo menos 6 caracteres.';return;}
   if(!confirm('Redefinir a senha de '+target.login+'? A senha antiga será substituída.'))return;
   const button=node('userResetSubmit');
   button.disabled=true;button.textContent='Atualizando senha…';
@@ -1022,6 +1040,11 @@ node('userResetSubmit').addEventListener('click',async()=>{
   try{
     await userApi({acao:'redefinir_senha',usuario_id:target.usuario_id,nova_senha:next});
     node('userResetPassword').value='';
+    if(target.usuario_id===currentUser.id){
+      closeManagedUserEdit();
+      invalidateAppSession('Senha do administrador alterada. Entre novamente usando a nova senha.');
+      return;
+    }
     node('userEditMessage').textContent='Nova senha definida. O usuário já pode usá-la no próximo login.';
   }catch(e){node('userEditMessage').textContent='Não foi possível redefinir: '+e.message;}
   finally{button.disabled=false;button.textContent='Definir nova senha';}
@@ -1058,13 +1081,12 @@ node('myPasswordForm').addEventListener('submit',async(event)=>{
   const next=node('myNewPassword').value;
   const repeat=node('myNewPasswordRepeat').value;
   if(next!==repeat){node('myPasswordMessage').textContent='As novas senhas não coincidem.';return;}
-  if(!next){node('myPasswordMessage').textContent='Informe a nova senha.';return;}
+  if(next.length<6){node('myPasswordMessage').textContent='O Supabase exige uma senha com pelo menos 6 caracteres.';return;}
   const button=node('myPasswordSubmit');
   button.disabled=true;button.textContent='Atualizando senha…';
   try{
     await userApi({acao:'alterar_minha_senha',senha_atual:old,nova_senha:next});
-    node('myPasswordForm').reset();
-    node('myPasswordMessage').textContent='Senha alterada com sucesso. Use a nova senha no próximo login.';
+    invalidateAppSession('Senha alterada com sucesso. Entre novamente usando a nova senha.');
   }catch(e){node('myPasswordMessage').textContent='Não foi possível alterar: '+e.message;}
   finally{button.disabled=false;button.textContent='Alterar minha senha';}
 });
@@ -1589,7 +1611,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v21.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v22.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
