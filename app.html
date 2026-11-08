@@ -66,6 +66,11 @@
     .manufacturerFilter label{margin:0 0 6px}
     .manufacturerFilter select{width:100%;padding:11px 13px}
     .catalogManufacturer{font-size:12px;color:#b6d6e8;margin:8px 0}
+    .manufacturerForm .filterrow{max-width:700px}
+    .manufacturerLine{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 3px;border-bottom:1px solid #334c61}
+    .manufacturerLine strong{color:#62d9b3}
+    .manufacturerLine span{color:#abc2d6;font-size:13px}
+    #manufacturerNewConfirm{margin:15px 0 0}
     .catalogRow{padding:16px 0;border-bottom:1px solid #334c61}.catalogRow:last-child{border:0}
     .catalogImageRow{display:flex;align-items:center;gap:20px;justify-content:space-between}
     .catalogTextArea{min-width:0;flex:1}
@@ -137,7 +142,7 @@
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
     <section id="dashboard" class="hidden">
-      <div class="head"><div><h1 id="heading">Painel de obras</h1><div class="muted" id="userline"></div></div><div class="topactions"><button id="openTypologies" type="button" class="btn secondary hidden">Banco de tipologias</button><button id="refresh" class="btn secondary">Atualizar dados</button></div></div>
+      <div class="head"><div><h1 id="heading">Painel de obras</h1><div class="muted" id="userline"></div></div><div class="topactions"><button id="openTypologies" type="button" class="btn secondary hidden">Banco de tipologias</button><button id="openManufacturers" type="button" class="btn secondary hidden">Fabricantes</button><button id="refresh" class="btn secondary">Atualizar dados</button></div></div>
       <div id="panelError" class="error"></div>
       <div class="stats">
         <div class="stat"><div class="label">Obras</div><div class="number" id="count">—</div></div>
@@ -171,9 +176,31 @@
           <div class="stat"><div class="label">Registros de saída</div><div class="number" id="shipEventsTotal">—</div></div>
         </div><div id="detailError" class="feedback" role="alert"></div><div id="items"></div><div id="itemFilterEmpty" class="empty hidden">Nenhuma esquadria encontrada. Busque pelo código da esquadria ou pela tipologia CEM.</div></div>
     </section>
+    <section id="manufacturers" class="hidden">
+      <div class="head"><div>
+        <button id="backManufacturers" type="button" class="btn secondary" style="margin-bottom:18px">← Tela inicial</button>
+        <button id="goManufacturersToCatalog" type="button" class="btn secondary" style="margin-bottom:18px;margin-left:10px">Banco de tipologias</button>
+        <h1>Cadastro de fabricantes</h1>
+        <div class="muted">Cadastro mestre disponível somente ao administrador. Os fabricantes são usados para filtrar e organizar as tipologias.</div>
+      </div></div>
+      <div class="section panel">
+        <h2>Adicionar fabricante</h2>
+        <form id="manufacturerForm" class="manufacturerForm">
+          <label for="manufacturerNewName">Nome do fabricante</label>
+          <div class="filterrow">
+            <input id="manufacturerNewName" type="text" maxlength="80" placeholder="Ex.: KAWNEER" required autocomplete="off">
+            <button id="manufacturerSaveButton" type="submit" class="btn primary">Cadastrar fabricante</button>
+          </div>
+        </form>
+        <p id="manufacturerPageMessage" class="hint" role="status" aria-live="polite"></p>
+        <h2 style="margin-top:25px">Fabricantes cadastrados</h2>
+        <div id="manufacturerList"></div>
+      </div>
+      <p class="notice">A criação de fabricantes não altera tipologias existentes. Para mudar o fabricante de uma tipologia, abra-a no Banco de tipologias.</p>
+    </section>
     <section id="typologies" class="hidden">
       <div class="head"><div>
-        <button id="backTypologies" type="button" class="btn secondary" style="margin-bottom:18px">← Tela inicial</button>
+        <button id="backTypologies" type="button" class="btn secondary" style="margin-bottom:18px">← Tela inicial</button><button id="openManufacturersFromCatalog" type="button" class="btn secondary" style="margin-bottom:18px;margin-left:10px">Cadastro de fabricantes</button>
         <h1>Banco de tipologias</h1>
         <div class="muted">Catálogo mestre de tipologias. Clique em um cadastro para corrigir código ou descrição.</div>
       </div></div>
@@ -270,7 +297,8 @@
         <label for="typologyEditDescription">Descrição da tipologia</label>
         <textarea id="typologyEditDescription" class="typologyEditInput" maxlength="1000" required rows="4"></textarea>
         <label for="typologyEditManufacturer">Fabricante</label>
-        <input id="typologyEditManufacturer" class="typologyEditInput" type="text" list="typologyManufacturerSuggestions" maxlength="80" placeholder="Ex.: HYDRO ou PERFIL" autocomplete="off">
+        <input id="typologyEditManufacturer" class="typologyEditInput" type="text" list="typologyManufacturerSuggestions" maxlength="80" placeholder="Ex.: HYDRO, PERFIL ou fabricante novo" autocomplete="off">
+        <p id="manufacturerSyncHint" class="hint">Ao alterar o fabricante no final da descrição, este campo será atualizado.</p>
         <datalist id="typologyManufacturerSuggestions">
           <option value="HYDRO"></option>
           <option value="PERFIL"></option>
@@ -287,6 +315,12 @@
         <label class="originChoice"><input type="radio" name="originLinkChoice" value="quebrar">
           <span><strong>Quebrar vínculo de origem</strong><small>Não reconhecer automaticamente essa origem em novas obras. As esquadrias e os históricos anteriores continuam vinculados.</small></span>
         </label>
+        <div id="manufacturerNewConfirm" class="hidden">
+          <label class="originChoice"><input type="checkbox" id="manufacturerConfirmRegistration">
+            <span><strong id="manufacturerNewConfirmTitle">Cadastrar fabricante novo</strong>
+            <small>Confirme que o nome está correto. O fabricante ficará disponível no cadastro mestre e nos filtros.</small></span>
+          </label>
+        </div>
         <p class="hint">A importação automática de novas obras ainda não está implementada. Esta escolha fica salva como regra para quando essa função for criada.</p>
       </div>
       <div id="typologyEditError" class="feedback" role="alert"></div>
@@ -317,9 +351,10 @@ const area = (i,q) => Number(i.largura_mm||0)*Number(i.altura_mm||0)*Number(q||0
 let session=null, currentUser=null, currentCompany=null, membership=null, works=[], elements=[], releaseHistory=[], selectedWork=null, selectedItem=null;
 let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='',detailMode='release',currentShipmentRequestId=null;
 let typologyCatalog=[],typologyOrigins=[],typologyOriginReady=false,editingTypology=null,editingPendingItem=null,typologyEditingStep=1,typologyCroquis=[];
+let manufacturerCatalog=[],manufacturerLoadError='',originalManufacturerForEdit='',originalDescriptionForEdit='';
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
-function setView(view){for(const id of ['login','dashboard','detail','typologies'])node(id).classList.toggle('hidden',id!==view);node('logout').classList.toggle('hidden',view==='login');}
+function setView(view){for(const id of ['login','dashboard','detail','typologies','manufacturers'])node(id).classList.toggle('hidden',id!==view);node('logout').classList.toggle('hidden',view==='login');}
 function throwFriendly(error){const e=new Error(error.message||error.msg||error.error_description||error.error||'Erro desconhecido');e.code=error.code||'';throw e;}
 async function request(path,{method='GET',body=null,token=null}={}){
   const controller=new AbortController();
@@ -351,6 +386,7 @@ async function loadPanel(){
   currentCompany=comps.find(e=>e.nome==='GVG ESQUADRIAS')||comps[0];
   membership=rel.find(r=>r.empresa_id===currentCompany.id);
   node('openTypologies').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
+  node('openManufacturers').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
   const [w,e,tips]=await Promise.all([
     apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'}),
     apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id,rotulo_tipologia_relatorio',empresa_id:'eq.'+currentCompany.id}),
@@ -358,6 +394,14 @@ async function loadPanel(){
   ]);
   works=w||[];elements=e||[];typologyCatalog=tips||[];
   typologyOrigins=[];typologyOriginReady=false;typologyCroquis=[];
+  manufacturerCatalog=[];manufacturerLoadError='';
+  if(String(membership?.perfil||'').toLowerCase()==='administrador'){
+    try{
+      manufacturerCatalog=await apiGet('fabricantes',{
+        select:'id,empresa_id,nome',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'
+      });
+    }catch(err){manufacturerLoadError=err.message;manufacturerCatalog=[];}
+  }
   if(String(membership?.perfil||'').toLowerCase()==='administrador'){
     try{
       typologyOrigins=await apiGet('tipologias_origens',{select:'tipologia_id,codigo_origem,descricao_origem,ativo,tipo_chave_origem',empresa_id:'eq.'+currentCompany.id});
