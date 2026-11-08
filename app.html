@@ -148,7 +148,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • cadastro de usuários v20.0</div>
+        <div class="build">EWGEST • usuários simplificados v21.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -207,13 +207,12 @@
             <div><label for="createUserRole">Perfil de acesso</label>
               <select id="createUserRole" required>
                 <option value="tecnico">Técnico</option>
-                <option value="supervisor">Supervisor</option>
                 <option value="consulta">Somente consulta</option>
                 <option value="administrador">Administrador</option>
               </select></div>
             <div><label for="createUserPassword">Senha inicial</label>
               <input id="createUserPassword" type="password" autocomplete="new-password"
-                minlength="12" maxlength="128" required placeholder="Mínimo de 12 caracteres"></div>
+                minlength="1" maxlength="128" required placeholder="Defina a senha inicial"></div>
           </div>
           <div class="userActions"><button id="createUserSubmit" class="btn primary" type="submit">Cadastrar usuário</button></div>
           <p class="hint">O usuário entrará com o nome de login e a senha inicial. Você poderá redefinir a senha depois, mas não visualizar a senha antiga.</p>
@@ -242,9 +241,9 @@
           <label for="myOldPassword">Senha atual</label>
           <input id="myOldPassword" type="password" required autocomplete="current-password">
           <label for="myNewPassword">Nova senha</label>
-          <input id="myNewPassword" type="password" required minlength="12" maxlength="128" autocomplete="new-password">
+          <input id="myNewPassword" type="password" required minlength="1" maxlength="128" autocomplete="new-password">
           <label for="myNewPasswordRepeat">Confirme a nova senha</label>
-          <input id="myNewPasswordRepeat" type="password" required minlength="12" maxlength="128" autocomplete="new-password">
+          <input id="myNewPasswordRepeat" type="password" required minlength="1" maxlength="128" autocomplete="new-password">
           <button id="myPasswordSubmit" type="submit" class="btn primary full">Alterar minha senha</button>
           <p id="myPasswordMessage" class="feedback" role="status" aria-live="polite"></p>
         </form>
@@ -420,7 +419,6 @@
       <label for="userEditRole">Perfil</label>
       <select id="userEditRole">
         <option value="administrador">Administrador</option>
-        <option value="supervisor">Supervisor</option>
         <option value="tecnico">Técnico</option>
         <option value="consulta">Somente consulta</option>
       </select>
@@ -433,7 +431,7 @@
       <h2>Redefinir senha</h2>
       <p class="hint">A senha antiga não pode ser visualizada. Digite uma nova senha para substituir a anterior.</p>
       <label for="userResetPassword">Nova senha</label>
-      <input id="userResetPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128">
+      <input id="userResetPassword" type="password" autocomplete="new-password" minlength="1" maxlength="128">
       <button id="userResetSubmit" type="button" class="btn secondary" style="margin-top:12px">Definir nova senha</button>
     </div>
     <div class="userActions" style="margin-top:24px;border-top:1px solid #38516a;padding-top:18px">
@@ -921,8 +919,12 @@ function renderManagedAccounts(){
 }
 async function reloadManagedUsers(){
   if(!canManageUsers())throw new Error('Somente administradores podem gerenciar usuários.');
-  const result=await userApi({acao:'listar'});
-  managedAccounts=result.usuarios||[];
+  await ensureSession();
+  // Leitura direta protegida por RLS: mostra inclusive a conta do próprio ADM.
+  managedAccounts=await apiGet('usuarios_login',{
+    select:'usuario_id,empresa_id,login,nome,perfil,ativo,criado_em',
+    empresa_id:'eq.'+currentCompany.id,order:'login.asc'
+  });
   renderManagedAccounts();
 }
 async function openManagedUsersPage(){
@@ -965,7 +967,7 @@ node('createUserForm').addEventListener('submit',async(event)=>{
   const nome=node('createUserName').value.trim();
   const perfil=node('createUserRole').value;
   const senha=node('createUserPassword').value;
-  if(senha.length<12){node('createUserMessage').textContent='Senha de no mínimo 12 caracteres.';return;}
+  if(!senha){node('createUserMessage').textContent='Informe uma senha inicial.';return;}
   if(perfil==='administrador' && !confirm('Criar outro administrador? Ele poderá gerenciar usuários, senhas e cadastros.'))return;
   const button=node('createUserSubmit');
   button.disabled=true;button.textContent='Cadastrando…';
@@ -1012,7 +1014,7 @@ node('userResetSubmit').addEventListener('click',async()=>{
   if(!canManageUsers()||!editingManagedAccount)return;
   const target=editingManagedAccount;
   const next=node('userResetPassword').value;
-  if(next.length<12){node('userEditMessage').textContent='Nova senha: mínimo de 12 caracteres.';return;}
+  if(!next){node('userEditMessage').textContent='Informe a nova senha.';return;}
   if(!confirm('Redefinir a senha de '+target.login+'? A senha antiga será substituída.'))return;
   const button=node('userResetSubmit');
   button.disabled=true;button.textContent='Atualizando senha…';
@@ -1056,7 +1058,7 @@ node('myPasswordForm').addEventListener('submit',async(event)=>{
   const next=node('myNewPassword').value;
   const repeat=node('myNewPasswordRepeat').value;
   if(next!==repeat){node('myPasswordMessage').textContent='As novas senhas não coincidem.';return;}
-  if(next.length<12){node('myPasswordMessage').textContent='A nova senha precisa ter pelo menos 12 caracteres.';return;}
+  if(!next){node('myPasswordMessage').textContent='Informe a nova senha.';return;}
   const button=node('myPasswordSubmit');
   button.disabled=true;button.textContent='Atualizando senha…';
   try{
@@ -1587,7 +1589,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v20.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v21.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
