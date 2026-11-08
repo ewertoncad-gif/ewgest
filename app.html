@@ -148,7 +148,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • cadastro de fabricantes v19.0</div>
+        <div class="build">EWGEST • cadastro de usuários v20.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -911,7 +911,7 @@ function renderManagedAccounts(){
   node('usersList').innerHTML=rows.map(user=>
     '<button type="button" class="userCard" data-user-id="'+escapeHTML(user.usuario_id)+'">'+
       '<div><div class="userCardName">'+escapeHTML(user.nome)+'</div>'+
-      '<div class="userCardLogin">@'+escapeHTML(user.login)+' · '+escapeHTML(roleLabel(user.perfil))+'</div></div>'+
+      '<div class="userCardLogin">Login: '+escapeHTML(user.login)+' · '+escapeHTML(roleLabel(user.perfil))+'</div></div>'+
       '<span class="userStatus '+(user.ativo?'':'disabled')+'">'+
         (user.ativo?'Ativo':'Desativado')+'</span></button>'
   ).join('');
@@ -1587,7 +1587,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v19.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v20.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
