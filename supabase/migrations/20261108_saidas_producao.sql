@@ -185,6 +185,7 @@ REVOKE ALL ON FUNCTION public.registrar_saida_producao(uuid,uuid,text,integer,da
 GRANT EXECUTE ON FUNCTION public.registrar_saida_producao(uuid,uuid,text,integer,date,integer)
   TO authenticated;
 COMMIT;
+NOTIFY pgrst, 'reload schema';
 
 -- Apenas conferência da instalação (não grava saídas).
 SELECT p.proname AS funcao, pg_get_function_identity_arguments(p.oid) AS parametros
