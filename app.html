@@ -40,6 +40,12 @@
     .item{padding:15px 0;border-bottom:1px solid #334c61}.item:last-child{border:0}
     .itemline{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:13px}
     .notice{font-size:13px;color:#9db7c8;line-height:1.6;margin-top:22px}
+    .itemclick{display:block;width:100%;text-align:left;color:inherit;background:transparent;border:0;padding:0;cursor:pointer}
+    .itemclick:hover strong{color:#62d9b3}.itemclick:focus-visible{outline:2px solid #62d9b3;outline-offset:4px}
+    .modaloverlay{position:fixed;inset:0;background:#020b17d9;z-index:10;display:flex;align-items:center;justify-content:center;padding:15px}
+    .modalbox{width:min(100%,460px);max-height:90vh;overflow:auto}
+    .modalbuttons{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}.feedback{font-size:13px;margin-top:12px;white-space:pre-wrap;color:#ffc5ba}
+    .hint{color:#a9bfd3;font-size:13px;line-height:1.5}.tap{color:#62d9b3;font-size:12px}
     .topactions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
     @media(max-width:700px){.wrap{padding:17px}.login{margin:50px auto}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.number{font-size:24px}}
   </style>
@@ -48,12 +54,12 @@
 <div class="wrap">
   <header class="top">
     <div class="brand">EW<span>GEST</span></div>
-    <div class="topactions"><span class="tag">Gestão de obras · leitura</span><button id="logout" class="btn secondary hidden" type="button">Sair</button></div>
+    <div class="topactions"><span class="tag">Gestão de obras · liberações</span><button id="logout" class="btn secondary hidden" type="button">Sair</button></div>
   </header>
   <main>
     <section id="login" class="panel login">
       <h1>Bem-vindo à EWGEST</h1>
-      <p class="muted">Entre com seu usuário autorizado para consultar as obras da sua empresa.</p>
+      <p class="muted">Entre para acompanhar as obras e registrar liberações para corte.</p>
       <form id="loginForm" onsubmit="document.getElementById('status').textContent='Clique identificado. Iniciando autenticação…';if(!window.EWGEST_LOGIN){document.getElementById('error').textContent='O aplicativo ainda não iniciou. Verifique a versão exibida abaixo.';return false;}return window.EWGEST_LOGIN(event);">
         <label for="email">E-mail</label>
         <input id="email" type="email" required autocomplete="username" placeholder="seu@email.com">
@@ -76,7 +82,7 @@
         <div class="stat"><div class="label">A liberar (m²)</div><div class="number" id="pending">—</div></div>
       </div>
       <div class="section"><h2>Obras cadastradas</h2><div id="works" class="works"></div></div>
-      <p class="notice">Versão somente de consulta. Metragens geométricas ainda não conferidas com o CEM. Não utilize como controle oficial antes de validarmos permissões e backups.</p>
+      <p class="notice">Liberações para corte: selecione uma esquadria e informe quantidade e data. Os lançamentos ficam registrados no banco. Confirme medições técnicas antes de usar os totais como medição contratual.</p>
     </section>
     <section id="detail" class="hidden">
       <div class="head"><div><button id="back" class="btn secondary" style="margin-bottom:18px">← Voltar</button><h1 id="workName"></h1><div id="workMeta" class="muted"></div></div></div>
@@ -86,20 +92,34 @@
         <div class="stat"><div class="label">A liberar</div><div class="number" id="detailPending">—</div></div>
         <div class="stat"><div class="label">Fabricada</div><div class="number" id="detailMade">—</div></div>
       </div>
-      <div class="section panel"><h2>Itens da obra</h2><div id="items"></div></div>
+      <div class="section panel"><h2>Itens da obra</h2><p class="hint">Clique em um item para registrar uma liberação para corte.</p><div id="detailError" class="feedback" role="alert"></div><div id="items"></div></div>
     </section>
   </main>
 </div>
+<div id="releaseModal" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="releaseTitle">
+    <h2 id="releaseTitle">Liberar para corte</h2>
+    <p id="releaseItem" class="muted"></p><p id="releaseBalance" class="hint"></p>
+    <form id="releaseForm">
+      <label for="releaseQty">1. Quantas unidades estão sendo liberadas?</label>
+      <input id="releaseQty" type="number" min="1" step="1" required autocomplete="off">
+      <label for="releaseDate">2. Qual é a data da liberação?</label>
+      <input id="releaseDate" type="date" required>
+      <div id="releaseError" class="feedback" role="alert"></div>
+      <div class="modalbuttons"><button type="button" id="releaseCancel" class="btn secondary">Cancelar</button><button type="submit" id="releaseSave" class="btn primary">Salvar liberação</button></div>
+    </form>
+  </div>
+</div>
 <script>
 'use strict';
-/* EWGEST - v3.0. Sem scripts de CDN: autenticação via API HTTPS oficial do Supabase. */
+/* EWGEST - v4.0: liberacoes para corte com historico e validacao no Supabase. */
 const API_BASE = 'https://knsmefqcdvxacvdauezu.supabase.co';
 const PUBLIC_KEY = 'sb_publishable_7wdBug6WZQvaX-TgcklgbA_zfbpty8P';
 const node = id => document.getElementById(id);
 const amount = n => Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const escapeHTML = v => String(v??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const area = (i,q) => Number(i.largura_mm||0)*Number(i.altura_mm||0)*Number(q||0)/1e6;
-let session=null, currentUser=null, currentCompany=null, membership=null, works=[], elements=[];
+let session=null, currentUser=null, currentCompany=null, membership=null, works=[], elements=[], releaseHistory=[], selectedWork=null, selectedItem=null;
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
 function setView(view){for(const id of ['login','dashboard','detail'])node(id).classList.toggle('hidden',id!==view);node('logout').classList.toggle('hidden',view==='login');}
@@ -138,6 +158,8 @@ async function loadPanel(){
     apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada',empresa_id:'eq.'+currentCompany.id})
   ]);
   works=w||[];elements=e||[];
+  releaseHistory=await apiGet('liberacoes_corte',{select:'esquadria_id,quantidade,data_liberacao',order:'data_liberacao.desc'});
+
   node('heading').textContent=currentCompany.nome;
   node('userline').textContent=(currentUser.email||'Usuário')+' · '+membership.perfil;
   node('panelError').textContent='';
@@ -149,10 +171,46 @@ function renderList(){const t=totals(elements);node('count').textContent=works.l
   node('works').innerHTML=works.map((w,i)=>{const sum=totals(elements.filter(x=>x.obra_id===w.id));const pct=sum.total?Math.max(0,Math.min(100,Math.round(sum.released/sum.total*100))):0;return `<button class="work" data-i="${i}" type="button"><h3>${escapeHTML(w.nome)}</h3><p>${escapeHTML(w.codigo||'Sem código')} · ${escapeHTML(w.situacao||'')}</p><div class="line"><span>Total</span><strong>${amount(sum.total)} m²</strong></div><div class="line"><span>Liberada</span><strong>${amount(sum.released)} m²</strong></div><div class="line"><span>A liberar</span><strong>${amount(sum.total-sum.released)} m²</strong></div><div class="progress"><div class="bar" style="width:${pct}%"></div></div></button>`;}).join('');
   node('works').querySelectorAll('[data-i]').forEach(b=>b.addEventListener('click',()=>renderDetail(works[Number(b.dataset.i)])));
 }
-function renderDetail(w){const list=elements.filter(x=>x.obra_id===w.id);const t=totals(list);node('workName').textContent=w.nome;node('workMeta').textContent=[w.codigo,w.cliente,w.situacao,w.prazo_previsto?'Prazo: '+w.prazo_previsto:''].filter(Boolean).join(' · ');node('detailTotal').textContent=amount(t.total);node('detailReleased').textContent=amount(t.released);node('detailPending').textContent=amount(t.total-t.released);node('detailMade').textContent=amount(t.made);
-  node('items').innerHTML=list.length?list.map(x=>`<div class="item"><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted">${escapeHTML(x.localizacao||'')}</span></div><p class="muted">${escapeHTML(x.descricao||'')} · ${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Liberadas: ${Number(x.qtd_liberada)||0}</span><span>Fabricadas: ${Number(x.qtd_fabricada)||0}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div></div>`).join(''):'<div class="empty">Nenhuma esquadria nesta obra.</div>';
+function renderDetail(w){selectedWork=w;const list=elements.filter(x=>x.obra_id===w.id);const t=totals(list);node('workName').textContent=w.nome;node('workMeta').textContent=[w.codigo,w.cliente,w.situacao,w.prazo_previsto?'Prazo: '+w.prazo_previsto:''].filter(Boolean).join(' · ');node('detailTotal').textContent=amount(t.total);node('detailReleased').textContent=amount(t.released);node('detailPending').textContent=amount(t.total-t.released);node('detailMade').textContent=amount(t.made);
+  const canEdit=['administrador','supervisor'].includes(String(membership?.perfil||'').toLowerCase());
+  node('detailError').textContent='';
+  node('items').innerHTML=list.length?list.map(x=>{const pending=Math.max(0,Number(x.quantidade)-Number(x.qtd_liberada));const latest=releaseHistory.find(r=>r.esquadria_id===x.id);return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted">${escapeHTML(x.localizacao||'')}</span></div><p class="muted">${escapeHTML(x.descricao||'')} · ${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Liberadas: ${Number(x.qtd_liberada)||0}</span><span>Aguardando: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline" style="margin-top:8px"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/')):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button></div>`;}).join(''):'<div class="empty">Nenhuma esquadria nesta obra.</div>';
+  node('items').querySelectorAll('[data-esq]').forEach(b=>b.addEventListener('click',()=>openRelease(b.dataset.esq)));
   setView('detail');
 }
+function todayLocal(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function openRelease(id){
+  if(!['administrador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
+  selectedItem=elements.find(e=>e.id===id);if(!selectedItem)return;
+  const pending=Number(selectedItem.quantidade)-Number(selectedItem.qtd_liberada);
+  if(pending<=0)return;
+  node('releaseItem').textContent=selectedItem.codigo+' · '+(selectedItem.localizacao||'');
+  node('releaseBalance').textContent='Aguardando liberação: '+pending+' de '+selectedItem.quantidade+' unidades.';
+  node('releaseQty').value='';node('releaseQty').max=String(pending);
+  node('releaseDate').value=todayLocal();node('releaseError').textContent='';
+  node('releaseModal').classList.remove('hidden');node('releaseQty').focus();
+}
+function closeRelease(){node('releaseModal').classList.add('hidden');selectedItem=null;}
+node('releaseCancel').addEventListener('click',closeRelease);
+node('releaseForm').addEventListener('submit',async event=>{
+  event.preventDefault();if(!selectedItem)return;
+  const qty=Number(node('releaseQty').value),date=node('releaseDate').value;
+  const pending=Number(selectedItem.quantidade)-Number(selectedItem.qtd_liberada);
+  if(!Number.isSafeInteger(qty)||qty<=0||qty>pending){node('releaseError').textContent='Quantidade inválida. Máximo disponível: '+pending+'.';return;}
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date>todayLocal()){node('releaseError').textContent='Informe uma data válida, não futura.';return;}
+  const button=node('releaseSave');button.disabled=true;button.textContent='Salvando…';node('releaseError').textContent='';
+  try{
+    await ensureSession();
+    await request('/rest/v1/rpc/registrar_liberacao_corte',{method:'POST',token:session.access_token,body:{p_esquadria_id:selectedItem.id,p_quantidade:qty,p_data_liberacao:date}});
+    const workId=selectedWork?.id;
+    await loadPanel();
+    const work=works.find(w=>w.id===workId);
+    if(work)renderDetail(work);
+    closeRelease();
+    if(work)node('detailError').textContent='Liberação registrada com sucesso: '+qty+' unidade(s) em '+date.split('-').reverse().join('/')+'.';
+  }catch(e){node('releaseError').textContent='Não foi possível salvar: '+e.message+'\nNenhum sucesso foi confirmado. Não repita sem conferir.';}
+  finally{button.disabled=false;button.textContent='Salvar liberação';}
+});
 window.EWGEST_LOGIN=async function(event){event.preventDefault();setError('');setStatus('Botão funcionando. Conferindo usuário e senha…');const b=node('loginButton');b.disabled=true;b.textContent='Verificando…';try{
   const data=await request('/auth/v1/token?grant_type=password',{method:'POST',body:{email:node('email').value.trim(),password:node('password').value}});
   if(!data.access_token)throw new Error('O servidor não retornou uma sessão válida.');
