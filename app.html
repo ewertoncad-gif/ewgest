@@ -1279,6 +1279,148 @@ function correspondeTipoTipologia(t,tipo){
   // Fachadas com módulos fixos não aparecem também em FIXO.
   return classificarTipoTipologia(t)===tipo;
 }
+// Código EA é local à obra e NUNCA é usado na sugestão.
+function normalizarReconhecimento(s){
+  return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLocaleUpperCase('pt-BR').replace(/[^A-Z0-9]+/g,' ').trim().replace(/\s+/g,' ');
+}
+function sugerirPorDescricao(descricao,catalogo){
+  const desc=normalizarReconhecimento(descricao);
+  const tipo=classificarTipoTipologia({descricao});
+  const stop=new Set(['COM','SEM','DOS','DAS','PARA','LINHA','HYDRO','PERFIL']);
+  const tokens=value=>new Set(value.split(' ').filter(x=>x.length>=3&&!stop.has(x)));
+  const origem=tokens(desc);
+  return catalogo.map(t=>{
+    const destino=normalizarReconhecimento(t.descricao);
+    if(!desc||!destino||tipo!==classificarTipoTipologia(t))return null;
+    const base=tokens(destino);
+    const comum=[...origem].filter(x=>base.has(x)).length;
+    const score=desc===destino?1:comum/Math.max(origem.size,base.size,1);
+    return score>=0.55?{tipologia:t,score}:null;
+  }).filter(Boolean).sort((a,b)=>b.score-a.score).slice(0,8);
+}
+function gruposTipologiaPendente(){
+  const grupos=new Map();
+  for(const e of elements.filter(x=>!x.tipologia_id)){
+    const codigo=String(e.rotulo_tipologia_relatorio||e.codigo||'').trim();
+    const descricao=String(e.descricao||'').trim();
+    const chave=JSON.stringify([e.obra_id,codigo,descricao]);
+    if(!grupos.has(chave))grupos.set(chave,{item:e,total:0});
+    grupos.get(chave).total++;
+  }
+  return [...grupos.values()];
+}
+function renderConferenciaPendentes(){
+  const grupos=gruposTipologiaPendente();
+  node('pendingReviewCount').textContent=grupos.length+' grupo(s) pendente(s)';
+  const list=node('pendingReviewList');
+  if(!grupos.length){
+    list.innerHTML='<p class="hint">Nenhuma esquadria aguardando classificação.</p>';
+    return;
+  }
+  list.innerHTML=grupos.map(({item,total})=>{
+    const obra=works.find(x=>x.id===item.obra_id);
+    const code=String(item.rotulo_tipologia_relatorio||item.codigo||'Sem código');
+    return `<div class="reviewPendingRow"><div>
+      <strong>${escapeHTML(code)} · ${escapeHTML(obra?.nome||'Obra não identificada')}</strong>
+      <p class="muted">${escapeHTML(item.descricao||'Sem descrição')}</p>
+      <span class="hint">${total} esquadria(s) pendente(s), apenas nesta obra</span>
+    </div><button type="button" class="btn secondary" data-revisar-pendente="${escapeHTML(item.id)}">Conferir</button></div>`;
+  }).join('');
+  list.querySelectorAll('[data-revisar-pendente]').forEach(btn=>{
+    btn.addEventListener('click',()=>abrirConferenciaTipologia(btn.dataset.revisarPendente));
+  });
+}
+function abrirConferenciaTipologia(id){
+  if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  const item=elements.find(x=>x.id===id&&!x.tipologia_id);
+  if(!item)return;
+  recognitionPendingItem=item;
+  const obra=works.find(x=>x.id===item.obra_id);
+  node('recognitionOrigin').textContent='Obra: '+(obra?.nome||'Não identificada')+
+    ' · Esquadria: '+item.codigo+' · Código informado no relatório: '+
+    (item.rotulo_tipologia_relatorio||'Não informado')+' · Descrição: '+(item.descricao||'Não informada');
+  const select=node('recognitionTarget');
+  select.replaceChildren();
+  const empty=document.createElement('option');empty.value='';empty.textContent='Selecione após conferir a descrição';select.append(empty);
+  const sugestões=sugerirPorDescricao(item.descricao,typologyCatalog);
+  const suggested=new Set(sugestões.map(x=>x.tipologia.id));
+  if(sugestões.length){
+    const group=document.createElement('optgroup');group.label='Sugestões pela descrição (não automáticas)';
+    for(const {tipologia:t,score} of sugestões){
+      const option=document.createElement('option');option.value=t.id;
+      option.textContent=t.codigo+' · '+t.descricao.slice(0,75)+' · '+Math.round(score*100)+'% similar';
+      group.append(option);
+    }
+    select.append(group);
+  }
+  const remaining=document.createElement('optgroup');remaining.label='Outras tipologias cadastradas';
+  for(const t of typologyCatalog.filter(t=>!suggested.has(t.id))
+      .sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR',{numeric:true}))){
+    const option=document.createElement('option');option.value=t.id;
+    option.textContent=t.codigo+' · '+t.descricao.slice(0,90);remaining.append(option);
+  }
+  select.append(remaining);
+  node('recognitionApproval').checked=false;
+  node('recognitionDivergence').checked=false;
+  node('recognitionMessage').textContent='';
+  atualizarComparacaoReconhecimento();
+  node('recognitionOverlay').classList.remove('hidden');
+  select.focus();
+}
+function atualizarComparacaoReconhecimento(){
+  const item=recognitionPendingItem;
+  const target=typologyCatalog.find(x=>x.id===node('recognitionTarget').value);
+  const mismatch=Boolean(item&&target&&
+    normalizarReconhecimento(item.descricao)!==normalizarReconhecimento(target.descricao));
+  const confirm=node('recognitionDivergence');confirm.checked=false;confirm.disabled=!mismatch;
+  const compare=node('recognitionCompare');compare.replaceChildren();
+  if(!target)compare.textContent='Selecione uma tipologia para comparar com o relatório.';
+  else {
+    const title=document.createElement('strong');
+    title.textContent=mismatch?'Descrição diferente: confira antes de confirmar.':'Descrições correspondentes.';
+    compare.append(title);
+    const from=document.createElement('p');from.textContent='No relatório: '+item.descricao;compare.append(from);
+    const to=document.createElement('p');to.textContent='No cadastro: '+target.codigo+' — '+target.descricao;compare.append(to);
+  }
+  validarReconhecimento();
+}
+function validarReconhecimento(){
+  const item=recognitionPendingItem;
+  const target=typologyCatalog.find(x=>x.id===node('recognitionTarget').value);
+  const mismatch=Boolean(item&&target&&
+    normalizarReconhecimento(item.descricao)!==normalizarReconhecimento(target.descricao));
+  node('recognitionConfirm').disabled=!(item&&target&&node('recognitionApproval').checked&&
+    (!mismatch||node('recognitionDivergence').checked));
+}
+function fecharConferenciaTipologia(){
+  node('recognitionOverlay').classList.add('hidden');
+  recognitionPendingItem=null;
+}
+async function confirmarReconhecimentoTipologia(){
+  const item=recognitionPendingItem;
+  const target=typologyCatalog.find(x=>x.id===node('recognitionTarget').value);
+  if(!item||!target||node('recognitionConfirm').disabled)return;
+  const button=node('recognitionConfirm');
+  button.disabled=true;button.textContent='Confirmando…';
+  node('recognitionMessage').textContent='';
+  try {
+    await ensureSession();
+    const resposta=await request('/rest/v1/rpc/vincular_tipologia_existente_admin',{
+      method:'POST',token:session.access_token,
+      body:{p_esquadria_id:item.id,p_tipologia_id:target.id,
+        p_confirmar_divergencia:node('recognitionDivergence').checked}
+    });
+    fecharConferenciaTipologia();
+    await loadPanel();
+    renderTypologiesAdmin();
+    setView('typologies');
+    node('pendingReviewPanel').open=true;
+    node('typologyAdminMessage').textContent='Tipologia '+target.codigo+' confirmada apenas nesta obra ('+
+      (resposta.esquadrias_vinculadas||0)+' registro(s)). Sem associação automática para outras obras.';
+  }catch(err){node('recognitionMessage').textContent='Não foi possível confirmar: '+err.message;}
+  finally{button.disabled=false;button.textContent='Confirmar associação';}
+}
 function refreshVariationManager(){
   const signature=typologyCatalog.map(t=>[t.id,t.codigo,t.tipologia_principal_id||'',t.quantidade_modulos||''].join(':')).join('|');
   if(signature===variationManagerCatalogSignature)return;
@@ -1339,6 +1481,7 @@ async function saveVariationFamily(event){
 function renderTypologiesAdmin() {
   if(String(membership?.perfil||'').toLowerCase()!=='administrador'){setView('dashboard');return;}
   refreshVariationManager();
+  renderConferenciaPendentes();
   node('catalogCount').textContent=typologyCatalog.length.toLocaleString('pt-BR');
   node('croquiCatalogCount').textContent='Croquis: '+typologyCroquis.length+' de '+typologyCatalog.length;
   const options=[...new Set([...manufacturerCatalog.map(m=>m.nome),...typologyCatalog.map(t=>String(t.fabricante||'').trim().toLocaleUpperCase('pt-BR')).filter(Boolean)])]
