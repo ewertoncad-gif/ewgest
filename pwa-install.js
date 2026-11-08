@@ -30,7 +30,7 @@
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault();
     pendingInstall = event;
-    button.textContent = 'Baixe para seu celular';
+    // Mantém o texto fixo mesmo quando a instalação é oferecida.
   });
   window.addEventListener('appinstalled', () => {
     pendingInstall = null;
