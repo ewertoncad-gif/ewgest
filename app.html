@@ -82,7 +82,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • liberação e expedição v8.0</div>
+        <div class="build">EWGEST • liberações e saídas v8.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -245,8 +245,7 @@ function shipmentStats(item){
   }
   const released=Number(item.qtd_liberada)||0;
   const maxLeaves=per===null?null:released*per;
-  const progress=(released>0&&per!==null)?(frames/released+leaves/maxLeaves)*50:null;
-  return {frames,leaves,events,last,per,released,maxLeaves,progress};
+  return {frames,leaves,events,last,per,released,maxLeaves};
 }
 function suggestedLeaves(item) {
   const match=String(item.descricao||'').match(/(\d{1,2})\s*FOLHA/i);
@@ -308,8 +307,7 @@ function renderDetail(w){
         ?'Folhas: composição a confirmar na primeira saída'
         :'Folhas enviadas: '+s.leaves+' / '+s.maxLeaves+' ( '+s.per+' por unidade )';
       const dateText=s.last?'Última saída: '+s.last.data_saida.split('-').reverse().join('/'):'Nenhuma saída registrada';
-      const progressText=s.progress===null?'':` · Expedição: ${amount(s.progress)}%`;
-      return `<div class="item"><button type="button" class="itemclick" data-ship="${escapeHTML(x.id)}" ${!canShip?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted">${escapeHTML(x.localizacao||'')}</span></div><p class="muted">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Liberadas para corte: ${s.released}</span><span>Marcos enviados: ${s.frames} / ${s.released}</span><span>${escapeHTML(sheetText)}</span></div><div class="itemline" style="margin-top:8px"><span class="hint">${escapeHTML(dateText)}${progressText}</span><span class="tap">${!dispatchReady?'Configuração pendente':!canEdit?'Somente consulta':s.released===0?'Ainda não liberada':canShip?'Registrar saída':'Tudo expedido'}</span></div></button></div>`;
+      return `<div class="item"><button type="button" class="itemclick" data-ship="${escapeHTML(x.id)}" ${!canShip?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted">${escapeHTML(x.localizacao||'')}</span></div><p class="muted">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Liberadas para corte: ${s.released}</span><span>Marcos enviados: ${s.frames} / ${s.released}</span><span>${escapeHTML(sheetText)}</span></div><div class="itemline" style="margin-top:8px"><span class="hint">${escapeHTML(dateText)}</span><span class="tap">${!dispatchReady?'Configuração pendente':!canEdit?'Somente consulta':s.released===0?'Ainda não liberada':canShip?'Registrar saída':'Tudo expedido'}</span></div></button></div>`;
     }).join(''):'<div class="empty">Nenhuma esquadria nesta obra.</div>';
     node('items').querySelectorAll('[data-ship]').forEach(b=>b.addEventListener('click',()=>openShipment(b.dataset.ship)));
   }
