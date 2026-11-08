@@ -68,7 +68,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • diagnóstico v3.0 • sem dependências externas</div>
+        <div class="build">EWGEST • liberações v4.0 • sem dependências externas</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -202,13 +202,18 @@ node('releaseForm').addEventListener('submit',async event=>{
   try{
     await ensureSession();
     await request('/rest/v1/rpc/registrar_liberacao_corte',{method:'POST',token:session.access_token,body:{p_esquadria_id:selectedItem.id,p_quantidade:qty,p_data_liberacao:date}});
+    // A gravação já foi confirmada: falha posterior de atualização não deve sugerir repetição.
     const workId=selectedWork?.id;
-    await loadPanel();
-    const work=works.find(w=>w.id===workId);
-    if(work)renderDetail(work);
     closeRelease();
-    if(work)node('detailError').textContent='Liberação registrada com sucesso: '+qty+' unidade(s) em '+date.split('-').reverse().join('/')+'.';
-  }catch(e){node('releaseError').textContent='Não foi possível salvar: '+e.message+'\nNenhum sucesso foi confirmado. Não repita sem conferir.';}
+    node('detailError').textContent='Liberação salva: '+qty+' unidade(s) em '+date.split('-').reverse().join('/')+'. Atualizando dados…';
+    try{
+      await loadPanel();
+      const work=works.find(w=>w.id===workId);
+      if(work){renderDetail(work);node('detailError').textContent='Liberação salva: '+qty+' unidade(s) em '+date.split('-').reverse().join('/')+'.';}
+    }catch(refreshError){
+      node('detailError').textContent='Liberação salva no banco, mas os dados não atualizaram: '+refreshError.message+'. Use Voltar e Atualizar dados. NÃO registre novamente.';
+    }
+  }catch(e){node('releaseError').textContent='Não foi possível confirmar a liberação: '+e.message+'\nAntes de repetir, confira o saldo atualizado para evitar duplicidade.';}
   finally{button.disabled=false;button.textContent='Salvar liberação';}
 });
 window.EWGEST_LOGIN=async function(event){event.preventDefault();setError('');setStatus('Botão funcionando. Conferindo usuário e senha…');const b=node('loginButton');b.disabled=true;b.textContent='Verificando…';try{
@@ -222,7 +227,7 @@ node('refresh').addEventListener('click',async()=>{node('panelError').textConten
 node('back').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v3.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v4.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
