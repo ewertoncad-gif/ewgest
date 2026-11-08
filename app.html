@@ -354,7 +354,7 @@ const area = (i,q) => Number(i.largura_mm||0)*Number(i.altura_mm||0)*Number(q||0
 let session=null, currentUser=null, currentCompany=null, membership=null, works=[], elements=[], releaseHistory=[], selectedWork=null, selectedItem=null;
 let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='',detailMode='release',currentShipmentRequestId=null;
 let typologyCatalog=[],typologyOrigins=[],typologyOriginReady=false,editingTypology=null,editingPendingItem=null,typologyEditingStep=1,typologyCroquis=[];
-let manufacturerCatalog=[],manufacturerLoadError='',originalManufacturerForEdit='',originalDescriptionForEdit='';
+let manufacturerCatalog=[],manufacturerLoadError='',originalManufacturerForEdit='',originalDescriptionForEdit='',manufacturerAutoCandidate='';
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
 function setView(view){for(const id of ['login','dashboard','detail','typologies','manufacturers'])node(id).classList.toggle('hidden',id!==view);node('logout').classList.toggle('hidden',view==='login');}
@@ -791,7 +791,7 @@ function renderTypologiesAdmin() {
   if(String(membership?.perfil||'').toLowerCase()!=='administrador'){setView('dashboard');return;}
   node('catalogCount').textContent=typologyCatalog.length.toLocaleString('pt-BR');
   node('croquiCatalogCount').textContent='Croquis: '+typologyCroquis.length+' de '+typologyCatalog.length;
-  const options=[...new Set(['HYDRO','PERFIL',...typologyCatalog.map(t=>String(t.fabricante||'').trim().toLocaleUpperCase('pt-BR')).filter(Boolean)])]
+  const options=[...new Set([...manufacturerCatalog.map(m=>m.nome),...typologyCatalog.map(t=>String(t.fabricante||'').trim().toLocaleUpperCase('pt-BR')).filter(Boolean)])]
     .sort((a,b)=>a.localeCompare(b,'pt-BR'));
   const selector=node('typologyManufacturerFilter');
   const current=selector.value;
@@ -874,6 +874,11 @@ function openTypologyEdit(id) {
   node('typologyEditCode').value=typology.codigo;
   node('typologyEditDescription').value=typology.descricao;
   node('typologyEditManufacturer').value=typology.fabricante||'';
+  node('typologyManufacturerSection').classList.remove('hidden');
+  originalManufacturerForEdit=String(typology.fabricante||'').trim().toLocaleUpperCase('pt-BR');
+  originalDescriptionForEdit=String(typology.descricao||'');
+  manufacturerAutoCandidate=originalManufacturerForEdit;
+  refreshManufacturerSuggestions();
   node('typologyCroquiArea').classList.remove('hidden');
   refreshCroquiPreview(id);
   const keep=origins.length?origins.some(x=>x.ativo):true;
@@ -909,6 +914,7 @@ function openPendingTypologyClassification(id) {
   node('typologyEditCode').value=originalCode;
   node('typologyEditDescription').value=originalDescription;
   node('typologyEditManufacturer').value='';
+  node('typologyManufacturerSection').classList.add('hidden');
   node('typologyEditForm').querySelectorAll('input[name="originLinkChoice"]').forEach(el=>{
     el.checked=el.value==='manter';
   });
