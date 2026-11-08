@@ -1,0 +1,67 @@
+name: EWGEST - Backup criptografado
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 04:17 UTC, todos os dias (aprox. 01:17 em Recife)
+    - cron: '17 4 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Instalar Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Exportar e criptografar dados
+        shell: bash
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_DB_PASSWORD:-}" || { echo 'Falta SUPABASE_DB_PASSWORD'; exit 1; }
+          test -n "${BACKUP_PASSPHRASE:-}" || { echo 'Falta BACKUP_PASSPHRASE'; exit 1; }
+
+          # Codifica caracteres especiais da senha sem mostra-la no log.
+          DB_URL="$(python3 -c 'import os; from urllib.parse import quote; print("postgresql://postgres.knsmefqcdvxacvdauezu:" + quote(os.environ["SUPABASE_DB_PASSWORD"], safe="") + "@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require")')"
+
+          mkdir -p backup_tmp
+          supabase db dump --db-url "$DB_URL" --role-only -f backup_tmp/roles.sql
+          supabase db dump --db-url "$DB_URL" -f backup_tmp/schema.sql
+          supabase db dump --db-url "$DB_URL" --data-only --use-copy \
+            -x storage.buckets_vectors -x storage.vector_indexes \
+            -f backup_tmp/data.sql
+
+          test -s backup_tmp/roles.sql
+          test -s backup_tmp/schema.sql
+          test -s backup_tmp/data.sql
+          tar -czf ewgest-backup.tar.gz backup_tmp
+
+          # Apenas o arquivo criptografado sera enviado para o GitHub.
+          printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes \
+            --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 \
+            --output "$RUNNER_TEMP/ewgest-backup.tar.gz.gpg" ewgest-backup.tar.gz
+
+          # Verificacao de descriptografia e integridade do arquivo compactado.
+          printf '%s' "$BACKUP_PASSPHRASE" | gpg --quiet --batch \
+            --pinentry-mode loopback --passphrase-fd 0 \
+            --decrypt "$RUNNER_TEMP/ewgest-backup.tar.gz.gpg" | tar -tzf - > /dev/null
+
+          rm -rf backup_tmp ewgest-backup.tar.gz
+          echo 'Backup criado, criptografado e arquivo verificado.'
+
+      - name: Guardar copia criptografada por 30 dias
+        uses: actions/upload-artifact@v4
+        with:
+          name: ewgest-backup-${{ github.run_number }}
+          path: ${{ runner.temp }}/ewgest-backup.tar.gz.gpg
+          if-no-files-found: error
+          retention-days: 30
