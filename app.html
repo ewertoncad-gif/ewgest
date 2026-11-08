@@ -52,6 +52,15 @@
     .modalbuttons{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}.feedback{font-size:13px;margin-top:12px;white-space:pre-wrap;color:#ffc5ba}
     .hint{color:#a9bfd3;font-size:13px;line-height:1.5}.tap{color:#62d9b3;font-size:12px}
     .topactions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    select{font:inherit;width:100%;background:#0b192c;color:#fff;border:1px solid #46627a;padding:13px 14px;border-radius:9px}
+    select:focus{outline:2px solid #62d9b3}
+    .detailtabs{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px}
+    .detailtabs button.active{background:#62d9b3;color:#08231d;border-color:#62d9b3}
+    .shipmentoverview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:10px 0 18px}
+    .shipmentoverview .stat{padding:13px}.shipmentoverview .number{font-size:21px}
+    .shiphistory{margin-top:16px;max-height:180px;overflow-y:auto}
+    .shiphistory p{border-bottom:1px solid #334c61;margin:0;padding:7px 0}
+    @media(max-width:570px){.shipmentoverview{grid-template-columns:1fr}}
     @media(max-width:700px){.wrap{padding:17px}.login{margin:50px auto}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.number{font-size:24px}}
   </style>
 </head>
@@ -59,7 +68,7 @@
 <div class="wrap">
   <header class="top">
     <div class="brand">EW<span>GEST</span></div>
-    <div class="topactions"><span class="tag">Gestão de obras · liberações</span><button id="logout" class="btn secondary hidden" type="button">Sair</button></div>
+    <div class="topactions"><span class="tag">Gestão de obras · liberações e saídas</span><button id="logout" class="btn secondary hidden" type="button">Sair</button></div>
   </header>
   <main>
     <section id="login" class="panel login">
@@ -98,7 +107,15 @@
         <div class="stat"><div class="label">Fabricada</div><div class="number" id="detailMade">—</div></div>
       </div>
       <div class="qtystats" aria-label="Quantidades de esquadrias"><div class="stat"><div class="label">Unidades totais</div><div class="number" id="detailUnitsTotal">—</div></div><div class="stat"><div class="label">Liberadas para corte</div><div class="number" id="detailUnitsReleased">—</div></div><div class="stat"><div class="label">Aguardando liberação</div><div class="number" id="detailUnitsPending">—</div></div></div>
-      <div class="section panel"><h2>Itens da obra</h2><p class="hint">Clique em um item para registrar uma liberação para corte.</p><div class="itemfilter"><label for="itemSearch">Buscar esquadria pelo código</label><div class="filterrow"><input id="itemSearch" type="search" placeholder="Ex.: EA05 ou 05" autocomplete="off" spellcheck="false"><button id="clearItemSearch" type="button" class="btn secondary">Limpar</button></div><p id="itemFilterCount" class="hint filtercount" role="status" aria-live="polite"></p></div><div id="detailError" class="feedback" role="alert"></div><div id="items"></div><div id="itemFilterEmpty" class="empty hidden">Nenhuma esquadria encontrada com esse código. Tente buscar só uma parte, como EA05 ou 05.</div></div>
+      <div class="section panel">
+        <div class="detailtabs"><button type="button" class="btn secondary active" id="tabRelease" aria-pressed="true">Liberações para corte</button><button type="button" class="btn secondary" id="tabShip" aria-pressed="false">Saídas para obra</button></div>
+        <h2 id="itemListTitle">Itens da obra</h2>
+        <p id="detailIntro" class="hint">Clique em um item para registrar uma liberação para corte.</p>
+        <div id="shipmentOverview" class="shipmentoverview hidden">
+          <div class="stat"><div class="label">Marcos enviados</div><div class="number" id="shipFramesTotal">—</div></div>
+          <div class="stat"><div class="label">Folhas enviadas</div><div class="number" id="shipLeavesTotal">—</div></div>
+          <div class="stat"><div class="label">Registros de saída</div><div class="number" id="shipEventsTotal">—</div></div>
+        </div><div class="itemfilter"><label for="itemSearch">Buscar esquadria pelo código</label><div class="filterrow"><input id="itemSearch" type="search" placeholder="Ex.: EA05 ou 05" autocomplete="off" spellcheck="false"><button id="clearItemSearch" type="button" class="btn secondary">Limpar</button></div><p id="itemFilterCount" class="hint filtercount" role="status" aria-live="polite"></p></div><div id="detailError" class="feedback" role="alert"></div><div id="items"></div><div id="itemFilterEmpty" class="empty hidden">Nenhuma esquadria encontrada com esse código. Tente buscar só uma parte, como EA05 ou 05.</div></div>
     </section>
   </main>
 </div>
@@ -116,6 +133,33 @@
     </form>
   </div>
 </div>
+<div id="shipmentModal" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="shipmentTitle">
+    <h2 id="shipmentTitle">Saída da produção para a obra</h2>
+    <p id="shipmentItem" class="muted"></p>
+    <p id="shipmentBalance" class="hint"></p>
+    <form id="shipmentForm">
+      <label for="shipmentKind">1. O envio foi completo ou parcial?</label>
+      <select id="shipmentKind"><option value="completo">Completo — marco e folhas</option><option value="parcial">Parcial</option></select>
+      <div id="shipmentPartSection" class="hidden">
+        <label for="shipmentPart">Qual parte saiu?</label>
+        <select id="shipmentPart"><option value="marco">Marco</option><option value="folha">Folha</option></select>
+      </div>
+      <div id="shipmentCompositionSection">
+        <label for="shipmentLeaves">Folhas por esquadria (confirmar só no primeiro envio)</label>
+        <input id="shipmentLeaves" type="number" min="1" max="12" step="1" required>
+        <p class="hint">Confirme a composição do modelo. Ex.: janela com 2 folhas = 2. Isso define o saldo de peças.</p>
+      </div>
+      <label id="shipmentQtyLabel" for="shipmentQty">2. Quantas esquadrias completas saíram?</label>
+      <input id="shipmentQty" type="number" min="1" step="1" required autocomplete="off">
+      <label for="shipmentDate">3. Em que data saiu para a obra?</label>
+      <input id="shipmentDate" type="date" required>
+      <div id="shipmentError" class="feedback" role="alert"></div>
+      <div class="modalbuttons"><button type="button" id="shipmentCancel" class="btn secondary">Cancelar</button><button type="submit" id="shipmentSave" class="btn primary">Salvar saída</button></div>
+    </form>
+    <div id="shipmentHistory" class="shiphistory hint"></div>
+  </div>
+</div>
 <script>
 'use strict';
 /* EWGEST - v4.0: liberacoes para corte com historico e validacao no Supabase. */
@@ -126,6 +170,7 @@ const amount = n => Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:2
 const escapeHTML = v => String(v??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const area = (i,q) => Number(i.largura_mm||0)*Number(i.altura_mm||0)*Number(q||0)/1e6;
 let session=null, currentUser=null, currentCompany=null, membership=null, works=[], elements=[], releaseHistory=[], selectedWork=null, selectedItem=null;
+let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='',detailMode='release',currentShipmentRequestId=null;
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
 function setView(view){for(const id of ['login','dashboard','detail'])node(id).classList.toggle('hidden',id!==view);node('logout').classList.toggle('hidden',view==='login');}
@@ -165,6 +210,13 @@ async function loadPanel(){
   ]);
   works=w||[];elements=e||[];
   releaseHistory=await apiGet('liberacoes_corte',{select:'esquadria_id,quantidade,data_liberacao',order:'data_liberacao.desc'});
+  try{
+    const [config,history]=await Promise.all([
+      apiGet('esquadrias_saida_config',{select:'esquadria_id,folhas_por_unidade'}),
+      apiGet('saidas_producao',{select:'id,esquadria_id,tipo,quantidade,data_saida',order:'data_saida.desc',limit:'1000'})
+    ]);
+    dispatchConfig=config||[];shipmentHistory=history||[];dispatchReady=true;dispatchLoadError='';
+  }catch(err){dispatchConfig=[];shipmentHistory=[];dispatchReady=false;dispatchLoadError=err.message;}
 
   node('heading').textContent=currentCompany.nome;
   node('userline').textContent=(currentUser.email||'Usuário')+' · '+membership.perfil;
