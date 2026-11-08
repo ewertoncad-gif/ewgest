@@ -124,7 +124,7 @@
           <div class="stat"><div class="label">Marcos enviados</div><div class="number" id="shipFramesTotal">—</div></div>
           <div class="stat"><div class="label">Folhas enviadas</div><div class="number" id="shipLeavesTotal">—</div></div>
           <div class="stat"><div class="label">Registros de saída</div><div class="number" id="shipEventsTotal">—</div></div>
-        </div><div class="itemfilter"><label for="itemSearch">Buscar esquadria pelo código</label><div class="filterrow"><input id="itemSearch" type="search" placeholder="Ex.: EA8, EA05 ou GOLS-JCR202" autocomplete="off" spellcheck="false"><button id="clearItemSearch" type="button" class="btn secondary">Limpar</button></div><div class="displayoptions"><label><input id="showItemDescription" type="checkbox"> Mostrar descrição</label><label><input id="showItemLocation" type="checkbox"> Mostrar localização</label></div><p id="itemFilterCount" class="hint filtercount" role="status" aria-live="polite"></p></div><div id="detailError" class="feedback" role="alert"></div><div id="items"></div><div id="itemFilterEmpty" class="empty hidden">Nenhuma esquadria encontrada com esse código. Tente buscar só uma parte, como EA05 ou 05.</div></div>
+        </div><div class="itemfilter"><label for="itemSearch">Buscar esquadria pelo código</label><div class="filterrow"><input id="itemSearch" type="search" placeholder="Ex.: EA8, EA05 ou GOLS-JCR202" autocomplete="off" spellcheck="false"><button id="clearItemSearch" type="button" class="btn secondary">Limpar</button></div><div class="displayoptions"><label><input id="showItemDescription" type="checkbox"> Mostrar descrição</label><label><input id="showItemLocation" type="checkbox"> Mostrar localização</label></div><p id="itemFilterCount" class="hint filtercount" role="status" aria-live="polite"></p></div><div id="detailError" class="feedback" role="alert"></div><div id="items"></div><div id="itemFilterEmpty" class="empty hidden">Nenhuma esquadria encontrada. Busque pelo código da esquadria ou pela tipologia CEM.</div></div>
     </section>
     <section id="typologies" class="hidden">
       <div class="head"><div>
@@ -275,7 +275,7 @@ function sortWorkItems(a,b){
 function groupRenderedItems(list){
   const host=node('items');
   const rows=[...host.querySelectorAll(':scope > .item')];
-  if(rows.length!==list.length)return;
+  if(!list.length||rows.length!==list.length)return;
   host.replaceChildren();
   let previous=null,group=null;
   for(let i=0;i<list.length;i++){
