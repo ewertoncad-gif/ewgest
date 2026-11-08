@@ -1599,6 +1599,8 @@ function showTypologyEditStep(step) {
   node('typologyEditChoice').classList.toggle('hidden',step!==2);
   node('typologyEditPrevious').classList.toggle('hidden',step!==2);
   node('typologyEditSave').textContent=step===1?'Revisar vínculo':(editingPendingItem?'Cadastrar tipologia':'Salvar alterações');
+  node('typologyEditForm').querySelector('input[name="originLinkChoice"][value="manter"]')
+    .closest('.originChoice').classList.toggle('hidden',Boolean(editingPendingItem));
   node('typologyEditError').textContent='';
 }
 
@@ -1656,6 +1658,7 @@ function openPendingTypologyClassification(id) {
   const originalCode=String(pending.rotulo_tipologia_relatorio||'').trim();
   const originalDescription=String(pending.descricao||'').trim();
   const group=elements.filter(x=>!x.tipologia_id
+    && x.obra_id===pending.obra_id
     && String(x.rotulo_tipologia_relatorio||'').trim()===originalCode
     && String(x.descricao||'').trim()===originalDescription);
   editingPendingItem=pending;
@@ -1664,13 +1667,13 @@ function openPendingTypologyClassification(id) {
   node('typologyEditTitle').textContent='Classificar esquadria · '+pending.codigo;
   node('typologySourceInfo').textContent=
     'Código informado no CEM: '+(originalCode||'Não identificado')+
-    '. A descrição abaixo corresponde a '+group.length+' código(s) de esquadria. Apenas os itens com esta mesma origem E descrição serão associados.';
+    '. A descrição abaixo corresponde a '+group.length+' código(s) de esquadria. Apenas os itens desta mesma OBRA, origem e descrição serão associados.';
   node('typologyEditCode').value=originalCode;
   node('typologyEditDescription').value=originalDescription;
   node('typologyEditManufacturer').value='';
   node('typologyManufacturerSection').classList.add('hidden');
   node('typologyEditForm').querySelectorAll('input[name="originLinkChoice"]').forEach(el=>{
-    el.checked=el.value==='manter';
+    el.checked=el.value==='quebrar';
   });
   showTypologyEditStep(1);
   node('typologyEditOverlay').classList.remove('hidden');
@@ -1979,6 +1982,16 @@ node('typologyManufacturerFilter').addEventListener('change',renderTypologiesAdm
 node('typologyTypeFilter').addEventListener('change',renderTypologiesAdmin);
 node('variationRecord').addEventListener('change',syncVariationForm);
 node('variationForm').addEventListener('submit',saveVariationFamily);
+node('recognitionTarget').addEventListener('change',atualizarComparacaoReconhecimento);
+node('recognitionApproval').addEventListener('change',validarReconhecimento);
+node('recognitionDivergence').addEventListener('change',validarReconhecimento);
+node('recognitionCancel').addEventListener('click',fecharConferenciaTipologia);
+node('recognitionConfirm').addEventListener('click',confirmarReconhecimentoTipologia);
+node('recognitionNew').addEventListener('click',()=>{
+  const id=recognitionPendingItem?.id;
+  fecharConferenciaTipologia();
+  if(id)openPendingTypologyClassification(id);
+});
 node('clearTypologySearch').addEventListener('click',()=>{
   node('typologySearch').value='';
   node('typologyManufacturerFilter').value='';
