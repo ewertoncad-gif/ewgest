@@ -859,6 +859,25 @@ function syncManufacturerFromDescription() {
   }
 }
 node('typologyEditDescription').addEventListener('input',syncManufacturerFromDescription);
+
+function syncDescriptionFromManufacturerField() {
+  if(!editingTypology||editingPendingItem||typologyEditingStep!==1)return;
+  const name=node('typologyEditManufacturer').value.trim().toLocaleUpperCase('pt-BR');
+  node('typologyEditManufacturer').value=name;
+  const before=manufacturerAutoCandidate||originalManufacturerForEdit;
+  const description=node('typologyEditDescription').value;
+  if(before&&manufacturerEnding(description)===before&&name!==before) {
+    const safe=before.replace(/[^a-zA-Z0-9]/g,'\\$&');
+    const suffix=new RegExp('\\s+-\\s*'+safe+'\\s*$','i');
+    node('typologyEditDescription').value=description.replace(suffix,name?' - '+name:'');
+  }
+  manufacturerAutoCandidate=name;
+  const known=manufacturerCatalog.some(f=>f.nome===name);
+  node('manufacturerSyncHint').textContent=!name?'Fabricante não informado.':
+    known?'Fabricante '+name+' já cadastrado.':
+    'Fabricante '+name+' ainda não cadastrado; confirme ao salvar.';
+}
+node('typologyEditManufacturer').addEventListener('change',syncDescriptionFromManufacturerField);
 function showTypologyEditStep(step) {
   typologyEditingStep=step;
   node('typologyEditFields').classList.toggle('hidden',step!==1);
