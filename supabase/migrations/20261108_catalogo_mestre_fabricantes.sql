@@ -91,6 +91,7 @@ DECLARE
   v_empresa uuid;
   v_nome text:=nullif(upper(btrim(p_fabricante)),'');
   v_criado boolean:=false;
+  v_count integer:=0;
   v_resultado jsonb;
 BEGIN
   IF v_uid IS NULL THEN RAISE EXCEPTION 'Entre na EWGEST.'; END IF;
@@ -116,7 +117,8 @@ BEGIN
       INSERT INTO public.fabricantes(empresa_id,nome,criado_por)
       VALUES(v_empresa,v_nome,v_uid)
       ON CONFLICT (empresa_id,nome) DO NOTHING;
-      GET DIAGNOSTICS v_criado=ROW_COUNT;
+      GET DIAGNOSTICS v_count=ROW_COUNT;
+      v_criado:=v_count>0;
     END IF;
   END IF;
   -- Quando a descrição terminar com um fabricante já cadastrado, os campos
