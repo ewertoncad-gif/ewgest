@@ -693,11 +693,37 @@ node('shipmentLeaves').addEventListener('input',updateShipmentForm);
 node('shipmentCancel').addEventListener('click',closeShipment);
 node('shipmentForm').addEventListener('submit',saveShipment);
 
+function croquiEntry(tipologiaId){return typologyCroquis.find(x=>x.tipologia_id===tipologiaId)||null;}
+function croquiSrc(entry){
+  if(!entry||typeof entry.imagem_base64!=='string'
+    ||entry.imagem_base64.length>200000||!/^[A-Za-z0-9+/]+={0,2}$/.test(entry.imagem_base64))return '';
+  return 'data:image/webp;base64,'+entry.imagem_base64;
+}
+function refreshCroquiPreview(tipologiaId){
+  const entry=croquiEntry(tipologiaId);
+  const src=croquiSrc(entry);
+  node('typologyCroquiPreview').innerHTML=src
+    ?'<img class="croquiPreviewImage" alt="Croqui da tipologia" src="'+src+'">'
+    :'<span class="hint">Nenhum croqui cadastrado para esta tipologia.</span>';
+  node('croquiOpenLarge').classList.toggle('hidden',!src);
+  node('croquiUploadStatus').textContent=entry?'Origem: '+(entry.origem||'Cadastro do administrador'):'';
+}
+function showCroquiZoom(tipologiaId){
+  const item=typologyCatalog.find(t=>t.id===tipologiaId);
+  const entry=croquiEntry(tipologiaId);
+  const src=croquiSrc(entry);
+  if(!src||!item)return;
+  node('croquiZoomTitle').textContent='Croqui · '+item.codigo;
+  node('croquiZoomImage').src=src;
+  node('croquiZoomSource').textContent=entry.origem||'Croqui cadastrado na EWGEST';
+  node('croquiZoomOverlay').classList.remove('hidden');
+}
 function renderTypologiesAdmin() {
   if(String(membership?.perfil||'').toLowerCase()!=='administrador'){setView('dashboard');return;}
   node('catalogCount').textContent=typologyCatalog.length.toLocaleString('pt-BR');
   const pending=elements.filter(x=>!x.tipologia_id);
   node('catalogPending').textContent=pending.length.toLocaleString('pt-BR');
+  node('croquiCatalogCount').textContent='Croquis: '+typologyCroquis.length+' de '+typologyCatalog.length;
   const query=node('typologySearch').value.trim().toLocaleUpperCase('pt-BR');
   const catalog=typologyCatalog.slice()
     .sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR',{numeric:true,sensitivity:'base'}))
@@ -706,11 +732,16 @@ function renderTypologiesAdmin() {
   const rows=catalog.map(t=>{
     const origin=typologyOrigins.filter(o=>o.tipologia_id===t.id);
     const status=origin.length?(origin.some(x=>x.ativo)?'Origem reconhecida':'Origem sem reconhecimento automático'):'Sem regra de origem';
+    const croqui=croquiSrc(croquiEntry(t.id));
+    const preview=croqui?'<img class="croquiThumb" loading="lazy" alt="Croqui técnico de '+escapeHTML(t.codigo)+'" src="'+croqui+'">'
+      :'<span class="croquiEmpty">Sem croqui</span>';
     return `<div class="catalogRow"><button type="button" class="catalogEntry" data-tipologia-edit="${escapeHTML(t.id)}">
-      <div class="itemline"><strong class="green">${escapeHTML(t.codigo)}</strong>
-        <span class="tap">Clique para editar</span></div>
-      <p class="muted">${escapeHTML(t.descricao)}</p>
-      <span class="hint">${escapeHTML(status)} · Clique para editar</span>
+      <div class="catalogImageRow"><div class="catalogTextArea">
+        <div class="itemline"><strong class="green">${escapeHTML(t.codigo)}</strong>
+          <span class="tap">Clique para editar</span></div>
+        <p class="muted">${escapeHTML(t.descricao)}</p>
+        <span class="hint">${escapeHTML(status)} · ${croqui?'Croqui disponível':'Croqui não cadastrado'}</span>
+      </div>${preview}</div>
     </button></div>`;
   });
   const waitingRows=waiting.map(x=>`<div class="catalogRow"><button type="button" class="catalogEntry" data-classificar-pendente="${escapeHTML(x.id)}">
@@ -762,6 +793,8 @@ function openTypologyEdit(id) {
       :'Esta tipologia não possui vínculo de origem cadastrado.';
   node('typologyEditCode').value=typology.codigo;
   node('typologyEditDescription').value=typology.descricao;
+  node('typologyCroquiArea').classList.remove('hidden');
+  refreshCroquiPreview(id);
   const keep=origins.length?origins.some(x=>x.ativo):true;
   node('typologyEditForm').querySelectorAll('input[name="originLinkChoice"]').forEach(el=>{
     el.checked=el.value===(keep?'manter':'quebrar');
@@ -787,6 +820,7 @@ function openPendingTypologyClassification(id) {
     && String(x.descricao||'').trim()===originalDescription);
   editingPendingItem=pending;
   editingTypology=null;
+  node('typologyCroquiArea').classList.add('hidden');
   node('typologyEditTitle').textContent='Classificar esquadria · '+pending.codigo;
   node('typologySourceInfo').textContent=
     'Código informado no CEM: '+(originalCode||'Não identificado')+
