@@ -63,8 +63,8 @@ BEGIN
   END;
   v_total:=pg_catalog.octet_length(v_bytes);
   IF v_total<20 OR v_total>150000
-    OR pg_catalog.encode(pg_catalog.substring(v_bytes from 1 for 4),'hex')<>'52494646'
-    OR pg_catalog.encode(pg_catalog.substring(v_bytes from 9 for 4),'hex')<>'57454250'
+    OR pg_catalog.encode(pg_catalog.substring(v_bytes,1,4),'hex')<>'52494646'
+    OR pg_catalog.encode(pg_catalog.substring(v_bytes,9,4),'hex')<>'57454250'
   THEN
     RAISE EXCEPTION 'Apenas croquis em formato WebP (maximo 150 KB) sao aceitos.';
   END IF;
