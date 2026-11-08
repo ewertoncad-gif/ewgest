@@ -158,7 +158,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • filtro FIXO v28.0</div>
+        <div class="build">EWGEST • filtro MAXIM-AR v29.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -316,6 +316,7 @@
               <select id="typologyTypeFilter">
                 <option value="">Todos os tipos</option>
                 <option value="JANELA">JANELA</option>
+                <option value="MAXIM-AR">MAXIM-AR</option>
                 <option value="FIXO">FIXO</option>
                 <option value="PORTA">PORTA</option>
                 <option value="GRADIL">GRADIL</option>
@@ -329,7 +330,7 @@
               </select>
             </div>
           </div>
-          <p class="hint" style="margin:0 0 8px">Classificação pela descrição, com prioridade para FACHADA UNITIZADA e FACHADA STICK. Módulos fixos de fachada não aparecem no filtro FIXO.</p>
+          <p class="hint" style="margin:0 0 8px">Classificação pela descrição: FACHADA UNITIZADA e FACHADA STICK têm prioridade sobre FIXO e MAXIM-AR. Módulos de fachada não aparecem novamente nesses filtros.</p>
           <p id="typologyFilterCount" class="hint filtercount" role="status"></p>
         </div>
         <div id="typologyAdminMessage" class="feedback" role="status" aria-live="polite"></div><div id="typologyList"></div>
@@ -1190,8 +1191,10 @@ function classificarTipoTipologia(t){
   if(/\bGRADIL\b|\bGRADE\b/.test(desc))return 'GRADIL';
   if(/\bPORTA\s+DE\s+GIRO\b/.test(desc))return 'PORTA DE GIRO';
   if(/\bPORTA\b/.test(desc))return 'PORTA';
+  // MAXIM-AR possui filtro próprio, após a prioridade das fachadas.
+  if(/\bMAXIM[\s-]?AR\b/.test(desc))return 'MAXIM-AR';
   if(ehFixoPrincipal(t))return 'FIXO';
-  if(/\bJANELA\b|\bMAXIM[\s-]?AR\b/.test(desc))return 'JANELA';
+  if(/\bJANELA\b/.test(desc))return 'JANELA';
   return 'OUTROS';
 }
 function correspondeTipoTipologia(t,tipo){
@@ -1689,7 +1692,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v28.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v29.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
