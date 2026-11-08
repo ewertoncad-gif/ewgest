@@ -204,7 +204,7 @@ Deno.serve(async (req) => {
         .update({ login, nome, perfil, atualizado_em: new Date().toISOString() })
         .eq('usuario_id', target.usuario_id).eq('empresa_id', caller.account.empresa_id);
       if (error) throw new Error('Não foi possível salvar o nome e o login.');
-      if (target.ativo && target.perfil !== perfil) {
+      if (target.ativo) {
         const { error: roleError } = await admin.from('usuarios_empresas')
           .update({ perfil }).eq('empresa_id', caller.account.empresa_id)
           .eq('usuario_id', target.usuario_id);
