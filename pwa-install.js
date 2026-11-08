@@ -30,7 +30,7 @@
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault();
     pendingInstall = event;
-    button.textContent = 'Instalar EWGEST';
+    button.textContent = 'Baixe para seu celular';
   });
   window.addEventListener('appinstalled', () => {
     pendingInstall = null;
