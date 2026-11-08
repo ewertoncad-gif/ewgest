@@ -676,6 +676,105 @@ function renderTypologiesAdmin() {
     button.addEventListener('click',()=>openTypologyEdit(button.dataset.tipologiaEdit));
   });
 }
+function showTypologyEditStep(step) {
+  typologyEditingStep=step;
+  node('typologyEditFields').classList.toggle('hidden',step!==1);
+  node('typologyEditChoice').classList.toggle('hidden',step!==2);
+  node('typologyEditPrevious').classList.toggle('hidden',step!==2);
+  node('typologyEditSave').textContent=step===1?'Revisar vínculo':'Salvar alterações';
+  node('typologyEditError').textContent='';
+}
+
+function openTypologyEdit(id) {
+  if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  if(!typologyOriginReady){
+    node('typologyAdminMessage').textContent='Não foi possível consultar os vínculos de origem. Clique em Atualizar dados e tente novamente.';
+    return;
+  }
+  const typology=typologyCatalog.find(x=>x.id===id);
+  if(!typology)return;
+  editingTypology=typology;
+  const origins=typologyOrigins.filter(x=>x.tipologia_id===id);
+  const originalCodes=[...new Set(origins.map(x=>x.codigo_origem))];
+  node('typologyEditTitle').textContent='Editar tipologia · '+typology.codigo;
+  node('typologySourceInfo').textContent=originalCodes.length
+    ?'Código(s) de origem preservado(s): '+originalCodes.join(', ')+'.'
+    :'Esta tipologia não possui vínculo de origem cadastrado.';
+  node('typologyEditCode').value=typology.codigo;
+  node('typologyEditDescription').value=typology.descricao;
+  const keep=origins.length?origins.some(x=>x.ativo):true;
+  node('typologyEditForm').querySelectorAll('input[name="originLinkChoice"]').forEach(el=>{
+    el.checked=el.value===(keep?'manter':'quebrar');
+  });
+  showTypologyEditStep(1);
+  node('typologyEditOverlay').classList.remove('hidden');
+  node('typologyEditCode').focus();
+}
+
+function closeTypologyEdit() {
+  node('typologyEditOverlay').classList.add('hidden');
+  editingTypology=null;
+  typologyEditingStep=1;
+}
+
+async function saveTypologyEdit(event) {
+  event.preventDefault();
+  if(!editingTypology)return;
+  if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  const code=node('typologyEditCode').value.trim();
+  const description=node('typologyEditDescription').value.trim();
+  if(code.length<2||code.length>80||description.length<5||description.length>1000){
+    node('typologyEditError').textContent='O código deve ter entre 2 e 80 caracteres e a descrição entre 5 e 1000.';
+    return;
+  }
+  if(typologyEditingStep===1){
+    node('typologyEditSummary').textContent=
+      'Código atual: '+editingTypology.codigo+'. Código corrigido: '+code+'. '+(editingTypology.provisoria
+        ?'Este cadastro será marcado como revisado pelo administrador. '
+        :'')+'Os vínculos históricos das esquadrias não serão alterados.';
+    showTypologyEditStep(2);
+    return;
+  }
+  const choice=[...node('typologyEditForm').querySelectorAll('input[name="originLinkChoice"]')].find(x=>x.checked);
+  if(!choice){node('typologyEditError').textContent='Escolha manter ou quebrar o vínculo de origem.';return;}
+  const keep=choice.value==='manter';
+  const button=node('typologyEditSave');
+  button.disabled=true;
+  button.textContent='Salvando…';
+  node('typologyEditError').textContent='';
+  try {
+    await ensureSession();
+    await request('/rest/v1/rpc/editar_tipologia_admin',{
+      method:'POST',token:session.access_token,
+      body:{p_tipologia_id:editingTypology.id,p_codigo:code,
+            p_descricao:description,p_manter_vinculo_origem:keep}
+    });
+    closeTypologyEdit();
+    node('typologyAdminMessage').textContent='Alteração salva. Atualizando catálogo…';
+    try {
+      await loadPanel();
+      node('typologySearch').value=code;
+      renderTypologiesAdmin();
+      setView('typologies');
+      node('typologyAdminMessage').textContent='Tipologia '+code+' salva. '+(keep
+        ?'Vínculo de origem mantido para futuras importações.'
+        :'Vínculo de origem desativado para futuras importações.')+
+        ' As esquadrias já cadastradas continuam vinculadas.';
+    } catch(err) {
+      node('typologyAdminMessage').textContent='Alteração SALVA no banco, mas a atualização do catálogo falhou: '+err.message+'. Recarregue o site; não salve novamente.';
+    }
+  } catch(err) {
+    node('typologyEditError').textContent='Não foi possível salvar: '+err.message;
+  } finally {
+    button.disabled=false;
+    button.textContent='Salvar alterações';
+  }
+}
+
+node('typologyEditCancel').addEventListener('click',closeTypologyEdit);
+node('typologyEditPrevious').addEventListener('click',()=>showTypologyEditStep(1));
+node('typologyEditForm').addEventListener('submit',saveTypologyEdit);
+
 node('catalogPendingJump').addEventListener('click',()=>{
   if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
   node('typologySearch').value='';
