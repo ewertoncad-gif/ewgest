@@ -948,10 +948,19 @@ async function reloadManagedUsers(){
 async function openManagedUsersPage(){
   if(!canManageUsers())return;
   node('createUserMessage').textContent='';
-  node('usersMessage').textContent='Consultando usuários…';
-  setView('users');
-  try{await reloadManagedUsers();}
-  catch(e){node('usersMessage').textContent='Não foi possível carregar: '+e.message;}
+  node('usersMessage').textContent='Conferindo sessão e consultando usuários…';
+  try{
+    // Verifica a sessão no servidor antes de exibir o formulário.
+    // Uma troca recente de senha pode ter invalidado os tokens antigos.
+    await userApi({acao:'meu_perfil'});
+    setView('users');
+    await reloadManagedUsers();
+  }catch(e){
+    if(session){
+      setView('users');
+      node('usersMessage').textContent='Não foi possível consultar usuários: '+e.message;
+    }
+  }
 }
 function openManagedUserEdit(id){
   if(!canManageUsers())return;
