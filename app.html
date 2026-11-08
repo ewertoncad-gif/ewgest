@@ -138,7 +138,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • catálogo por fabricante v18.0</div>
+        <div class="build">EWGEST • cadastro de fabricantes v19.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -983,6 +983,11 @@ async function saveTypologyEdit(event) {
     return;
   }
   if(typologyEditingStep===1){
+    const newManufacturer=!pendingItem && manufacturer &&
+      !manufacturerCatalog.some(f=>f.nome===manufacturer);
+    node('manufacturerNewConfirm').classList.toggle('hidden',!newManufacturer);
+    node('manufacturerConfirmRegistration').checked=false;
+    node('manufacturerNewConfirmTitle').textContent='Confirmo cadastrar fabricante '+manufacturer;
     node('typologyEditSummary').textContent=pendingItem
       ?'Código original: '+(pendingItem.rotulo_tipologia_relatorio||'Não identificado')+
         '. Código da nova tipologia: '+code+'. Serão associados os itens pendentes com o mesmo código E descrição de origem. As liberações, quantidades e saídas não serão modificadas.'
@@ -993,18 +998,25 @@ async function saveTypologyEdit(event) {
   const choice=[...node('typologyEditForm').querySelectorAll('input[name="originLinkChoice"]')].find(x=>x.checked);
   if(!choice){node('typologyEditError').textContent='Escolha manter ou quebrar o vínculo de origem.';return;}
   const keep=choice.value==='manter';
+  const newManufacturer=!pendingItem && manufacturer &&
+    !manufacturerCatalog.some(f=>f.nome===manufacturer);
+  if(newManufacturer&&!node('manufacturerConfirmRegistration').checked){
+    node('typologyEditError').textContent='Confirme o cadastro do fabricante '+manufacturer+' antes de salvar.';
+    return;
+  }
   const button=node('typologyEditSave');
   button.disabled=true;
   button.textContent='Salvando…';
   node('typologyEditError').textContent='';
   try {
     await ensureSession();
-    const route=pendingItem?'classificar_tipologia_pendente_admin':'editar_tipologia_com_fabricante_admin';
+    const route=pendingItem?'classificar_tipologia_pendente_admin':'editar_tipologia_fabricante_catalogo_admin';
     const payload=pendingItem
       ?{p_esquadria_id:pendingItem.id,p_codigo:code,
          p_descricao:description,p_manter_vinculo_origem:keep}
       :{p_tipologia_id:editingTypology.id,p_codigo:code,p_fabricante:manufacturer,
-         p_descricao:description,p_manter_vinculo_origem:keep};
+         p_descricao:description,p_manter_vinculo_origem:keep,
+         p_criar_fabricante:Boolean(newManufacturer&&node('manufacturerConfirmRegistration').checked)};
     await request('/rest/v1/rpc/'+route,{
       method:'POST',token:session.access_token,body:payload
     });
@@ -1259,7 +1271,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v18.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v19.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
