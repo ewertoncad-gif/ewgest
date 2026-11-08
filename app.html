@@ -63,6 +63,23 @@
     .typologyHeading strong{font-size:16px;letter-spacing:.2px;color:#62d9b3}
     .typologyHeading span{color:#a7bfd3;font-size:12px}
     .catalogRow{padding:16px 0;border-bottom:1px solid #334c61}.catalogRow:last-child{border:0}
+    .catalogEntry{display:block;width:100%;border:0;background:transparent;color:inherit;text-align:left;padding:0;cursor:pointer}
+    .catalogEntry:hover .green,.catalogEntry:focus-visible .green{text-decoration:underline}
+    .catalogEntry:focus-visible{outline:2px solid #62d9b3;outline-offset:4px;border-radius:4px}
+    .catalogStatus{font-size:12px;color:#aec6da;border:1px solid #35546c;border-radius:8px;padding:4px 8px}
+    .catalogStatus.review{color:#ffdeb0;border-color:#7a6545}
+    .statAction{text-align:left;width:100%;font:inherit;color:inherit;cursor:pointer}
+    .statAction:hover,.statAction:focus-visible{border-color:#62d9b3;outline:none}
+    .statAction .statHint{margin-top:7px;font-size:12px;color:#92afc5}
+    .typologyEditInput{width:100%}
+    textarea.typologyEditInput{background:#0b192c;color:#fff;border:1px solid #46627a;padding:13px 14px;border-radius:9px;font:inherit;resize:vertical;min-height:110px}
+    textarea.typologyEditInput:focus{outline:2px solid #62d9b3}
+    .originChoice{display:flex;align-items:flex-start;gap:10px;margin:12px 0;padding:12px;border:1px solid #35546c;border-radius:10px;cursor:pointer}
+    .originChoice input{width:auto;flex:none;margin-top:3px;accent-color:#62d9b3}
+    .originChoice span{display:block;flex:1}
+    .originChoice small{display:block;color:#a4bfd4;margin-top:4px;line-height:1.45}
+    #typologyAdminMessage{margin-bottom:12px}
+
     .catalogMeta{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:#abc2d6}
     select{font:inherit;width:100%;background:#0b192c;color:#fff;border:1px solid #46627a;padding:13px 14px;border-radius:9px}
     select:focus{outline:2px solid #62d9b3}
@@ -133,11 +150,11 @@
       <div class="head"><div>
         <button id="backTypologies" type="button" class="btn secondary" style="margin-bottom:18px">← Tela inicial</button>
         <h1>Banco de tipologias</h1>
-        <div class="muted">Catálogo mestre de códigos de tipologia identificados no CEM. Os códigos de esquadrias são registrados separadamente.</div>
+        <div class="muted">Catálogo mestre de tipologias confirmadas e provisórias. Clique em um cadastro para corrigir código ou descrição.</div>
       </div></div>
       <div class="stats catalogstats">
         <div class="stat"><div class="label">Tipologias cadastradas</div><div class="number" id="catalogCount">—</div></div>
-        <div class="stat"><div class="label">Esquadrias aguardando classificação</div><div class="number" id="catalogPending">—</div></div>
+        <button id="catalogPendingJump" type="button" class="stat statAction" aria-label="Ver esquadrias aguardando classificação"><div class="label">Esquadrias aguardando classificação</div><div class="number" id="catalogPending">—</div><div class="statHint">Clique para ver e revisar</div></button>
       </div>
       <div class="section panel">
         <h2>Consultar tipologias cadastradas</h2>
@@ -145,9 +162,9 @@
           <div class="filterrow"><input id="typologySearch" type="search" placeholder="Ex.: GOLS, JCR202, maxim-ar" autocomplete="off"><button id="clearTypologySearch" type="button" class="btn secondary">Limpar</button></div>
           <p id="typologyFilterCount" class="hint filtercount" role="status"></p>
         </div>
-        <div id="typologyList"></div>
+        <div id="typologyAdminMessage" class="feedback" role="status" aria-live="polite"></div><div id="typologyList"></div>
       </div>
-      <p class="notice">Este catálogo mostra somente tipologias. Futuramente, quando o administrador confirmar que duas tipologias são equivalentes, elas poderão aparecer vinculadas ao mesmo código principal. Até lá, nenhuma vinculação será presumida.</p>
+      <p class="notice">As alterações são feitas apenas pelo administrador e ficam registradas. O vínculo com os códigos de origem é configurado separadamente; os históricos das obras permanecem preservados.</p>
     </section>
   </main>
 </div>
@@ -192,6 +209,38 @@
     <div id="shipmentHistory" class="shiphistory hint"></div>
   </div>
 </div>
+<div id="typologyEditOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="typologyEditTitle">
+    <h2 id="typologyEditTitle">Editar tipologia</h2>
+    <p id="typologySourceInfo" class="hint"></p>
+    <form id="typologyEditForm">
+      <div id="typologyEditFields">
+        <label for="typologyEditCode">Código da tipologia</label>
+        <input id="typologyEditCode" class="typologyEditInput" type="text" maxlength="80" required autocomplete="off">
+        <label for="typologyEditDescription">Descrição da tipologia</label>
+        <textarea id="typologyEditDescription" class="typologyEditInput" maxlength="1000" required rows="4"></textarea>
+        <p class="hint">Você está corrigindo o cadastro mestre. Os códigos EA, quantidades, liberações e saídas das obras não serão alterados.</p>
+      </div>
+      <div id="typologyEditChoice" class="hidden">
+        <h3>O que fazer com o vínculo de origem?</h3>
+        <p id="typologyEditSummary" class="hint"></p>
+        <label class="originChoice"><input type="radio" name="originLinkChoice" value="manter" checked>
+          <span><strong>Manter vínculo</strong><small>O código e a descrição originais poderão apontar para esta tipologia corrigida nas próximas importações compatíveis.</small></span>
+        </label>
+        <label class="originChoice"><input type="radio" name="originLinkChoice" value="quebrar">
+          <span><strong>Quebrar vínculo de origem</strong><small>Não reconhecer automaticamente essa origem em novas obras. As esquadrias e os históricos anteriores continuam vinculados.</small></span>
+        </label>
+        <p class="hint">A importação automática de novas obras ainda não está implementada. Esta escolha fica salva como regra para quando essa função for criada.</p>
+      </div>
+      <div id="typologyEditError" class="feedback" role="alert"></div>
+      <div class="modalbuttons">
+        <button id="typologyEditCancel" type="button" class="btn secondary">Cancelar</button>
+        <button id="typologyEditPrevious" type="button" class="btn secondary hidden">Voltar</button>
+        <button id="typologyEditSave" type="submit" class="btn primary">Continuar</button>
+      </div>
+    </form>
+  </div>
+</div>
 <script>
 'use strict';
 /* EWGEST - v4.0: liberacoes para corte com historico e validacao no Supabase. */
@@ -203,7 +252,7 @@ const escapeHTML = v => String(v??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<'
 const area = (i,q) => Number(i.largura_mm||0)*Number(i.altura_mm||0)*Number(q||0)/1e6;
 let session=null, currentUser=null, currentCompany=null, membership=null, works=[], elements=[], releaseHistory=[], selectedWork=null, selectedItem=null;
 let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='',detailMode='release',currentShipmentRequestId=null;
-let typologyCatalog=[];
+let typologyCatalog=[],typologyOrigins=[],typologyOriginReady=false,editingTypology=null,typologyEditingStep=1;
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
 function setView(view){for(const id of ['login','dashboard','detail','typologies'])node(id).classList.toggle('hidden',id!==view);node('logout').classList.toggle('hidden',view==='login');}
@@ -241,9 +290,18 @@ async function loadPanel(){
   const [w,e,tips]=await Promise.all([
     apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'}),
     apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id',empresa_id:'eq.'+currentCompany.id}),
-    apiGet('tipologias',{select:'id,codigo,descricao',empresa_id:'eq.'+currentCompany.id})
+    apiGet('tipologias',{select:'id,codigo,descricao,provisoria',empresa_id:'eq.'+currentCompany.id})
   ]);
   works=w||[];elements=e||[];typologyCatalog=tips||[];
+  typologyOrigins=[];typologyOriginReady=false;
+  if(String(membership?.perfil||'').toLowerCase()==='administrador'){
+    try{
+      typologyOrigins=await apiGet('tipologias_origens',{select:'tipologia_id,codigo_origem,descricao_origem,ativo',empresa_id:'eq.'+currentCompany.id});
+      typologyOriginReady=true;
+    }catch(err){
+      typologyOrigins=[];typologyOriginReady=false;
+    }
+  }
   releaseHistory=await apiGet('liberacoes_corte',{select:'esquadria_id,quantidade,data_liberacao',order:'data_liberacao.desc'});
   try{
     const [config,history]=await Promise.all([
