@@ -118,6 +118,20 @@
     .originChoice span{display:block;flex:1}
     .originChoice small{display:block;color:#a4bfd4;margin-top:4px;line-height:1.45}
     #typologyAdminMessage{margin-bottom:12px}
+    .systemRules{margin:14px 0;padding:13px 15px;border:1px solid #385a70;border-radius:11px;background:#10253a}
+    .systemRules summary{cursor:pointer;font-weight:700;color:#75dfba}
+    .systemRules[open] summary{margin-bottom:10px}
+    .systemRules ul{padding-left:22px;margin:8px 0;line-height:1.6}
+    .variationForm{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px;align-items:end}
+    .variationForm label{display:block;margin-bottom:5px}
+    .variationForm select,.variationForm input{width:100%;max-width:100%}
+    .variationForm .variationSubmit{grid-column:1/-1;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .typologyFamily{margin:0 0 15px}
+    .typologyFamilyHead{border:1px solid #376079;background:#0d2134;border-radius:10px;padding:11px 13px;margin:12px 0 0;display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap}
+    .typologyFamilyHead span{font-size:12px;color:#a7c8dd}
+    .typologyFamily .catalogRow{padding-left:12px;border-left:2px solid #376079}
+    .catalogVariantMeta{font-size:12px;color:#8edfc6;margin:7px 0 2px}
+    @media(max-width:700px){.variationForm{grid-template-columns:1fr}.typologyFamilyHead{flex-direction:column}}
 
     .catalogMeta{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:#abc2d6}
     select{font:inherit;width:100%;background:#0b192c;color:#fff;border:1px solid #46627a;padding:13px 14px;border-radius:9px}
@@ -158,7 +172,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • filtro MAXIM-AR v29.0</div>
+        <div class="build">EWGEST • famílias e regras v30.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -299,6 +313,28 @@
           </div>
         </div>
         <p id="croquiImportStatus" class="hint" role="status" aria-live="polite">Os croquis aparecem somente neste catálogo, para o administrador.</p>
+        <details class="systemRules" id="systemRulesPanel">
+          <summary>Regras do sistema · referência técnica v1.0</summary>
+          <ul>
+            <li>O código principal identifica o <strong>modelo da tipologia</strong>. A quantidade de módulos é uma variação, não um novo código principal.</li>
+            <li>INV-VNZN00: 1, 2 ou mais módulos pertencem à mesma família, com descrições e croquis próprios.</li>
+            <li>Os IDs, códigos antigos, vínculos com obras e históricos não devem ser apagados ou fundidos para formar famílias.</li>
+            <li>FACHADA UNITIZADA e FACHADA STICK têm prioridade sobre FIXO e MAXIM-AR; um módulo de fachada não entra duas vezes nos filtros.</li>
+            <li>MAXIM-AR tem filtro próprio; JANELA DE CORRER com peitoril fixo continua JANELA.</li>
+            <li>Fabricante, busca e tipo são filtros combináveis. Edições de código/descrição e vínculos de origem são procedimentos separados, restritos ao administrador.</li>
+          </ul>
+          <p class="hint">Antes de qualquer atualização: conferir estas regras, testar classificações e vínculos e preservar os dados históricos.</p>
+        </details>
+        <details class="systemRules" id="variationManager">
+          <summary>Organizar tipologia principal e variações</summary>
+          <p class="hint">Associe registros existentes sem trocar seus códigos ou croquis. Uma família usa o código da tipologia principal; cada variação preserva seu identificador histórico.</p>
+          <form id="variationForm" class="variationForm">
+            <div><label for="variationRecord">Registro a organizar</label><select id="variationRecord" required><option value="">Selecione</option></select></div>
+            <div><label for="variationParent">Família / tipologia principal</label><select id="variationParent"><option value="">É uma tipologia independente (principal)</option></select></div>
+            <div><label for="variationModules">Módulos desta configuração</label><input id="variationModules" type="number" min="1" max="100" step="1" placeholder="Ex.: 2"></div>
+            <div class="variationSubmit"><button id="variationSave" class="btn primary" type="submit">Salvar agrupamento</button><span id="variationMessage" class="hint" role="status" aria-live="polite"></span></div>
+          </form>
+        </details>
         <div class="itemfilter"><label for="typologySearch">Buscar código ou descrição</label>
           <div class="filterrow"><input id="typologySearch" type="search" placeholder="Ex.: GOLS, JCR202, maxim-ar" autocomplete="off"><button id="clearTypologySearch" type="button" class="btn secondary">Limpar</button></div>
           <div class="catalogFilters">
@@ -491,6 +527,7 @@ const area = (i,q) => Number(i.largura_mm||0)*Number(i.altura_mm||0)*Number(q||0
 let session=null, currentUser=null, currentCompany=null, membership=null, works=[], elements=[], releaseHistory=[], selectedWork=null, selectedItem=null;
 let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='',detailMode='release',currentShipmentRequestId=null;
 let typologyCatalog=[],typologyOrigins=[],typologyOriginReady=false,editingTypology=null,editingPendingItem=null,typologyEditingStep=1,typologyCroquis=[];
+let variationManagerCatalogSignature='';
 let manufacturerCatalog=[],manufacturerLoadError='',originalManufacturerForEdit='',originalDescriptionForEdit='',manufacturerAutoCandidate='';
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
@@ -568,8 +605,8 @@ async function loadPanel(){
   node('openUsers').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
   const [w,e,tips]=await Promise.all([
     apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'}),
-    apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id,rotulo_tipologia_relatorio',empresa_id:'eq.'+currentCompany.id}),
-    apiGet('tipologias',{select:'id,codigo,descricao,provisoria,fabricante',empresa_id:'eq.'+currentCompany.id})
+    apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id,rotulo_tipologia_relatorio,quantidade_modulos',empresa_id:'eq.'+currentCompany.id}),
+    apiGet('tipologias',{select:'id,codigo,descricao,provisoria,fabricante,tipologia_principal_id,quantidade_modulos',empresa_id:'eq.'+currentCompany.id})
   ]);
   works=w||[];elements=e||[];typologyCatalog=tips||[];
   typologyOrigins=[];typologyOriginReady=false;typologyCroquis=[];
@@ -1203,8 +1240,66 @@ function correspondeTipoTipologia(t,tipo){
   // Fachadas com módulos fixos não aparecem também em FIXO.
   return classificarTipoTipologia(t)===tipo;
 }
+function refreshVariationManager(){
+  const signature=typologyCatalog.map(t=>[t.id,t.codigo,t.tipologia_principal_id||'',t.quantidade_modulos||''].join(':')).join('|');
+  if(signature===variationManagerCatalogSignature)return;
+  variationManagerCatalogSignature=signature;
+  const selector=node('variationRecord'),old=selector.value;
+  selector.replaceChildren();
+  const blank=document.createElement('option');blank.value='';blank.textContent='Selecione o cadastro';selector.append(blank);
+  const sorted=typologyCatalog.slice().sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR',{numeric:true}));
+  for(const t of sorted){
+    const opt=document.createElement('option');opt.value=t.id;opt.textContent=t.codigo+' · '+t.descricao.slice(0,55);selector.append(opt);
+  }
+  selector.value=typologyCatalog.some(t=>t.id===old)?old:'';
+  syncVariationForm();
+}
+function syncVariationForm(){
+  const item=typologyCatalog.find(t=>t.id===node('variationRecord').value);
+  const parent=node('variationParent');
+  parent.replaceChildren();
+  const alone=document.createElement('option');alone.value='';alone.textContent='Tipologia independente (principal)';parent.append(alone);
+  for(const t of typologyCatalog.filter(t=>!t.tipologia_principal_id&&t.id!==item?.id)
+    .sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR',{numeric:true}))){
+    const opt=document.createElement('option');opt.value=t.id;opt.textContent=t.codigo+' — '+(t.fabricante||'sem fabricante');parent.append(opt);
+  }
+  parent.value=item?.tipologia_principal_id||'';
+  node('variationModules').value=item?.quantidade_modulos||'';
+}
+async function saveVariationFamily(event){
+  event.preventDefault();
+  if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  const id=node('variationRecord').value;
+  const parentId=node('variationParent').value||null;
+  const raw=node('variationModules').value.trim();
+  const modules=raw?Number(raw):null;
+  const status=node('variationMessage');
+  if(!id){status.textContent='Escolha um registro.';return}
+  if((parentId&&!modules)||(modules!==null&&(!Number.isInteger(modules)||modules<1||modules>100))){
+    status.textContent='Informe de 1 a 100 módulos para cada variação.';return;
+  }
+  const button=node('variationSave');
+  button.disabled=true;status.textContent='Salvando vínculo…';
+  try {
+    await ensureSession();
+    await request('/rest/v1/rpc/configurar_variacao_tipologia_admin',{
+      method:'POST',token:session.access_token,
+      body:{p_tipologia_id:id,p_tipologia_principal_id:parentId,p_quantidade_modulos:modules}
+    });
+    await loadPanel();
+    variationManagerCatalogSignature='';
+    refreshVariationManager();
+    node('variationRecord').value=id;
+    syncVariationForm();
+    renderTypologiesAdmin();
+    setView('typologies');
+    status.textContent='Agrupamento salvo. Códigos originais, croquis e históricos preservados.';
+  }catch(err){status.textContent='Não foi possível concluir ou atualizar o agrupamento: '+err.message;}
+  finally{button.disabled=false;}
+}
 function renderTypologiesAdmin() {
   if(String(membership?.perfil||'').toLowerCase()!=='administrador'){setView('dashboard');return;}
+  refreshVariationManager();
   node('catalogCount').textContent=typologyCatalog.length.toLocaleString('pt-BR');
   node('croquiCatalogCount').textContent='Croquis: '+typologyCroquis.length+' de '+typologyCatalog.length;
   const options=[...new Set([...manufacturerCatalog.map(m=>m.nome),...typologyCatalog.map(t=>String(t.fabricante||'').trim().toLocaleUpperCase('pt-BR')).filter(Boolean)])]
@@ -1233,22 +1328,42 @@ function renderTypologiesAdmin() {
       ?!String(t.fabricante||'').trim()
       :!manufacturer||String(t.fabricante||'').trim().toLocaleUpperCase('pt-BR')===manufacturer)
     .filter(t=>correspondeTipoTipologia(t,selectedType));
-  const rows=catalog.map(t=>{
-    const origin=typologyOrigins.filter(o=>o.tipologia_id===t.id);
-    const status=origin.length?(origin.some(x=>x.ativo)?'Origem reconhecida':'Origem sem reconhecimento automático'):'Sem regra de origem';
-    const croqui=croquiSrc(croquiEntry(t.id));
-    const preview=croqui?'<img class="croquiThumb" loading="lazy" alt="Croqui técnico de '+escapeHTML(t.codigo)+'" src="'+croqui+'">'
-      :'<span class="croquiEmpty">Sem croqui</span>';
-    const fabric=t.fabricante||'Não informado';
-    return `<div class="catalogRow"><button type="button" class="catalogEntry" data-tipologia-edit="${escapeHTML(t.id)}">
-      <div class="catalogImageRow"><div class="catalogTextArea">
-        <div class="itemline"><strong class="green">${escapeHTML(t.codigo)}</strong>
-          <span class="tap">Clique para editar</span></div>
-        <p class="catalogManufacturer">Fabricante: ${escapeHTML(fabric)}</p>
-        <p class="muted">${escapeHTML(t.descricao)}</p>
-        <span class="hint">${escapeHTML(status)} · ${croqui?('Croqui de referência'+(croquiEntry(t.id)?.codigo_esquadria_referencia?' ('+escapeHTML(croquiEntry(t.id).codigo_esquadria_referencia)+')':'')):'Croqui não cadastrado'}</span>
-      </div>${preview}</div>
-    </button></div>`;
+  // Agrupa variações por ID principal, sem fundir nem alterar os registros originais.
+  const families=new Map();
+  for(const t of catalog){
+    const principal=typologyCatalog.find(p=>p.id===(t.tipologia_principal_id||t.id))||t;
+    if(!families.has(principal.id))families.set(principal.id,{principal,items:[]});
+    families.get(principal.id).items.push(t);
+  }
+  const rows=[...families.values()]
+    .sort((a,b)=>a.principal.codigo.localeCompare(b.principal.codigo,'pt-BR',{numeric:true,sensitivity:'base'}))
+    .map(({principal,items})=>{
+    const variants=typologyCatalog.filter(t=>t.id===principal.id||t.tipologia_principal_id===principal.id);
+    const grouped=variants.length>1;
+    const head=grouped?'<div class="typologyFamilyHead"><strong>Família '+escapeHTML(principal.codigo)+'</strong><span>'+
+      variants.length+' configurações de módulos · código principal preservado</span></div>':'';
+    const entries=items.map(t=>{
+      const origin=typologyOrigins.filter(o=>o.tipologia_id===t.id);
+      const status=origin.length?(origin.some(x=>x.ativo)?'Origem reconhecida':'Origem sem reconhecimento automático'):'Sem regra de origem';
+      const croqui=croquiSrc(croquiEntry(t.id));
+      const preview=croqui?'<img class="croquiThumb" loading="lazy" alt="Croqui técnico de '+escapeHTML(t.codigo)+'" src="'+croqui+'">'
+        :'<span class="croquiEmpty">Sem croqui</span>';
+      const fabric=t.fabricante||'Não informado';
+      const moduleLabel=t.quantidade_modulos?(t.quantidade_modulos+' módulo(s)'):'Quantidade de módulos não definida';
+      const variantInfo=grouped?'<p class="catalogVariantMeta">'+escapeHTML(moduleLabel)+
+        (t.id===principal.id?' · Configuração principal':' · Cadastro original '+escapeHTML(t.codigo))+'</p>':'';
+      return `<div class="catalogRow"><button type="button" class="catalogEntry" data-tipologia-edit="${escapeHTML(t.id)}">
+        <div class="catalogImageRow"><div class="catalogTextArea">
+          <div class="itemline"><strong class="green">${escapeHTML(t.codigo)}</strong>
+            <span class="tap">Clique para editar</span></div>
+          ${variantInfo}
+          <p class="catalogManufacturer">Fabricante: ${escapeHTML(fabric)}</p>
+          <p class="muted">${escapeHTML(t.descricao)}</p>
+          <span class="hint">${escapeHTML(status)} · ${croqui?('Croqui de referência'+(croquiEntry(t.id)?.codigo_esquadria_referencia?' ('+escapeHTML(croquiEntry(t.id).codigo_esquadria_referencia)+')':'')):'Croqui não cadastrado'}</span>
+        </div>${preview}</div>
+      </button></div>`;
+    }).join('');
+    return '<div class="typologyFamily">'+head+entries+'</div>';
   });
   node('typologyFilterCount').textContent=catalog.length+' de '+typologyCatalog.length+' tipologia(s) encontrada(s).';
   node('typologyList').innerHTML=catalog.length?rows.join('')
@@ -1680,6 +1795,8 @@ node('backTypologies').addEventListener('click',()=>setView('dashboard'));
 node('typologySearch').addEventListener('input',renderTypologiesAdmin);
 node('typologyManufacturerFilter').addEventListener('change',renderTypologiesAdmin);
 node('typologyTypeFilter').addEventListener('change',renderTypologiesAdmin);
+node('variationRecord').addEventListener('change',syncVariationForm);
+node('variationForm').addEventListener('submit',saveVariationFamily);
 node('clearTypologySearch').addEventListener('click',()=>{
   node('typologySearch').value='';
   node('typologyManufacturerFilter').value='';
@@ -1692,7 +1809,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v29.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v30.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
