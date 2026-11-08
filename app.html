@@ -82,7 +82,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • liberações v6.0 • quantidades por obra</div>
+        <div class="build">EWGEST • liberação e expedição v8.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -339,6 +339,107 @@ node('clearItemSearch').addEventListener('click',()=>{
   applyItemFilter();
   node('itemSearch').focus();
 });
+function shipmentType(){return node('shipmentKind').value==='completo'?'completo':node('shipmentPart').value;}
+
+function shipmentAvailability(item){
+  const s=shipmentStats(item);
+  const per=s.per||Number(node('shipmentLeaves').value)||0;
+  const pendingFrames=Math.max(0,s.released-s.frames);
+  const pendingLeaves=per?Math.max(0,s.released*per-s.leaves):null;
+  return {s,per,pendingFrames,pendingLeaves};
+}
+
+function updateShipmentForm(){
+  if(!selectedItem)return;
+  const kind=shipmentType();
+  node('shipmentPartSection').classList.toggle('hidden',node('shipmentKind').value==='completo');
+  const {s,per,pendingFrames,pendingLeaves}=shipmentAvailability(selectedItem);
+  const known=s.per!==null;
+  node('shipmentCompositionSection').classList.toggle('hidden',known);
+  node('shipmentQtyLabel').textContent=kind==='completo'?'Quantas esquadrias completas saíram?':kind==='marco'?'Quantos marcos saíram?':'Quantas folhas físicas saíram?';
+  const remaining=kind==='marco'?pendingFrames:kind==='folha'?pendingLeaves:per?Math.min(pendingFrames,Math.floor(pendingLeaves/per)):null;
+  node('shipmentQty').max=remaining===null?'':String(remaining);
+  node('shipmentBalance').textContent='Liberadas para corte: '+s.released+' unidade(s). Marcos expedidos: '+s.frames+'/'+s.released+'. Folhas expedidas: '+s.leaves+'/'+(per?s.released*per:'?')+'.'+(remaining===null?' Confirme a quantidade de folhas por unidade.':' Saldo desta opção: '+remaining+'.');
+  node('shipmentError').textContent='';
+}
+
+function renderShipmentHistory(id){
+  const arr=shipmentHistory.filter(h=>h.esquadria_id===id);
+  const labels={marco:'Marco',folha:'Folha',completo:'Completo'};
+  node('shipmentHistory').innerHTML=arr.length
+    ?'<strong>Histórico de saídas</strong>'+arr.slice(0,25).map(h=>'<p>'+escapeHTML(String(h.data_saida).split('-').reverse().join('/'))+' · '+escapeHTML(labels[h.tipo]||h.tipo)+' · '+Number(h.quantidade)+' '+(h.tipo==='folha'?'folha(s)':'unidade(s)')+'</p>').join('')
+    :'<p>Ainda não existem saídas registradas para este código.</p>';
+}
+
+function openShipment(id){
+  if(!dispatchReady||!['administrador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
+  selectedItem=elements.find(e=>e.id===id);
+  if(!selectedItem||Number(selectedItem.qtd_liberada)<=0)return;
+  const s=shipmentStats(selectedItem);
+  node('shipmentItem').textContent=selectedItem.codigo+' · '+(selectedItem.descricao||'')+' · '+(selectedItem.localizacao||'');
+  node('shipmentKind').value='completo';
+  node('shipmentPart').value='marco';
+  node('shipmentLeaves').value=s.per||suggestedLeaves(selectedItem)||'';
+  node('shipmentLeaves').readOnly=s.per!==null;
+  node('shipmentQty').value='';
+  node('shipmentDate').value=todayLocal();
+  node('shipmentError').textContent='';
+  currentShipmentRequestId=null;
+  currentShipmentRequestSignature='';
+  updateShipmentForm();
+  renderShipmentHistory(id);
+  node('shipmentModal').classList.remove('hidden');
+  (s.per!==null?node('shipmentQty'):node('shipmentLeaves')).focus();
+}
+
+function closeShipment(){
+  node('shipmentModal').classList.add('hidden');
+  selectedItem=null;
+}
+
+async function saveShipment(event){
+  event.preventDefault();
+  if(!selectedItem)return;
+  const item=selectedItem;
+  const kind=shipmentType(),qty=Number(node('shipmentQty').value),date=node('shipmentDate').value;
+  const per=Number(node('shipmentLeaves').value);
+  if(!Number.isSafeInteger(per)||per<1||per>12){node('shipmentError').textContent='Confirme a quantidade de folhas por esquadria, de 1 a 12.';return;}
+  if(!Number.isSafeInteger(qty)||qty<=0){node('shipmentError').textContent='Informe uma quantidade inteira maior que zero.';return;}
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date<"2000-01-01"||date>todayLocal()){node('shipmentError').textContent='Data inválida ou futura.';return;}
+  const {pendingFrames,pendingLeaves}=shipmentAvailability(item);
+  const max=kind==='marco'?pendingFrames:kind==='folha'?pendingLeaves:Math.min(pendingFrames,Math.floor(pendingLeaves/per));
+  if(qty>max){node('shipmentError').textContent='Quantidade maior que o saldo disponível: '+max+'.';return;}
+  const payload={p_esquadria_id:item.id,p_tipo:kind,p_quantidade:qty,p_data_saida:date,p_folhas_por_unidade:per};
+  const signature=JSON.stringify(payload);
+  if(signature!==currentShipmentRequestSignature){
+    currentShipmentRequestId=crypto.randomUUID();
+    currentShipmentRequestSignature=signature;
+  }
+  payload.p_registro_id=currentShipmentRequestId;
+  const button=node('shipmentSave');
+  button.disabled=true;button.textContent='Salvando…';node('shipmentError').textContent='';
+  try{
+    await ensureSession();
+    await request('/rest/v1/rpc/registrar_saida_producao',{method:'POST',token:session.access_token,body:payload});
+    const workId=selectedWork?.id;
+    closeShipment();
+    node('detailError').textContent='Saída registrada no banco. Atualizando dados…';
+    try{
+      await loadPanel();
+      const work=works.find(w=>w.id===workId);
+      if(work){
+        detailMode='shipment';
+        renderDetail(work);
+        node('detailError').textContent='Saída de '+qty+' '+(kind==='folha'?'folha(s)':kind==='marco'?'marco(s)':'esquadria(s) completa(s)')+' registrada em '+date.split('-').reverse().join('/')+'.';
+      }
+    }catch(err){
+      node('detailError').textContent='Saída salva no banco, mas a atualização falhou: '+err.message+'. NÃO registre novamente; atualize o painel.';
+    }
+  }catch(err){
+    node('shipmentError').textContent='Não foi possível confirmar: '+err.message+'. Antes de registrar novamente, confira o histórico ou atualize o painel. Uma nova tentativa com os mesmos dados usa o mesmo identificador.';
+  }finally{button.disabled=false;button.textContent='Salvar saída';}
+}
+
 function todayLocal(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 function openRelease(id){
   if(!['administrador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
@@ -385,11 +486,16 @@ window.EWGEST_LOGIN=async function(event){event.preventDefault();setError('');se
  finally{b.disabled=false;b.textContent='Entrar no painel';}return false;};
 node('logout').addEventListener('click',async()=>{const old=session;session=null;sessionStorage.removeItem('ewgest_session_v3');setView('login');setStatus('Sessão encerrada.');if(old)try{await request('/auth/v1/logout',{method:'POST',token:old.access_token});}catch{}});
 node('refresh').addEventListener('click',async()=>{node('panelError').textContent='Atualizando…';try{await loadPanel();}catch(e){node('panelError').textContent='Erro ao atualizar: '+e.message;}});
+node('shipmentKind').addEventListener('change',updateShipmentForm);
+node('shipmentPart').addEventListener('change',updateShipmentForm);
+node('shipmentLeaves').addEventListener('input',updateShipmentForm);
+node('shipmentCancel').addEventListener('click',closeShipment);
+node('shipmentForm').addEventListener('submit',saveShipment);
 node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v6.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v8.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
