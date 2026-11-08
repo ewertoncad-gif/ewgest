@@ -131,6 +131,14 @@
     .typologyFamilyHead span{font-size:12px;color:#a7c8dd}
     .typologyFamily .catalogRow{padding-left:12px;border-left:2px solid #376079}
     .catalogVariantMeta{font-size:12px;color:#8edfc6;margin:7px 0 2px}
+    .reviewPendingRow{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:13px 0;border-bottom:1px solid #35546c}
+    .reviewPendingRow:last-child{border-bottom:0}
+    .reviewPendingRow strong{color:#83e2bd}
+    .reviewPendingRow p{margin:5px 0;font-size:13px}
+    .recognitionCompare{background:#0a1b2e;border:1px solid #426077;border-radius:9px;padding:12px;margin-top:12px}
+    .recognitionCompare p{font-size:13px;margin:8px 0}
+    .recognitionCheck{display:flex;align-items:flex-start;gap:10px;margin-top:15px;font-size:13px}
+    .recognitionCheck input{width:auto;flex:none;margin-top:3px;accent-color:#62d9b3}
     @media(max-width:700px){.variationForm{grid-template-columns:1fr}.typologyFamilyHead{flex-direction:column}}
 
     .catalogMeta{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:#abc2d6}
@@ -172,7 +180,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • famílias e regras v30.0</div>
+        <div class="build">EWGEST • conferência segura v31.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -314,7 +322,7 @@
         </div>
         <p id="croquiImportStatus" class="hint" role="status" aria-live="polite">Os croquis aparecem somente neste catálogo, para o administrador.</p>
         <details class="systemRules" id="systemRulesPanel">
-          <summary>Regras do sistema · referência técnica v1.0</summary>
+          <summary>Regras do sistema · referência técnica v1.1</summary>
           <ul>
             <li>O código principal identifica o <strong>modelo da tipologia</strong>. A quantidade de módulos é uma variação, não um novo código principal.</li>
             <li>INV-VNZN00: 1, 2 ou mais módulos pertencem à mesma família, com descrições e croquis próprios.</li>
@@ -322,8 +330,16 @@
             <li>FACHADA UNITIZADA e FACHADA STICK têm prioridade sobre FIXO e MAXIM-AR; um módulo de fachada não entra duas vezes nos filtros.</li>
             <li>MAXIM-AR tem filtro próprio; JANELA DE CORRER com peitoril fixo continua JANELA.</li>
             <li>Fabricante, busca e tipo são filtros combináveis. Edições de código/descrição e vínculos de origem são procedimentos separados, restritos ao administrador.</li>
+            <li>Código da esquadria (como EA14_1) é válido no contexto da obra e não identifica automaticamente a tipologia de outras obras.</li>
+            <li>Em novas obras: sugerir pelo texto da descrição, comparar e exigir confirmação do ADM. Divergências exigem aceite adicional.</li>
+            <li>Classificação pendente afeta apenas a obra conferida; não cria reconhecimento automático global. Confirmar deve gerar auditoria.</li>
           </ul>
           <p class="hint">Antes de qualquer atualização: conferir estas regras, testar classificações e vínculos e preservar os dados históricos.</p>
+        </details>
+        <details class="systemRules" id="pendingReviewPanel">
+          <summary>Conferência do administrador · <span id="pendingReviewCount">—</span></summary>
+          <p class="hint">Somente esquadrias sem tipologia. Sugestões são geradas pela descrição, nunca pelo código EA, e não são aprovadas automaticamente.</p>
+          <div id="pendingReviewList" aria-live="polite"></div>
         </details>
         <details class="systemRules" id="variationManager">
           <summary>Organizar tipologia principal e variações</summary>
@@ -416,6 +432,28 @@
     <div id="shipmentHistory" class="shiphistory hint"></div>
   </div>
 </div>
+<div id="recognitionOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="recognitionTitle">
+    <h2 id="recognitionTitle">Conferir tipologia pendente</h2>
+    <p id="recognitionOrigin" class="muted"></p>
+    <p class="hint">Sugestões pela descrição, nunca pelo código EA. Nenhuma associação é automática.</p>
+    <label for="recognitionTarget">Tipologia existente no catálogo</label>
+    <select id="recognitionTarget"><option value="">Selecione para comparar</option></select>
+    <div id="recognitionCompare" class="recognitionCompare" role="status" aria-live="polite">Selecione uma tipologia para comparar com a descrição do relatório.</div>
+    <label class="recognitionCheck"><input type="checkbox" id="recognitionDivergence" disabled>
+      <span>Conferi a diferença entre as descrições e mesmo assim confirmo esta tipologia.</span>
+    </label>
+    <label class="recognitionCheck"><input type="checkbox" id="recognitionApproval">
+      <span><strong>Confirmo a tipologia desta obra.</strong> Não autorizo reconhecimento automático em outras obras.</span>
+    </label>
+    <p id="recognitionMessage" class="feedback" role="status" aria-live="polite"></p>
+    <div class="modalbuttons" style="flex-wrap:wrap">
+      <button id="recognitionNew" class="btn secondary" type="button">Cadastrar nova tipologia</button>
+      <button id="recognitionCancel" class="btn secondary" type="button">Cancelar</button>
+      <button id="recognitionConfirm" class="btn primary" type="button" disabled>Confirmar associação</button>
+    </div>
+  </div>
+</div>
 <div id="typologyEditOverlay" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="typologyEditTitle">
     <h2 id="typologyEditTitle">Editar tipologia</h2>
@@ -463,7 +501,7 @@
             <small>Confirme que o nome está correto. O fabricante ficará disponível no cadastro mestre e nos filtros.</small></span>
           </label>
         </div>
-        <p class="hint">A importação automática de novas obras ainda não está implementada. Esta escolha fica salva como regra para quando essa função for criada.</p>
+        <p class="hint">Classificações de itens pendentes não ativam reconhecimento automático para outras obras. A importação automática ainda não está implementada.</p>
       </div>
       <div id="typologyEditError" class="feedback" role="alert"></div>
       <div class="modalbuttons">
@@ -528,6 +566,7 @@ let session=null, currentUser=null, currentCompany=null, membership=null, works=
 let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='',detailMode='release',currentShipmentRequestId=null;
 let typologyCatalog=[],typologyOrigins=[],typologyOriginReady=false,editingTypology=null,editingPendingItem=null,typologyEditingStep=1,typologyCroquis=[];
 let variationManagerCatalogSignature='';
+let recognitionPendingItem=null;
 let manufacturerCatalog=[],manufacturerLoadError='',originalManufacturerForEdit='',originalDescriptionForEdit='',manufacturerAutoCandidate='';
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
@@ -1809,7 +1848,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v30.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v31.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
