@@ -1284,6 +1284,10 @@ function normalizarReconhecimento(s){
   return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .toLocaleUpperCase('pt-BR').replace(/[^A-Z0-9]+/g,' ').trim().replace(/\s+/g,' ');
 }
+// Comparação estrita alinhada com a validação no banco (acentos/pontuação contam).
+function comparacaoEstritaDescricao(s){
+  return String(s||'').trim().toLocaleUpperCase('pt-BR').replace(/\s+/g,' ');
+}
 function sugerirPorDescricao(descricao,catalogo){
   const desc=normalizarReconhecimento(descricao);
   const tipo=classificarTipoTipologia({descricao});
@@ -1372,7 +1376,7 @@ function atualizarComparacaoReconhecimento(){
   const item=recognitionPendingItem;
   const target=typologyCatalog.find(x=>x.id===node('recognitionTarget').value);
   const mismatch=Boolean(item&&target&&
-    normalizarReconhecimento(item.descricao)!==normalizarReconhecimento(target.descricao));
+    comparacaoEstritaDescricao(item.descricao)!==comparacaoEstritaDescricao(target.descricao));
   const confirm=node('recognitionDivergence');confirm.checked=false;confirm.disabled=!mismatch;
   const compare=node('recognitionCompare');compare.replaceChildren();
   if(!target)compare.textContent='Selecione uma tipologia para comparar com o relatório.';
@@ -1389,7 +1393,7 @@ function validarReconhecimento(){
   const item=recognitionPendingItem;
   const target=typologyCatalog.find(x=>x.id===node('recognitionTarget').value);
   const mismatch=Boolean(item&&target&&
-    normalizarReconhecimento(item.descricao)!==normalizarReconhecimento(target.descricao));
+    comparacaoEstritaDescricao(item.descricao)!==comparacaoEstritaDescricao(target.descricao));
   node('recognitionConfirm').disabled=!(item&&target&&node('recognitionApproval').checked&&
     (!mismatch||node('recognitionDivergence').checked));
 }
