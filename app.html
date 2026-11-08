@@ -289,7 +289,7 @@ async function loadPanel(){
   node('openTypologies').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
   const [w,e,tips]=await Promise.all([
     apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'}),
-    apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id',empresa_id:'eq.'+currentCompany.id}),
+    apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id,rotulo_tipologia_relatorio',empresa_id:'eq.'+currentCompany.id}),
     apiGet('tipologias',{select:'id,codigo,descricao,provisoria',empresa_id:'eq.'+currentCompany.id})
   ]);
   works=w||[];elements=e||[];typologyCatalog=tips||[];
@@ -348,7 +348,11 @@ function groupRenderedItems(list){
       const heading=document.createElement('div');
       heading.className='typologyHeading';
       const title=document.createElement('strong');
-      title.textContent=code==='PENDENTE DE CLASSIFICAÇÃO'?'SEM TIPOLOGIA IDENTIFICADA':'Tipologia: '+code;
+      title.textContent=code==='PENDENTE DE CLASSIFICAÇÃO'
+        ?'SEM TIPOLOGIA IDENTIFICADA'
+        :typologyCatalog.find(t=>t.id===list[i].tipologia_id)?.provisoria
+          ?'Tipologia provisória: '+code
+          :'Tipologia: '+code;
       const count=document.createElement('span');
       count.textContent=list.filter(x=>(typologyCode(x)||'PENDENTE DE CLASSIFICAÇÃO')===code).length+' código(s) de esquadria';
       heading.append(title,count);
@@ -649,17 +653,38 @@ function renderTypologiesAdmin() {
   const catalog=typologyCatalog.slice()
     .sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR',{numeric:true,sensitivity:'base'}))
     .filter(t=>!query||(t.codigo+' '+t.descricao).toLocaleUpperCase('pt-BR').includes(query));
-  const waiting=pending.filter(x=>!query||(x.codigo+' '+x.descricao).toLocaleUpperCase('pt-BR').includes(query));
-  const rows=catalog.map(t=>`<div class="catalogRow">
-    <strong class="green">${escapeHTML(t.codigo)}</strong>
-    <p class="muted">${escapeHTML(t.descricao)}</p></div>`);
-  const waitingRows=waiting.map(x=>`<div class="catalogRow"><strong>${escapeHTML(x.codigo)}</strong>
-    <p class="muted">${escapeHTML(x.descricao)}</p>
-    <span class="hint">Código de esquadria, ainda sem tipologia confirmada</span></div>`);
+  const waiting=pending.filter(x=>!query||(x.codigo+' '+x.descricao+' '+(x.rotulo_tipologia_relatorio||'')).toLocaleUpperCase('pt-BR').includes(query));
+  const rows=catalog.map(t=>{
+    const origin=typologyOrigins.filter(o=>o.tipologia_id===t.id);
+    const status=origin.length?(origin.some(x=>x.ativo)?'Origem reconhecida':'Origem sem reconhecimento automático'):'Sem regra de origem';
+    return `<div class="catalogRow"><button type="button" class="catalogEntry" data-tipologia-edit="${escapeHTML(t.id)}">
+      <div class="itemline"><strong class="green">${escapeHTML(t.codigo)}</strong>
+        <span class="catalogStatus ${t.provisoria?'review':''}">${t.provisoria?'Provisória — revisar':'Revisada'}</span></div>
+      <p class="muted">${escapeHTML(t.descricao)}</p>
+      <span class="hint">${escapeHTML(status)} · Clique para editar</span>
+    </button></div>`;
+  });
+  const waitingRows=waiting.map(x=>`<div class="catalogRow">
+    <strong>${escapeHTML(x.codigo)}</strong>
+    <p class="muted">${escapeHTML(x.descricao||'')}</p>
+    <span class="hint">Código do relatório: ${escapeHTML(x.rotulo_tipologia_relatorio||'Não identificado')}. Aguardando decisão do administrador.</span>
+  </div>`);
   node('typologyFilterCount').textContent=catalog.length+' tipologia(s) encontrada(s)'+(waiting.length?' · '+waiting.length+' esquadria(s) para revisar':'');
   node('typologyList').innerHTML=(catalog.length?rows.join(''):'<div class="empty">Nenhuma tipologia corresponde à busca.</div>')
-    +(waitingRows.length?'<details class="catalogPendingDetails"><summary>Ver '+waiting.length+' esquadria(s) aguardando classificação</summary>'+waitingRows.join('')+'</details>':'');
+    +(waitingRows.length?'<details id="catalogPendingDetails" class="catalogPendingDetails"><summary>Ver '+waiting.length+' esquadria(s) aguardando classificação</summary>'+waitingRows.join('')+'</details>':'');
+  node('typologyList').querySelectorAll('[data-tipologia-edit]').forEach(button=>{
+    button.addEventListener('click',()=>openTypologyEdit(button.dataset.tipologiaEdit));
+  });
 }
+node('catalogPendingJump').addEventListener('click',()=>{
+  if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  node('typologySearch').value='';
+  renderTypologiesAdmin();
+  setView('typologies');
+  const pending=node('catalogPendingDetails');
+  if(pending){pending.open=true;pending.scrollIntoView({behavior:'smooth',block:'start'});}
+  else node('typologyAdminMessage').textContent='Nenhuma esquadria aguarda classificação.';
+});
 node('openTypologies').addEventListener('click',()=>{
   if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
   node('typologySearch').value='';
