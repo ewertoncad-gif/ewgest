@@ -41,7 +41,7 @@
     .line{display:flex;justify-content:space-between;gap:12px;font-size:13px;margin-top:9px}
     .progress{height:8px;border-radius:30px;background:#31485c;overflow:hidden;margin-top:18px}.bar{height:100%;background:#62d9b3}
     .empty{border:1px dashed #43627e;border-radius:14px;padding:22px;color:#b8d1e3;line-height:1.6}
-    .itemfilter{max-width:640px;margin:18px 0 18px}.itemfilter label{margin-top:0}.filterrow{display:flex;align-items:center;gap:10px}.filterrow input{min-width:0;flex:1}.filterrow select{width:175px;min-width:0;flex:0 0 auto}.filterrow .btn{white-space:nowrap}
+    .itemfilter{max-width:640px;margin:18px 0 18px}.itemfilter label{margin-top:0}.filterrow{display:flex;align-items:center;gap:10px}.filterrow input{min-width:0;flex:1}.filterrow select{width:255px;min-width:220px;flex:0 0 255px}.filterrow .btn{white-space:nowrap}
     .catalogstats{grid-template-columns:repeat(2,minmax(0,1fr));max-width:650px}
     .catalogPendingDetails{margin-top:26px;padding:14px;border:1px solid #35546c;border-radius:12px}.catalogPendingDetails summary{cursor:pointer;color:#b9d5e5;font-weight:650}
     @media(max-width:620px){.filterrow:has(#itemSearchMode){flex-wrap:wrap}.filterrow select{width:100%;flex:1 1 100%}.catalogstats{grid-template-columns:repeat(2,minmax(0,1fr))}}.filtercount{margin:8px 0 0}
@@ -252,7 +252,7 @@ const escapeHTML = v => String(v??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<'
 const area = (i,q) => Number(i.largura_mm||0)*Number(i.altura_mm||0)*Number(q||0)/1e6;
 let session=null, currentUser=null, currentCompany=null, membership=null, works=[], elements=[], releaseHistory=[], selectedWork=null, selectedItem=null;
 let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='',detailMode='release',currentShipmentRequestId=null;
-let typologyCatalog=[],typologyOrigins=[],typologyOriginReady=false,editingTypology=null,typologyEditingStep=1;
+let typologyCatalog=[],typologyOrigins=[],typologyOriginReady=false,editingTypology=null,editingPendingItem=null,typologyEditingStep=1;
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
 function setView(view){for(const id of ['login','dashboard','detail','typologies'])node(id).classList.toggle('hidden',id!==view);node('logout').classList.toggle('hidden',view==='login');}
@@ -664,16 +664,19 @@ function renderTypologiesAdmin() {
       <span class="hint">${escapeHTML(status)} · Clique para editar</span>
     </button></div>`;
   });
-  const waitingRows=waiting.map(x=>`<div class="catalogRow">
-    <strong>${escapeHTML(x.codigo)}</strong>
+  const waitingRows=waiting.map(x=>`<div class="catalogRow"><button type="button" class="catalogEntry" data-classificar-pendente="${escapeHTML(x.id)}">
+    <div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="tap">Clique para classificar</span></div>
     <p class="muted">${escapeHTML(x.descricao||'')}</p>
-    <span class="hint">Código do relatório: ${escapeHTML(x.rotulo_tipologia_relatorio||'Não identificado')}. Aguardando decisão do administrador.</span>
-  </div>`);
+    <span class="hint">Código original do relatório: ${escapeHTML(x.rotulo_tipologia_relatorio||'Não identificado')} · Editar tipologia e decidir vínculo</span>
+  </button></div>`);
   node('typologyFilterCount').textContent=catalog.length+' tipologia(s) encontrada(s)'+(waiting.length?' · '+waiting.length+' esquadria(s) para revisar':'');
   node('typologyList').innerHTML=(catalog.length?rows.join(''):'<div class="empty">Nenhuma tipologia corresponde à busca.</div>')
     +(waitingRows.length?'<details id="catalogPendingDetails" class="catalogPendingDetails"><summary>Ver '+waiting.length+' esquadria(s) aguardando classificação</summary>'+waitingRows.join('')+'</details>':'');
   node('typologyList').querySelectorAll('[data-tipologia-edit]').forEach(button=>{
     button.addEventListener('click',()=>openTypologyEdit(button.dataset.tipologiaEdit));
+  });
+  node('typologyList').querySelectorAll('[data-classificar-pendente]').forEach(button=>{
+    button.addEventListener('click',()=>openPendingTypologyClassification(button.dataset.classificarPendente));
   });
 }
 function showTypologyEditStep(step) {
@@ -681,7 +684,7 @@ function showTypologyEditStep(step) {
   node('typologyEditFields').classList.toggle('hidden',step!==1);
   node('typologyEditChoice').classList.toggle('hidden',step!==2);
   node('typologyEditPrevious').classList.toggle('hidden',step!==2);
-  node('typologyEditSave').textContent=step===1?'Revisar vínculo':'Salvar alterações';
+  node('typologyEditSave').textContent=step===1?'Revisar vínculo':(editingPendingItem?'Cadastrar tipologia':'Salvar alterações');
   node('typologyEditError').textContent='';
 }
 
@@ -694,6 +697,7 @@ function openTypologyEdit(id) {
   const typology=typologyCatalog.find(x=>x.id===id);
   if(!typology)return;
   editingTypology=typology;
+  editingPendingItem=null;
   const origins=typologyOrigins.filter(x=>x.tipologia_id===id);
   const originalCodes=[...new Set(origins.map(x=>x.codigo_origem))];
   node('typologyEditTitle').textContent='Editar tipologia · '+typology.codigo;
@@ -711,16 +715,48 @@ function openTypologyEdit(id) {
   node('typologyEditCode').focus();
 }
 
+
+function openPendingTypologyClassification(id) {
+  if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  if(!typologyOriginReady){
+    node('typologyAdminMessage').textContent='Os vínculos de origem ainda não foram carregados. Atualize o painel antes de classificar.';
+    return;
+  }
+  const pending=elements.find(x=>x.id===id&&!x.tipologia_id);
+  if(!pending)return;
+  const originalCode=String(pending.rotulo_tipologia_relatorio||'').trim();
+  const originalDescription=String(pending.descricao||'').trim();
+  const group=elements.filter(x=>!x.tipologia_id
+    && String(x.rotulo_tipologia_relatorio||'').trim()===originalCode
+    && String(x.descricao||'').trim()===originalDescription);
+  editingPendingItem=pending;
+  editingTypology=null;
+  node('typologyEditTitle').textContent='Classificar esquadria · '+pending.codigo;
+  node('typologySourceInfo').textContent=
+    'Código informado no CEM: '+(originalCode||'Não identificado')+
+    '. A descrição abaixo corresponde a '+group.length+' código(s) de esquadria. Apenas os itens com esta mesma origem E descrição serão associados.';
+  node('typologyEditCode').value=originalCode;
+  node('typologyEditDescription').value=originalDescription;
+  node('typologyEditForm').querySelectorAll('input[name="originLinkChoice"]').forEach(el=>{
+    el.checked=el.value==='manter';
+  });
+  showTypologyEditStep(1);
+  node('typologyEditOverlay').classList.remove('hidden');
+  node('typologyEditCode').focus();
+}
+
 function closeTypologyEdit() {
   node('typologyEditOverlay').classList.add('hidden');
   editingTypology=null;
+  editingPendingItem=null;
   typologyEditingStep=1;
 }
 
 async function saveTypologyEdit(event) {
   event.preventDefault();
-  if(!editingTypology)return;
+  if(!editingTypology&&!editingPendingItem)return;
   if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  const pendingItem=editingPendingItem;
   const code=node('typologyEditCode').value.trim();
   const description=node('typologyEditDescription').value.trim();
   if(code.length<2||code.length>80||description.length<5||description.length>1000){
@@ -728,8 +764,10 @@ async function saveTypologyEdit(event) {
     return;
   }
   if(typologyEditingStep===1){
-    node('typologyEditSummary').textContent=
-      'Código atual: '+editingTypology.codigo+'. Código corrigido: '+code+'. '+(editingTypology.provisoria
+    node('typologyEditSummary').textContent=pendingItem
+      ?'Código original: '+(pendingItem.rotulo_tipologia_relatorio||'Não identificado')+
+        '. Código da nova tipologia: '+code+'. Serão associados os itens pendentes com o mesmo código E descrição de origem. As liberações, quantidades e saídas não serão modificadas.'
+      :'Código atual: '+editingTypology.codigo+'. Código corrigido: '+code+'. '+(editingTypology.provisoria
         ?'Este cadastro será marcado como revisado pelo administrador. '
         :'')+'Os vínculos históricos das esquadrias não serão alterados.';
     showTypologyEditStep(2);
@@ -744,10 +782,14 @@ async function saveTypologyEdit(event) {
   node('typologyEditError').textContent='';
   try {
     await ensureSession();
-    await request('/rest/v1/rpc/editar_tipologia_admin',{
-      method:'POST',token:session.access_token,
-      body:{p_tipologia_id:editingTypology.id,p_codigo:code,
-            p_descricao:description,p_manter_vinculo_origem:keep}
+    const route=pendingItem?'classificar_tipologia_pendente_admin':'editar_tipologia_admin';
+    const payload=pendingItem
+      ?{p_esquadria_id:pendingItem.id,p_codigo:code,
+         p_descricao:description,p_manter_vinculo_origem:keep}
+      :{p_tipologia_id:editingTypology.id,p_codigo:code,
+         p_descricao:description,p_manter_vinculo_origem:keep};
+    await request('/rest/v1/rpc/'+route,{
+      method:'POST',token:session.access_token,body:payload
     });
     closeTypologyEdit();
     node('typologyAdminMessage').textContent='Alteração salva. Atualizando catálogo…';
@@ -756,10 +798,11 @@ async function saveTypologyEdit(event) {
       node('typologySearch').value=code;
       renderTypologiesAdmin();
       setView('typologies');
-      node('typologyAdminMessage').textContent='Tipologia '+code+' salva. '+(keep
-        ?'Vínculo de origem mantido para futuras importações.'
-        :'Vínculo de origem desativado para futuras importações.')+
-        ' As esquadrias já cadastradas continuam vinculadas.';
+      node('typologyAdminMessage').textContent=(pendingItem
+        ?'Tipologia '+code+' cadastrada. As esquadrias com a mesma origem e descrição foram associadas.'
+        :'Tipologia '+code+' atualizada. As esquadrias já cadastradas continuam vinculadas.')
+        +(keep?' Vínculo de origem mantido.':' Vínculo de origem desativado.')
+        +' O reconhecimento automático será considerado quando a importação de novas obras for implementada.';
     } catch(err) {
       node('typologyAdminMessage').textContent='Alteração SALVA no banco, mas a atualização do catálogo falhou: '+err.message+'. Recarregue o site; não salve novamente.';
     }
@@ -767,7 +810,7 @@ async function saveTypologyEdit(event) {
     node('typologyEditError').textContent='Não foi possível salvar: '+err.message;
   } finally {
     button.disabled=false;
-    button.textContent='Salvar alterações';
+    button.textContent=pendingItem?'Cadastrar tipologia':'Salvar alterações';
   }
 }
 
