@@ -42,9 +42,9 @@
     .progress{height:8px;border-radius:30px;background:#31485c;overflow:hidden;margin-top:18px}.bar{height:100%;background:#62d9b3}
     .empty{border:1px dashed #43627e;border-radius:14px;padding:22px;color:#b8d1e3;line-height:1.6}
     .itemfilter{max-width:640px;margin:18px 0 18px}.itemfilter label{margin-top:0}.filterrow{display:flex;align-items:center;gap:10px}.filterrow input{min-width:0;flex:1}.filterrow select{width:255px;min-width:220px;flex:0 0 255px}.filterrow .btn{white-space:nowrap}
-    .catalogstats{grid-template-columns:repeat(2,minmax(0,1fr));max-width:650px}
+    .catalogstats{grid-template-columns:minmax(230px,330px);max-width:650px}
     .catalogPendingDetails{margin-top:26px;padding:14px;border:1px solid #35546c;border-radius:12px}.catalogPendingDetails summary{cursor:pointer;color:#b9d5e5;font-weight:650}
-    @media(max-width:620px){.filterrow:has(#itemSearchMode){flex-wrap:wrap}.filterrow select{width:100%;flex:1 1 100%}.catalogstats{grid-template-columns:repeat(2,minmax(0,1fr))}}.filtercount{margin:8px 0 0}
+    @media(max-width:620px){.filterrow:has(#itemSearchMode){flex-wrap:wrap}.filterrow select{width:100%;flex:1 1 100%}.catalogstats{grid-template-columns:minmax(230px,1fr)}}.filtercount{margin:8px 0 0}
     .item{padding:15px 0;border-bottom:1px solid #334c61}.item:last-child{border:0}
     .itemline{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:13px}
     .notice{font-size:13px;color:#9db7c8;line-height:1.6;margin-top:22px}
@@ -62,6 +62,10 @@
     .typologyHeading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 0 8px;border-bottom:1px solid #33506a;flex-wrap:wrap}
     .typologyHeading strong{font-size:16px;letter-spacing:.2px;color:#62d9b3}
     .typologyHeading span{color:#a7bfd3;font-size:12px}
+    .manufacturerFilter{max-width:290px;margin:12px 0 16px}
+    .manufacturerFilter label{margin:0 0 6px}
+    .manufacturerFilter select{width:100%;padding:11px 13px}
+    .catalogManufacturer{font-size:12px;color:#b6d6e8;margin:8px 0}
     .catalogRow{padding:16px 0;border-bottom:1px solid #334c61}.catalogRow:last-child{border:0}
     .catalogImageRow{display:flex;align-items:center;gap:20px;justify-content:space-between}
     .catalogTextArea{min-width:0;flex:1}
@@ -128,7 +132,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • croquis de tipologias v17.0</div>
+        <div class="build">EWGEST • catálogo por fabricante v18.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -175,7 +179,6 @@
       </div></div>
       <div class="stats catalogstats">
         <div class="stat"><div class="label">Tipologias cadastradas</div><div class="number" id="catalogCount">—</div></div>
-        <button id="catalogPendingJump" type="button" class="stat statAction" aria-label="Ver esquadrias aguardando classificação"><div class="label">Esquadrias aguardando classificação</div><div class="number" id="catalogPending">—</div><div class="statHint">Clique para ver e revisar</div></button>
       </div>
       <div class="section panel">
         <div class="croquiToolbar"><h2>Consultar tipologias cadastradas</h2>
@@ -188,6 +191,15 @@
         <p id="croquiImportStatus" class="hint" role="status" aria-live="polite">Os croquis aparecem somente neste catálogo, para o administrador.</p>
         <div class="itemfilter"><label for="typologySearch">Buscar código ou descrição</label>
           <div class="filterrow"><input id="typologySearch" type="search" placeholder="Ex.: GOLS, JCR202, maxim-ar" autocomplete="off"><button id="clearTypologySearch" type="button" class="btn secondary">Limpar</button></div>
+          <div class="manufacturerFilter">
+            <label for="typologyManufacturerFilter">Filtrar por fabricante</label>
+            <select id="typologyManufacturerFilter">
+              <option value="">Todos os fabricantes</option>
+              <option value="HYDRO">HYDRO</option>
+              <option value="PERFIL">PERFIL</option>
+              <option value="__SEM_FABRICANTE__">Não informado</option>
+            </select>
+          </div>
           <p id="typologyFilterCount" class="hint filtercount" role="status"></p>
         </div>
         <div id="typologyAdminMessage" class="feedback" role="status" aria-live="polite"></div><div id="typologyList"></div>
@@ -257,6 +269,13 @@
         <input id="typologyEditCode" class="typologyEditInput" type="text" maxlength="80" required autocomplete="off">
         <label for="typologyEditDescription">Descrição da tipologia</label>
         <textarea id="typologyEditDescription" class="typologyEditInput" maxlength="1000" required rows="4"></textarea>
+        <label for="typologyEditManufacturer">Fabricante</label>
+        <input id="typologyEditManufacturer" class="typologyEditInput" type="text" list="typologyManufacturerSuggestions" maxlength="80" placeholder="Ex.: HYDRO ou PERFIL" autocomplete="off">
+        <datalist id="typologyManufacturerSuggestions">
+          <option value="HYDRO"></option>
+          <option value="PERFIL"></option>
+        </datalist>
+        <p class="hint">Deixe em branco quando o fabricante não for conhecido.</p>
         <p class="hint">Você está corrigindo o cadastro mestre. Os códigos EA, quantidades, liberações e saídas das obras não serão alterados.</p>
       </div>
       <div id="typologyEditChoice" class="hidden">
@@ -335,7 +354,7 @@ async function loadPanel(){
   const [w,e,tips]=await Promise.all([
     apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'}),
     apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id,rotulo_tipologia_relatorio',empresa_id:'eq.'+currentCompany.id}),
-    apiGet('tipologias',{select:'id,codigo,descricao,provisoria',empresa_id:'eq.'+currentCompany.id})
+    apiGet('tipologias',{select:'id,codigo,descricao,provisoria,fabricante',empresa_id:'eq.'+currentCompany.id})
   ]);
   works=w||[];elements=e||[];typologyCatalog=tips||[];
   typologyOrigins=[];typologyOriginReady=false;typologyCroquis=[];
@@ -724,42 +743,53 @@ function showCroquiZoom(tipologiaId){
 function renderTypologiesAdmin() {
   if(String(membership?.perfil||'').toLowerCase()!=='administrador'){setView('dashboard');return;}
   node('catalogCount').textContent=typologyCatalog.length.toLocaleString('pt-BR');
-  const pending=elements.filter(x=>!x.tipologia_id);
-  node('catalogPending').textContent=pending.length.toLocaleString('pt-BR');
   node('croquiCatalogCount').textContent='Croquis: '+typologyCroquis.length+' de '+typologyCatalog.length;
+  const options=[...new Set(['HYDRO','PERFIL',...typologyCatalog.map(t=>String(t.fabricante||'').trim().toLocaleUpperCase('pt-BR')).filter(Boolean)])]
+    .sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const selector=node('typologyManufacturerFilter');
+  const current=selector.value;
+  const desired=[{value:'',label:'Todos os fabricantes'},
+    ...options.map(value=>({value,label:value})),
+    {value:'__SEM_FABRICANTE__',label:'Não informado'}];
+  if(selector.options.length!==desired.length ||
+      desired.some((item,i)=>selector.options[i]?.value!==item.value)){
+    selector.replaceChildren();
+    for(const item of desired){
+      const opt=document.createElement('option');opt.value=item.value;opt.textContent=item.label;
+      selector.append(opt);
+    }
+    selector.value=desired.some(item=>item.value===current)?current:'';
+  }
   const query=node('typologySearch').value.trim().toLocaleUpperCase('pt-BR');
+  const manufacturer=selector.value;
   const catalog=typologyCatalog.slice()
     .sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR',{numeric:true,sensitivity:'base'}))
-    .filter(t=>!query||(t.codigo+' '+t.descricao).toLocaleUpperCase('pt-BR').includes(query));
-  const waiting=pending.filter(x=>!query||(x.codigo+' '+x.descricao+' '+(x.rotulo_tipologia_relatorio||'')).toLocaleUpperCase('pt-BR').includes(query));
+    .filter(t=>!query||(t.codigo+' '+t.descricao).toLocaleUpperCase('pt-BR').includes(query))
+    .filter(t=>manufacturer==='__SEM_FABRICANTE__'
+      ?!String(t.fabricante||'').trim()
+      :!manufacturer||String(t.fabricante||'').trim().toLocaleUpperCase('pt-BR')===manufacturer);
   const rows=catalog.map(t=>{
     const origin=typologyOrigins.filter(o=>o.tipologia_id===t.id);
     const status=origin.length?(origin.some(x=>x.ativo)?'Origem reconhecida':'Origem sem reconhecimento automático'):'Sem regra de origem';
     const croqui=croquiSrc(croquiEntry(t.id));
     const preview=croqui?'<img class="croquiThumb" loading="lazy" alt="Croqui técnico de '+escapeHTML(t.codigo)+'" src="'+croqui+'">'
       :'<span class="croquiEmpty">Sem croqui</span>';
+    const fabric=t.fabricante||'Não informado';
     return `<div class="catalogRow"><button type="button" class="catalogEntry" data-tipologia-edit="${escapeHTML(t.id)}">
       <div class="catalogImageRow"><div class="catalogTextArea">
         <div class="itemline"><strong class="green">${escapeHTML(t.codigo)}</strong>
           <span class="tap">Clique para editar</span></div>
+        <p class="catalogManufacturer">Fabricante: ${escapeHTML(fabric)}</p>
         <p class="muted">${escapeHTML(t.descricao)}</p>
         <span class="hint">${escapeHTML(status)} · ${croqui?('Croqui de referência'+(croquiEntry(t.id)?.codigo_esquadria_referencia?' ('+escapeHTML(croquiEntry(t.id).codigo_esquadria_referencia)+')':'')):'Croqui não cadastrado'}</span>
       </div>${preview}</div>
     </button></div>`;
   });
-  const waitingRows=waiting.map(x=>`<div class="catalogRow"><button type="button" class="catalogEntry" data-classificar-pendente="${escapeHTML(x.id)}">
-    <div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="tap">Clique para classificar</span></div>
-    <p class="muted">${escapeHTML(x.descricao||'')}</p>
-    <span class="hint">Código original do relatório: ${escapeHTML(x.rotulo_tipologia_relatorio||'Não identificado')} · Editar tipologia e decidir vínculo</span>
-  </button></div>`);
-  node('typologyFilterCount').textContent=catalog.length+' tipologia(s) encontrada(s)'+(waiting.length?' · '+waiting.length+' esquadria(s) para revisar':'');
-  node('typologyList').innerHTML=(catalog.length?rows.join(''):'<div class="empty">Nenhuma tipologia corresponde à busca.</div>')
-    +(waitingRows.length?'<details id="catalogPendingDetails" class="catalogPendingDetails"><summary>Ver '+waiting.length+' esquadria(s) aguardando classificação</summary>'+waitingRows.join('')+'</details>':'');
+  node('typologyFilterCount').textContent=catalog.length+' de '+typologyCatalog.length+' tipologia(s) encontrada(s).';
+  node('typologyList').innerHTML=catalog.length?rows.join('')
+    :'<div class="empty">Nenhuma tipologia corresponde aos filtros selecionados.</div>';
   node('typologyList').querySelectorAll('[data-tipologia-edit]').forEach(button=>{
     button.addEventListener('click',()=>openTypologyEdit(button.dataset.tipologiaEdit));
-  });
-  node('typologyList').querySelectorAll('[data-classificar-pendente]').forEach(button=>{
-    button.addEventListener('click',()=>openPendingTypologyClassification(button.dataset.classificarPendente));
   });
 }
 function showTypologyEditStep(step) {
@@ -796,6 +826,7 @@ function openTypologyEdit(id) {
       :'Esta tipologia não possui vínculo de origem cadastrado.';
   node('typologyEditCode').value=typology.codigo;
   node('typologyEditDescription').value=typology.descricao;
+  node('typologyEditManufacturer').value=typology.fabricante||'';
   node('typologyCroquiArea').classList.remove('hidden');
   refreshCroquiPreview(id);
   const keep=origins.length?origins.some(x=>x.ativo):true;
@@ -830,6 +861,7 @@ function openPendingTypologyClassification(id) {
     '. A descrição abaixo corresponde a '+group.length+' código(s) de esquadria. Apenas os itens com esta mesma origem E descrição serão associados.';
   node('typologyEditCode').value=originalCode;
   node('typologyEditDescription').value=originalDescription;
+  node('typologyEditManufacturer').value='';
   node('typologyEditForm').querySelectorAll('input[name="originLinkChoice"]').forEach(el=>{
     el.checked=el.value==='manter';
   });
@@ -852,7 +884,9 @@ async function saveTypologyEdit(event) {
   const pendingItem=editingPendingItem;
   const code=node('typologyEditCode').value.trim();
   const description=node('typologyEditDescription').value.trim();
-  if(code.length<2||code.length>80||description.length<5||description.length>1000){
+  const manufacturer=node('typologyEditManufacturer').value.trim().toLocaleUpperCase('pt-BR');
+  if(code.length<2||code.length>80||description.length<5||description.length>1000
+    ||(manufacturer.length>0&&(manufacturer.length<2||manufacturer.length>80))){
     node('typologyEditError').textContent='O código deve ter entre 2 e 80 caracteres e a descrição entre 5 e 1000.';
     return;
   }
@@ -860,7 +894,7 @@ async function saveTypologyEdit(event) {
     node('typologyEditSummary').textContent=pendingItem
       ?'Código original: '+(pendingItem.rotulo_tipologia_relatorio||'Não identificado')+
         '. Código da nova tipologia: '+code+'. Serão associados os itens pendentes com o mesmo código E descrição de origem. As liberações, quantidades e saídas não serão modificadas.'
-      :'Código atual: '+editingTypology.codigo+'. Código corrigido: '+code+'. Os vínculos históricos das esquadrias não serão alterados.';
+      :'Código atual: '+editingTypology.codigo+'. Código corrigido: '+code+'. Fabricante: '+(manufacturer||'Não informado')+'. Os vínculos históricos das esquadrias não serão alterados.';
     showTypologyEditStep(2);
     return;
   }
@@ -873,11 +907,11 @@ async function saveTypologyEdit(event) {
   node('typologyEditError').textContent='';
   try {
     await ensureSession();
-    const route=pendingItem?'classificar_tipologia_pendente_admin':'editar_tipologia_admin';
+    const route=pendingItem?'classificar_tipologia_pendente_admin':'editar_tipologia_com_fabricante_admin';
     const payload=pendingItem
       ?{p_esquadria_id:pendingItem.id,p_codigo:code,
          p_descricao:description,p_manter_vinculo_origem:keep}
-      :{p_tipologia_id:editingTypology.id,p_codigo:code,
+      :{p_tipologia_id:editingTypology.id,p_codigo:code,p_fabricante:manufacturer,
          p_descricao:description,p_manter_vinculo_origem:keep};
     await request('/rest/v1/rpc/'+route,{
       method:'POST',token:session.access_token,body:payload
@@ -887,6 +921,7 @@ async function saveTypologyEdit(event) {
     try {
       await loadPanel();
       node('typologySearch').value=code;
+      node('typologyManufacturerFilter').value='';
       renderTypologiesAdmin();
       setView('typologies');
       node('typologyAdminMessage').textContent=(pendingItem
@@ -1034,15 +1069,6 @@ node('typologyEditCancel').addEventListener('click',closeTypologyEdit);
 node('typologyEditPrevious').addEventListener('click',()=>showTypologyEditStep(1));
 node('typologyEditForm').addEventListener('submit',saveTypologyEdit);
 
-node('catalogPendingJump').addEventListener('click',()=>{
-  if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
-  node('typologySearch').value='';
-  renderTypologiesAdmin();
-  setView('typologies');
-  const pending=node('catalogPendingDetails');
-  if(pending){pending.open=true;pending.scrollIntoView({behavior:'smooth',block:'start'});}
-  else node('typologyAdminMessage').textContent='Nenhuma esquadria aguarda classificação.';
-});
 node('openTypologies').addEventListener('click',()=>{
   if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
   node('typologySearch').value='';
@@ -1051,6 +1077,7 @@ node('openTypologies').addEventListener('click',()=>{
 });
 node('backTypologies').addEventListener('click',()=>setView('dashboard'));
 node('typologySearch').addEventListener('input',renderTypologiesAdmin);
+node('typologyManufacturerFilter').addEventListener('change',renderTypologiesAdmin);
 node('clearTypologySearch').addEventListener('click',()=>{
   node('typologySearch').value='';
   renderTypologiesAdmin();
@@ -1061,7 +1088,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v17.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v18.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
