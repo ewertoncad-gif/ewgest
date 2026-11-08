@@ -158,7 +158,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • filtro FIXO v27.0</div>
+        <div class="build">EWGEST • filtro FIXO v28.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -329,7 +329,7 @@
               </select>
             </div>
           </div>
-          <p class="hint" style="margin:0 0 8px">Classificação pela descrição. Fachada tem prioridade; módulos fixos de fachada também aparecem em FIXO. Peitoril fixo não conta como FIXO.</p>
+          <p class="hint" style="margin:0 0 8px">Classificação pela descrição, com prioridade para FACHADA UNITIZADA e FACHADA STICK. Módulos fixos de fachada não aparecem no filtro FIXO.</p>
           <p id="typologyFilterCount" class="hint filtercount" role="status"></p>
         </div>
         <div id="typologyAdminMessage" class="feedback" role="status" aria-live="polite"></div><div id="typologyList"></div>
@@ -1196,9 +1196,8 @@ function classificarTipoTipologia(t){
 }
 function correspondeTipoTipologia(t,tipo){
   if(!tipo)return true;
-  // Módulos fixos de fachada aparecem tanto em FIXO quanto em sua
-  // categoria de fachada. Um peitoril fixo isolado não conta como FIXO.
-  if(tipo==='FIXO')return ehFixoPrincipal(t);
+  // Cada tipologia pertence somente à sua categoria prioritária.
+  // Fachadas com módulos fixos não aparecem também em FIXO.
   return classificarTipoTipologia(t)===tipo;
 }
 function renderTypologiesAdmin() {
@@ -1690,7 +1689,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v27.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v28.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
