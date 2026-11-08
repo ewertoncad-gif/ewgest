@@ -68,6 +68,9 @@
     .typologyHeading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 0 8px;border-bottom:1px solid #33506a;flex-wrap:wrap}
     .typologyHeading strong{font-size:16px;letter-spacing:.2px;color:#62d9b3}
     .typologyHeading span{color:#a7bfd3;font-size:12px}
+    .catalogFilters{display:grid;grid-template-columns:repeat(2,minmax(220px,290px));gap:12px 16px;align-items:end;margin:12px 0 12px}
+    .catalogFilters .manufacturerFilter{max-width:none;margin:0}
+    @media(max-width:650px){.catalogFilters{grid-template-columns:1fr}}
     .manufacturerFilter{max-width:290px;margin:12px 0 16px}
     .manufacturerFilter label{margin:0 0 6px}
     .manufacturerFilter select{width:100%;padding:11px 13px}
@@ -155,7 +158,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • acesso ao sistema v24.0</div>
+        <div class="build">EWGEST • filtro de tipos v26.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -298,15 +301,34 @@
         <p id="croquiImportStatus" class="hint" role="status" aria-live="polite">Os croquis aparecem somente neste catálogo, para o administrador.</p>
         <div class="itemfilter"><label for="typologySearch">Buscar código ou descrição</label>
           <div class="filterrow"><input id="typologySearch" type="search" placeholder="Ex.: GOLS, JCR202, maxim-ar" autocomplete="off"><button id="clearTypologySearch" type="button" class="btn secondary">Limpar</button></div>
-          <div class="manufacturerFilter">
-            <label for="typologyManufacturerFilter">Filtrar por fabricante</label>
-            <select id="typologyManufacturerFilter">
-              <option value="">Todos os fabricantes</option>
-              <option value="HYDRO">HYDRO</option>
-              <option value="PERFIL">PERFIL</option>
-              <option value="__SEM_FABRICANTE__">Não informado</option>
-            </select>
+          <div class="catalogFilters">
+            <div class="manufacturerFilter">
+              <label for="typologyManufacturerFilter">Filtrar por fabricante</label>
+              <select id="typologyManufacturerFilter">
+                <option value="">Todos os fabricantes</option>
+                <option value="HYDRO">HYDRO</option>
+                <option value="PERFIL">PERFIL</option>
+                <option value="__SEM_FABRICANTE__">Não informado</option>
+              </select>
+            </div>
+            <div class="manufacturerFilter">
+              <label for="typologyTypeFilter">Filtrar por tipo</label>
+              <select id="typologyTypeFilter">
+                <option value="">Todos os tipos</option>
+                <option value="JANELA">JANELA</option>
+                <option value="PORTA">PORTA</option>
+                <option value="GRADIL">GRADIL</option>
+                <option value="FACHADA UNITIZADA">FACHADA UNITIZADA</option>
+                <option value="FACHADA STICK">FACHADA STICK</option>
+                <option value="PORTA DE GIRO">PORTA DE GIRO</option>
+                <option value="GUARDA CORPO">GUARDA CORPO</option>
+                <option value="SPLIT">SPLIT</option>
+                <option value="FACHADA_NAO_DEFINIDA">FACHADA — NÃO DEFINIDA</option>
+                <option value="OUTROS">OUTROS / NÃO IDENTIFICADOS</option>
+              </select>
+            </div>
           </div>
+          <p class="hint" style="margin:0 0 8px">Classificação pela descrição. Fachadas sem sistema especificado ficam em “Não definida”.</p>
           <p id="typologyFilterCount" class="hint filtercount" role="status"></p>
         </div>
         <div id="typologyAdminMessage" class="feedback" role="status" aria-live="polite"></div><div id="typologyList"></div>
@@ -1143,6 +1165,22 @@ function showCroquiZoom(tipologiaId){
   node('croquiZoomSource').textContent=entry.origem||'Croqui cadastrado na EWGEST';
   node('croquiZoomOverlay').classList.remove('hidden');
 }
+function classificarTipoTipologia(t){
+  const desc=String(t.descricao||'').normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'').toLocaleUpperCase('pt-BR');
+  if(/\bGUARDA[\s-]*CORPO\b/.test(desc))return 'GUARDA CORPO';
+  if(/\bSPLIT\b/.test(desc))return 'SPLIT';
+  if(/\bGRADIL\b|\bGRADE\b/.test(desc))return 'GRADIL';
+  if(/\bPORTA\s+DE\s+GIRO\b/.test(desc))return 'PORTA DE GIRO';
+  if(/\bPORTA\b/.test(desc))return 'PORTA';
+  if(/\bJANELA\b|\bMAXIM[\s-]?AR\b|^FIXO\b/.test(desc))return 'JANELA';
+  if(/\bFACHADA\b|\bFACADE\b|\bPELE\s+DE\s+VIDRO\b/.test(desc)){
+    if(/\bUNITIZAD[AO]S?\b/.test(desc))return 'FACHADA UNITIZADA';
+    if(/\bSTICK\b/.test(desc))return 'FACHADA STICK';
+    return 'FACHADA_NAO_DEFINIDA';
+  }
+  return 'OUTROS';
+}
 function renderTypologiesAdmin() {
   if(String(membership?.perfil||'').toLowerCase()!=='administrador'){setView('dashboard');return;}
   node('catalogCount').textContent=typologyCatalog.length.toLocaleString('pt-BR');
@@ -1165,12 +1203,14 @@ function renderTypologiesAdmin() {
   }
   const query=node('typologySearch').value.trim().toLocaleUpperCase('pt-BR');
   const manufacturer=selector.value;
+  const selectedType=node('typologyTypeFilter').value;
   const catalog=typologyCatalog.slice()
     .sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR',{numeric:true,sensitivity:'base'}))
     .filter(t=>!query||(t.codigo+' '+t.descricao).toLocaleUpperCase('pt-BR').includes(query))
     .filter(t=>manufacturer==='__SEM_FABRICANTE__'
       ?!String(t.fabricante||'').trim()
-      :!manufacturer||String(t.fabricante||'').trim().toLocaleUpperCase('pt-BR')===manufacturer);
+      :!manufacturer||String(t.fabricante||'').trim().toLocaleUpperCase('pt-BR')===manufacturer)
+    .filter(t=>!selectedType||classificarTipoTipologia(t)===selectedType);
   const rows=catalog.map(t=>{
     const origin=typologyOrigins.filter(o=>o.tipologia_id===t.id);
     const status=origin.length?(origin.some(x=>x.ativo)?'Origem reconhecida':'Origem sem reconhecimento automático'):'Sem regra de origem';
@@ -1617,8 +1657,11 @@ node('openTypologies').addEventListener('click',()=>{
 node('backTypologies').addEventListener('click',()=>setView('dashboard'));
 node('typologySearch').addEventListener('input',renderTypologiesAdmin);
 node('typologyManufacturerFilter').addEventListener('change',renderTypologiesAdmin);
+node('typologyTypeFilter').addEventListener('change',renderTypologiesAdmin);
 node('clearTypologySearch').addEventListener('click',()=>{
   node('typologySearch').value='';
+  node('typologyManufacturerFilter').value='';
+  node('typologyTypeFilter').value='';
   renderTypologiesAdmin();
   node('typologySearch').focus();
 });
@@ -1627,7 +1670,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v24.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v26.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
