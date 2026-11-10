@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'comparação clara v35.1',
+ 'comparação de tipologias v35.2',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -201,7 +201,8 @@ const functions=new Function('differencePendingItem','typologyCatalog','modulati
  'document','node','modulacoesDaTipologia','codigoVariacaoTecnica','normalizarReconhecimento',
  source.slice(fnInicio2,fnFim2)+'\nreturn {atualizarTelaDiferenca};'
 )(
- {id:'EA6A',tipologia_id:'fam',descricao:'MODULO JANELA DE CORRER - SERIE 105'},
+ {id:'EA6A',tipologia_id:'fam',rotulo_tipologia_relatorio:'EA6A_1',
+  descricao:'MODULO JANELA DE CORRER - SERIE 105'},
  [{id:'fam',codigo:'WINFAC-JCR203'}],[modReferencia],fakeDocument,
  id=>state.form[id],()=>[modReferencia],()=> 'WINFAC-JCR203-01',normalizarTeste
 );
@@ -209,11 +210,15 @@ state.choice='sim';functions.atualizarTelaDiferenca();
 assert.equal(state.form.differenceSave.disabled,false,'SIM permite vincular configuração');
 assert.equal(state.form.differenceComparison.children.length,2,'Descrições em duas caixas');
 const boxes=state.form.differenceComparison.children;
-assert.equal(boxes[0].children[0].textContent,'DESCRIÇÃO DA OBRA');
-assert.equal(boxes[1].children[0].textContent,'DESCRIÇÃO DO CATÁLOGO');
-assert.ok(boxes[0].children[1].textContent.includes('JANELA DE CORRER'),'Descrição da obra intacta');
-assert.ok(boxes[1].children[1].textContent.includes('FACHADA UNITIZADA'),'Descrição do catálogo intacta');
-assert.ok(!boxes.some(b=>b.children[1].textContent.includes('-01')),'Sufixo técnico oculto da comparação');
+assert.equal(boxes[0].children[0].textContent,'TIPOLOGIA INFORMADA NA OBRA');
+assert.equal(boxes[1].children[0].textContent,'TIPOLOGIA DO CATÁLOGO');
+assert.equal(boxes[0].children[1].textContent,'EA6A_1','Código original vem do relatório da obra');
+assert.equal(boxes[1].children[1].textContent,'WINFAC-JCR203','Código principal do catálogo');
+assert.equal(boxes[0].children[2].textContent,'Descrição');
+assert.equal(boxes[1].children[2].textContent,'Descrição');
+assert.ok(boxes[0].children[3].textContent.includes('JANELA DE CORRER'),'Descrição da obra intacta');
+assert.ok(boxes[1].children[3].textContent.includes('FACHADA UNITIZADA'),'Descrição do catálogo intacta');
+assert.ok(!boxes.some(b=>b.children[1].textContent.endsWith('-01')),'Sufixo técnico oculto da comparação');
 state.choice='nao';state.next='nova';functions.atualizarTelaDiferenca();
 assert.equal(state.form.differenceSave.disabled,false,'NÃO permite cadastrar nova configuração');
 state.form.differenceNewDescription.value=modReferencia.descricao;
