@@ -1853,6 +1853,141 @@ function openPendingTypologyClassification(id) {
   node('typologyEditCode').focus();
 }
 
+
+function candidatosIdentificacaoTecnica(origem,catalogo){
+  if(!origem)return [];
+  const fab=s=>String(s||'').trim().toLocaleUpperCase('pt-BR');
+  const descricao=normalizarReconhecimento(origem.descricao);
+  const classe=classificarTipoTipologia(origem);
+  return catalogo.filter(t=>t.id!==origem.id&&!t.tipologia_principal_id
+    &&fab(t.fabricante)===fab(origem.fabricante)
+    &&!/^EA\\d+(?:[_-]\\d+)?$/i.test(t.codigo))
+    .sort((a,b)=>{
+      const pontos=t=>(normalizarReconhecimento(t.descricao)===descricao?2:0)
+        +(classificarTipoTipologia(t)===classe?1:0);
+      return pontos(b)-pontos(a)||a.codigo.localeCompare(b.codigo,'pt-BR',{numeric:true});
+    });
+}
+function escolhaIdentificacao(){
+  const value=node('identityTarget').value;
+  if(value==='__INDEPENDENTE__')return {independente:true,tipologia:null};
+  return {independente:false,tipologia:typologyCatalog.find(t=>t.id===value)||null};
+}
+function abrirCorrecaoIdentificacao(){
+  const origem=editingTypology;
+  if(!origem||editingPendingItem||
+     String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  const temDependentes=typologyCatalog.some(t=>t.tipologia_principal_id===origem.id);
+  const temModulacoes=modulationCatalog.some(m=>m.tipologia_principal_id===origem.id);
+  if(temDependentes||temModulacoes)return;
+  const candidatos=candidatosIdentificacaoTecnica(origem,typologyCatalog);
+  if(!candidatos.length&&!origem.tipologia_principal_id){
+    node('typologyEditError').textContent='Não foi encontrada nenhuma tipologia técnica principal do mesmo fabricante.';
+    return;
+  }
+  identityEditing=origem;
+  closeTypologyEdit();
+  node('identitySource').textContent='Cadastro original: '+origem.codigo+' — '+origem.descricao;
+  const select=node('identityTarget');
+  select.replaceChildren();
+  const vazio=document.createElement('option');vazio.value='';
+  vazio.textContent='Escolha a tipologia técnica correta';select.append(vazio);
+  if(origem.tipologia_principal_id){
+    const restaurar=document.createElement('option');restaurar.value='__INDEPENDENTE__';
+    restaurar.textContent='Desvincular e voltar à identificação original '+origem.codigo;
+    select.append(restaurar);
+  }
+  for(const t of candidatos){
+    const opt=document.createElement('option');opt.value=t.id;
+    const mesma=normalizarReconhecimento(t.descricao)===normalizarReconhecimento(origem.descricao);
+    opt.textContent=t.codigo+(mesma?' · mesma descrição':' · conferir descrição')+' — '+t.descricao.slice(0,90);
+    select.append(opt);
+  }
+  select.value=origem.tipologia_principal_id||'';
+  node('identityApproved').checked=false;
+  node('identityDifferent').checked=false;
+  node('identityMessage').textContent='';
+  atualizarComparacaoIdentificacao();
+  node('identityOverlay').classList.remove('hidden');
+  select.focus();
+}
+function atualizarComparacaoIdentificacao(){
+  const origem=identityEditing;
+  const {independente,tipologia}=escolhaIdentificacao();
+  const container=node('identityCompare');container.replaceChildren();
+  const diferente=Boolean(origem&&tipologia&&(
+    normalizarReconhecimento(origem.descricao)!==normalizarReconhecimento(tipologia.descricao)
+    ||classificarTipoTipologia(origem)!==classificarTipoTipologia(tipologia)));
+  node('identityDifferentLabel').classList.toggle('hidden',!diferente);
+  if(!diferente)node('identityDifferent').checked=false;
+  if(!origem)container.textContent='Selecione um cadastro para corrigir.';
+  else if(independente)container.textContent='Ao desvincular, o cadastro volta a usar seu código original '+origem.codigo+
+    '. Nenhuma esquadria, croqui ou histórico será apagado.';
+  else if(!tipologia)container.textContent='Selecione a identificação técnica correta para comparar.';
+  else{
+    const title=document.createElement('strong');
+    title.textContent=diferente?'Descrições diferentes: confirme após conferir.':'Descrições compatíveis: confirme o código técnico.';
+    container.append(title);
+    const anterior=document.createElement('p');
+    anterior.textContent='Cadastro original: '+origem.codigo+' — '+origem.descricao;
+    container.append(anterior);
+    const novo=document.createElement('p');
+    novo.textContent='Código técnico: '+tipologia.codigo+' — '+tipologia.descricao;
+    container.append(novo);
+    const aviso=document.createElement('p');
+    aviso.textContent='Croquis e referências das obras continuarão separados. Esta operação não altera abertura, folhas ou módulos.';
+    container.append(aviso);
+  }
+  validarCorrecaoIdentificacao();
+}
+function validarCorrecaoIdentificacao(){
+  const {independente,tipologia}=escolhaIdentificacao();
+  const origem=identityEditing;
+  const diferente=Boolean(origem&&tipologia&&(
+    normalizarReconhecimento(origem.descricao)!==normalizarReconhecimento(tipologia.descricao)
+    ||classificarTipoTipologia(origem)!==classificarTipoTipologia(tipologia)));
+  node('identitySave').disabled=!(origem&&(independente||tipologia)&&
+    node('identityApproved').checked&&(!diferente||node('identityDifferent').checked));
+}
+function fecharCorrecaoIdentificacao(reabrir=false){
+  const id=identityEditing?.id;
+  node('identityOverlay').classList.add('hidden');
+  identityEditing=null;
+  if(reabrir&&id)openTypologyEdit(id);
+}
+async function salvarCorrecaoIdentificacao(){
+  const origem=identityEditing;
+  const {independente,tipologia}=escolhaIdentificacao();
+  if(!origem||node('identitySave').disabled||(!independente&&!tipologia))return;
+  const botao=node('identitySave');
+  botao.disabled=true;botao.textContent='Salvando…';
+  node('identityMessage').textContent='';
+  try{
+    await ensureSession();
+    const res=await request('/rest/v1/rpc/corrigir_identificacao_tipologia_admin',{
+      method:'POST',token:session.access_token,
+      body:{
+        p_tipologia_id:origem.id,
+        p_tipologia_principal_id:independente?null:tipologia.id,
+        p_principal_anterior_id:origem.tipologia_principal_id||null
+      }
+    });
+    fecharCorrecaoIdentificacao();
+    await loadPanel();
+    node('typologySearch').value=origem.codigo;
+    node('typologyTypeFilter').value='';
+    node('typologyManufacturerFilter').value='';
+    renderTypologiesAdmin();
+    setView('typologies');
+    node('typologyAdminMessage').textContent=
+      'Identificação corrigida: '+res.codigo_original_preservado+' → '+res.codigo_tecnico+
+      '. Cadastro, croqui e histórico preservados. Alteração registrada.';
+  }catch(e){
+    node('identityMessage').textContent='Não foi possível corrigir: '+e.message;
+  }finally{
+    botao.disabled=false;botao.textContent='Confirmar identificação';
+  }
+}
 function closeTypologyEdit() {
   node('typologyEditOverlay').classList.add('hidden');
   editingTypology=null;
@@ -2144,6 +2279,13 @@ node('manufacturerForm').addEventListener('submit',async(event)=>{
   }
 });
 
+
+node('identityOpen').addEventListener('click',abrirCorrecaoIdentificacao);
+node('identityTarget').addEventListener('change',atualizarComparacaoIdentificacao);
+node('identityApproved').addEventListener('change',validarCorrecaoIdentificacao);
+node('identityDifferent').addEventListener('change',validarCorrecaoIdentificacao);
+node('identityCancel').addEventListener('click',()=>fecharCorrecaoIdentificacao(true));
+node('identitySave').addEventListener('click',salvarCorrecaoIdentificacao);
 node('openTypologies').addEventListener('click',()=>{
   if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
   node('typologySearch').value='';
