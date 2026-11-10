@@ -869,6 +869,14 @@ async function loadPanel(){
     ]);
     dispatchConfig=config||[];shipmentHistory=history||[];dispatchReady=true;dispatchLoadError='';
   }catch(err){dispatchConfig=[];shipmentHistory=[];dispatchReady=false;dispatchLoadError=err.message;}
+  try{
+    const [headers,lines]=await Promise.all([
+      apiGet('romaneios',{select:'id,obra_id,numero,data_saida,motorista,placa,observacoes,criado_em',
+        empresa_id:'eq.'+currentCompany.id,order:'data_saida.desc',limit:'1000'}),
+      apiGet('romaneios_itens',{select:'id,romaneio_id,sequencia,natureza,esquadria_id,saida_producao_id,codigo,localizacao,descricao,medida,quantidade,unidade,area_m2,fabrica,prazo_liberacao_saida_dias',order:'sequencia.asc',limit:'3000'})
+    ]);
+    romaneios=headers||[];romaneioItens=lines||[];romaneioLoadError='';
+  }catch(err){romaneios=[];romaneioItens=[];romaneioLoadError=err.message;}
 
   node('heading').textContent=currentCompany.nome;
   let displayLogin=currentUser.email||'Usuário';
@@ -1014,6 +1022,11 @@ function renderDetail(w){
   node('tabShip').classList.toggle('active',shipping);
   node('tabShip').setAttribute('aria-pressed',String(shipping));
   node('shipmentOverview').classList.toggle('hidden',!shipping);
+  node('romaneioActions').classList.toggle('hidden',!shipping);
+  node('openRomaneio').disabled=!canEdit||!dispatchReady||Boolean(romaneioLoadError);
+  node('romaneioOverview').classList.toggle('hidden',!shipping);
+  node('romaneioHistoryPanel').classList.add('hidden');
+  if(shipping)renderResumoRomaneios(w.id);
   node('itemListTitle').textContent=shipping?'Saídas da produção':'Itens da obra';
   node('detailIntro').textContent=shipping
     ?'Clique em uma esquadria para registrar o envio completo, somente do marco ou somente das folhas. Cada saída fica registrada com sua data.'
