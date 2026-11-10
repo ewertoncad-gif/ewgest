@@ -206,7 +206,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • comparação de módulos v35.4</div>
+        <div class="build">EWGEST • descrição padrão v35.5</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -474,14 +474,12 @@
     <h2 id="differenceTitle">Conferência de descrição</h2>
     <p id="differenceOrigin" class="muted"></p>
     <p class="hint">A tipologia técnica já está identificada. Compare apenas a configuração. A obra continua liberada para trabalhar.</p>
-    <label for="differenceConfig">Configuração cadastrada para comparação</label>
-    <select id="differenceConfig"></select>
     <div id="differenceComparison" class="differenceComparisonGrid" aria-live="polite"></div>
-    <p class="hint">N representa uma quantidade variável de módulos apenas nesta comparação. As quantidades reais permanecem nos cadastros.</p>
-    <strong>Essa esquadria corresponde à configuração do catálogo?</strong>
+    <p class="hint">Somente no catálogo, N representa uma quantidade variável de módulos. A descrição original da obra permanece como foi recebida.</p>
+    <strong>Essa esquadria pertence à tipologia do catálogo?</strong>
     <div class="differenceChoices" id="differenceMainChoices">
-      <label><input type="radio" name="differenceMatch" value="sim"><span>Sim, é a mesma configuração.</span></label>
-      <label><input type="radio" name="differenceMatch" value="nao"><span>Não, existe uma diferença técnica.</span></label>
+      <label><input type="radio" name="differenceMatch" value="sim"><span>Sim, é a mesma tipologia (a quantidade de módulos pode variar).</span></label>
+      <label><input type="radio" name="differenceMatch" value="nao"><span>Não, existe outra diferença técnica.</span></label>
     </div>
     <div id="differenceSecondStep" class="differenceStep hidden">
       <strong>Como deseja resolver a diferença?</strong>
@@ -499,6 +497,8 @@
         <p class="hint">Informe o que muda (abertura, veneziana, módulos etc.). O código da tipologia será mantido; somente a configuração receberá o próximo sufixo.</p>
       </div>
       <div id="differenceCorrectFields" class="differenceStep hidden">
+        <label for="differenceConfig">Escolha a configuração cadastrada cuja descrição deve ser usada</label>
+        <select id="differenceConfig"></select>
         <p class="differenceMeta">Nova descrição da esquadria:</p>
         <p id="differenceCorrectDescription" class="differenceMeta"></p>
         <p class="hint">A descrição original recebida da obra será guardada no histórico. O croqui não será modificado.</p>
@@ -1538,12 +1538,23 @@ function abrirConferenciaDescricao(item){
   node('differenceError').textContent='';
   node('differenceOverlay').classList.remove('hidden');
   atualizarTelaDiferenca();
-  if(configs.length!==1&&!igual)seletor.focus();
-  else document.querySelector('input[name="differenceMatch"]')?.focus();
+  document.querySelector('input[name="differenceMatch"]')?.focus();
 }
 // Somente apresentação na comparação: preserva quantidades reais no banco, no seletor e no relatório.
 function descricaoComparacaoComModulosN(descricao){
   return String(descricao||'').replace(/\b\d+(?=\s+M[ÓO]DULO(?:S|\(S\))?(?=$|[\s.,;:/-]))/gi,'N');
+}
+// Sem comparar número de módulos por aproximação: só reutiliza configuração já cadastrada
+// quando as descrições completas correspondem após normalização de escrita.
+function modulacaoMesmaDescricao(tipologia,descricao){
+  return modulacoesDaTipologia(tipologia).find(m=>
+    normalizarReconhecimento(m.descricao)===normalizarReconhecimento(descricao))||null;
+}
+function quantidadeModulosExpressa(descricao){
+  const encontrados=[...String(descricao||'').matchAll(/\b(\d+)\s+M[ÓO]DULO(?:S|\(S\))?(?=$|[\s.,;:/-])/gi)];
+  if(encontrados.length!==1)return null;
+  const numero=Number(encontrados[0][1]);
+  return Number.isInteger(numero)&&numero>=1&&numero<=100?numero:null;
 }
 function atualizarTelaDiferenca(){
   const item=differencePendingItem;
@@ -1576,9 +1587,9 @@ function atualizarTelaDiferenca(){
     const codigoCatalogo=tipologiaPrincipal?.codigo||'Tipologia não identificada';
     compare.append(
       card('TIPOLOGIA INFORMADA NA OBRA',codigoOriginal,
-        descricaoComparacaoComModulosN(item.descricao||'Descrição não informada'),'obra'),
+        item.descricao||'Descrição não informada','obra'),
       card('TIPOLOGIA DO CATÁLOGO',codigoCatalogo,
-        descricaoComparacaoComModulosN(mod?.descricao||'Selecione uma configuração existente para comparar.'),'catalog')
+        descricaoComparacaoComModulosN(tipologiaPrincipal?.descricao||'Descrição não cadastrada na tipologia.'),'catalog')
     );
   }
   node('differenceSecondStep').classList.toggle('hidden',modo!=='nao');
@@ -1599,8 +1610,10 @@ function atualizarTelaDiferenca(){
   let habilitar=false;
   let aviso='';
   if(modo==='sim'){
-    habilitar=Boolean(item&&tipologia&&mod);
-    if(!mod)aviso='Escolha a configuração que corresponde à esquadria.';
+    habilitar=Boolean(item&&tipologia&&String(item.descricao||'').trim());
+    if(!String(item.descricao||'').trim())aviso='Descrição da obra ausente. Confira o relatório.';
+    else if(!modulacaoMesmaDescricao(tipologia,item.descricao))
+      aviso='Ao confirmar, será cadastrada uma configuração própria para esta descrição, sem alterar o código da tipologia ou o croqui anterior.';
   }else if(modo==='nao'&&opcao==='nova'){
     habilitar=Boolean(item&&tipologia&&descritivo.length>=5&&descritivo.length<=1000&&qtdValida&&!repetida);
     if(repetida)aviso='Já existe configuração com esta descrição. Use a existente ou informe a característica que a diferencia.';
@@ -1614,7 +1627,7 @@ function atualizarTelaDiferenca(){
   node('differenceSave').disabled=!habilitar;
   node('differenceSave').textContent=modo==='nao'&&opcao==='adiar'?'Conferir depois':
     modo==='nao'&&opcao==='nova'?'Criar configuração':
-    modo==='nao'&&opcao==='corrigir'?'Corrigir descrição':'Confirmar decisão';
+    modo==='nao'&&opcao==='corrigir'?'Corrigir descrição':modo==='sim'?'Confirmar tipologia':'Confirmar decisão';
   node('differenceError').textContent=aviso;
 }
 function fecharConferenciaDescricao(){
@@ -1635,21 +1648,25 @@ async function salvarConferenciaDescricao(){
     await ensureSession();
     let resposta,resultado;
     if(modo==='sim'||(modo==='nao'&&opcao==='nova')){
-      const criar=modo==='nao';
+      const existente=modo==='sim'?modulacaoMesmaDescricao(tipologia,item.descricao):null;
+      const criar=modo==='nao'||!existente;
+      const descricaoCriar=modo==='sim'?String(item.descricao||'').trim():
+        node('differenceNewDescription').value.trim();
       const num=node('differenceNewModules').value.trim();
       resposta=await request('/rest/v1/rpc/resolver_modulacao_pendente_admin',{
         method:'POST',token:session.access_token,
         body:{p_esquadria_id:item.id,p_tipologia_id:tipologia.id,
-          p_modulacao_id:criar?null:mod.id,
+          p_modulacao_id:criar?null:existente.id,
           p_criar_modulacao:criar,
-          p_descricao_modulacao:criar?node('differenceNewDescription').value.trim():null,
-          p_quantidade_modulos:criar&&num?Number(num):null,
+          p_descricao_modulacao:criar?descricaoCriar:null,
+          p_quantidade_modulos:criar?(modo==='sim'?
+            quantidadeModulosExpressa(item.descricao):(num?Number(num):null)):null,
           p_confirmar_divergencia:true}
       });
       const principal=typologyCatalog.find(t=>t.id===(tipologia.tipologia_principal_id||tipologia.id))||tipologia;
       const codigo=principal.codigo+'-'+String(resposta.numero_variacao).padStart(2,'0');
-      resultado=(criar?'Nova configuração criada: ':'Configuração confirmada: ')+codigo+
-        ' · '+resposta.esquadrias_classificadas+' esquadria(s). Croqui preservado.';
+      resultado=(criar?'Configuração registrada: ':'Configuração identificada: ')+codigo+
+        ' · '+resposta.esquadrias_classificadas+' esquadria(s). O código técnico foi mantido; nenhum croqui anterior foi substituído.';
     }else if(modo==='nao'&&(opcao==='corrigir'||opcao==='adiar')){
       resposta=await request('/rest/v1/rpc/revisar_descricao_configuracao_admin',{
         method:'POST',token:session.access_token,
@@ -2643,7 +2660,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v35.4 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v35.5 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
