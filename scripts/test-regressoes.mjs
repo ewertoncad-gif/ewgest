@@ -59,13 +59,50 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'conferência segura v31.0',
+ 'modulações e pendências v32.0',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
  'id="recognitionDivergence"',
- 'vincular_tipologia_existente_admin'
+ 'resolver_modulacao_pendente_admin',
+ 'id="recognitionModulation"',
+ 'id="recognitionNewModFields"',
+ 'id="modulationCatalogPanel"',
+ 'id="pendingReviewPanel" open',
+ 'function modulacoesDaTipologia(t)',
+ 'p_criar_modulacao:nova',
+ 'node(\'recognitionModCount\').value',
+ 'function renderModulacoesCadastradas()',
+ 'comparacaoEstritaDescricao',
+ 'id="recognitionDivergence"',
+ 'tipologia_principal_id||registro.id'
+
 ]){
   assert.ok(source.includes(token),'Preservar: '+token);
 }
-console.log('OK: '+cases.length+' casos de classificação + código EA14_1 em obras distintas e conferência ADM.');
+const principalId='familia-1';
+const catalogoRaiz=[
+  {id:principalId,codigo:'INV-VNZN00',tipologia_principal_id:null},
+  {id:'legado-2',codigo:'EA14_1',tipologia_principal_id:principalId}
+];
+const fnInicio=source.indexOf('function typologyCode(item){');
+const fnFim=source.indexOf('function labeledDescription(item){',fnInicio);
+assert.ok(fnInicio>=0&&fnFim>fnInicio,'Retorno de codigo tecnico presente');
+const codigoTecnico=new Function('typologyCatalog',source.slice(fnInicio,fnFim)+'\nreturn typologyCode;')(catalogoRaiz);
+assert.equal(codigoTecnico({tipologia_id:'legado-2'}),'INV-VNZN00',
+  'Esquadria de configuracao antiga exibe codigo principal, nao EA');
+assert.equal(codigoTecnico({tipologia_id:principalId}),'INV-VNZN00');
+const modInicio=source.indexOf('function modulacoesDaTipologia(t){');
+const modFim=source.indexOf('function atualizarOpcoesModulacao(){',modInicio);
+assert.ok(modInicio>=0&&modFim>modInicio,'Filtro das modulacoes por familia');
+const modExemplo=[
+ {id:'mod-um',tipologia_principal_id:principalId,codigo_interno:'MOD-000001',descricao:'FIXO VENEZIANA - 1 FOLHA(S)'},
+ {id:'mod-dois',tipologia_principal_id:principalId,codigo_interno:'MOD-000002',descricao:'FIXO VENEZIANA - 2 FOLHA(S)'},
+ {id:'outra-mod',tipologia_principal_id:'outra-familia',codigo_interno:'MOD-000003'}
+];
+const modsDaTipologia=new Function('modulationCatalog',source.slice(modInicio,modFim)+'\nreturn modulacoesDaTipologia;')(modExemplo);
+assert.equal(modsDaTipologia(catalogoRaiz[1]).length,2,
+  'Modulacoes filtradas pela tipologia principal, nao pelo codigo EA');
+assert.equal(modsDaTipologia({id:'outra-familia'}).length,1);
+
+console.log('OK: '+cases.length+' casos de classificacao; EA em obras distintas; MOD por familia; codigo principal.');
