@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'emissão simplificada v37.1',
+ 'romaneio A4 revisado v38.0',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -371,14 +371,38 @@ const cabecalho={id:'rm',obra_id:'obra',numero:'RM042',data_saida:'2026-07-08',
  motorista:'IRAN FRANCISCO',placa:'UHQ4A65',observacoes:''};
 const linha=(n)=>({sequencia:n,codigo:'CG 1016',localizacao:'Ático',
  descricao:'CANTONEIRA 1x1',medida:'6 m',quantidade:10,unidade:'UNID.',area_m2:null});
+const folhaTeste={...linha(1),codigo:'EA3',descricao:'MAXIM-AR',medida:'400,00 x 1.100,00 mm',area_m2:0.44};
+const folhaFormato=montarRomaneio(cabecalho,[folhaTeste]);
+assert.ok(folhaFormato.includes('0,40 × 1,10 m'),
+ 'Converter medidas de esquadrias expressas em milímetros para metros');
+assert.ok(!folhaFormato.includes('400,00 x 1.100,00 mm'),
+ 'Não mostrar medida de esquadria em mm na impressão');
+const medidaInicio=source.indexOf('function medidaRomaneioEmMetros(medida){');
+const medidaFim=source.indexOf('function construirHTMLRomaneio(header,linhas){',medidaInicio);
+const converter=new Function(source.slice(medidaInicio,medidaFim)+'\\nreturn medidaRomaneioEmMetros;')();
+assert.equal(converter('2.400,00 x 2.250,00 mm'),'2,40 × 2,25 m',
+ 'Formatação de origem com vírgula decimal');
+assert.equal(converter('2400.00 x 2250.00 mm'),'2,40 × 2,25 m',
+ 'Formatação de origem com ponto decimal');
+assert.equal(converter('6 m'),'6 m','Material em metros mantém unidade original');
+assert.equal(converter('6'),'6','Não presumir unidade de material avulso');
 const duas=montarRomaneio(cabecalho,[linha(1),linha(2),linha(3)]);
 assert.equal((duas.match(/class="printPage two"/g)||[]).length,1,
  'Pequenos romaneios com duas vias em uma folha A4');
 assert.equal((duas.match(/class="copy compact"/g)||[]).length,2,'Duas cópias idênticas');
 assert.ok(duas.includes('MOURA DUBEUX')&&duas.includes('IRAN FRANCISCO'),
  'Modelo preserva campos cliente e motorista');
-assert.ok(duas.includes('Quant.')&&duas.includes('Valor')&&duas.includes('Entregue por'),
- 'Modelo com colunas e assinaturas da planilha enviada');
+assert.ok(duas.includes('Quant.')&&duas.includes('Descrição')&&duas.includes('Entregue por'),
+ 'Romaneio mantém colunas e assinaturas do modelo enviado');
+assert.ok(!duas.includes('<th>Localização</th>')&&!duas.includes('<th>Valor</th>'),
+ 'Localização e Valor não devem aparecer no impresso');
+assert.ok(duas.includes('<col style="width:50%">'),'Descrição ganhou metade da largura');
+assert.ok(duas.includes('>ARTEFAL<')||duas.includes('alt="Artefal"'),
+ 'Cabeçalho traz Artefal, como o modelo original');
+assert.ok(duas.includes('alt="GVG"')&&duas.includes('class="headerTruck"'),
+ 'Cabeçalho traz GVG e ilustração de entrega');
+assert.ok(duas.includes('Cód.:')||duas.includes('Cód.</strong>'),
+ 'Cabeçalho contém identificação do documento');
 const doze=montarRomaneio(cabecalho,Array.from({length:12},(_,i)=>linha(i+1)));
 assert.equal((doze.match(/class="printPage single"/g)||[]).length,2,
  'Listas longas usam uma via por página');
