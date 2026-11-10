@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'romaneios flexíveis v37.0',
+ 'emissão simplificada v37.1',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -117,6 +117,14 @@ for(const token of [
  'function cadastrarTransporteRomaneio(tipo)',
  'function buscarEsquadriasRomaneio(row)',
  'function romaneioSaldoPorTipo(item,tipo,folhas)',
+ 'function ehMaximArRomaneio(item)',
+ 'leaves.required=perguntaFolhas',
+ "const folhas=tipo==='completo'?null:",
+ "tipo!=='completo'&&ehMaximArRomaneio(item)",
+ 'id="shipmentMaximNote"',
+ "tipoSelect.querySelector('option[value=\"parcial\"]').disabled=maxim",
+ "node('shipmentLeaves').required=precisaComposicao",
+ "const per=kind==='completo'?null:",
  'Somente o marco',
  'Somente as folhas',
  'data-rom-field="esquadria_search"',
@@ -398,7 +406,28 @@ assert.ok(extrair.includes("if(tipo==='marco')return marcos")&&extrair.includes(
  'Envio parcial deve controlar os saldos de marcos e folhas separadamente');
 assert.ok(source.includes("cancelado_em:'is.null'"),
  'Saldos e histórico devem ignorar saídas estornadas');
+const ehInicio=source.indexOf('function ehMaximArRomaneio(item){');
+const ehFim=source.indexOf('function buscarEsquadriasRomaneio(row){',ehInicio);
+assert.ok(ehInicio>=0&&ehFim>ehInicio,'Validação de MAXIM-AR presente');
+const {ehMaximArRomaneio,romaneioSaldoPorTipo}=new Function('shipmentStats','suggestedLeaves',
+ source.slice(ehInicio,ehFim)+
+ '\\nreturn {ehMaximArRomaneio,romaneioSaldoPorTipo};'
+)(x=>({released:Number(x.qtd_liberada),frames:Number(x.marcos||0),
+ leaves:Number(x.folhas_enviadas||0),per:x.per||null}),
+  x=>Number((x.descricao||'').match(/(\\d+)\\s*FOLHA/i)?.[1]||0)||null);
+assert.equal(ehMaximArRomaneio({descricao:'MAXIM-AR 1 FOLHA(S) - HYDRO'}),true);
+assert.equal(ehMaximArRomaneio({descricao:'MAXIM AR 1 FOLHA(S)'}),true);
+assert.equal(ehMaximArRomaneio({descricao:'MAXIMAR 1 FOLHA(S)'}),true);
+assert.equal(ehMaximArRomaneio({descricao:'JANELA DE CORRER - 2 FOLHAS'}),false);
+assert.equal(romaneioSaldoPorTipo({descricao:'MAXIM-AR 1 FOLHA',qtd_liberada:7,marcos:2},
+ 'completo',null),5,'Completa não exige composição de folhas');
+assert.equal(romaneioSaldoPorTipo({descricao:'JANELA DE CORRER - 2 FOLHAS',qtd_liberada:7,marcos:2},
+ 'marco',null),5,'Janela permite expedir marco com saldo correto');
+assert.ok(source.includes("leaves.closest('label').classList.toggle('hidden',!perguntaFolhas)"),
+ 'Campo de folhas escondido na saída completa do romaneio');
+assert.ok(source.includes("node('shipmentCompositionSection').classList.toggle('hidden',!precisaComposicao)"),
+ 'Campo de folhas escondido na saída completa individual');
 
-console.log('OK: '+cases.length+' classificacoes; romaneio completo/parcial, transporte, cancelamento, reimpressão, A4.');
+console.log('OK: '+cases.length+' classificacoes; sem pergunta de folhas no completo, MAXIM-AR completo, regressoes de romaneio e A4.');
 
 
