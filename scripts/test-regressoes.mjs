@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'comparação de tipologias v35.2',
+ 'código preservado v35.3',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -97,6 +97,9 @@ for(const token of [
  'id="differenceCreateFields"',
  'id="differenceCorrectFields"',
  'id="differenceSave"',
+ 'id="differencePreserveCode"',
+ 'Criar outra configuração da mesma tipologia (mantém o código e adiciona um sufixo).',
+ 'Código da tipologia preservado: ',
  'class="differenceComparisonGrid"',
  'differenceCompareCard',
  "card('TIPOLOGIA INFORMADA NA OBRA'",
@@ -177,6 +180,7 @@ const state={choice:'',next:'',form:{
  },
  differenceSecondStep:{classList:{toggle(){}}},differenceCreateFields:{classList:{toggle(){}}},
  differenceCorrectFields:{classList:{toggle(){}}},differenceCorrectDescription:{textContent:''},
+ differencePreserveCode:{textContent:''},
  differenceNewDescription:{value:'MODULO JANELA DE CORRER - SERIE 105'},
  differenceNewModules:{value:''},differenceSave:{disabled:true,textContent:''},
  differenceError:{textContent:''}
@@ -221,6 +225,8 @@ assert.ok(boxes[1].children[3].textContent.includes('FACHADA UNITIZADA'),'Descri
 assert.ok(!boxes.some(b=>b.children[1].textContent.endsWith('-01')),'Sufixo técnico oculto da comparação');
 state.choice='nao';state.next='nova';functions.atualizarTelaDiferenca();
 assert.equal(state.form.differenceSave.disabled,false,'NÃO permite cadastrar nova configuração');
+assert.ok(state.form.differencePreserveCode.textContent.includes('WINFAC-JCR203'),
+  'Confirma manter código da tipologia principal na nova configuração');
 state.form.differenceNewDescription.value=modReferencia.descricao;
 functions.atualizarTelaDiferenca();
 assert.equal(state.form.differenceSave.disabled,true,'Impedir cadastrar descrição duplicada');
