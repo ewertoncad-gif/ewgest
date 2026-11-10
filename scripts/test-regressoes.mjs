@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'descrição padrão v35.5',
+ 'catálogo sem sufixos v35.6',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -101,6 +101,8 @@ for(const token of [
  'function descricaoComparacaoComModulosN(descricao)',
  'function modulacaoMesmaDescricao(tipologia,descricao)',
  'function quantidadeModulosExpressa(descricao)',
+ 'const codigoExibicao=principal.codigo;',
+ 'const code=codigoVariacaoTecnica(t,m)||m.codigo_interno;',
  'Essa esquadria pertence à tipologia do catálogo?',
  'A descrição original da obra permanece como foi recebida.',
  'Somente no catálogo, N representa uma quantidade variável de módulos.',
@@ -120,6 +122,12 @@ for(const token of [
 ]){
   assert.ok(source.includes(token),'Preservar: '+token);
 }
+assert.ok(!source.includes('const codigoExibicao=codigoVariacaoTecnica(t,modulo)||principal.codigo;'),
+  'Não exibir sufixo na listagem principal das tipologias');
+assert.ok(source.includes('const codigoExibicao=principal.codigo;'),
+  'Manter somente código principal no catálogo');
+assert.ok(source.includes('const code=codigoVariacaoTecnica(t,m)||m.codigo_interno;'),
+  'Manter o código de variação na seção de modulações internas');
 const principalId='familia-1';
 const catalogoRaiz=[
   {id:principalId,codigo:'INV-VNZN00',tipologia_principal_id:null},
