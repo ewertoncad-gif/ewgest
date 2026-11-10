@@ -493,6 +493,7 @@
     <form id="shipmentForm">
       <label for="shipmentKind">1. O envio foi completo ou parcial?</label>
       <select id="shipmentKind"><option value="completo">Completo — marco e folhas</option><option value="parcial">Parcial</option></select>
+      <p id="shipmentMaximNote" class="hint hidden">MAXIM-AR é expedido somente completo.</p>
       <div id="shipmentPartSection" class="hidden">
         <label for="shipmentPart">Qual parte saiu?</label>
         <select id="shipmentPart"><option value="marco">Marco</option><option value="folha">Folha</option></select>
@@ -1691,15 +1692,26 @@ function shipmentAvailability(item){
 
 function updateShipmentForm(){
   if(!selectedItem)return;
+  const maxim=ehMaximArRomaneio(selectedItem);
+  const tipoSelect=node('shipmentKind');
+  tipoSelect.querySelector('option[value="parcial"]').disabled=maxim;
+  if(maxim)tipoSelect.value='completo';
+  node('shipmentMaximNote').classList.toggle('hidden',!maxim);
   const kind=shipmentType();
-  node('shipmentPartSection').classList.toggle('hidden',node('shipmentKind').value==='completo');
+  const partial=tipoSelect.value==='parcial';
+  node('shipmentPartSection').classList.toggle('hidden',!partial);
   const {s,per,pendingFrames,pendingLeaves}=shipmentAvailability(selectedItem);
-  const known=s.per!==null;
-  node('shipmentCompositionSection').classList.toggle('hidden',known);
+  const precisaComposicao=partial&&s.per===null;
+  node('shipmentCompositionSection').classList.toggle('hidden',!precisaComposicao);
+  node('shipmentLeaves').required=precisaComposicao;
+  node('shipmentLeaves').disabled=!precisaComposicao;
   node('shipmentQtyLabel').textContent=kind==='completo'?'Quantas esquadrias completas saíram?':kind==='marco'?'Quantos marcos saíram?':'Quantas folhas físicas saíram?';
-  const remaining=kind==='marco'?pendingFrames:kind==='folha'?pendingLeaves:per?Math.min(pendingFrames,Math.floor(pendingLeaves/per)):null;
+  const remaining=kind==='marco'?pendingFrames:kind==='folha'?pendingLeaves:
+    per?Math.min(pendingFrames,Math.floor(pendingLeaves/per)):pendingFrames;
   node('shipmentQty').max=remaining===null?'':String(remaining);
-  node('shipmentBalance').textContent='Liberadas para corte: '+s.released+' unidade(s). Marcos expedidos: '+s.frames+'/'+s.released+'. Folhas expedidas: '+s.leaves+'/'+(per?s.released*per:'?')+'.'+(remaining===null?' Confirme a quantidade de folhas por unidade.':' Saldo desta opção: '+remaining+'.');
+  node('shipmentBalance').textContent='Liberadas para corte: '+s.released+' unidade(s). Marcos expedidos: '+s.frames+'/'+s.released+
+    (per?'. Folhas expedidas: '+s.leaves+'/'+s.released*per+'.':'. Composição de folhas não informada.')+
+    (remaining===null?' Informe a composição para envio desmembrado.':' Saldo desta opção: '+remaining+'.');
   node('shipmentError').textContent='';
 }
 
@@ -1729,7 +1741,7 @@ function openShipment(id){
   updateShipmentForm();
   renderShipmentHistory(id);
   node('shipmentModal').classList.remove('hidden');
-  (s.per!==null?node('shipmentQty'):node('shipmentLeaves')).focus();
+  node('shipmentQty').focus();
 }
 
 function closeShipment(){
@@ -1742,12 +1754,24 @@ async function saveShipment(event){
   if(!selectedItem)return;
   const item=selectedItem;
   const kind=shipmentType(),qty=Number(node('shipmentQty').value),date=node('shipmentDate').value;
-  const per=Number(node('shipmentLeaves').value);
-  if(!Number.isSafeInteger(per)||per<1||per>12){node('shipmentError').textContent='Confirme a quantidade de folhas por esquadria, de 1 a 12.';return;}
+  const config=shipmentStats(item).per;
+  // Envio completo não define a composição; no parcial usa configuração existente ou a informada.
+  const per=kind==='completo'?null:
+    (config!==null?config:Number(node('shipmentLeaves').value));
+  if(kind!=='completo'&&(!Number.isSafeInteger(per)||per<1||per>12)){
+    node('shipmentError').textContent='Confirme a quantidade de folhas por esquadria, de 1 a 12, para desmembrar.';
+    return;
+  }
+  if(kind!=='completo'&&ehMaximArRomaneio(item)){
+    node('shipmentError').textContent='MAXIM-AR só pode sair como esquadria completa.';
+    return;
+  }
   if(!Number.isSafeInteger(qty)||qty<=0){node('shipmentError').textContent='Informe uma quantidade inteira maior que zero.';return;}
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date<"2000-01-01"||date>todayLocal()){node('shipmentError').textContent='Data inválida ou futura.';return;}
   const {pendingFrames,pendingLeaves}=shipmentAvailability(item);
-  const max=kind==='marco'?pendingFrames:kind==='folha'?pendingLeaves:Math.min(pendingFrames,Math.floor(pendingLeaves/per));
+  const perContagem=shipmentStats(item).per;
+  const max=kind==='marco'?pendingFrames:kind==='folha'?pendingLeaves:
+    perContagem!==null?Math.min(pendingFrames,Math.floor(pendingLeaves/perContagem)):pendingFrames;
   if(qty>max){node('shipmentError').textContent='Quantidade maior que o saldo disponível: '+max+'.';return;}
   const payload={p_esquadria_id:item.id,p_tipo:kind,p_quantidade:qty,p_data_saida:date,p_folhas_por_unidade:per};
   const signature=JSON.stringify(payload);
