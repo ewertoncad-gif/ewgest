@@ -1016,13 +1016,16 @@ function renderResumoRomaneios(obraId){
       x.prazo_liberacao_saida_dias!==null&&Number.isFinite(Number(x.prazo_liberacao_saida_dias)));
     const n=dados.reduce((s,x)=>s+Number(x.quantidade||0),0);
     const media=n?dados.reduce((s,x)=>s+Number(x.prazo_liberacao_saida_dias)*Number(x.quantidade),0)/n:null;
-    const liberadas=releaseHistory.filter(h=>h.fabrica===nome)
+    const idsObra=new Set(elements.filter(e=>e.obra_id===obraId).map(e=>e.id));
+    const liberadas=releaseHistory.filter(h=>h.fabrica===nome&&idsObra.has(h.esquadria_id))
       .reduce((v,h)=>v+Number(h.quantidade||0),0);
     return '<strong>'+nome+'</strong>: '+(media===null?'média ainda indisponível':
       media.toLocaleString('pt-BR',{maximumFractionDigits:1})+' dia(s) em '+n+' unidade(s) expedida(s)')+
       ' · '+liberadas+' liberada(s)';
   });
-  const historicas=releaseHistory.filter(h=>!h.fabrica).reduce((x,h)=>x+Number(h.quantidade||0),0);
+  const idsDaObra=new Set(elements.filter(e=>e.obra_id===obraId).map(e=>e.id));
+  const historicas=releaseHistory.filter(h=>!h.fabrica&&idsDaObra.has(h.esquadria_id))
+    .reduce((x,h)=>x+Number(h.quantidade||0),0);
   node('romaneioOverview').innerHTML='<strong>Prazo de produção por fábrica</strong> · '+cabecalhos.length+
     ' romaneio(s) nesta obra<br>'+partes.join('<br>')+
     '<p class="hint" style="margin:7px 0 0">Indicador: dias corridos entre liberação e expedição, ponderados por unidades. Não mede horas efetivas de fabricação.'+
@@ -1077,7 +1080,7 @@ function atualizarLinhaRomaneio(el){
   const stats=shipmentStats(item);
   const saldo=romaneioSaldoCompleto(item);
   qty.max=String(saldo);
-  if(!Number(qty.value)||Number(qty.value)>saldo)qty.value=String(saldo||'');
+  if(!Number(qty.value)||Number(qty.value)>saldo)qty.value=saldo?'1':'';
   leaves.value=stats.per||suggestedLeaves(item)||'';
   leaves.readOnly=stats.per!==null;
   summary.textContent=(item.descricao||'')+' · '+(item.localizacao||'Sem localização')+
@@ -1175,7 +1178,7 @@ function construirHTMLRomaneio(header,linhas){
         '<td class="center">'+escapeHTML(linha.medida||'')+'</td>'+
         '<td class="center">'+Number(linha.quantidade)+'</td>'+
         '<td class="center">'+escapeHTML(linha.unidade||'UNID.')+'</td>'+
-        '<td class="right">'+areax+'</td></tr>';
+        '<td class="right">'+areax+'</td><td></td></tr>';
     }).join('');
     return '<section class="copy '+(compacta?'compact':'full')+'">'+
       '<div class="heading">'+
@@ -1189,10 +1192,10 @@ function construirHTMLRomaneio(header,linhas){
         '<div><b>MOTORISTA:</b> '+escapeHTML(header.motorista)+
         '<br><b>PLACA:</b> '+escapeHTML(header.placa)+'</div></div>'+
       '<table><colgroup><col style="width:5%"><col style="width:10%"><col style="width:13%">'+
-        '<col style="width:30%"><col style="width:16%"><col style="width:8%">'+
-        '<col style="width:8%"><col style="width:10%"></colgroup>'+
+        '<col style="width:27%"><col style="width:14%"><col style="width:7%">'+
+        '<col style="width:7%"><col style="width:9%"><col style="width:8%"></colgroup>'+
         '<thead><tr><th>Item</th><th>Cód.</th><th>Localização</th><th>Descrição</th>'+
-        '<th>Medida</th><th>Quant.</th><th>Un.</th><th>M²</th></tr></thead>'+
+        '<th>Medida</th><th>Quant.</th><th>Un.</th><th>M²</th><th>Valor</th></tr></thead>'+
         '<tbody>'+rows+'</tbody></table>'+
       '<div class="total"><strong>Área dos itens desta '+(totalPartes>1?'página':'via')+
         ':</strong> '+soma.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' m²</div>'+
