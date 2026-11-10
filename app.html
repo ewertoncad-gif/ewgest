@@ -236,7 +236,7 @@
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
     <section id="dashboard" class="hidden">
-      <div class="head"><div><h1 id="heading">Painel de obras</h1><div class="muted" id="userline"></div></div><div class="topactions"><button id="openTypologies" type="button" class="btn secondary hidden">Banco de tipologias</button><button id="openManufacturers" type="button" class="btn secondary hidden">Fabricantes</button><button id="openUsers" type="button" class="btn secondary hidden">Usuários</button><button id="refresh" class="btn secondary">Atualizar dados</button></div></div>
+      <div class="head"><div><h1 id="heading">Painel de obras</h1><div class="muted" id="userline"></div></div><div class="topactions"><button id="openTypologies" type="button" class="btn secondary hidden">Banco de tipologias</button><button id="openManufacturers" type="button" class="btn secondary hidden">Fabricantes</button><button id="openUsers" type="button" class="btn secondary hidden">Usuários</button><button id="openRomaneioHub" type="button" class="btn secondary">Romaneios</button><button id="refresh" class="btn secondary">Atualizar dados</button></div></div>
       <div id="panelError" class="error"></div>
       <div class="stats">
         <div class="stat"><div class="label">Obras</div><div class="number" id="count">—</div></div>
@@ -246,6 +246,24 @@
       </div>
       <div class="section"><h2>Obras cadastradas</h2><div id="works" class="works"></div></div>
       <p class="notice">Liberações para corte: selecione uma esquadria e informe quantidade e data. Os lançamentos ficam registrados no banco. Confirme medições técnicas antes de usar os totais como medição contratual.</p>
+    </section>
+    <section id="romaneiosPage" class="hidden">
+      <div class="head"><div>
+        <button id="romaneiosBack" type="button" class="btn secondary">← Painel de obras</button>
+        <h1 style="margin-top:17px">Romaneios e expedição</h1>
+        <p class="muted">Emissão, acompanhamento e reimpressão de comprovantes de entrega.</p>
+      </div></div>
+      <div class="section panel">
+        <label for="hubWorkSelect">Selecione a obra</label>
+        <select id="hubWorkSelect"><option value="">Escolha uma obra</option></select>
+        <div class="romaneioActions" style="margin-top:15px">
+          <button type="button" id="hubEmitRomaneio" class="btn primary" disabled>+ Emitir romaneio</button>
+          <button type="button" id="hubRefreshRomaneio" class="btn secondary">Atualizar romaneios</button>
+        </div>
+        <p id="hubRomaneioMessage" role="status" class="hint"></p>
+        <h2 style="margin-top:22px">Histórico de romaneios</h2>
+        <div id="hubRomaneioList" class="romaneioOverview">Selecione uma obra para consultar seus romaneios.</div>
+      </div>
     </section>
     <section id="detail" class="hidden">
       <div class="head"><div><div class="detailnav"><button id="back" class="btn secondary" type="button">← Voltar</button><button id="goHome" class="btn secondary" type="button">⌂ Tela inicial</button></div><h1 id="workName"></h1><div id="workMeta" class="muted"></div></div></div>
@@ -296,6 +314,7 @@
             <div><label for="createUserRole">Perfil de acesso</label>
               <select id="createUserRole" required>
                 <option value="tecnico">Técnico</option>
+                <option value="almoxarife">Almoxarife — somente romaneios</option>
                 <option value="consulta">Somente consulta</option>
                 <option value="administrador">Administrador</option>
               </select></div>
@@ -777,7 +796,15 @@ let modulationCatalog=[];
 let manufacturerCatalog=[],manufacturerLoadError='',originalManufacturerForEdit='',originalDescriptionForEdit='',manufacturerAutoCandidate='';
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
-function setView(view){for(const id of ['login','dashboard','detail','typologies','manufacturers','users','myPassword'])node(id).classList.toggle('hidden',id!==view);node('logout').classList.toggle('hidden',view==='login');node('myPasswordHeader').classList.toggle('hidden',view==='login');}
+function isAlmoxarife(){return String(membership?.perfil||'').toLowerCase()==='almoxarife';}
+function podeEmitirRomaneio(){return ['administrador','supervisor','almoxarife'].includes(String(membership?.perfil||'').toLowerCase());}
+function setView(view){
+  if(isAlmoxarife()&&!['login','romaneiosPage','myPassword'].includes(view))view='romaneiosPage';
+  for(const id of ['login','dashboard','detail','romaneiosPage','typologies','manufacturers','users','myPassword'])
+    node(id).classList.toggle('hidden',id!==view);
+  node('logout').classList.toggle('hidden',view==='login');
+  node('myPasswordHeader').classList.toggle('hidden',view==='login');
+}
 function invalidateAppSession(reason){
   session=null;
   sessionStorage.removeItem('ewgest_session_v3');
@@ -846,13 +873,16 @@ async function loadPanel(){
   if(!comps?.length)throw new Error('Nenhuma empresa autorizada foi encontrada para seu usuário.');
   currentCompany=comps.find(e=>e.nome==='GVG ESQUADRIAS')||comps[0];
   membership=rel.find(r=>r.empresa_id===currentCompany.id);
+  const somenteRomaneios=isAlmoxarife();
+  node('openRomaneioHub').classList.toggle('hidden',somenteRomaneios);
   node('openTypologies').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
   node('openManufacturers').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
   node('openUsers').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
   const [w,e,tips]=await Promise.all([
     apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'}),
     apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id,rotulo_tipologia_relatorio,quantidade_modulos,modulacao_id',empresa_id:'eq.'+currentCompany.id}),
-    apiGet('tipologias',{select:'id,codigo,descricao,provisoria,fabricante,tipologia_principal_id,quantidade_modulos',empresa_id:'eq.'+currentCompany.id})
+    somenteRomaneios?Promise.resolve([]):
+      apiGet('tipologias',{select:'id,codigo,descricao,provisoria,fabricante,tipologia_principal_id,quantidade_modulos',empresa_id:'eq.'+currentCompany.id})
   ]);
   works=w||[];elements=e||[];typologyCatalog=tips||[];
   typologyOrigins=[];typologyOriginReady=false;typologyCroquis=[];
@@ -866,7 +896,7 @@ async function loadPanel(){
     }catch(err){manufacturerLoadError=err.message;manufacturerCatalog=[];}
   }
   // Códigos das variações também são usados por técnico e consulta; só o ADM pode editá-los.
-  try{
+  if(!somenteRomaneios)try{
     modulationCatalog=await apiGet('tipologias_modulacoes',{
       select:'id,empresa_id,tipologia_principal_id,codigo_interno,descricao,quantidade_modulos,tipologia_legada_id,numero_variacao',
       empresa_id:'eq.'+currentCompany.id,order:'numero_variacao.asc'
@@ -888,7 +918,7 @@ async function loadPanel(){
       typologyOrigins=[];typologyOriginReady=false;
     }
   }
-  releaseHistory=await apiGet('liberacoes_corte',{select:'esquadria_id,quantidade,data_liberacao,fabrica',order:'data_liberacao.desc'});
+  releaseHistory=somenteRomaneios?[]:await apiGet('liberacoes_corte',{select:'esquadria_id,quantidade,data_liberacao,fabrica',order:'data_liberacao.desc'});
   try{
     const [config,history]=await Promise.all([
       apiGet('esquadrias_saida_config',{select:'esquadria_id,folhas_por_unidade'}),
@@ -922,7 +952,13 @@ async function loadPanel(){
   }catch(e){}
   node('userline').textContent=displayLogin+' · '+membership.perfil;
   node('panelError').textContent='';
-  renderList();setView('dashboard');
+  if(somenteRomaneios){
+    renderRomaneioHub();
+    setView('romaneiosPage');
+  }else{
+    renderList();
+    setView('dashboard');
+  }
 }
 function totals(list){return list.reduce((a,x)=>{const q=Number(x.quantidade)||0;const liberadas=Number(x.qtd_liberada)||0;a.total+=area(x,q);a.released+=area(x,liberadas);a.made+=area(x,x.qtd_fabricada);a.unitsTotal+=q;a.unitsReleased+=liberadas;return a;},{total:0,released:0,made:0,unitsTotal:0,unitsReleased:0});}
 function renderUnitCounters(prefix,t){node(prefix+"UnitsTotal").textContent=t.unitsTotal.toLocaleString("pt-BR");node(prefix+"UnitsReleased").textContent=t.unitsReleased.toLocaleString("pt-BR");node(prefix+"UnitsPending").textContent=(t.unitsTotal-t.unitsReleased).toLocaleString("pt-BR");}
@@ -1127,8 +1163,7 @@ async function cancelarRomaneio(id){
   }finally{button.disabled=false;}
 }
 function abrirEmissaoRomaneio(){
-  if(!selectedWork||!dispatchReady||romaneioLoadError||
-   !['administrador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
+  if(!selectedWork||!dispatchReady||romaneioLoadError||!podeEmitirRomaneio())return;
   node('romaneioWorkInfo').textContent='Cliente: '+(selectedWork.cliente||'Não informado')+
     ' · Obra: '+selectedWork.nome;
   node('romaneioForm').reset();
@@ -1166,7 +1201,7 @@ function preencherTransportesRomaneio(){
   }
 }
 async function cadastrarTransporteRomaneio(tipo){
-  if(!['administrador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
+  if(!podeEmitirRomaneio())return;
   const motorista=tipo==='motorista';
   const valor=window.prompt(motorista?'Nome do novo motorista:':'Placa do veículo (ABC1D23 ou ABC1234):');
   if(valor===null)return;
