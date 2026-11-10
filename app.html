@@ -348,12 +348,12 @@
         </details>
         <details class="systemRules" id="pendingReviewPanel" open>
           <summary>Pendências de cadastro · <span id="pendingReviewCount">—</span></summary>
-          <p class="hint">Somente esquadrias sem tipologia. Sugestões são geradas pela descrição, nunca pelo código EA, e não são aprovadas automaticamente.</p>
+          <p class="hint">Esquadrias sem tipologia ou com modulação ainda não confirmada. Sugestões pela descrição, nunca pelo código EA, com aprovação do ADM.</p>
           <div id="pendingReviewList" aria-live="polite"></div>
         </details>
         <details class="systemRules" id="modulationCatalogPanel">
           <summary>Modulações internas cadastradas · <span id="modulationCatalogCount">—</span></summary>
-          <p class="hint">O código MOD identifica cada configuração e pode ser reutilizado em outras obras. Ele não substitui o código da tipologia nem o código EA da esquadria.</p>
+          <p class="hint">Padrão de exibição: INV-PGR207-01, INV-PGR207-02... O código MOD permanece interno. Sufixo não representa quantidade de folhas ou módulos.</p>
           <div id="modulationCatalogList"></div>
         </details>
         <details class="systemRules hidden" id="variationManager">
@@ -1396,10 +1396,11 @@ function sugerirPorDescricao(descricao,catalogo){
 }
 function gruposTipologiaPendente(){
   const grupos=new Map();
-  for(const e of elements.filter(x=>!x.tipologia_id)){
+  for(const e of elements.filter(x=>!x.tipologia_id||!x.modulacao_id)){
     const codigo=String(e.rotulo_tipologia_relatorio||e.codigo||'').trim();
     const descricao=String(e.descricao||'').trim();
-    const chave=JSON.stringify([e.obra_id,codigo,descricao]);
+    // Obra, código, descrição E vínculo técnico delimitam cada pendência.
+    const chave=JSON.stringify([e.obra_id,codigo,descricao,e.tipologia_id||null]);
     if(!grupos.has(chave))grupos.set(chave,{item:e,total:0});
     grupos.get(chave).total++;
   }
@@ -1410,7 +1411,7 @@ function renderConferenciaPendentes(){
   node('pendingReviewCount').textContent=grupos.length+' grupo(s) pendente(s)';
   const list=node('pendingReviewList');
   if(!grupos.length){
-    list.innerHTML='<p class="hint">Nenhuma esquadria aguardando classificação.</p>';
+    list.innerHTML='<p class="hint">Nenhuma classificação ou modulação aguardando conferência.</p>';
     return;
   }
   list.innerHTML=grupos.map(({item,total})=>{
@@ -1419,8 +1420,8 @@ function renderConferenciaPendentes(){
     return `<div class="reviewPendingRow"><div>
       <strong>${escapeHTML(code)} · ${escapeHTML(obra?.nome||'Obra não identificada')}</strong>
       <p class="muted">${escapeHTML(item.descricao||'Sem descrição')}</p>
-      <span class="hint">${total} esquadria(s) pendente(s), apenas nesta obra</span>
-    </div><button type="button" class="btn secondary" data-revisar-pendente="${escapeHTML(item.id)}">Conferir</button></div>`;
+      <span class="hint">${total} esquadria(s) · ${item.tipologia_id?'Modulação a conferir':'Tipologia a identificar'} · apenas nesta obra</span>
+    </div><button type="button" class="btn secondary" data-revisar-pendente="${escapeHTML(item.id)}">Conferir ${item.tipologia_id?'modulação':'tipologia'}</button></div>`;
   }).join('');
   list.querySelectorAll('[data-revisar-pendente]').forEach(btn=>{
     btn.addEventListener('click',()=>abrirConferenciaTipologia(btn.dataset.revisarPendente));
@@ -1428,7 +1429,7 @@ function renderConferenciaPendentes(){
 }
 function abrirConferenciaTipologia(id){
   if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
-  const item=elements.find(x=>x.id===id&&!x.tipologia_id);
+  const item=elements.find(x=>x.id===id&&!x.modulacao_id);
   if(!item)return;
   recognitionPendingItem=item;
   const obra=works.find(x=>x.id===item.obra_id);
@@ -1456,6 +1457,13 @@ function abrirConferenciaTipologia(id){
     option.textContent=t.codigo+' · '+t.descricao.slice(0,90);remaining.append(option);
   }
   select.append(remaining);
+  const tipologiaAtual=typologyCatalog.find(t=>t.id===item.tipologia_id);
+  if(tipologiaAtual){
+    // O código técnico já foi reconhecido; nesta tela só se aprova a configuração.
+    select.value=tipologiaAtual.tipologia_principal_id||tipologiaAtual.id;
+  }
+  select.disabled=Boolean(tipologiaAtual);
+  node('recognitionNew').classList.toggle('hidden',Boolean(tipologiaAtual));
   node('recognitionApproval').checked=false;
   node('recognitionDivergence').checked=false;
   node('recognitionMessage').textContent='';
@@ -1468,7 +1476,7 @@ function modulacoesDaTipologia(t){
   if(!t)return [];
   const raiz=t.tipologia_principal_id||t.id;
   return modulationCatalog.filter(m=>m.tipologia_principal_id===raiz)
-    .sort((a,b)=>a.codigo_interno.localeCompare(b.codigo_interno,'pt-BR',{numeric:true}));
+    .sort((a,b)=>Number(a.numero_variacao)-Number(b.numero_variacao));
 }
 function atualizarOpcoesModulacao(){
   const t=typologyCatalog.find(x=>x.id===node('recognitionTarget').value);
@@ -1480,13 +1488,13 @@ function atualizarOpcoesModulacao(){
   }
   select.disabled=false;
   const novo=document.createElement('option');novo.value='__CRIAR__';
-  novo.textContent='+ Criar modulação com novo código MOD';
+  novo.textContent='+ Criar configuração '+proximoSufixoVisual(t)+' (prévia; código confirmado ao salvar)';
   select.append(novo);
   const modulations=modulacoesDaTipologia(t);
   const descricaoOrigem=normalizarReconhecimento(recognitionPendingItem?.descricao);
   for(const m of modulations){
     const op=document.createElement('option');op.value=m.id;
-    op.textContent=m.codigo_interno+' · '+m.descricao.slice(0,100)+
+    op.textContent=codigoVariacaoTecnica(t,m)+' · '+m.descricao.slice(0,100)+
       (m.quantidade_modulos?' · '+m.quantidade_modulos+' módulos':' · módulos a conferir');
     select.append(op);
   }
@@ -1532,8 +1540,8 @@ function atualizarComparacaoReconhecimento(){
     const principal=typologyCatalog.find(x=>x.id===(target.tipologia_principal_id||target.id))||target;
     tipo.textContent='Tipologia: '+principal.codigo+' — '+target.descricao;compare.append(tipo);
     const config=document.createElement('p');
-    config.textContent=(nova?'Nova modulação (código MOD gerado ao salvar)':
-      mod?'Modulação '+mod.codigo_interno:'Selecione uma modulação')+
+    config.textContent=(nova?'Nova variação '+proximoSufixoVisual(target)+' (código definitivo gerado ao salvar)':
+      mod?'Variação '+codigoVariacaoTecnica(target,mod)+' ('+mod.codigo_interno+')':'Selecione uma variação')+
       ' — '+(desc||'Sem descrição');compare.append(config);
   }
   validarReconhecimento();
@@ -1582,8 +1590,10 @@ async function confirmarReconhecimentoTipologia(){
     renderTypologiesAdmin();
     setView('typologies');
     node('pendingReviewPanel').open=true;
-    node('typologyAdminMessage').textContent=(res.nova_modulacao?'Modulação criada: ':'Modulação vinculada: ')+
-      res.codigo_interno+' · '+(res.esquadrias_classificadas||0)+
+    const principal=typologyCatalog.find(t=>t.id===(target.tipologia_principal_id||target.id))||target;
+    const codigo=principal.codigo+'-'+String(res.numero_variacao).padStart(2,'0');
+    node('typologyAdminMessage').textContent=(res.nova_modulacao?'Configuração criada: ':'Configuração vinculada: ')+
+      codigo+' ('+res.codigo_interno+') · '+(res.esquadrias_classificadas||0)+
       ' esquadria(s) desta obra. Nenhum código EA de outra obra foi associado.';
   }catch(err){
     node('recognitionMessage').textContent='Não foi possível confirmar: '+err.message;
@@ -1595,12 +1605,24 @@ function renderModulacoesCadastradas(){
   if(!modulationCatalog.length){
     target.innerHTML='<p class="hint">Ainda não existem modulações cadastradas.</p>';return;
   }
-  target.innerHTML=modulationCatalog.map(m=>{
+  target.innerHTML=modulationCatalog.slice().sort((a,b)=>{
+    const aCode=typologyCatalog.find(t=>t.id===a.tipologia_principal_id)?.codigo||'';
+    const bCode=typologyCatalog.find(t=>t.id===b.tipologia_principal_id)?.codigo||'';
+    return aCode.localeCompare(bCode,'pt-BR',{numeric:true})||
+      Number(a.numero_variacao)-Number(b.numero_variacao);
+  }).map(m=>{
     const t=typologyCatalog.find(x=>x.id===m.tipologia_principal_id);
-    const mod=m.quantidade_modulos?m.quantidade_modulos+' módulo(s)':'Módulos a conferir';
-    return '<div class="reviewPendingRow"><div><strong>'+escapeHTML(m.codigo_interno)+
-      ' · '+escapeHTML(t?.codigo||'Tipologia não localizada')+'</strong><p class="muted">'+
-      escapeHTML(m.descricao)+'</p><span class="hint">'+escapeHTML(mod)+'</span></div></div>';
+    const legado=typologyCatalog.find(x=>x.id===m.tipologia_legada_id);
+    const code=codigoVariacaoTecnica(t,m)||m.codigo_interno;
+    const modules=m.quantidade_modulos?m.quantidade_modulos+' módulo(s)':'Módulos não conferidos';
+    const croqui=m.tipologia_legada_id?croquiSrc(croquiEntry(m.tipologia_legada_id)):null;
+    const imagem=croqui?'<img class="croquiThumb" loading="lazy" alt="Croqui de '+escapeHTML(code)+'" src="'+croqui+'">':'';
+    return '<div class="reviewPendingRow"><div><strong>'+escapeHTML(code)+
+      '</strong><p class="muted">'+escapeHTML(m.descricao)+'</p><span class="hint">'+
+      escapeHTML(m.codigo_interno)+' · '+escapeHTML(modules)+
+      (legado&&legado.codigo!==t?.codigo?' · Referência: '+escapeHTML(legado.codigo):'')+
+      (imagem?'':' · Croqui ainda não cadastrado nesta configuração')+
+      '</span></div>'+imagem+'</div>';
   }).join('');
 }
 function refreshVariationManager(){
@@ -1831,10 +1853,10 @@ function openTypologyEdit(id) {
     el.checked=el.value===(keep?'manter':'quebrar');
   });
   const temFilhos=typologyCatalog.some(t=>t.tipologia_principal_id===typology.id);
-  const temModulacoes=modulationCatalog.some(m=>m.tipologia_principal_id===typology.id||m.tipologia_legada_id===typology.id);
+  const temModulacoesDeOutros=modulationCatalog.some(m=>m.tipologia_principal_id===typology.id&&m.tipologia_legada_id!==typology.id);
   node('identityAction').classList.remove('hidden');
-  node('identityOpen').disabled=temFilhos||temModulacoes;
-  node('identityActionHint').textContent=temFilhos||temModulacoes
+  node('identityOpen').disabled=temFilhos||temModulacoesDeOutros;
+  node('identityActionHint').textContent=temFilhos||temModulacoesDeOutros
     ?'Este cadastro tem registros associados ou modulações próprias. A identificação deve ser reorganizada antes de alterar o vínculo.'
     :typology.tipologia_principal_id
       ?'Identificação atual: '+(typologyCatalog.find(t=>t.id===typology.tipologia_principal_id)?.codigo||'não localizada')+'. É possível corrigir ou desvincular.'
@@ -1906,8 +1928,8 @@ function abrirCorrecaoIdentificacao(){
   if(!origem||editingPendingItem||
      String(membership?.perfil||'').toLowerCase()!=='administrador')return;
   const temDependentes=typologyCatalog.some(t=>t.tipologia_principal_id===origem.id);
-  const temModulacoes=modulationCatalog.some(m=>m.tipologia_principal_id===origem.id||m.tipologia_legada_id===origem.id);
-  if(temDependentes||temModulacoes)return;
+  const temModulacoesDeOutros=modulationCatalog.some(m=>m.tipologia_principal_id===origem.id&&m.tipologia_legada_id!==origem.id);
+  if(temDependentes||temModulacoesDeOutros)return;
   const candidatos=candidatosIdentificacaoTecnica(origem,typologyCatalog);
   if(!candidatos.length&&!origem.tipologia_principal_id){
     node('typologyEditError').textContent='Não foi encontrada nenhuma tipologia técnica principal do mesmo fabricante.';
@@ -2009,8 +2031,8 @@ async function salvarCorrecaoIdentificacao(){
     renderTypologiesAdmin();
     setView('typologies');
     node('typologyAdminMessage').textContent=
-      'Identificação corrigida: '+res.codigo_original_preservado+' → '+res.codigo_tecnico+
-      '. Cadastro, croqui e histórico preservados. Alteração registrada.';
+      'Identificação corrigida: '+res.codigo_original_preservado+' → '+(res.codigo_variacao||res.codigo_tecnico)+
+      '. Código MOD, croqui e histórico preservados. Alteração registrada.';
   }catch(e){
     node('identityMessage').textContent='Não foi possível corrigir: '+e.message;
   }finally{
