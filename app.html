@@ -1166,8 +1166,19 @@ function construirHTMLRomaneio(header,linhas){
   const obra=works.find(w=>w.id===header.obra_id);
   if(!obra||!linhas?.length)throw new Error('Romaneio sem obra ou itens para imprimir.');
   const itens=linhas.slice().sort((a,b)=>Number(a.sequencia)-Number(b.sequencia));
-  const duasVias=itens.length<=8&&itens.every(i=>String(i.descricao||'').length<=140);
-  const maxPorPagina=16;
+  // Estima a altura das linhas para não cortar textos longos no A4.
+  const pesoLinha=i=>Math.max(1,Math.ceil(String(i.descricao||'').length/42));
+  const duasVias=itens.length<=9&&itens.reduce((n,i)=>n+pesoLinha(i),0)<=14;
+  const paginas=[];
+  let paginaAtual=[],altura=0;
+  for(const linha of itens){
+    const peso=pesoLinha(linha);
+    if(paginaAtual.length&&(paginaAtual.length>=16||altura+peso>33)){
+      paginas.push(paginaAtual);paginaAtual=[];altura=0;
+    }
+    paginaAtual.push(linha);altura+=peso;
+  }
+  if(paginaAtual.length)paginas.push(paginaAtual);
   const blocos=[];
   function construirVia(numero,parcelas,parte,totalPartes,compacta){
     const soma=parcelas.reduce((v,x)=>v+(Number(x.area_m2)||0),0);
@@ -1213,11 +1224,9 @@ function construirHTMLRomaneio(header,linhas){
       construirVia(2,itens,1,1,true)+'</div>');
   }else{
     for(const via of [1,2]){
-      const total=Math.ceil(itens.length/maxPorPagina);
-      for(let p=0;p<total;p++){
-        const pedaco=itens.slice(p*maxPorPagina,(p+1)*maxPorPagina);
+      for(let p=0;p<paginas.length;p++){
         blocos.push('<div class="printPage single">'+
-          construirVia(via,pedaco,p+1,total,false)+'</div>');
+          construirVia(via,paginas[p],p+1,paginas.length,false)+'</div>');
       }
     }
   }
