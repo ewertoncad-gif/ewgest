@@ -10,8 +10,8 @@ const amostras=[
   {id:'b',obra_id:'obra-nova',codigo:'EA14_1',rotulo_tipologia_relatorio:'EA14_1',descricao:'PORTA DE CORRER - 2 FOLHAS'},
   {id:'c',obra_id:'casa-boa-viagem',codigo:'EA14_2',rotulo_tipologia_relatorio:'EA14_1',descricao:'FIXO VENEZIANA - 2 FOLHAS'}
 ];
-const {classificarTipoTipologia,correspondeTipoTipologia,sugerirPorDescricao,gruposTipologiaPendente}=
-  new Function('elements',source.slice(start,end)+'\nreturn {classificarTipoTipologia,correspondeTipoTipologia,sugerirPorDescricao,gruposTipologiaPendente};')(amostras);
+const {classificarTipoTipologia,correspondeTipoTipologia,sugerirPorDescricao,gruposTipologiaPendente,normalizarReconhecimento}=
+  new Function('elements',source.slice(start,end)+'\nreturn {classificarTipoTipologia,correspondeTipoTipologia,sugerirPorDescricao,gruposTipologiaPendente,normalizarReconhecimento};')(amostras);
 const cases=[
  ['FACHADA UNITIZADA COM MÓDULO MAXIM-AR','FACHADA UNITIZADA'],
  ['FACHADA STICK COM MAXIM-AR','FACHADA STICK'],
@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'modulações e pendências v32.0',
+ 'corrigir identificação v33.0',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -75,7 +75,16 @@ for(const token of [
  'function renderModulacoesCadastradas()',
  'comparacaoEstritaDescricao',
  'id="recognitionDivergence"',
- 'tipologia_principal_id||registro.id'
+ 'tipologia_principal_id||registro.id',
+ 'id="identityOverlay"',
+ 'id="identityOpen"',
+ 'id="identityTarget"',
+ 'id="identityApproved"',
+ 'corrigir_identificacao_tipologia_admin',
+ 'function salvarCorrecaoIdentificacao()',
+ 'function candidatosIdentificacaoTecnica(origem,catalogo)',
+ 'codigo_original_preservado',
+ 'Código original: '
 
 ]){
   assert.ok(source.includes(token),'Preservar: '+token);
@@ -105,4 +114,27 @@ assert.equal(modsDaTipologia(catalogoRaiz[1]).length,2,
   'Modulacoes filtradas pela tipologia principal, nao pelo codigo EA');
 assert.equal(modsDaTipologia({id:'outra-familia'}).length,1);
 
-console.log('OK: '+cases.length+' casos de classificacao; EA em obras distintas; MOD por familia; codigo principal.');
+const beginCorrecao=source.indexOf('function candidatosIdentificacaoTecnica(origem,catalogo){');
+const endCorrecao=source.indexOf('function escolhaIdentificacao(){',beginCorrecao);
+assert.ok(beginCorrecao>=0&&endCorrecao>beginCorrecao,'Funcao de correcao identificada');
+const candidatos=new Function('normalizarReconhecimento','classificarTipoTipologia',
+  source.slice(beginCorrecao,endCorrecao)+'\nreturn candidatosIdentificacaoTecnica;'
+)(normalizarReconhecimento,classificarTipoTipologia);
+const ea14={id:'ea14',codigo:'EA14',
+  descricao:'PORTA DE GIRO - 2 FOLHAS - COM VENEZIANA VENTILADA - LINHA INOVA - HYDRO',fabricante:'HYDRO'};
+const proposta=[
+  ea14,
+  {id:'pgr207',codigo:'INV-PGR207',descricao:ea14.descricao,fabricante:'HYDRO'},
+  {id:'pgr107',codigo:'INV-PGR107',descricao:'PORTA DE GIRO - 1 FOLHA - LINHA INOVA - HYDRO',fabricante:'HYDRO'},
+  {id:'ea05',codigo:'EA05',descricao:ea14.descricao,fabricante:'HYDRO'},
+  {id:'outro',codigo:'INV-PGR999',descricao:ea14.descricao,fabricante:'PERFIL'},
+  {id:'variacao',codigo:'INV-LEGADO',descricao:ea14.descricao,fabricante:'HYDRO',tipologia_principal_id:'pgr207'}
+];
+const corretos=candidatos(ea14,proposta);
+assert.equal(corretos[0].codigo,'INV-PGR207','Mesma descricao primeiro');
+assert.ok(!corretos.some(t=>t.id==='ea14'||t.id==='ea05'||t.id==='outro'||t.id==='variacao'),
+  'Nao selecionar EA, outra empresa/fabricante ou variacao');
+assert.ok(corretos.some(t=>t.codigo==='INV-PGR107'),
+  'Permitir revisar descricao diferente com confirmacao extra');
+console.log('OK: '+cases.length+' classificacoes; EA por obra; MOD e correcoes EA14 → INV-PGR207.');
+
