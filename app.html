@@ -307,7 +307,7 @@
       <div class="head"><div>
         <button id="backTypologies" type="button" class="btn secondary" style="margin-bottom:18px">← Tela inicial</button><button id="openManufacturersFromCatalog" type="button" class="btn secondary" style="margin-bottom:18px;margin-left:10px">Cadastro de fabricantes</button>
         <h1>Banco de tipologias</h1>
-        <div class="muted">Catálogo mestre de tipologias. Clique em um cadastro para corrigir código ou descrição.</div>
+        <div class="muted">Catálogo técnico, códigos MOD e pendências. Códigos EA de obras antigas permanecem apenas como referências históricas.</div>
       </div></div>
       <div class="stats catalogstats">
         <div class="stat"><div class="label">Tipologias cadastradas</div><div class="number" id="catalogCount">—</div></div>
@@ -348,7 +348,7 @@
           <p class="hint">O código MOD identifica cada configuração e pode ser reutilizado em outras obras. Ele não substitui o código da tipologia nem o código EA da esquadria.</p>
           <div id="modulationCatalogList"></div>
         </details>
-        <details class="systemRules" id="variationManager">
+        <details class="systemRules hidden" id="variationManager">
           <summary>Organizar tipologia principal e variações</summary>
           <p class="hint">Associe registros existentes sem trocar seus códigos ou croquis. Uma família usa o código da tipologia principal; cada variação preserva seu identificador histórico.</p>
           <form id="variationForm" class="variationForm">
@@ -727,7 +727,12 @@ function renderList(){const t=totals(elements);node('count').textContent=works.l
   node('works').innerHTML=works.map((w,i)=>{const sum=totals(elements.filter(x=>x.obra_id===w.id));const pct=sum.total?Math.max(0,Math.min(100,Math.round(sum.released/sum.total*100))):0;return `<button class="work" data-i="${i}" type="button"><h3>${escapeHTML(w.nome)}</h3><p>${escapeHTML(w.codigo||'Sem código')} · ${escapeHTML(w.situacao||'')}</p><div class="line"><span>Total</span><strong>${amount(sum.total)} m²</strong></div><div class="line"><span>Liberada</span><strong>${amount(sum.released)} m²</strong></div><div class="line"><span>A liberar</span><strong>${amount(sum.total-sum.released)} m²</strong></div><div class="line"><span>Unidades liberadas</span><strong>${sum.unitsReleased.toLocaleString("pt-BR")} / ${sum.unitsTotal.toLocaleString("pt-BR")}</strong></div><div class="line"><span>Unidades aguardando</span><strong>${(sum.unitsTotal-sum.unitsReleased).toLocaleString("pt-BR")}</strong></div><div class="progress"><div class="bar" style="width:${pct}%"></div></div></button>`;}).join('');
   node('works').querySelectorAll('[data-i]').forEach(b=>b.addEventListener('click',()=>renderDetail(works[Number(b.dataset.i)])));
 }
-function typologyCode(item){const tip=typologyCatalog.find(t=>t.id===item.tipologia_id);return tip?.codigo||'';}
+function typologyCode(item){
+  const registro=typologyCatalog.find(t=>t.id===item.tipologia_id);
+  if(!registro)return '';
+  const principal=typologyCatalog.find(t=>t.id===(registro.tipologia_principal_id||registro.id));
+  return (principal||registro).codigo;
+}
 function labeledDescription(item){const code=typologyCode(item);return (code?code+' — ':'')+(item.descricao||'');}
 function sortWorkItems(a,b){
   const ac=typologyCode(a),bc=typologyCode(b);
