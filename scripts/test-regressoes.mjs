@@ -17,6 +17,8 @@ const cases=[
  ['FACHADA STICK COM MAXIM-AR','FACHADA STICK'],
  ['FACHADA UNITIZADA MÓDULO FIXO','FACHADA UNITIZADA'],
  ['FACHADA STICK VIDRO FIXO','FACHADA STICK'],
+ ['FACHADA DE VIDRO - SISTEMA NÃO DEFINIDO','OUTROS'],
+ ['PELE DE VIDRO - A DEFINIR','OUTROS'],
  ['MAXIM-AR 1 FOLHA','MAXIM-AR'],
  ['MAXIM AR - LINHA INOVA','MAXIM-AR'],
  ['MAXIMAR - LINHA INOVA','MAXIM-AR'],
@@ -41,6 +43,10 @@ for(const [descricao,expected] of cases){
     assert.equal(correspondeTipoTipologia({descricao},'MAXIM-AR'),false);
   }
 }
+assert.ok(!source.includes('<option value="FACHADA_NAO_DEFINIDA">'),
+ 'Não oferecer filtro isolado para fachadas não identificadas');
+assert.ok(source.includes('<option value="OUTROS">OUTROS / NÃO IDENTIFICADOS</option>'),
+ 'Manter o filtro Outros para fachadas não classificadas');
 const catalogo=[
   {id:'fixo',codigo:'INV-VNZN00',descricao:'FIXO VENEZIANA - 2 FOLHAS - LINHA INOVA - HYDRO'},
   {id:'porta',codigo:'INV-PCR202',descricao:'PORTA DE CORRER - 2 FOLHAS - LINHA INOVA - HYDRO'}
