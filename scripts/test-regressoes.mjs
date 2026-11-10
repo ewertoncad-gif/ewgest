@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'comparação de módulos v35.4',
+ 'descrição padrão v35.5',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -99,6 +99,10 @@ for(const token of [
  'id="differenceSave"',
  'id="differencePreserveCode"',
  'function descricaoComparacaoComModulosN(descricao)',
+ 'function modulacaoMesmaDescricao(tipologia,descricao)',
+ 'function quantidadeModulosExpressa(descricao)',
+ 'Essa esquadria pertence à tipologia do catálogo?',
+ 'A descrição original da obra permanece como foi recebida.',
  'N representa uma quantidade variável de módulos apenas nesta comparação.',
  'Criar outra configuração da mesma tipologia (mantém o código e adiciona um sufixo).',
  'Código da tipologia preservado: ',
@@ -176,7 +180,7 @@ assert.ok(corretos.some(t=>t.codigo==='INV-PGR107'),
   'Permitir revisar descricao diferente com confirmacao extra');
 // Verifica a tela de confirmação para as duas respostas e as três escolhas.
 const state={choice:'',next:'',form:{
- differenceConfig:{value:'m1'},differenceComparison:{
+ differenceConfig:{value:''},differenceComparison:{
    children:[],replaceChildren(){this.children=[];},
    append(...children){this.children.push(...children);}
  },
@@ -209,7 +213,8 @@ const functions=new Function('differencePendingItem','typologyCatalog','modulati
 )(
  {id:'EA6A',tipologia_id:'fam',rotulo_tipologia_relatorio:'EA6A_1',
   descricao:'MODULO JANELA DE CORRER - SERIE 105'},
- [{id:'fam',codigo:'WINFAC-JCR203'}],[modReferencia],fakeDocument,
+ [{id:'fam',codigo:'WINFAC-JCR203',
+   descricao:'FACHADA UNITIZADA - MODULO DE CORRER - SERIE 105'}],[modReferencia],fakeDocument,
  id=>state.form[id],()=>[modReferencia],()=> 'WINFAC-JCR203-01',normalizarTeste
 );
 state.choice='sim';functions.atualizarTelaDiferenca();
@@ -233,8 +238,9 @@ state.form.differenceNewDescription.value=modReferencia.descricao;
 functions.atualizarTelaDiferenca();
 assert.equal(state.form.differenceSave.disabled,true,'Impedir cadastrar descrição duplicada');
 state.form.differenceNewDescription.value='MODULO JANELA DE CORRER - SERIE 105';
-state.next='corrigir';functions.atualizarTelaDiferenca();
-assert.equal(state.form.differenceSave.disabled,false,'Permitir corrigir descrição original');
+state.next='corrigir';state.form.differenceConfig.value='m1';
+functions.atualizarTelaDiferenca();
+assert.equal(state.form.differenceSave.disabled,false,'Permitir corrigir descrição original somente após escolher configuração');
 state.next='adiar';functions.atualizarTelaDiferenca();
 assert.equal(state.form.differenceSave.disabled,false,'Permitir adiar e seguir obra');
 
@@ -242,8 +248,11 @@ assert.equal(state.form.differenceSave.disabled,false,'Permitir adiar e seguir o
 const displayStart=source.indexOf('function descricaoComparacaoComModulosN(descricao){');
 const displayEnd=source.indexOf('function atualizarTelaDiferenca(){',displayStart);
 assert.ok(displayStart>=0&&displayEnd>displayStart,'Função N somente de apresentação');
-const displayN=new Function(source.slice(displayStart,displayEnd)+
-  '\nreturn descricaoComparacaoComModulosN;')();
+const helpers=new Function('modulacoesDaTipologia','normalizarReconhecimento',
+ source.slice(displayStart,displayEnd)+
+ '\nreturn {descricaoComparacaoComModulosN,modulacaoMesmaDescricao,quantidadeModulosExpressa};'
+)(()=>[modReferencia],normalizarTeste);
+const displayN=helpers.descricaoComparacaoComModulosN;
 for(const n of [1,3,6,8,12]){
   assert.equal(displayN('GRADIL '+n+' MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO'),
     'GRADIL N MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO','Deve trocar somente numero de modulos');
@@ -258,7 +267,8 @@ modReferencia.descricao='GRADIL 8 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO';
 const obraOriginal='GRADIL 6 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO';
 const fakeState=[
   {id:'ob1',tipologia_id:'fam',descricao:obraOriginal},
-  [{id:'fam',codigo:'UNIV-R08-GRADN00'}],
+  [{id:'fam',codigo:'UNIV-R08-GRADN00',
+    descricao:'GRADIL - 8 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO'}],
   [modReferencia]
 ];
 const renderN=new Function('differencePendingItem','typologyCatalog','modulationCatalog',
@@ -268,11 +278,25 @@ const renderN=new Function('differencePendingItem','typologyCatalog','modulation
  id=>state.form[id],()=>[modReferencia],()=> 'UNIV-R08-GRADN00-01',normalizarTeste);
 state.next='adiar';renderN.atualizarTelaDiferenca();
 const rendered=state.form.differenceComparison.children;
-assert.equal(rendered[0].children[3].textContent,'GRADIL N MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO');
-assert.equal(rendered[1].children[3].textContent,'GRADIL N MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO');
+assert.equal(rendered[0].children[3].textContent,'GRADIL 6 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO',
+  'A caixa da obra mostra o texto ORIGINAL sem substituir o número');
+assert.equal(rendered[1].children[3].textContent,'GRADIL - N MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO',
+  'A caixa do catálogo usa a descrição principal com N');
+assert.equal(rendered[0].children[1].textContent,'Não informado no relatório');
+assert.equal(rendered[1].children[1].textContent,'UNIV-R08-GRADN00');
 assert.equal(fakeState[0].descricao,obraOriginal,'Descrição original da obra permanece inteira');
 assert.equal(modReferencia.descricao,'GRADIL 8 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO',
   'Descrição original da modulação permanece inteira');
+modReferencia.descricao=modOriginal;
+assert.equal(helpers.quantidadeModulosExpressa('GRADIL 6 MODULO(S) - COM VIDRO'),6);
+assert.equal(helpers.quantidadeModulosExpressa('PORTA 2 FOLHAS'),null,
+  'Nunca deduzir número de módulos pelo número de folhas');
+assert.equal(helpers.quantidadeModulosExpressa('GRADIL 2 MODULOS E 3 MODULOS'),null,
+  'Não inferir número quando houver quantidades ambíguas');
+modReferencia.descricao='GRADIL - 8 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO';
+assert.equal(helpers.modulacaoMesmaDescricao({id:'fam'},'GRADIL 6 MODULO(S) - COM VIDRO'),null,
+ 'Não atribuir 6 módulos a configuração existente de 8 módulos');
+assert.equal(helpers.modulacaoMesmaDescricao({id:'fam'},'GRADIL - 8 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO')?.id,'m1');
 modReferencia.descricao=modOriginal;
 
 console.log('OK: '+cases.length+' classificacoes; EA por obra; sufixos; Sim/Nao e nova/corrigir/adiar.');
