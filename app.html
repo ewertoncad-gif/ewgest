@@ -206,7 +206,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • comparação de tipologias v35.2</div>
+        <div class="build">EWGEST • código preservado v35.3</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -485,16 +485,17 @@
     <div id="differenceSecondStep" class="differenceStep hidden">
       <strong>Como deseja resolver a diferença?</strong>
       <div class="differenceChoices">
-        <label><input type="radio" name="differenceNext" value="nova"><span>Criar uma nova configuração com o próximo sufixo.</span></label>
+        <label><input type="radio" name="differenceNext" value="nova"><span>Criar outra configuração da mesma tipologia (mantém o código e adiciona um sufixo).</span></label>
         <label><input type="radio" name="differenceNext" value="corrigir"><span>Corrigir a descrição da esquadria para a configuração existente.</span></label>
         <label><input type="radio" name="differenceNext" value="adiar"><span>Deixar para conferir depois, sem bloquear a obra.</span></label>
       </div>
       <div id="differenceCreateFields" class="differenceStep hidden">
+        <p id="differencePreserveCode" class="differenceMeta"></p>
         <label for="differenceNewDescription">Descrição técnica que diferencia a nova configuração</label>
         <textarea id="differenceNewDescription" class="typologyEditInput" maxlength="1000" rows="3"></textarea>
         <label for="differenceNewModules">Número de módulos (opcional)</label>
         <input id="differenceNewModules" type="number" min="1" max="100" step="1" placeholder="Não confundir com folhas">
-        <p class="hint">Informe a característica diferente (abertura, veneziana, módulos etc.). O código definitivo é gerado ao salvar.</p>
+        <p class="hint">Informe o que muda (abertura, veneziana, módulos etc.). O código da tipologia será mantido; somente a configuração receberá o próximo sufixo.</p>
       </div>
       <div id="differenceCorrectFields" class="differenceStep hidden">
         <p class="differenceMeta">Nova descrição da esquadria:</p>
@@ -1579,6 +1580,11 @@ function atualizarTelaDiferenca(){
   node('differenceCreateFields').classList.toggle('hidden',modo!=='nao'||opcao!=='nova');
   node('differenceCorrectFields').classList.toggle('hidden',modo!=='nao'||opcao!=='corrigir');
   node('differenceCorrectDescription').textContent=mod?.descricao||'Escolha uma configuração cadastrada.';
+  const raiz=tipologia?
+    (typologyCatalog.find(t=>t.id===(tipologia.tipologia_principal_id||tipologia.id))||tipologia):null;
+  node('differencePreserveCode').textContent=raiz?
+    'Código da tipologia preservado: '+raiz.codigo+
+    '. A nova configuração terá apenas um sufixo sequencial próprio.':'';
   const descritivo=node('differenceNewDescription').value.trim();
   const q=node('differenceNewModules').value.trim();
   const qtdValida=!q||(Number.isInteger(Number(q))&&Number(q)>=1&&Number(q)<=100);
@@ -2632,7 +2638,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v35.2 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v35.3 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
