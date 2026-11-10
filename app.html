@@ -1068,14 +1068,58 @@ function renderHistoricoRomaneios(obraId){
     (list.length?list.slice(0,30).map(r=>{
       const n=romaneioItens.filter(i=>i.romaneio_id===r.id).length;
       const dt=String(r.data_saida).split('-').reverse().join('/');
+      const cancelado=r.status==='cancelado';
+      const adm=String(membership?.perfil||'').toLowerCase()==='administrador';
       return '<div class="romaneioHistoryRow"><span><strong>'+escapeHTML(r.numero)+
         '</strong> · '+escapeHTML(dt)+' · '+n+' item(ns) · '+escapeHTML(r.motorista)+
-        '</span><button type="button" class="btn secondary" data-romaneio-imprimir="'+escapeHTML(r.id)+
-        '">Reimprimir</button></div>';
+        (cancelado?' · <strong style="color:#ffb8aa">CANCELADO</strong>':'')+
+        '</span><span><button type="button" class="btn secondary" data-romaneio-imprimir="'+escapeHTML(r.id)+
+        '">Reimprimir</button>'+
+        (!cancelado&&adm?' <button type="button" class="btn secondary romaneioCancel" data-romaneio-cancelar="'+
+          escapeHTML(r.id)+'">Cancelar / estornar</button>':'')+'</span></div>';
     }).join(''):'<p class="hint">Nenhum romaneio emitido nesta obra.</p>');
   el.querySelectorAll('[data-romaneio-imprimir]').forEach(button=>{
     button.addEventListener('click',()=>imprimirRomaneio(button.dataset.romaneioImprimir));
   });
+  el.querySelectorAll('[data-romaneio-cancelar]').forEach(button=>{
+    button.addEventListener('click',()=>cancelarRomaneio(button.dataset.romaneioCancelar));
+  });
+}
+async function cancelarRomaneio(id){
+  if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  const original=romaneios.find(r=>r.id===id&&r.status!=='cancelado');
+  if(!original)return;
+  const motivo=window.prompt('Motivo do cancelamento do romaneio '+original.numero+
+    ': (mínimo 10 caracteres)');
+  if(motivo===null)return;
+  const texto=motivo.trim();
+  if(texto.length<10||texto.length>400){
+    node('detailError').textContent='Informe um motivo entre 10 e 400 caracteres.';
+    return;
+  }
+  if(!window.confirm('CONFIRMA CANCELAR '+original.numero+
+    '? As saídas de esquadrias vinculadas a este romaneio serão estornadas.'+
+    ' O documento ficará CANCELADO no histórico. Esta operação não deve ser usada como confirmação de retorno físico.'))return;
+  const obraId=original.obra_id;
+  const button=node('toggleRomaneioHistory');
+  button.disabled=true;
+  try{
+    await ensureSession();
+    const r=await request('/rest/v1/rpc/cancelar_romaneio_com_estorno',{
+      method:'POST',token:session.access_token,
+      body:{p_romaneio_id:id,p_motivo:texto}
+    });
+    await loadPanel();
+    const obra=works.find(w=>w.id===obraId);
+    if(obra){detailMode='shipment';renderDetail(obra);}
+    node('romaneioHistoryPanel').classList.remove('hidden');
+    renderHistoricoRomaneios(obraId);
+    node('detailError').textContent='Romaneio '+r.numero+' CANCELADO e '+r.saidas_estornadas+
+      ' saída(s) estornadas. Histórico preservado. Confira o retorno físico antes de reenviar.';
+  }catch(e){
+    node('detailError').textContent='Não foi possível cancelar: '+e.message+
+      '. Confira o histórico antes de tentar novamente.';
+  }finally{button.disabled=false;}
 }
 function abrirEmissaoRomaneio(){
   if(!selectedWork||!dispatchReady||romaneioLoadError||
@@ -1320,6 +1364,7 @@ function construirHTMLRomaneio(header,linhas){
         '<td class="right">'+areax+'</td><td></td></tr>';
     }).join('');
     return '<section class="copy '+(compacta?'compact':'full')+'">'+
+      (header.status==='cancelado'?'<div class="romaneioCancelPrint">CANCELADO · SAÍDAS ESTORNADAS</div>':'')+
       '<div class="heading">'+
         '<div class="logo">GVG<small>ESQUADRIAS</small></div>'+
         '<div class="title"><strong>COMPROVANTE DE ENTREGA DE MATERIAIS</strong>'+
@@ -1339,6 +1384,8 @@ function construirHTMLRomaneio(header,linhas){
       '<div class="total"><strong>Área dos itens desta '+(totalPartes>1?'página':'via')+
         ':</strong> '+soma.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' m²</div>'+
       (header.observacoes?'<div class="notes">Observações: '+escapeHTML(header.observacoes)+'</div>':'')+
+      (header.status==='cancelado'?'<div class="notes"><strong>Motivo do cancelamento:</strong> '+
+        escapeHTML(header.motivo_cancelamento||'Não informado')+'</div>':'')+
       '<div class="signatures"><div>Entregue por:<span></span></div>'+
          '<div>Solicitado por:<span></span></div><div>Recebido por:<span></span></div></div>'+
       '</section>';
@@ -1382,6 +1429,7 @@ function construirHTMLRomaneio(header,linhas){
     '.signatures{display:grid;grid-template-columns:repeat(3,1fr);gap:7mm;margin-top:8mm;font-size:8px}',
     '.signatures span{display:block;border-bottom:1px solid #777;height:12mm}',
     '.copy.compact table{font-size:8px}.copy.compact th,.copy.compact td{padding:1.5mm .8mm}',
+    '.romaneioCancelPrint{color:#a11;border:2px solid #a11;background:#ffe0df;text-align:center;font-weight:900;font-size:19px;padding:3mm;margin:4mm 0;letter-spacing:3px}',
     '@media screen{body{background:#ddd;padding:15px}.printPage{margin:0 auto 18px;background:white;width:192mm;padding:0;box-shadow:0 2px 9px #bbb}}',
     '@media print{body{background:white}.printPage{margin:0}}'
   ].join('');
