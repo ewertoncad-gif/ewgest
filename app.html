@@ -1916,7 +1916,7 @@ function atualizarComparacaoIdentificacao(){
   const {independente,tipologia}=escolhaIdentificacao();
   const container=node('identityCompare');container.replaceChildren();
   const diferente=Boolean(origem&&tipologia&&(
-    normalizarReconhecimento(origem.descricao)!==normalizarReconhecimento(tipologia.descricao)
+    comparacaoEstritaDescricao(origem.descricao)!==comparacaoEstritaDescricao(tipologia.descricao)
     ||classificarTipoTipologia(origem)!==classificarTipoTipologia(tipologia)));
   node('identityDifferentLabel').classList.toggle('hidden',!diferente);
   if(!diferente)node('identityDifferent').checked=false;
@@ -1944,7 +1944,7 @@ function validarCorrecaoIdentificacao(){
   const {independente,tipologia}=escolhaIdentificacao();
   const origem=identityEditing;
   const diferente=Boolean(origem&&tipologia&&(
-    normalizarReconhecimento(origem.descricao)!==normalizarReconhecimento(tipologia.descricao)
+    comparacaoEstritaDescricao(origem.descricao)!==comparacaoEstritaDescricao(tipologia.descricao)
     ||classificarTipoTipologia(origem)!==classificarTipoTipologia(tipologia)));
   node('identitySave').disabled=!(origem&&(independente||tipologia)&&
     node('identityApproved').checked&&(!diferente||node('identityDifferent').checked));
@@ -1969,7 +1969,8 @@ async function salvarCorrecaoIdentificacao(){
       body:{
         p_tipologia_id:origem.id,
         p_tipologia_principal_id:independente?null:tipologia.id,
-        p_principal_anterior_id:origem.tipologia_principal_id||null
+        p_principal_anterior_id:origem.tipologia_principal_id||null,
+        p_confirmar_divergencia:node('identityDifferent').checked
       }
     });
     fecharCorrecaoIdentificacao();
