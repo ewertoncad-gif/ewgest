@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'almoxarifado v39.0',
+ 'consulta de romaneios v39.1',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -421,7 +421,12 @@ assert.ok(saidaLonga.includes('@page{size:A4 portrait;margin:0}'),
 assert.ok(saidaLonga.includes('.printPage{height:297mm;padding:9mm;'),
  'Margens internas preservadas no A4');
 assert.ok(duas.includes('class="truckSlot"')&&duas.includes('class="headerTruck"'),
- 'Caminhão fica em coluna própria, fora do título');
+ 'Caminhão presente no cabeçalho');
+assert.ok(/class="headerTitle"[\s\S]*?class="truckSlot"[\s\S]*?<\/div><\/div><div class="docNo">/.test(
+ duas.replace(/\s+/g,' ')),
+ 'Caminhão fica DENTRO do mesmo quadro do título, antes da data');
+assert.ok(duas.includes('grid-template-columns:18mm minmax(0,1fr) 30mm 18mm'),
+ 'Cabeçalho possui quatro áreas, sem coluna solta de caminhão');
 const cancelado=montarRomaneio({...cabecalho,status:'cancelado',
  motivo_cancelamento:'Erro de carregamento; entrega não aconteceu'},[linha(1)]);
 assert.ok(cancelado.includes('CANCELADO · SAÍDAS ESTORNADAS'),
@@ -479,6 +484,21 @@ const evaluateRole=role=>new Function('membership',
 assert.equal(evaluateRole('almoxarife').isAlmoxarife(),true,'Reconhece perfil almoxarife');
 assert.equal(evaluateRole('almoxarife').podeEmitirRomaneio(),true,'Permite emitir');
 assert.equal(evaluateRole('consulta').podeEmitirRomaneio(),false,'Consulta não pode emitir');
-console.log('OK: '+cases.length+' classificacoes; romaneio A4, guarda do almoxarife e regressões.');
+for(const expected of [
+  'function consultarRomaneio(id)',
+  'function abrirRomaneioDocumento(id,{imprimir=false',
+  'data-romaneio-consultar=',
+  'data-hub-preview=',
+  'button.addEventListener(\'click\',()=>consultarRomaneio',
+  'b.addEventListener(\'click\',()=>consultarRomaneio',
+  'barra.className=\'viewToolbar\'',
+  'imprimirBotao.addEventListener(\'click\',()=>pagina.print())',
+  "if(imprimir)pagina.setTimeout(()=>pagina.print(),350)"
+])assert.ok(source.includes(expected),'Consulta sem impressão automática: '+expected);
+const consultarStart=source.indexOf('function consultarRomaneio(id){');
+const consultarEnd=source.indexOf('function imprimirRomaneio(id,janelaExistente=null){',consultarStart);
+assert.ok(source.slice(consultarStart,consultarEnd).includes('imprimir:false'),
+  'Consultar deve abrir sem solicitar impressão');
+console.log('OK: '+cases.length+' classificacoes; romaneio visualizável, caminhão dentro do título, A4 e regras protegidas.');
 
 
