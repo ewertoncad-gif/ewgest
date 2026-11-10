@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'descrições editáveis v39.2',
+ 'abreviações e almoxarifado v40.0',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -532,6 +532,45 @@ for(const token of [
  'el.dataset.romaneioDescricaoChave',
  'textarea[data-rom-field="descricao_romaneio"]'
 ])assert.ok(source.includes(token),'Texto editável e persistente: '+token);
-console.log('OK: '+cases.length+' classificações; descrição curta/editável, reimpressão, caminhão SVG e quebra de linha A4.');
+for(const expected of [
+ 'id="typologyAbbrevPanel"',
+ 'id="typologyAbbrevSearch"',
+ 'id="typologyAbbrevSelect"',
+ 'id="typologyAbbrevText"',
+ 'id="typologyAbbrevSave"',
+ 'id="typologyAbbrevReset"',
+ 'function renderAbreviacoesCatalogo()',
+ 'function salvarAbreviacaoCatalogo(restaurar=false)',
+ 'tipologias_abreviacoes',
+ '/rest/v1/rpc/salvar_abreviacao_tipologia',
+ 'function descricaoPadraoRomaneio(item',
+ 'campoDescricao.value=descricaoPadraoRomaneio(item,modo)'
+])assert.ok(source.includes(expected),'Painel de abreviação: '+expected);
+const standardStart=source.indexOf('function descricaoPadraoRomaneio(item,');
+const standardEnd=source.indexOf('function dataRomaneioFormatada(value){',standardStart);
+const descricaoPadrao=new Function('typologyAbbreviations','descricaoCurtaRomaneio',
+ source.slice(standardStart,standardEnd)+'\nreturn descricaoPadraoRomaneio;'
+)([{tipologia_id:'tip1',descricao_base:'JANELA GOLD 2F - PEITORIL FIXO'}],descricaoCurta);
+assert.equal(descricaoPadrao({tipologia_id:'tip1',descricao:'TEXTO COMPLETO'},'completo'),
+ 'JANELA GOLD 2F - PEITORIL FIXO (COMPLETA)',
+ 'Abreviação do catálogo deve prevalecer à sugestão automática');
+assert.equal(descricaoPadrao({tipologia_id:'tip1',descricao:'TEXTO COMPLETO'},'marco'),
+ 'JANELA GOLD 2F - PEITORIL FIXO (MARCO)',
+ 'Mesmo padrão deve respeitar tipo de expedição');
+assert.equal(descricaoPadrao({tipologia_id:'outra',descricao:'MAXIM-AR 1 FOLHA(S) - LINHA INOVA - HYDRO'},'completo'),
+ 'MAXIM-AR 1F INOVA (COMPLETA)','Fallback mantém padrão automático');
+const formStart=source.indexOf('<form id="romaneioForm">');
+const formEnd=source.indexOf('</form>',formStart);
+const contentForm=source.slice(formStart,formEnd);
+assert.ok(contentForm.indexOf('id="romaneioNotes"')>contentForm.indexOf('id="romaneioRows"'),
+ 'Observações devem ficar DEPOIS de todos os itens do romaneio');
+assert.ok(contentForm.indexOf('id="romaneioNotes"')<contentForm.indexOf('id="romaneioConfirm"'),
+ 'Observações antes de confirmar a expedição');
+const observ=montarRomaneio({...cabecalho,observacoes:'ENTREGA PARCIAL\nCONFERIDO PELO ALMOXARIFE'},[linha(1)]);
+assert.ok(observ.includes('ENTREGA PARCIAL\nCONFERIDO PELO ALMOXARIFE'),
+ 'Observações com quebra de linha preservadas no comprovante');
+assert.ok(observ.includes('.notes{')&&observ.includes('white-space:pre-line'),
+ 'Observações aceitam linhas múltiplas na impressão');
+console.log('OK: '+cases.length+' classificações; cadastro de abreviações, observações finais, almoxarife e regressões.');
 
 
