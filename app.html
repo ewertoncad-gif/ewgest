@@ -1142,6 +1142,7 @@ async function cancelarRomaneio(id){
     '? As saídas de esquadrias vinculadas a este romaneio serão estornadas.'+
     ' O documento ficará CANCELADO no histórico. Esta operação não deve ser usada como confirmação de retorno físico.'))return;
   const obraId=original.obra_id;
+  const estaNoHub=!node('romaneiosPage').classList.contains('hidden');
   const button=node('toggleRomaneioHistory');
   button.disabled=true;
   try{
@@ -1151,12 +1152,18 @@ async function cancelarRomaneio(id){
       body:{p_romaneio_id:id,p_motivo:texto}
     });
     await loadPanel();
-    const obra=works.find(w=>w.id===obraId);
-    if(obra){detailMode='shipment';renderDetail(obra);}
-    node('romaneioHistoryPanel').classList.remove('hidden');
-    renderHistoricoRomaneios(obraId);
-    node('detailError').textContent='Romaneio '+r.numero+' CANCELADO e '+r.saidas_estornadas+
+    const mensagem='Romaneio '+r.numero+' CANCELADO e '+r.saidas_estornadas+
       ' saída(s) estornadas. Histórico preservado. Confira o retorno físico antes de reenviar.';
+    if(estaNoHub){
+      hubObraId=obraId;renderRomaneioHub();setView('romaneiosPage');
+      node('hubRomaneioMessage').textContent=mensagem;
+    }else{
+      const obra=works.find(w=>w.id===obraId);
+      if(obra){detailMode='shipment';renderDetail(obra);}
+      node('romaneioHistoryPanel').classList.remove('hidden');
+      renderHistoricoRomaneios(obraId);
+      node('detailError').textContent=mensagem;
+    }
   }catch(e){
     node('detailError').textContent='Não foi possível cancelar: '+e.message+
       '. Confira o histórico antes de tentar novamente.';
@@ -1580,6 +1587,7 @@ async function emitirRomaneio(event){
   let confirmado=false;
   let idSalvo=null;
   const obraId=selectedWork.id;
+  const estaNoHub=!node('romaneiosPage').classList.contains('hidden');
   try{
     await ensureSession();
     const resultado=await request('/rest/v1/rpc/emitir_romaneio_com_saidas',{
@@ -1591,23 +1599,29 @@ async function emitirRomaneio(event){
     // Após confirmação, falha de rede na atualização NUNCA autoriza repetir a expedição.
     try{
       await loadPanel();
-      const obra=works.find(w=>w.id===obraId);
-      if(obra){detailMode='shipment';renderDetail(obra);}
-      if(janela){
-        if(!imprimirRomaneio(idSalvo,janela))
-          node('detailError').textContent='Romaneio '+resultado.numero+
-            ' emitido, mas a impressão não abriu. Reimprima pelo histórico.';
+      if(estaNoHub||isAlmoxarife()){
+        hubObraId=obraId;renderRomaneioHub();setView('romaneiosPage');
+      }else{
+        const obra=works.find(w=>w.id===obraId);
+        if(obra){detailMode='shipment';renderDetail(obra);}
+        node('romaneioHistoryPanel').classList.remove('hidden');
+        renderHistoricoRomaneios(obraId);
       }
-      node('romaneioHistoryPanel').classList.remove('hidden');
-      renderHistoricoRomaneios(obraId);
-      if(!node('detailError').textContent.startsWith('Romaneio '))
-        node('detailError').textContent='Romaneio '+resultado.numero+
-          ' emitido. As saídas das esquadrias foram registradas automaticamente.';
+      const impressaoOk=janela?imprimirRomaneio(idSalvo,janela):false;
+      const info=impressaoOk?
+        'Romaneio '+resultado.numero+' emitido; as saídas foram registradas automaticamente.':
+        'Romaneio '+resultado.numero+' emitido, mas a impressão não abriu. Reimprima pelo histórico.';
+      if(estaNoHub||isAlmoxarife())node('hubRomaneioMessage').textContent=info;
+      else node('detailError').textContent=info;
     }catch(err){
       if(janela)janela.document.body.textContent='Romaneio emitido. Atualize o EWGEST para reimprimir.';
-      node('detailError').textContent='Romaneio '+resultado.numero+
+      const falha='Romaneio '+resultado.numero+
         ' emitido, mas os dados não atualizaram: '+err.message+
         '. NÃO emita novamente. Atualize e reimprima pelo histórico.';
+      if(estaNoHub||isAlmoxarife()){
+        hubObraId=obraId;renderRomaneioHub();setView('romaneiosPage');
+        node('hubRomaneioMessage').textContent=falha;
+      }else node('detailError').textContent=falha;
     }
   }catch(err){
     if(janela)janela.document.body.textContent='Emissão não confirmada. Confira o histórico antes de tentar novamente.';
