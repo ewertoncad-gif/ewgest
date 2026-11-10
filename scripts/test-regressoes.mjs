@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'sufixos automáticos v34.0',
+ 'conferência sem bloqueios v35.0',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -90,7 +90,19 @@ for(const token of [
  'numero_variacao',
  'MODULAÇÃO A CONFERIR',
  'proximoSufixoVisual(t)',
- 'p_confirmar_divergencia:node(\'identityDifferent\').checked'
+ 'p_confirmar_divergencia:node(\'identityDifferent\').checked',
+ 'id="differenceOverlay"',
+ 'id="differenceConfig"',
+ 'id="differenceSecondStep"',
+ 'id="differenceCreateFields"',
+ 'id="differenceCorrectFields"',
+ 'id="differenceSave"',
+ 'function abrirConferenciaDescricao(item)',
+ 'function atualizarTelaDiferenca()',
+ 'function salvarConferenciaDescricao()',
+ 'revisar_descricao_configuracao_admin',
+ "p_acao:opcao",
+ "p_confirmar_divergencia:true"
 
 ]){
   assert.ok(source.includes(token),'Preservar: '+token);
@@ -153,5 +165,50 @@ assert.ok(!corretos.some(t=>t.id==='ea14'||t.id==='ea05'||t.id==='outro'||t.id==
   'Nao selecionar EA, outra empresa/fabricante ou variacao');
 assert.ok(corretos.some(t=>t.codigo==='INV-PGR107'),
   'Permitir revisar descricao diferente com confirmacao extra');
-console.log('OK: '+cases.length+' classificacoes; EA por obra; sufixos 01/02/03, MOD e correcao tecnica.');
+// Verifica a tela de confirmação para as duas respostas e as três escolhas.
+const state={choice:'',next:'',form:{
+ differenceConfig:{value:'m1'},differenceComparison:{replaceChildren(){},append(){}},
+ differenceSecondStep:{classList:{toggle(){}}},differenceCreateFields:{classList:{toggle(){}}},
+ differenceCorrectFields:{classList:{toggle(){}}},differenceCorrectDescription:{textContent:''},
+ differenceNewDescription:{value:'MODULO JANELA DE CORRER - SERIE 105'},
+ differenceNewModules:{value:''},differenceSave:{disabled:true,textContent:''},
+ differenceError:{textContent:''}
+}};
+const fakeDocument={
+ querySelector(q){
+  if(q.includes('differenceMatch'))return state.choice?{value:state.choice}:null;
+  if(q.includes('differenceNext'))return state.next?{value:state.next}:null;
+  return null;
+ },
+ createElement(){return {textContent:''};}
+};
+const modReferencia={id:'m1',codigo_interno:'MOD-000045',numero_variacao:1,
+ tipologia_principal_id:'fam',descricao:'FACHADA UNITIZADA - MODULO DE CORRER - SERIE 105'};
+const fnInicio2=source.indexOf('function escolherDiferenca(){');
+const fnFim2=source.indexOf('function abrirConferenciaTipologia(id){',fnInicio2);
+assert.ok(fnInicio2>=0&&fnFim2>fnInicio2,'Funcoes de decisao presentes');
+const normalizarTeste=v=>String(v||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'')
+ .toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
+const functions=new Function('differencePendingItem','typologyCatalog','modulationCatalog',
+ 'document','node','modulacoesDaTipologia','codigoVariacaoTecnica','normalizarReconhecimento',
+ source.slice(fnInicio2,fnFim2)+'\nreturn {atualizarTelaDiferenca};'
+)(
+ {id:'EA6A',tipologia_id:'fam',descricao:'MODULO JANELA DE CORRER - SERIE 105'},
+ [{id:'fam',codigo:'WINFAC-JCR203'}],[modReferencia],fakeDocument,
+ id=>state.form[id],()=>[modReferencia],()=> 'WINFAC-JCR203-01',normalizarTeste
+);
+state.choice='sim';functions.atualizarTelaDiferenca();
+assert.equal(state.form.differenceSave.disabled,false,'SIM permite vincular configuração');
+state.choice='nao';state.next='nova';functions.atualizarTelaDiferenca();
+assert.equal(state.form.differenceSave.disabled,false,'NÃO permite cadastrar nova configuração');
+state.form.differenceNewDescription.value=modReferencia.descricao;
+functions.atualizarTelaDiferenca();
+assert.equal(state.form.differenceSave.disabled,true,'Impedir cadastrar descrição duplicada');
+state.form.differenceNewDescription.value='MODULO JANELA DE CORRER - SERIE 105';
+state.next='corrigir';functions.atualizarTelaDiferenca();
+assert.equal(state.form.differenceSave.disabled,false,'Permitir corrigir descrição original');
+state.next='adiar';functions.atualizarTelaDiferenca();
+assert.equal(state.form.differenceSave.disabled,false,'Permitir adiar e seguir obra');
+
+console.log('OK: '+cases.length+' classificacoes; EA por obra; sufixos; Sim/Nao e nova/corrigir/adiar.');
 
