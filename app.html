@@ -1119,11 +1119,15 @@ function renderHistoricoRomaneios(obraId){
       return '<div class="romaneioHistoryRow"><span><strong>'+escapeHTML(r.numero)+
         '</strong> · '+escapeHTML(dt)+' · '+n+' item(ns) · '+escapeHTML(r.motorista)+
         (cancelado?' · <strong style="color:#ffb8aa">CANCELADO</strong>':'')+
-        '</span><span><button type="button" class="btn secondary" data-romaneio-imprimir="'+escapeHTML(r.id)+
+        '</span><span><button type="button" class="btn secondary" data-romaneio-consultar="'+escapeHTML(r.id)+
+        '">Consultar</button> <button type="button" class="btn secondary" data-romaneio-imprimir="'+escapeHTML(r.id)+
         '">Reimprimir</button>'+
         (!cancelado&&adm?' <button type="button" class="btn secondary romaneioCancel" data-romaneio-cancelar="'+
           escapeHTML(r.id)+'">Cancelar / estornar</button>':'')+'</span></div>';
     }).join(''):'<p class="hint">Nenhum romaneio emitido nesta obra.</p>');
+  el.querySelectorAll('[data-romaneio-consultar]').forEach(button=>{
+    button.addEventListener('click',()=>consultarRomaneio(button.dataset.romaneioConsultar));
+  });
   el.querySelectorAll('[data-romaneio-imprimir]').forEach(button=>{
     button.addEventListener('click',()=>imprimirRomaneio(button.dataset.romaneioImprimir));
   });
@@ -1529,23 +1533,26 @@ function construirHTMLRomaneio(header,linhas){
     '.copy.compact table{font-size:8px}.copy.compact th,.copy.compact td{padding:1.5mm .8mm}',
     '.romaneioCancelPrint{color:#a11;border:2px solid #a11;background:#ffe0df;text-align:center;font-weight:900;font-size:19px;padding:3mm;margin:4mm 0;letter-spacing:3px}',
     '@media screen{body{background:#dce2e8;padding:15px}.printPage{margin:0 auto 18px;background:white;width:210mm;max-width:100%;padding:9mm;box-shadow:0 2px 9px #abb4bc}}',
-    '@media print{body{background:white}.printPage{margin:0}}'
+    '.viewToolbar{position:sticky;top:0;z-index:15;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#152c42;color:white;padding:11px 18px;font:14px Arial,Helvetica,sans-serif;box-shadow:0 2px 8px #0003}',
+    '.viewToolbar strong{font-size:14px}.viewToolbarActions{display:flex;flex-wrap:wrap;gap:9px}',
+    '.viewToolbar button{border:1px solid #7c98a9;background:#f3f8fc;color:#15324a;padding:8px 15px;border-radius:6px;font-weight:bold;cursor:pointer}',
+    '@media print{body{background:white}.printPage{margin:0}.viewToolbar{display:none!important}}'
   ].join('');
   return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>'+
     escapeHTML(header.numero)+' · '+escapeHTML(obra.nome)+'</title><style>'+styles+
     '</style></head><body>'+blocos.join('')+'</body></html>';
 }
-function imprimirRomaneio(id,janelaExistente=null){
+function abrirRomaneioDocumento(id,{imprimir=false,janelaExistente=null}={}){
   const cabecalho=romaneios.find(r=>r.id===id);
   const linhas=romaneioItens.filter(i=>i.romaneio_id===id);
   const pagina=janelaExistente||window.open('about:blank','_blank');
+  const destino=node('romaneiosPage').classList.contains('hidden')?'detailError':'hubRomaneioMessage';
   if(!pagina){
-    const destino=node('romaneiosPage').classList.contains('hidden')?'detailError':'hubRomaneioMessage';
-    node(destino).textContent='Permita janelas de impressão ou use o histórico para reimprimir.';
+    node(destino).textContent='O navegador bloqueou a nova guia. Habilite pop-ups para consultar ou imprimir o romaneio.';
     return false;
   }
   if(!cabecalho||!linhas.length){
-    pagina.document.body.textContent='Romaneio não localizado. Atualize o painel e tente reimprimir.';
+    pagina.document.body.textContent='Romaneio não localizado. Atualize o painel e tente novamente.';
     return false;
   }
   try{
@@ -1553,15 +1560,39 @@ function imprimirRomaneio(id,janelaExistente=null){
     pagina.document.open();
     pagina.document.write(construirHTMLRomaneio(cabecalho,linhas));
     pagina.document.close();
+    if(!imprimir){
+      // A consulta não cria documento, não altera a expedição e NÃO abre a caixa de impressão.
+      const barra=pagina.document.createElement('div');
+      barra.className='viewToolbar';
+      const titulo=pagina.document.createElement('strong');
+      titulo.textContent='Romaneio '+cabecalho.numero+(cabecalho.status==='cancelado'?' · CANCELADO':'');
+      const acoes=pagina.document.createElement('div');
+      acoes.className='viewToolbarActions';
+      const imprimirBotao=pagina.document.createElement('button');
+      imprimirBotao.type='button';
+      imprimirBotao.textContent='Imprimir';
+      imprimirBotao.addEventListener('click',()=>pagina.print());
+      const fecharBotao=pagina.document.createElement('button');
+      fecharBotao.type='button';
+      fecharBotao.textContent='Fechar';
+      fecharBotao.addEventListener('click',()=>pagina.close());
+      acoes.append(imprimirBotao,fecharBotao);
+      barra.append(titulo,acoes);
+      pagina.document.body.prepend(barra);
+    }
     pagina.focus();
-    // O navegador permite escolher impressora ou "Salvar como PDF".
-    pagina.setTimeout(()=>pagina.print(),350);
+    if(imprimir)pagina.setTimeout(()=>pagina.print(),350);
     return true;
   }catch(e){
-    const destino=node('romaneiosPage').classList.contains('hidden')?'detailError':'hubRomaneioMessage';
-    node(destino).textContent='O romaneio foi localizado, mas a impressão falhou: '+e.message;
+    node(destino).textContent='Não foi possível abrir o romaneio: '+e.message;
     return false;
   }
+}
+function consultarRomaneio(id){
+  return abrirRomaneioDocumento(id,{imprimir:false});
+}
+function imprimirRomaneio(id,janelaExistente=null){
+  return abrirRomaneioDocumento(id,{imprimir:true,janelaExistente});
 }
 async function emitirRomaneio(event){
   event.preventDefault();
@@ -1671,10 +1702,12 @@ function renderRomaneioHub(){
       '</strong> · '+escapeHTML(dataRomaneioFormatada(r.data_saida))+
       ' · '+count+' item(ns) · '+escapeHTML(r.motorista)+
       (cancelled?' · <strong style="color:#ffb8aa">CANCELADO</strong>':'')+
-      '</span><span><button type="button" class="btn secondary" data-hub-print="'+escapeHTML(r.id)+'">Reimprimir</button>'+
+      '</span><span><button type="button" class="btn secondary" data-hub-preview="'+escapeHTML(r.id)+'">Consultar</button> '+
+      '<button type="button" class="btn secondary" data-hub-print="'+escapeHTML(r.id)+'">Reimprimir</button>'+
       (adm&&!cancelled?' <button type="button" class="btn secondary romaneioCancel" data-hub-cancel="'+escapeHTML(r.id)+'">Cancelar / estornar</button>':'')+
       '</span></div>';
   }).join('');
+  box.querySelectorAll('[data-hub-preview]').forEach(b=>b.addEventListener('click',()=>consultarRomaneio(b.dataset.hubPreview)));
   box.querySelectorAll('[data-hub-print]').forEach(b=>b.addEventListener('click',()=>imprimirRomaneio(b.dataset.hubPrint)));
   box.querySelectorAll('[data-hub-cancel]').forEach(b=>b.addEventListener('click',()=>cancelarRomaneio(b.dataset.hubCancel)));
 }
