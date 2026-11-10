@@ -231,7 +231,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • romaneio A4 revisado v38.0</div>
+        <div class="build">EWGEST • almoxarifado v39.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -1411,8 +1411,8 @@ function construirHTMLRomaneio(header,linhas){
       '<div class="heading">'+
         '<div class="brandLogo"><img alt="Artefal" src="data:image/webp;base64,UklGRkACAABXRUJQVlA4IDQCAAAQCwCdASpFACwAPm0ylUikIqIhJnVZWIANiWUAI8A3lpwPfvl8vugJVUjd8+jPvqFKAQlb1zkjiGWGXvmUookG6SVqUlfgsltFOoBDeVSXiuQkpxjQbgNncHmsjEEZIJQwAP7uoKF2dPs56Kx1wn4Ie2UsDaXX3GzIxSpg/9sZqEH1VfJzPOupt3q06rmzfqq26r4aOI6y+iqKPHIVrMXow4Yh+cosbDSsa8Gq4QX+jN3vxrstEkL8barDqKjn6bhjQ/lZv8x8imC1RhQOtNAGbDHXh67urIXTSza33TQfNcBZmhpjw2Z83qS364nCzapiJyqXz4XcrW1VtN52D9EOVFLR95d8iq36l39IbJbKYz6l692htiONuTPPARV5JHmKbuDjDn/M/b/F88ocFFjfDHLbwrsRKYLloyS/1vj2FkHcZiLIMcyZ7v/ThwfEFd9C4eb1udXWLna+RD4cf2bRS4/Qrd404vIT/qdtJcR820gb1L61xPV8WBzEmTk12JY6/2F0kBVrQY/ucDo2miVyV48XRJtOoQSAWRJq96OfBMb9RJTP6KpWTrK1NOb9yJAutJE6FNJ2x2iVKhGdOF3KZBzyW10mI1oItL9yY+lT98S9ZaPVWFF1j52S7tKV0z9hC/so3sgQev7ODSEcQl46QzOpzcl7evDFW+ZvDRZ4pKvTSGzhfOUntmCW4NpFRy297EW3hQ8KM4jP+JfD53qzTnI9XUNVcvRQ1h82SNkyZYAAAAA="></div>'+
         '<div class="headerTitle"><span><strong>Comprovante de Entrega de Materiais</strong>'+
-          '<small>Via '+numero+(totalPartes>1?' · Página '+parte+'/'+totalPartes:'')+'</small></span>'+
-          '<img class="headerTruck" alt="" src="data:image/webp;base64,UklGRgwDAABXRUJQVlA4IAADAABwEACdASouACoAPm0ulEckIiIhJzgMkIANiWwAuzPaeZ+7+YJYmwYEi2wHik/pn2Nt5E3m+szc7R4QPsPzfCD6a/JR/hPyQ4MTj/9A/0dsgmReQD6C9gn9YP9yC3zrG1NnN9gcGXAvRXEzqCJCP8kC7s3H/hbJKLMS1sKrsP8bzlXNcq6l6/+WT6E4AADgE7oPf/+WGBD5f2/LHdZStjL2nr2P9d4lAIvbOs/v9dXLRe3tRDwd0WXn0g43bK5ETu73sb7ipKy34OGIQ52Th67sKLma4xhm2bf/deVmLY1b//xzk+6br2Jld7gAOXVn9cXI/hLp3woZlXb8x//ImnGqzgM/B3R8CTcL/x/yi6wX4T1UHCv0bdr8M0zFW/lmUdr167KV048uAwZfbr9lboB2NErvE+uxU631Br6niA9AAZ34D05PBsl3ID17c1HLfSRvo5Y1zwP4z9pxQg6ja4uwb0JMtX4LdEVN3RyfNPLELpTvO/3ocrY7QLiTIiSdnxfMovBjAt8h+Rg9+yP7/MfSD7tBEqalPL4wlkABnmED0z91BMvozdqaYfHNYfd1EnBDn/oiu/8abR84ZZ8u7tWMhadYsTNAdklavOqHWTdlMdX9xIbM7ZLpn1R1lhvuiW0FaWokV5PoyGB9pNMK1wlnyS/S6/9NY/X8VvL2/7ttMXJ1T/+GgJ2zKMm0RkQNyXCJ4HJF+F/mKExk96+Dzfln5zE7H8JoQreOP5nYa0L7/8f/6fYO4lDW7MqHpIO5zRqpult6ANvulHMsft/XaKfOSHcFKdB6TajXqoeRlziV7mMmnwB5RwtQkFAYBAAJF2EX2f5SbD495dhQMDsTrtP2iAhY6cuL7EMy//w8cR8L99aZ/zkFJ1x/i/wuLsmFTVxOrBjq45RG8IJ9f/5dof3JbOqCmUSP0S1n1kG51G9Rb2XAbIwSClViahdofdprP+/M8UReSKUGz2UlUflh+GVBouviG873GqIKQEbWDq3zFiFYBdztt9c0Dh2DjQt0AAA="></div>'+
+          '<small>Via '+numero+(totalPartes>1?' · Página '+parte+'/'+totalPartes:'')+'</small></span></div>'+
+          '<div class="truckSlot"><img class="headerTruck" alt="" src="data:image/webp;base64,UklGRgwDAABXRUJQVlA4IAADAABwEACdASouACoAPm0ulEckIiIhJzgMkIANiWwAuzPaeZ+7+YJYmwYEi2wHik/pn2Nt5E3m+szc7R4QPsPzfCD6a/JR/hPyQ4MTj/9A/0dsgmReQD6C9gn9YP9yC3zrG1NnN9gcGXAvRXEzqCJCP8kC7s3H/hbJKLMS1sKrsP8bzlXNcq6l6/+WT6E4AADgE7oPf/+WGBD5f2/LHdZStjL2nr2P9d4lAIvbOs/v9dXLRe3tRDwd0WXn0g43bK5ETu73sb7ipKy34OGIQ52Th67sKLma4xhm2bf/deVmLY1b//xzk+6br2Jld7gAOXVn9cXI/hLp3woZlXb8x//ImnGqzgM/B3R8CTcL/x/yi6wX4T1UHCv0bdr8M0zFW/lmUdr167KV048uAwZfbr9lboB2NErvE+uxU631Br6niA9AAZ34D05PBsl3ID17c1HLfSRvo5Y1zwP4z9pxQg6ja4uwb0JMtX4LdEVN3RyfNPLELpTvO/3ocrY7QLiTIiSdnxfMovBjAt8h+Rg9+yP7/MfSD7tBEqalPL4wlkABnmED0z91BMvozdqaYfHNYfd1EnBDn/oiu/8abR84ZZ8u7tWMhadYsTNAdklavOqHWTdlMdX9xIbM7ZLpn1R1lhvuiW0FaWokV5PoyGB9pNMK1wlnyS/S6/9NY/X8VvL2/7ttMXJ1T/+GgJ2zKMm0RkQNyXCJ4HJF+F/mKExk96+Dzfln5zE7H8JoQreOP5nYa0L7/8f/6fYO4lDW7MqHpIO5zRqpult6ANvulHMsft/XaKfOSHcFKdB6TajXqoeRlziV7mMmnwB5RwtQkFAYBAAJF2EX2f5SbD495dhQMDsTrtP2iAhY6cuL7EMy//w8cR8L99aZ/zkFJ1x/i/wuLsmFTVxOrBjq45RG8IJ9f/5dof3JbOqCmUSP0S1n1kG51G9Rb2XAbIwSClViahdofdprP+/M8UReSKUGz2UlUflh+GVBouviG873GqIKQEbWDq3zFiFYBdztt9c0Dh2DjQt0AAA="></div>'+
         '<div class="docNo"><div><strong>Data:</strong> '+escapeHTML(dataRomaneioFormatada(header.data_saida))+
           '</div><div><strong>Cód.:</strong> '+escapeHTML(header.numero)+'</div></div>'+
         '<div class="brandLogo"><img alt="GVG" src="data:image/webp;base64,UklGRgACAABXRUJQVlA4IPQBAACQDACdASpFACsAPm00lEekIyIhJEuwgA2JaQARTuLl/c/FPcFf2z8iMlvolPEDF385/017A360/8H8sOMrJ/rNpOgKRkZj0oCeTsTyzg4VTA2ahCXwBRHZb7vLW5Lz7ZypnUeoeK2T0+X7VF1AAP7/GkWPqATFx/NH6MkV/vz//4nX//zSH3vidbFz+RDDLSR6dnodCwxj9786d4+7Q/9bs/KGMWnHVL6ht9cwtH8x/m5ONx+VGQBp/HM1y3GdoUVZ1nK+YO4LXBtLrr6Jdlr086+VJR/YmeuzPvL8Yj4So/TqS7T5/mmfCCaxZLz8DvHgvemd5oA2M9sxrAOY92S19yU5eeXlqsvn/XNRTRFC9IMFZZBdPTCQ8MseTwyf9cjdKmPjvyW7jJbQ9017FCA0fRlzS9NhQuC3+N/SB8eWnFTAvcljkxGh+9U2S56LcAidyexmiAgtnn/1EjtlntOKFLiALqLrLA7Yyiz/8lzriZDevUmWV//D447w+9dvdIKZ6uvdRh9hF5k5hFS3imlCXE4zQmeiftko+tFjIGolDO9GjzrXxYq92HQEQ9rU7xnGjEkhy3VWaqIhl/nLlJF8d2rYuXD6/hMnejhmwz/qL/vh2eDF6+96ojPJQnPjEevv7+DnU5y4rPKFUmnr8wnFAAAAAA=="></div></div>'+
@@ -1448,22 +1448,22 @@ function construirHTMLRomaneio(header,linhas){
     }
   }
   const styles=[
-    '@page{size:A4 portrait;margin:9mm}',
+    '@page{size:A4 portrait;margin:0}',
     '*{box-sizing:border-box}html,body{margin:0;padding:0;background:white;color:#101010;font-family:Arial,Helvetica,sans-serif}',
-    '.printPage{height:276mm;page-break-after:always;break-after:page;overflow:hidden}',
+    '.printPage{height:297mm;padding:9mm;page-break-after:always;break-after:page;overflow:hidden}',
     '.printPage:last-child{page-break-after:auto;break-after:auto}',
     '.printPage.two{display:flex;flex-direction:column;justify-content:space-between}',
     '.printPage.two .copy{height:133mm}',
     '.printPage.two .copy:first-child{border-bottom:1px dashed #aaa;padding-bottom:6mm}',
     '.printPage.single .copy{min-height:0}',
     '.copy{padding:1mm 0;display:block;position:relative}',
-    '.heading{display:grid;grid-template-columns:18mm minmax(0,1fr) 30mm 18mm;gap:1mm;align-items:stretch;height:14mm}',
+    '.heading{display:grid;grid-template-columns:18mm minmax(0,1fr) 17mm 30mm 18mm;gap:1mm;align-items:stretch;height:14mm}',
     '.brandLogo{display:flex;align-items:center;justify-content:center;min-width:0}',
     '.brandLogo img{width:100%;max-height:14mm;object-fit:contain}',
     '.headerTitle{border:1px solid #333;display:flex;align-items:center;justify-content:center;gap:3mm;text-align:center;min-width:0;padding:1mm}',
     '.headerTitle strong{font-size:9px;white-space:normal}',
     '.headerTitle small{display:block;font-size:7px;font-weight:400;margin-top:1.5mm;color:#444}',
-    '.headerTruck{width:14mm;height:12mm;object-fit:contain;flex:none}',
+    '.truckSlot{display:flex;align-items:center;justify-content:center;min-width:0}.headerTruck{width:14mm;height:12mm;object-fit:contain;flex:none}',
     '.docNo{display:flex;flex-direction:column;border:1px solid #333;min-width:0}',
     '.docNo div{flex:1;display:flex;align-items:center;gap:3px;padding:0 1mm;font-size:8px;white-space:nowrap}',
     '.docNo div+div{border-top:1px solid #333}',
@@ -3368,7 +3368,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v38.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v39.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
