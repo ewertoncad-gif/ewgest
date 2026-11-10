@@ -191,6 +191,14 @@
     .romaneioRow{border:1px solid #37556b;border-radius:10px;padding:12px;margin:12px 0;background:#10263b}
     .romaneioRow .itemline{align-items:center;gap:10px}
     .romaneioRow .romaneioRowFields{display:grid;grid-template-columns:minmax(0,1fr) 125px 125px;gap:10px}
+    .romaneioTransportChoice{display:flex;gap:8px;align-items:center}
+    .romaneioTransportChoice select{flex:1;min-width:0}
+    .romaneioTransportChoice button{white-space:nowrap;padding:11px}
+    .romaneioSearch{margin:7px 0 5px}
+    .romaneioCancel{border-color:#ae6e66;color:#ffd7cf}
+    .romaneioRow .romaneioKind{max-width:340px}
+    .romaneioCancelPrint{background:#f4cbcb;border:2px solid #a11;color:#a11;font-size:19px;
+       font-weight:900;text-align:center;letter-spacing:5px;padding:3mm;margin:4mm 0}
     .romaneioRow .romaneioRowFields label{margin-top:9px}
     .romaneioRowSummary{font-size:12px;color:#c4dbea;margin:9px 0;line-height:1.55}
     .romaneioRow .romaneioRemove{padding:7px 10px}
@@ -223,7 +231,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • romaneios e fábricas v36.0</div>
+        <div class="build">EWGEST • romaneios flexíveis v37.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -510,17 +518,27 @@
     <form id="romaneioForm">
       <div class="romaneioGrid">
         <div><label for="romaneioDate">Data da saída</label><input type="date" id="romaneioDate" required></div>
-        <div><label for="romaneioPlate">Placa do veículo</label><input id="romaneioPlate" maxlength="12" placeholder="ABC1D23" required></div>
-        <div><label for="romaneioDriver">Motorista</label><input id="romaneioDriver" maxlength="140" placeholder="Nome do motorista" required></div>
+        <div><label for="romaneioPlate">Placa do veículo</label>
+          <div class="romaneioTransportChoice">
+            <select id="romaneioPlate" required><option value="">Selecione uma placa</option></select>
+            <button type="button" class="btn secondary" id="romaneioNewPlate">+ Nova</button>
+          </div>
+        </div>
+        <div><label for="romaneioDriver">Motorista</label>
+          <div class="romaneioTransportChoice">
+            <select id="romaneioDriver" required><option value="">Selecione um motorista</option></select>
+            <button type="button" class="btn secondary" id="romaneioNewDriver">+ Novo</button>
+          </div>
+        </div>
         <div><label for="romaneioNotes">Observações (opcional)</label><input id="romaneioNotes" maxlength="1000" placeholder="Informações da entrega"></div>
       </div>
       <h3 style="margin:22px 0 5px">Itens do romaneio</h3>
       <div id="romaneioRows"></div>
       <div class="romaneioCreateButtons">
-        <button type="button" id="romaneioAddEsquadria" class="btn secondary">+ Esquadria completa</button>
+        <button type="button" id="romaneioAddEsquadria" class="btn secondary">+ Adicionar esquadria</button>
         <button type="button" id="romaneioAddMaterial" class="btn secondary">+ Material avulso</button>
       </div>
-      <p class="hint">Materiais avulsos entram no comprovante, mas não alteram o saldo das esquadrias. Para marcos ou folhas separados, use a saída parcial existente.</p>
+      <p class="hint">Em cada esquadria, escolha <strong>completa, só marco ou só folhas</strong>. Folhas são contadas individualmente; materiais avulsos não alteram o saldo de produção.</p>
       <label class="romaneioConfirmBox"><input id="romaneioConfirm" type="checkbox" required>
         <span>Confirmo que os materiais foram efetivamente expedidos nesta data. A emissão registra todas as saídas das esquadrias selecionadas e não permite duplicidade de envio.</span>
       </label>
@@ -744,6 +762,7 @@ const area = (i,q) => Number(i.largura_mm||0)*Number(i.altura_mm||0)*Number(q||0
 let session=null, currentUser=null, currentCompany=null, membership=null, works=[], elements=[], releaseHistory=[], selectedWork=null, selectedItem=null;
 let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='',detailMode='release',currentShipmentRequestId=null;
 let romaneios=[],romaneioItens=[],romaneioLoadError='',romaneioRows=[],romaneioOperationId=null,romaneioOperationSignature='';
+let romaneioMotoristas=[],romaneioVeiculos=[],romaneioTransportError='';
 let typologyCatalog=[],typologyOrigins=[],typologyOriginReady=false,editingTypology=null,editingPendingItem=null,typologyEditingStep=1,typologyCroquis=[];
 let variationManagerCatalogSignature='';
 let recognitionPendingItem=null;
@@ -868,18 +887,25 @@ async function loadPanel(){
   try{
     const [config,history]=await Promise.all([
       apiGet('esquadrias_saida_config',{select:'esquadria_id,folhas_por_unidade'}),
-      apiGet('saidas_producao',{select:'id,esquadria_id,tipo,quantidade,data_saida',order:'data_saida.desc',limit:'1000'})
+      apiGet('saidas_producao',{select:'id,esquadria_id,tipo,quantidade,data_saida',cancelado_em:'is.null',order:'data_saida.desc',limit:'1000'})
     ]);
     dispatchConfig=config||[];shipmentHistory=history||[];dispatchReady=true;dispatchLoadError='';
   }catch(err){dispatchConfig=[];shipmentHistory=[];dispatchReady=false;dispatchLoadError=err.message;}
   try{
     const [headers,lines]=await Promise.all([
-      apiGet('romaneios',{select:'id,obra_id,numero,data_saida,motorista,placa,observacoes,criado_em',
+      apiGet('romaneios',{select:'id,obra_id,numero,data_saida,motorista,placa,observacoes,criado_em,status,cancelado_em,motivo_cancelamento',
         empresa_id:'eq.'+currentCompany.id,order:'data_saida.desc',limit:'1000'}),
-      apiGet('romaneios_itens',{select:'id,romaneio_id,sequencia,natureza,esquadria_id,saida_producao_id,codigo,localizacao,descricao,medida,quantidade,unidade,area_m2,fabrica,prazo_liberacao_saida_dias',order:'sequencia.asc',limit:'3000'})
+      apiGet('romaneios_itens',{select:'id,romaneio_id,sequencia,natureza,esquadria_id,saida_producao_id,codigo,localizacao,descricao,medida,quantidade,unidade,area_m2,fabrica,prazo_liberacao_saida_dias,tipo_saida',order:'sequencia.asc',limit:'3000'})
     ]);
     romaneios=headers||[];romaneioItens=lines||[];romaneioLoadError='';
   }catch(err){romaneios=[];romaneioItens=[];romaneioLoadError=err.message;}
+  try{
+    const [motoristas,veiculos]=await Promise.all([
+      apiGet('romaneios_motoristas',{select:'id,nome,ativo',empresa_id:'eq.'+currentCompany.id,ativo:'eq.true',order:'nome.asc'}),
+      apiGet('romaneios_veiculos',{select:'id,placa,ativo',empresa_id:'eq.'+currentCompany.id,ativo:'eq.true',order:'placa.asc'})
+    ]);
+    romaneioMotoristas=motoristas||[];romaneioVeiculos=veiculos||[];romaneioTransportError='';
+  }catch(err){romaneioMotoristas=[];romaneioVeiculos=[];romaneioTransportError=err.message;}
 
   node('heading').textContent=currentCompany.nome;
   let displayLogin=currentUser.email||'Usuário';
@@ -1011,7 +1037,7 @@ function romaneioSaldoCompleto(item){
 }
 function renderResumoRomaneios(obraId){
   const cabecalhos=romaneios.filter(r=>r.obra_id===obraId);
-  const ids=new Set(cabecalhos.map(r=>r.id));
+  const ids=new Set(cabecalhos.filter(r=>r.status!=='cancelado').map(r=>r.id));
   const linhas=romaneioItens.filter(i=>ids.has(i.romaneio_id)&&i.natureza==='esquadria');
   const fab=['AFOGADOS','IMBIRIBEIRA'];
   const partes=fab.map(nome=>{
@@ -1029,8 +1055,8 @@ function renderResumoRomaneios(obraId){
   const idsDaObra=new Set(elements.filter(e=>e.obra_id===obraId).map(e=>e.id));
   const historicas=releaseHistory.filter(h=>!h.fabrica&&idsDaObra.has(h.esquadria_id))
     .reduce((x,h)=>x+Number(h.quantidade||0),0);
-  node('romaneioOverview').innerHTML='<strong>Prazo de produção por fábrica</strong> · '+cabecalhos.length+
-    ' romaneio(s) nesta obra<br>'+partes.join('<br>')+
+  node('romaneioOverview').innerHTML='<strong>Prazo de produção por fábrica</strong> · '+cabecalhos.filter(r=>r.status!=='cancelado').length+
+    ' romaneio(s) ativo(s) nesta obra<br>'+partes.join('<br>')+
     '<p class="hint" style="margin:7px 0 0">Indicador: dias corridos entre liberação e expedição, ponderados por unidades. Não mede horas efetivas de fabricação.'+
     (historicas?' Liberações antigas sem fábrica ('+historicas+' unidade(s)) não entram na média.':'')+'</p>'+
     (romaneioLoadError?'<p class="feedback">Romaneios indisponíveis: '+escapeHTML(romaneioLoadError)+'</p>':'');
@@ -1296,6 +1322,8 @@ async function emitirRomaneio(event){
     const data=node('romaneioDate').value;
     const motorista=node('romaneioDriver').value.trim();
     const placa=node('romaneioPlate').value.trim().toUpperCase();
+    if(!romaneioMotoristas.some(x=>x.nome===motorista)||!romaneioVeiculos.some(x=>x.placa===placa))
+      throw new Error('Selecione motorista e placa cadastrados.');
     const observacoes=node('romaneioNotes').value.trim();
     if(!/^\d{4}-\d{2}-\d{2}$/.test(data)||data>todayLocal()||data<'2000-01-01')
       throw new Error('Informe uma data de saída válida, não futura.');
@@ -3119,7 +3147,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v36.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v37.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
