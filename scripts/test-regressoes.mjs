@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'conferência sem bloqueios v35.0',
+ 'comparação clara v35.1',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -97,6 +97,10 @@ for(const token of [
  'id="differenceCreateFields"',
  'id="differenceCorrectFields"',
  'id="differenceSave"',
+ 'class="differenceComparisonGrid"',
+ 'differenceCompareCard',
+ "card('DESCRIÇÃO DA OBRA'",
+ "card('DESCRIÇÃO DO CATÁLOGO'",
  'function abrirConferenciaDescricao(item)',
  'function atualizarTelaDiferenca()',
  'function salvarConferenciaDescricao()',
@@ -167,7 +171,10 @@ assert.ok(corretos.some(t=>t.codigo==='INV-PGR107'),
   'Permitir revisar descricao diferente com confirmacao extra');
 // Verifica a tela de confirmação para as duas respostas e as três escolhas.
 const state={choice:'',next:'',form:{
- differenceConfig:{value:'m1'},differenceComparison:{replaceChildren(){},append(){}},
+ differenceConfig:{value:'m1'},differenceComparison:{
+   children:[],replaceChildren(){this.children=[];},
+   append(...children){this.children.push(...children);}
+ },
  differenceSecondStep:{classList:{toggle(){}}},differenceCreateFields:{classList:{toggle(){}}},
  differenceCorrectFields:{classList:{toggle(){}}},differenceCorrectDescription:{textContent:''},
  differenceNewDescription:{value:'MODULO JANELA DE CORRER - SERIE 105'},
@@ -180,7 +187,9 @@ const fakeDocument={
   if(q.includes('differenceNext'))return state.next?{value:state.next}:null;
   return null;
  },
- createElement(){return {textContent:''};}
+ createElement(tag){return {tag,textContent:'',className:'',children:[],
+   append(...children){this.children.push(...children);}
+ };}
 };
 const modReferencia={id:'m1',codigo_interno:'MOD-000045',numero_variacao:1,
  tipologia_principal_id:'fam',descricao:'FACHADA UNITIZADA - MODULO DE CORRER - SERIE 105'};
@@ -198,6 +207,13 @@ const functions=new Function('differencePendingItem','typologyCatalog','modulati
 );
 state.choice='sim';functions.atualizarTelaDiferenca();
 assert.equal(state.form.differenceSave.disabled,false,'SIM permite vincular configuração');
+assert.equal(state.form.differenceComparison.children.length,2,'Descrições em duas caixas');
+const boxes=state.form.differenceComparison.children;
+assert.equal(boxes[0].children[0].textContent,'DESCRIÇÃO DA OBRA');
+assert.equal(boxes[1].children[0].textContent,'DESCRIÇÃO DO CATÁLOGO');
+assert.ok(boxes[0].children[1].textContent.includes('JANELA DE CORRER'),'Descrição da obra intacta');
+assert.ok(boxes[1].children[1].textContent.includes('FACHADA UNITIZADA'),'Descrição do catálogo intacta');
+assert.ok(!boxes.some(b=>b.children[1].textContent.includes('-01')),'Sufixo técnico oculto da comparação');
 state.choice='nao';state.next='nova';functions.atualizarTelaDiferenca();
 assert.equal(state.form.differenceSave.disabled,false,'NÃO permite cadastrar nova configuração');
 state.form.differenceNewDescription.value=modReferencia.descricao;
