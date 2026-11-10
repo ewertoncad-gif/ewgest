@@ -379,7 +379,7 @@ assert.ok(!folhaFormato.includes('400,00 x 1.100,00 mm'),
  'Não mostrar medida de esquadria em mm na impressão');
 const medidaInicio=source.indexOf('function medidaRomaneioEmMetros(medida){');
 const medidaFim=source.indexOf('function construirHTMLRomaneio(header,linhas){',medidaInicio);
-const converter=new Function(source.slice(medidaInicio,medidaFim)+'\\nreturn medidaRomaneioEmMetros;')();
+const converter=new Function(source.slice(medidaInicio,medidaFim)+'\nreturn medidaRomaneioEmMetros;')();
 assert.equal(converter('2.400,00 x 2.250,00 mm'),'2,40 × 2,25 m',
  'Formatação de origem com vírgula decimal');
 assert.equal(converter('2400.00 x 2250.00 mm'),'2,40 × 2,25 m',
