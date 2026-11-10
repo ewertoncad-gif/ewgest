@@ -159,6 +159,9 @@
     .differenceCompareCard.catalog{border-color:#3b8271;background:#102f2b}
     .differenceCompareCard .differenceCardLabel{display:block;font-size:12px;letter-spacing:.06em;font-weight:700;color:#a4d4f7;margin-bottom:12px}
     .differenceCompareCard.catalog .differenceCardLabel{color:#81e2bd}
+    .differenceCompareCard .differenceTypeCode{font-size:18px;line-height:1.35;font-weight:700;overflow-wrap:anywhere;margin:0 0 16px;color:#f6fbff}
+    .differenceCompareCard.catalog .differenceTypeCode{color:#8be7c7}
+    .differenceCompareCard .differenceDescLabel{display:block;font-size:12px;font-weight:600;color:#b5cddd;margin-bottom:6px}
     .differenceCompareCard p{font-size:15px;line-height:1.65;margin:0;color:#f0f5fa;overflow-wrap:anywhere}
     @media(max-width:620px){.differenceComparisonGrid{grid-template-columns:1fr}.differenceCompareCard{padding:15px}}
 
@@ -203,7 +206,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • comparação clara v35.1</div>
+        <div class="build">EWGEST • comparação de tipologias v35.2</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -1507,8 +1510,7 @@ function abrirConferenciaDescricao(item){
   differencePendingItem=item;
   const principal=typologyCatalog.find(t=>t.id===(tipologia.tipologia_principal_id||tipologia.id))||tipologia;
   const obra=works.find(w=>w.id===item.obra_id);
-  node('differenceOrigin').textContent='Esquadria '+item.codigo+' · '+(obra?.nome||'Obra não localizada')+
-    ' · Tipologia '+principal.codigo;
+  node('differenceOrigin').textContent='Esquadria '+item.codigo+' · '+(obra?.nome||'Obra não localizada');
   for(const el of document.querySelectorAll('input[name="differenceMatch"],input[name="differenceNext"]')){
     el.checked=false;
   }
@@ -1545,20 +1547,31 @@ function atualizarTelaDiferenca(){
   const compare=node('differenceComparison');
   compare.replaceChildren();
   if(item){
-    const card=(label,description,kind)=>{
+    const card=(label,codigo,description,kind)=>{
       const box=document.createElement('div');
       box.className='differenceCompareCard'+(kind==='catalog'?' catalog':'');
       const heading=document.createElement('span');
       heading.className='differenceCardLabel';
       heading.textContent=label;
+      const codigoEl=document.createElement('div');
+      codigoEl.className='differenceTypeCode';
+      codigoEl.textContent=codigo;
+      const descricaoLabel=document.createElement('span');
+      descricaoLabel.className='differenceDescLabel';
+      descricaoLabel.textContent='Descrição';
       const detail=document.createElement('p');
       detail.textContent=description;
-      box.append(heading,detail);
+      box.append(heading,codigoEl,descricaoLabel,detail);
       return box;
     };
+    const tipologiaPrincipal=tipologia?
+      (typologyCatalog.find(t=>t.id===(tipologia.tipologia_principal_id||tipologia.id))||tipologia):null;
+    const codigoOriginal=String(item.rotulo_tipologia_relatorio||'').trim()||'Não informado no relatório';
+    const codigoCatalogo=tipologiaPrincipal?.codigo||'Tipologia não identificada';
     compare.append(
-      card('DESCRIÇÃO DA OBRA',item.descricao||'Descrição não informada','obra'),
-      card('DESCRIÇÃO DO CATÁLOGO',
+      card('TIPOLOGIA INFORMADA NA OBRA',codigoOriginal,
+        item.descricao||'Descrição não informada','obra'),
+      card('TIPOLOGIA DO CATÁLOGO',codigoCatalogo,
         mod?.descricao||'Selecione uma configuração existente para comparar.','catalog')
     );
   }
@@ -2619,7 +2632,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v35.1 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v35.2 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
