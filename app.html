@@ -1152,6 +1152,198 @@ function coletarItensRomaneio(){
       localizacao:campo('localizacao'),medida:campo('medida'),quantidade,unidade};
   });
 }
+
+function dataRomaneioFormatada(value){
+  return String(value||'').split('-').reverse().join('/');
+}
+function construirHTMLRomaneio(header,linhas){
+  const obra=works.find(w=>w.id===header.obra_id);
+  if(!obra||!linhas?.length)throw new Error('Romaneio sem obra ou itens para imprimir.');
+  const itens=linhas.slice().sort((a,b)=>Number(a.sequencia)-Number(b.sequencia));
+  const duasVias=itens.length<=8&&itens.every(i=>String(i.descricao||'').length<=140);
+  const maxPorPagina=16;
+  const blocos=[];
+  function construirVia(numero,parcelas,parte,totalPartes,compacta){
+    const soma=parcelas.reduce((v,x)=>v+(Number(x.area_m2)||0),0);
+    const rows=parcelas.map(linha=>{
+      const areax=linha.area_m2===null||linha.area_m2===undefined?'—':
+        Number(linha.area_m2).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+      return '<tr><td class="center">'+Number(linha.sequencia)+'</td>'+
+        '<td>'+escapeHTML(linha.codigo||'')+'</td>'+
+        '<td>'+escapeHTML(linha.localizacao||'')+'</td>'+
+        '<td>'+escapeHTML(linha.descricao||'')+'</td>'+
+        '<td class="center">'+escapeHTML(linha.medida||'')+'</td>'+
+        '<td class="center">'+Number(linha.quantidade)+'</td>'+
+        '<td class="center">'+escapeHTML(linha.unidade||'UNID.')+'</td>'+
+        '<td class="right">'+areax+'</td></tr>';
+    }).join('');
+    return '<section class="copy '+(compacta?'compact':'full')+'">'+
+      '<div class="heading">'+
+        '<div class="logo">GVG<small>ESQUADRIAS</small></div>'+
+        '<div class="title"><strong>COMPROVANTE DE ENTREGA DE MATERIAIS</strong>'+
+          '<small>Expedição · Via '+numero+(totalPartes>1?' · Página '+parte+'/'+totalPartes:'')+'</small></div>'+
+        '<div class="docNo"><strong>'+escapeHTML(header.numero)+'</strong>'+
+          '<small>Data: '+escapeHTML(dataRomaneioFormatada(header.data_saida))+'</small></div></div>'+
+      '<div class="infos"><div><b>CLIENTE:</b> '+escapeHTML(obra.cliente||'Não informado')+
+        '<br><b>OBRA:</b> '+escapeHTML(obra.nome)+'</div>'+
+        '<div><b>MOTORISTA:</b> '+escapeHTML(header.motorista)+
+        '<br><b>PLACA:</b> '+escapeHTML(header.placa)+'</div></div>'+
+      '<table><colgroup><col style="width:5%"><col style="width:10%"><col style="width:13%">'+
+        '<col style="width:30%"><col style="width:16%"><col style="width:8%">'+
+        '<col style="width:8%"><col style="width:10%"></colgroup>'+
+        '<thead><tr><th>Item</th><th>Cód.</th><th>Localização</th><th>Descrição</th>'+
+        '<th>Medida</th><th>Quant.</th><th>Un.</th><th>M²</th></tr></thead>'+
+        '<tbody>'+rows+'</tbody></table>'+
+      '<div class="total"><strong>Área dos itens desta '+(totalPartes>1?'página':'via')+
+        ':</strong> '+soma.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' m²</div>'+
+      (header.observacoes?'<div class="notes">Observações: '+escapeHTML(header.observacoes)+'</div>':'')+
+      '<div class="signatures"><div>Entregue por:<span></span></div>'+
+         '<div>Solicitado por:<span></span></div><div>Recebido por:<span></span></div></div>'+
+      '</section>';
+  }
+  if(duasVias){
+    blocos.push('<div class="printPage two">'+
+      construirVia(1,itens,1,1,true)+
+      construirVia(2,itens,1,1,true)+'</div>');
+  }else{
+    for(const via of [1,2]){
+      const total=Math.ceil(itens.length/maxPorPagina);
+      for(let p=0;p<total;p++){
+        const pedaco=itens.slice(p*maxPorPagina,(p+1)*maxPorPagina);
+        blocos.push('<div class="printPage single">'+
+          construirVia(via,pedaco,p+1,total,false)+'</div>');
+      }
+    }
+  }
+  const styles=[
+    '@page{size:A4 portrait;margin:9mm}',
+    '*{box-sizing:border-box}html,body{margin:0;padding:0;background:white;color:#101010;font-family:Arial,Helvetica,sans-serif}',
+    '.printPage{height:276mm;page-break-after:always;break-after:page;overflow:hidden}',
+    '.printPage:last-child{page-break-after:auto;break-after:auto}',
+    '.printPage.two{display:flex;flex-direction:column;justify-content:space-between}',
+    '.printPage.two .copy{height:133mm}',
+    '.printPage.two .copy:first-child{border-bottom:1px dashed #aaa;padding-bottom:6mm}',
+    '.printPage.single .copy{min-height:0}',
+    '.copy{padding:1mm 0;display:block;position:relative}',
+    '.heading{display:grid;grid-template-columns:21mm 1fr 32mm;border:1px solid #333;min-height:17mm;align-items:center}',
+    '.logo{margin:0 2mm;background:#14283e;color:white;text-align:center;font-weight:900;font-size:17px;letter-spacing:-1px;padding:2mm 1mm}',
+    '.logo small{display:block;font-size:6px;letter-spacing:1px;font-weight:600}',
+    '.title{text-align:center;font-size:11px}.title small{display:block;margin-top:2mm;font-size:8px}',
+    '.docNo{text-align:center;border-left:1px solid #555;padding:2mm 1mm;font-size:11px}',
+    '.docNo small{display:block;margin-top:2mm;font-size:8px}',
+    '.infos{display:flex;justify-content:space-between;gap:5mm;font-size:9px;line-height:1.7;margin:3mm 0 2mm}',
+    '.infos>div{width:49%}',
+    'table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:8.5px}',
+    'th,td{border:1px solid #444;padding:2.2mm 1mm;vertical-align:middle;word-break:break-word}',
+    'thead{display:table-header-group}th{background:#e3e3e3;text-align:center;font-weight:bold}',
+    'td.center{text-align:center}td.right{text-align:right}',
+    '.total{text-align:right;font-size:9px;padding:2.2mm 1mm}',
+    '.notes{font-size:8.5px;margin:2mm 0;overflow-wrap:anywhere}',
+    '.signatures{display:grid;grid-template-columns:repeat(3,1fr);gap:7mm;margin-top:8mm;font-size:8px}',
+    '.signatures span{display:block;border-bottom:1px solid #777;height:12mm}',
+    '.copy.compact table{font-size:8px}.copy.compact th,.copy.compact td{padding:1.5mm .8mm}',
+    '@media screen{body{background:#ddd;padding:15px}.printPage{margin:0 auto 18px;background:white;width:192mm;padding:0;box-shadow:0 2px 9px #bbb}}',
+    '@media print{body{background:white}.printPage{margin:0}}'
+  ].join('');
+  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>'+
+    escapeHTML(header.numero)+' · '+escapeHTML(obra.nome)+'</title><style>'+styles+
+    '</style></head><body>'+blocos.join('')+'</body></html>';
+}
+function imprimirRomaneio(id,janelaExistente=null){
+  const cabecalho=romaneios.find(r=>r.id===id);
+  const linhas=romaneioItens.filter(i=>i.romaneio_id===id);
+  const pagina=janelaExistente||window.open('about:blank','_blank');
+  if(!pagina){node('detailError').textContent='Permita janelas de impressão ou use o histórico para reimprimir.';return false;}
+  if(!cabecalho||!linhas.length){
+    pagina.document.body.textContent='Romaneio não localizado. Atualize o painel e tente reimprimir.';
+    return false;
+  }
+  try{
+    pagina.opener=null;
+    pagina.document.open();
+    pagina.document.write(construirHTMLRomaneio(cabecalho,linhas));
+    pagina.document.close();
+    pagina.focus();
+    // O navegador permite escolher impressora ou "Salvar como PDF".
+    pagina.setTimeout(()=>pagina.print(),350);
+    return true;
+  }catch(e){
+    node('detailError').textContent='O romaneio foi localizado, mas a impressão falhou: '+e.message;
+    return false;
+  }
+}
+async function emitirRomaneio(event){
+  event.preventDefault();
+  if(!selectedWork)return;
+  let payload,signature;
+  try{
+    const itens=coletarItensRomaneio();
+    const data=node('romaneioDate').value;
+    const motorista=node('romaneioDriver').value.trim();
+    const placa=node('romaneioPlate').value.trim().toUpperCase();
+    const observacoes=node('romaneioNotes').value.trim();
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(data)||data>todayLocal()||data<'2000-01-01')
+      throw new Error('Informe uma data de saída válida, não futura.');
+    if(motorista.length<2||placa.length<5)throw new Error('Informe motorista e placa.');
+    if(!node('romaneioConfirm').checked)
+      throw new Error('Confirme que os materiais foram efetivamente expedidos.');
+    payload={p_obra_id:selectedWork.id,p_data_saida:data,p_motorista:motorista,
+      p_placa:placa,p_observacoes:observacoes,p_itens:itens};
+    signature=JSON.stringify(payload);
+    node('romaneioError').textContent='';
+  }catch(err){node('romaneioError').textContent=err.message;return;}
+  if(signature!==romaneioOperationSignature){
+    romaneioOperationId=crypto.randomUUID();
+    romaneioOperationSignature=signature;
+  }
+  const janela=window.open('about:blank','_blank');
+  if(janela){
+    janela.document.body.textContent='Conferindo a emissão e preparando o romaneio...';
+    janela.opener=null;
+  }
+  const button=node('romaneioSave');
+  button.disabled=true;button.textContent='Emitindo…';
+  let confirmado=false;
+  let idSalvo=null;
+  const obraId=selectedWork.id;
+  try{
+    await ensureSession();
+    const resultado=await request('/rest/v1/rpc/emitir_romaneio_com_saidas',{
+      method:'POST',token:session.access_token,
+      body:{...payload,p_chave_operacao:romaneioOperationId}
+    });
+    confirmado=true;idSalvo=resultado.id;
+    fecharEmissaoRomaneio();
+    // Após confirmação, falha de rede na atualização NUNCA autoriza repetir a expedição.
+    try{
+      await loadPanel();
+      const obra=works.find(w=>w.id===obraId);
+      if(obra){detailMode='shipment';renderDetail(obra);}
+      if(janela){
+        if(!imprimirRomaneio(idSalvo,janela))
+          node('detailError').textContent='Romaneio '+resultado.numero+
+            ' emitido, mas a impressão não abriu. Reimprima pelo histórico.';
+      }
+      node('romaneioHistoryPanel').classList.remove('hidden');
+      renderHistoricoRomaneios(obraId);
+      if(!node('detailError').textContent.startsWith('Romaneio '))
+        node('detailError').textContent='Romaneio '+resultado.numero+
+          ' emitido. As saídas das esquadrias foram registradas automaticamente.';
+    }catch(err){
+      if(janela)janela.document.body.textContent='Romaneio emitido. Atualize o EWGEST para reimprimir.';
+      node('detailError').textContent='Romaneio '+resultado.numero+
+        ' emitido, mas os dados não atualizaram: '+err.message+
+        '. NÃO emita novamente. Atualize e reimprima pelo histórico.';
+    }
+  }catch(err){
+    if(janela)janela.document.body.textContent='Emissão não confirmada. Confira o histórico antes de tentar novamente.';
+    node('romaneioError').textContent='Emissão não confirmada: '+err.message+
+      '. Antes de repetir, confira o histórico. A mesma tentativa reutiliza a chave e não duplica a saída.';
+  }finally{
+    button.disabled=false;button.textContent='Emitir e registrar saídas';
+    if(confirmado){romaneioOperationId=null;romaneioOperationSignature='';}
+  }
+}
 function changeDetailMode(mode) {
   detailMode=mode;
   if(selectedWork)renderDetail(selectedWork);
@@ -1256,6 +1448,7 @@ node('toggleRomaneioHistory').addEventListener('click',()=>{
   if(willOpen)renderHistoricoRomaneios(selectedWork.id);
 });
 node('romaneioCancel').addEventListener('click',fecharEmissaoRomaneio);
+node('romaneioForm').addEventListener('submit',emitirRomaneio);
 node('romaneioAddEsquadria').addEventListener('click',()=>adicionarLinhaRomaneio('esquadria'));
 node('romaneioAddMaterial').addEventListener('click',()=>adicionarLinhaRomaneio('material'));
 node('tabRelease').addEventListener('click',()=>changeDetailMode('release'));
