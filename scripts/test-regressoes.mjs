@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'consulta de romaneios v39.1',
+ 'descrições editáveis v39.2',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -422,6 +422,9 @@ assert.ok(saidaLonga.includes('.printPage{height:297mm;padding:9mm;'),
  'Margens internas preservadas no A4');
 assert.ok(duas.includes('class="truckSlot"')&&duas.includes('class="headerTruck"'),
  'Caminhão presente no cabeçalho');
+assert.ok(duas.includes('<svg class="headerTruck"')&&
+  !source.includes('UklGRgwDAABXRUJQVlA4IAADAABwEACdASou'),
+ 'Caminhão sem a linha preta do bitmap antigo, agora em SVG limpo');
 assert.ok(/class="headerTitle"[\s\S]*?class="truckSlot"[\s\S]*?<\/div><\/div><div class="docNo">/.test(
  duas.replace(/\s+/g,' ')),
  'Caminhão fica DENTRO do mesmo quadro do título, antes da data');
@@ -499,6 +502,36 @@ const consultarStart=source.indexOf('function consultarRomaneio(id){');
 const consultarEnd=source.indexOf('function imprimirRomaneio(id,janelaExistente=null){',consultarStart);
 assert.ok(source.slice(consultarStart,consultarEnd).includes('imprimir:false'),
   'Consultar deve abrir sem solicitar impressão');
-console.log('OK: '+cases.length+' classificacoes; romaneio visualizável, caminhão dentro do título, A4 e regras protegidas.');
+const descInicio=source.indexOf('function descricaoCurtaRomaneio(descricao,');
+const descFim=source.indexOf('function dataRomaneioFormatada(value){',descInicio);
+const descricaoCurta=new Function(source.slice(descInicio,descFim)+
+ '\nreturn descricaoCurtaRomaneio;')();
+assert.equal(descricaoCurta('JANELA DE CORRER - 2 FOLHAS - LINHA GOLD SLIM - HYDRO'),
+  'JANELA CORRER 2F GOLD SLIM (COMPLETA)',
+  'Descrição padrão solicitada pelo usuário');
+assert.equal(descricaoCurta('PORTA DE CORRER - 2 FOLHAS - LINHA GOLD SLIM - HYDRO','marco'),
+  'PORTA CORRER 2F GOLD SLIM (MARCO)','Desmembramento deve indicar marco');
+assert.equal(descricaoCurta('MAXIM-AR 1 FOLHA(S) - LINHA INOVA - HYDRO'),
+  'MAXIM-AR 1F INOVA (COMPLETA)','MAXIM-AR permanece conjunto completo');
+const itemAntigo={...linha(1),natureza:'esquadria',
+ descricao:'JANELA DE CORRER - 2 FOLHAS - LINHA GOLD SLIM - HYDRO',
+ tipo_saida:'completo',descricao_impressao_definida:false};
+assert.ok(montarRomaneio(cabecalho,[itemAntigo]).includes('JANELA CORRER 2F GOLD SLIM (COMPLETA)'),
+ 'Reimpressão de registros antigos também pode apresentar descrição abreviada');
+const custom={...itemAntigo,descricao:'JANELA CORRER 2F GOLD SLIM - ABERTURA EXTERNA\n(COMPLETA)',
+ descricao_impressao_definida:true};
+const htmlCustom=montarRomaneio(cabecalho,[custom]);
+assert.ok(htmlCustom.includes('ABERTURA EXTERNA\n(COMPLETA)'),
+ 'Descrição definida pelo usuário deve ter prioridade sobre abreviação automática');
+assert.ok(htmlCustom.includes('white-space:pre-line')&&htmlCustom.includes('overflow-wrap:anywhere'),
+ 'Quebra de linha longa no A4 deve estar configurada');
+for(const token of [
+ 'data-rom-field="descricao_romaneio"',
+ 'descricao_romaneio:descricaoRomaneio',
+ 'descricao_impressao_definida',
+ 'el.dataset.romaneioDescricaoChave',
+ 'textarea[data-rom-field="descricao_romaneio"]'
+])assert.ok(source.includes(token),'Texto editável e persistente: '+token);
+console.log('OK: '+cases.length+' classificações; descrição curta/editável, reimpressão, caminhão SVG e quebra de linha A4.');
 
 
