@@ -152,6 +152,16 @@
     .differenceStep textarea,.differenceStep input[type=number]{width:100%;max-width:100%;margin:7px 0}
     .differenceMeta{font-size:13px;color:#b1cce0;line-height:1.5}
     .differenceMeta strong{color:#75dfba}
+    /* Comparação em dois painéis independentes; não exibe sufixos técnicos. */
+    #differenceOverlay .modalbox{width:min(100%,760px)}
+    .differenceComparisonGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:14px 0 18px}
+    .differenceCompareCard{min-width:0;border:1px solid #456d89;border-radius:12px;padding:18px;background:#102b40}
+    .differenceCompareCard.catalog{border-color:#3b8271;background:#102f2b}
+    .differenceCompareCard .differenceCardLabel{display:block;font-size:12px;letter-spacing:.06em;font-weight:700;color:#a4d4f7;margin-bottom:12px}
+    .differenceCompareCard.catalog .differenceCardLabel{color:#81e2bd}
+    .differenceCompareCard p{font-size:15px;line-height:1.65;margin:0;color:#f0f5fa;overflow-wrap:anywhere}
+    @media(max-width:620px){.differenceComparisonGrid{grid-template-columns:1fr}.differenceCompareCard{padding:15px}}
+
     @media(max-width:700px){.variationForm{grid-template-columns:1fr}.typologyFamilyHead{flex-direction:column}}
 
     .catalogMeta{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:#abc2d6}
@@ -193,7 +203,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • conferência sem bloqueios v35.0</div>
+        <div class="build">EWGEST • comparação clara v35.1</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -463,8 +473,8 @@
     <p class="hint">A tipologia técnica já está identificada. Compare apenas a configuração. A obra continua liberada para trabalhar.</p>
     <label for="differenceConfig">Configuração cadastrada para comparação</label>
     <select id="differenceConfig"></select>
-    <div id="differenceComparison" class="recognitionCompare" aria-live="polite"></div>
-    <strong>Essa esquadria corresponde à configuração acima?</strong>
+    <div id="differenceComparison" class="differenceComparisonGrid" aria-live="polite"></div>
+    <strong>Essa esquadria corresponde à configuração do catálogo?</strong>
     <div class="differenceChoices" id="differenceMainChoices">
       <label><input type="radio" name="differenceMatch" value="sim"><span>Sim, é a mesma configuração.</span></label>
       <label><input type="radio" name="differenceMatch" value="nao"><span>Não, existe uma diferença técnica.</span></label>
@@ -1508,9 +1518,12 @@ function abrirConferenciaDescricao(item){
   const vazio=document.createElement('option');vazio.value='';
   vazio.textContent=configs.length?'Selecione a configuração para comparar':'Sem configuração existente';
   seletor.append(vazio);
-  for(const m of configs){
+  for(const [idx,m] of configs.entries()){
     const opt=document.createElement('option');opt.value=m.id;
-    opt.textContent=codigoVariacaoTecnica(tipologia,m)+' — '+m.descricao;
+    // O sufixo -01/-02 fica no controle técnico, não na tela de conferência.
+    const descIgual=configs.filter(x=>normalizarReconhecimento(x.descricao)===
+      normalizarReconhecimento(m.descricao)).length>1;
+    opt.textContent=m.descricao+(descIgual?' · opção '+(idx+1):'');
     seletor.append(opt);
   }
   const igual=configs.find(m=>normalizarReconhecimento(m.descricao)===
@@ -1532,13 +1545,22 @@ function atualizarTelaDiferenca(){
   const compare=node('differenceComparison');
   compare.replaceChildren();
   if(item){
-    const a=document.createElement('p');
-    a.textContent='Na obra: '+(item.descricao||'Sem descrição');
-    compare.append(a);
-    const b=document.createElement('p');
-    b.textContent=mod?'No catálogo ('+codigoVariacaoTecnica(tipologia,mod)+'): '+mod.descricao:
-      'Escolha uma configuração existente para comparar.';
-    compare.append(b);
+    const card=(label,description,kind)=>{
+      const box=document.createElement('div');
+      box.className='differenceCompareCard'+(kind==='catalog'?' catalog':'');
+      const heading=document.createElement('span');
+      heading.className='differenceCardLabel';
+      heading.textContent=label;
+      const detail=document.createElement('p');
+      detail.textContent=description;
+      box.append(heading,detail);
+      return box;
+    };
+    compare.append(
+      card('DESCRIÇÃO DA OBRA',item.descricao||'Descrição não informada','obra'),
+      card('DESCRIÇÃO DO CATÁLOGO',
+        mod?.descricao||'Selecione uma configuração existente para comparar.','catalog')
+    );
   }
   node('differenceSecondStep').classList.toggle('hidden',modo!=='nao');
   node('differenceCreateFields').classList.toggle('hidden',modo!=='nao'||opcao!=='nova');
@@ -2597,7 +2619,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v35.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v35.1 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
