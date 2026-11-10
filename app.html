@@ -521,6 +521,23 @@
     </section>
   </main>
 </div>
+<div id="romaneioCancelOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="romaneioCancelTitle">
+    <h2 id="romaneioCancelTitle">Cancelar e estornar romaneio</h2>
+    <p id="romaneioCancelInfo" class="muted"></p>
+    <p class="hint">O documento ficará CANCELADO e as saídas relacionadas serão estornadas logicamente, preservando o histórico. Isto não registra retorno físico dos materiais.</p>
+    <form id="romaneioCancelForm">
+      <label for="romaneioCancelReason">Motivo do cancelamento (10 a 400 caracteres)</label>
+      <textarea id="romaneioCancelReason" rows="4" minlength="10" maxlength="400" required placeholder="Ex.: Romaneio emitido para teste, sem saída efetiva de materiais."></textarea>
+      <p class="hint" id="romaneioCancelCounter">0 / 400 caracteres</p>
+      <div id="romaneioCancelError" class="feedback" role="alert"></div>
+      <div class="modalbuttons">
+        <button type="button" class="btn secondary" id="romaneioCancelDismiss">Voltar sem cancelar</button>
+        <button type="submit" class="btn primary" id="romaneioCancelConfirm">Confirmar cancelamento e estorno</button>
+      </div>
+    </form>
+  </div>
+</div>
 <div id="releaseModal" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="releaseTitle">
     <h2 id="releaseTitle">Liberar para corte</h2>
@@ -1193,32 +1210,51 @@ function renderHistoricoRomaneios(obraId){
     button.addEventListener('click',()=>cancelarRomaneio(button.dataset.romaneioCancelar));
   });
 }
-async function cancelarRomaneio(id){
+let romaneioCancelSelecionado=null;
+function cancelarRomaneio(id){
   if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
   const original=romaneios.find(r=>r.id===id&&r.status!=='cancelado');
   if(!original)return;
-  const motivo=window.prompt('Motivo do cancelamento do romaneio '+original.numero+
-    ': (mínimo 10 caracteres)');
-  if(motivo===null)return;
-  const texto=motivo.trim();
+  romaneioCancelSelecionado=original;
+  node('romaneioCancelInfo').textContent='Romaneio '+original.numero+' · '+dataRomaneioFormatada(original.data_saida);
+  node('romaneioCancelReason').value='';
+  node('romaneioCancelCounter').textContent='0 / 400 caracteres';
+  node('romaneioCancelError').textContent='';
+  node('romaneioCancelOverlay').classList.remove('hidden');
+  node('romaneioCancelReason').focus();
+}
+function fecharCancelamentoRomaneio(){
+  node('romaneioCancelOverlay').classList.add('hidden');
+  romaneioCancelSelecionado=null;
+}
+node('romaneioCancelDismiss').addEventListener('click',fecharCancelamentoRomaneio);
+node('romaneioCancelReason').addEventListener('input',()=>{
+  const len=node('romaneioCancelReason').value.trim().length;
+  node('romaneioCancelCounter').textContent=len+' / 400 caracteres'+(len<10?' · mínimo 10':'');
+  node('romaneioCancelError').textContent='';
+});
+node('romaneioCancelForm').addEventListener('submit',async event=>{
+  event.preventDefault();
+  const original=romaneioCancelSelecionado;
+  if(!original||String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  const texto=node('romaneioCancelReason').value.trim();
   if(texto.length<10||texto.length>400){
-    const destino=node('romaneiosPage').classList.contains('hidden')?'detailError':'hubRomaneioMessage';
-    node(destino).textContent='Informe um motivo entre 10 e 400 caracteres.';
-    return;
+    node('romaneioCancelError').textContent='Informe um motivo de 10 a 400 caracteres.';
+    node('romaneioCancelReason').focus();return;
   }
-  if(!window.confirm('CONFIRMA CANCELAR '+original.numero+
-    '? As saídas de esquadrias vinculadas a este romaneio serão estornadas.'+
-    ' O documento ficará CANCELADO no histórico. Esta operação não deve ser usada como confirmação de retorno físico.'))return;
+  if(!window.confirm('Confirma o cancelamento definitivo de '+original.numero+' e o estorno das saídas vinculadas?'))return;
+  const button=node('romaneioCancelConfirm');
   const obraId=original.obra_id;
   const estaNoHub=!node('romaneiosPage').classList.contains('hidden');
-  const button=node('toggleRomaneioHistory');
   button.disabled=true;
+  node('romaneioCancelError').textContent='';
   try{
     await ensureSession();
     const r=await request('/rest/v1/rpc/cancelar_romaneio_com_estorno',{
       method:'POST',token:session.access_token,
-      body:{p_romaneio_id:id,p_motivo:texto}
+      body:{p_romaneio_id:original.id,p_motivo:texto}
     });
+    fecharCancelamentoRomaneio();
     await loadPanel();
     const mensagem='Romaneio '+r.numero+' CANCELADO e '+r.saidas_estornadas+
       ' saída(s) estornadas. Histórico preservado. Confira o retorno físico antes de reenviar.';
@@ -1233,11 +1269,10 @@ async function cancelarRomaneio(id){
       node('detailError').textContent=mensagem;
     }
   }catch(e){
-    const destino=estaNoHub?'hubRomaneioMessage':'detailError';
-    node(destino).textContent='Não foi possível cancelar: '+e.message+
-      '. Confira o histórico antes de tentar novamente.';
+    node('romaneioCancelError').textContent='Não foi possível cancelar: '+e.message+
+      '. Nenhuma confirmação de estorno foi recebida; confira o histórico antes de tentar novamente.';
   }finally{button.disabled=false;}
-}
+});
 function abrirEmissaoRomaneio(){
   if(!selectedWork||!dispatchReady||romaneioLoadError||!podeEmitirRomaneio())return;
   node('romaneioWorkInfo').textContent='Cliente: '+(selectedWork.cliente||'Não informado')+
