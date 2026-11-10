@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'corrigir identificação v33.0',
+ 'sufixos automáticos v34.0',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -84,7 +84,14 @@ for(const token of [
  'function salvarCorrecaoIdentificacao()',
  'function candidatosIdentificacaoTecnica(origem,catalogo)',
  'codigo_original_preservado',
- 'Código original: '
+ 'Código original: ',
+ 'function codigoVariacaoTecnica(tipologia,modulacao)',
+ 'function proximoSufixoVisual(tipologia)',
+ 'numero_variacao',
+ 'MODULAÇÃO A CONFERIR',
+ 'e.tipologia_id is not distinct from v_item.tipologia_id',
+ 'proximoSufixoVisual(t)',
+ 'p_confirmar_divergencia:node(\'identityDifferent\').checked'
 
 ]){
   assert.ok(source.includes(token),'Preservar: '+token);
@@ -94,13 +101,24 @@ const catalogoRaiz=[
   {id:principalId,codigo:'INV-VNZN00',tipologia_principal_id:null},
   {id:'legado-2',codigo:'EA14_1',tipologia_principal_id:principalId}
 ];
-const fnInicio=source.indexOf('function typologyCode(item){');
-const fnFim=source.indexOf('function labeledDescription(item){',fnInicio);
-assert.ok(fnInicio>=0&&fnFim>fnInicio,'Retorno de codigo tecnico presente');
-const codigoTecnico=new Function('typologyCatalog',source.slice(fnInicio,fnFim)+'\nreturn typologyCode;')(catalogoRaiz);
-assert.equal(codigoTecnico({tipologia_id:'legado-2'}),'INV-VNZN00',
-  'Esquadria de configuracao antiga exibe codigo principal, nao EA');
-assert.equal(codigoTecnico({tipologia_id:principalId}),'INV-VNZN00');
+const fnInicio=source.indexOf('function codigoVariacaoTecnica(tipologia,modulacao){');
+const fnFim=source.indexOf('function sortWorkItems(a,b){',fnInicio);
+assert.ok(fnInicio>=0&&fnFim>fnInicio,'Identificacao tecnicas com sufixos presente');
+const mods=[
+ {id:'m1',tipologia_principal_id:principalId,codigo_interno:'MOD-000001',numero_variacao:1,tipologia_legada_id:principalId},
+ {id:'m2',tipologia_principal_id:principalId,codigo_interno:'MOD-000002',numero_variacao:2,tipologia_legada_id:'legado-2'}
+];
+const formatos=new Function('typologyCatalog','modulationCatalog',
+ source.slice(fnInicio,fnFim)+
+ '\nreturn {codigoVariacaoTecnica,modulacaoCadastroLegado,proximoSufixoVisual,typologyCode};'
+)(catalogoRaiz,mods);
+assert.equal(formatos.typologyCode({tipologia_id:principalId,modulacao_id:'m1'}),'INV-VNZN00-01');
+assert.equal(formatos.typologyCode({tipologia_id:'legado-2',modulacao_id:'m2'}),'INV-VNZN00-02');
+assert.equal(formatos.typologyCode({tipologia_id:'legado-2',modulacao_id:null}),'INV-VNZN00',
+  'Sem classificacao de configuracao nao inventar sufixo');
+assert.equal(formatos.proximoSufixoVisual(catalogoRaiz[1]),'INV-VNZN00-03',
+  'Proximo sufixo previsivel (confirmacao definitiva do banco)');
+
 const modInicio=source.indexOf('function modulacoesDaTipologia(t){');
 const modFim=source.indexOf('function atualizarOpcoesModulacao(){',modInicio);
 assert.ok(modInicio>=0&&modFim>modInicio,'Filtro das modulacoes por familia');
@@ -136,5 +154,5 @@ assert.ok(!corretos.some(t=>t.id==='ea14'||t.id==='ea05'||t.id==='outro'||t.id==
   'Nao selecionar EA, outra empresa/fabricante ou variacao');
 assert.ok(corretos.some(t=>t.codigo==='INV-PGR107'),
   'Permitir revisar descricao diferente com confirmacao extra');
-console.log('OK: '+cases.length+' classificacoes; EA por obra; MOD e correcoes EA14 → INV-PGR207.');
+console.log('OK: '+cases.length+' classificacoes; EA por obra; sufixos 01/02/03, MOD e correcao tecnica.');
 
