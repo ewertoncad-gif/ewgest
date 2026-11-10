@@ -36,6 +36,14 @@
     .head{display:flex;align-items:end;justify-content:space-between;flex-wrap:wrap;gap:15px;margin:50px 0 25px}
     .detailnav{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px}
     .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+    #dashboard .stats{grid-template-columns:repeat(5,minmax(0,1fr))}
+    .expeditionProgressLabel{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;color:#b9d1e0;margin-top:13px}
+    .expeditionProgressLabel strong{color:#eaf7ff}
+    .progress.expeditionProgress{margin-top:7px}
+    .progress.expeditionProgress .bar{background:#76b4f4}
+    .shipmentDashboardHint{font-size:12px;color:#aabccf;margin:11px 0 0}
+    @media(max-width:1050px){#dashboard .stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @media(max-width:700px){#dashboard .stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
     .stat{padding:18px;background:#15283e;border:1px solid #2d4963;border-radius:14px}
     .stat .label{font-size:13px;color:#a3bcd2}.number{font-size:27px;font-weight:800;margin-top:9px}
     .qtystats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
@@ -248,6 +256,7 @@
         <div class="stat"><div class="label">Área total (m²)</div><div class="number" id="total">—</div></div>
         <div class="stat"><div class="label">Liberada (m²)</div><div class="number" id="released">—</div></div>
         <div class="stat"><div class="label">A liberar (m²)</div><div class="number" id="pending">—</div></div>
+        <div class="stat"><div class="label">Enviada à obra (m²)</div><div class="number" id="sentArea">—</div><div class="hint" id="sentPercent" style="margin-top:5px">—</div></div>
       </div>
       <div class="section"><h2>Obras cadastradas</h2><div id="works" class="works"></div></div>
       <p class="notice">Liberações para corte: selecione uma esquadria e informe quantidade e data. Os lançamentos ficam registrados no banco. Confirme medições técnicas antes de usar os totais como medição contratual.</p>
@@ -1042,9 +1051,63 @@ async function loadPanel(){
 }
 function totals(list){return list.reduce((a,x)=>{const q=Number(x.quantidade)||0;const liberadas=Number(x.qtd_liberada)||0;a.total+=area(x,q);a.released+=area(x,liberadas);a.made+=area(x,x.qtd_fabricada);a.unitsTotal+=q;a.unitsReleased+=liberadas;return a;},{total:0,released:0,made:0,unitsTotal:0,unitsReleased:0});}
 function renderUnitCounters(prefix,t){node(prefix+"UnitsTotal").textContent=t.unitsTotal.toLocaleString("pt-BR");node(prefix+"UnitsReleased").textContent=t.unitsReleased.toLocaleString("pt-BR");node(prefix+"UnitsPending").textContent=(t.unitsTotal-t.unitsReleased).toLocaleString("pt-BR");}
-function renderList(){const t=totals(elements);node('count').textContent=works.length;node('total').textContent=amount(t.total);node('released').textContent=amount(t.released);node('pending').textContent=amount(t.total-t.released);
+// Somente conjuntos completos (inclusive marco + todas as folhas) contam como enviados.
+ // Saídas parciais continuam registradas, mas não superestimam a área entregue.
+function progressoExpedicao(list){
+  let areaEnviada=0,unidadesEnviadas=0,unidadesTotais=0;
+  if(!dispatchReady)return {disponivel:false,areaEnviada,unidadesEnviadas,unidadesTotais};
+  const movements=new Map();
+  const configs=new Map(dispatchConfig.map(c=>[c.esquadria_id,Number(c.folhas_por_unidade)]));
+  for(const h of shipmentHistory){
+    if(!movements.has(h.esquadria_id))movements.set(h.esquadria_id,{completo:0,marco:0,folha:0});
+    const m=movements.get(h.esquadria_id);
+    if(Object.hasOwn(m,h.tipo))m[h.tipo]+=Math.max(0,Number(h.quantidade)||0);
+  }
+  for(const item of list){
+    const q=Math.max(0,Number(item.quantidade)||0);
+    unidadesTotais+=q;
+    const m=movements.get(item.id)||{completo:0,marco:0,folha:0};
+    const per=configs.get(item.id);
+    const recombinadas=Number.isInteger(per)&&per>0?
+      Math.min(m.marco,Math.floor(m.folha/per)):0;
+    const enviadas=Math.min(q,Math.max(0,m.completo+recombinadas));
+    unidadesEnviadas+=enviadas;
+    areaEnviada+=area(item,enviadas);
+  }
+  return {disponivel:true,areaEnviada,unidadesEnviadas,unidadesTotais};
+}
+function renderList(){
+  const t=totals(elements),exp=progressoExpedicao(elements);
+  node('count').textContent=works.length;
+  node('total').textContent=amount(t.total);
+  node('released').textContent=amount(t.released);
+  node('pending').textContent=amount(t.total-t.released);
+  node('sentArea').textContent=exp.disponivel?amount(exp.areaEnviada):'—';
+  node('sentPercent').textContent=exp.disponivel?(t.total?(exp.areaEnviada/t.total*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'% da área total':'0% da área total'):'Dados de expedição indisponíveis';
   if(!works.length){node('works').innerHTML='<div class="empty">Nenhuma obra cadastrada ainda. O painel está conectado para consulta. O cadastro será liberado após os testes de segurança e backup.</div>';return;}
-  node('works').innerHTML=works.map((w,i)=>{const sum=totals(elements.filter(x=>x.obra_id===w.id));const pct=sum.total?Math.max(0,Math.min(100,Math.round(sum.released/sum.total*100))):0;return `<button class="work" data-i="${i}" type="button"><h3>${escapeHTML(w.nome)}</h3><p>${escapeHTML(w.codigo||'Sem código')} · ${escapeHTML(w.situacao||'')}</p><div class="line"><span>Total</span><strong>${amount(sum.total)} m²</strong></div><div class="line"><span>Liberada</span><strong>${amount(sum.released)} m²</strong></div><div class="line"><span>A liberar</span><strong>${amount(sum.total-sum.released)} m²</strong></div><div class="line"><span>Unidades liberadas</span><strong>${sum.unitsReleased.toLocaleString("pt-BR")} / ${sum.unitsTotal.toLocaleString("pt-BR")}</strong></div><div class="line"><span>Unidades aguardando</span><strong>${(sum.unitsTotal-sum.unitsReleased).toLocaleString("pt-BR")}</strong></div><div class="progress"><div class="bar" style="width:${pct}%"></div></div></button>`;}).join('');
+  node('works').innerHTML=works.map((w,i)=>{
+    const itens=elements.filter(x=>x.obra_id===w.id);
+    const sum=totals(itens),envio=progressoExpedicao(itens);
+    const pct=sum.total?Math.max(0,Math.min(100,Math.round(sum.released/sum.total*100))):0;
+    const pctEnvio=envio.disponivel&&sum.total?Math.max(0,Math.min(100,envio.areaEnviada/sum.total*100)):0;
+    const numeroPct=pctEnvio.toLocaleString('pt-BR',{maximumFractionDigits:1});
+    const envioInfo=envio.disponivel?
+      `<div class="line"><span>Enviada à obra</span><strong>${amount(envio.areaEnviada)} m²</strong></div>
+      <div class="line"><span>Esquadrias enviadas</span><strong>${envio.unidadesEnviadas.toLocaleString('pt-BR')} / ${envio.unidadesTotais.toLocaleString('pt-BR')}</strong></div>
+      <div class="expeditionProgressLabel"><span>Progresso de envio</span><strong>${numeroPct}%</strong></div>
+      <div class="progress expeditionProgress" role="progressbar" aria-label="Progresso de envio" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pctEnvio)}"><div class="bar" style="width:${pctEnvio}%"></div></div>`:
+      '<p class="shipmentDashboardHint">Não foi possível consultar as saídas desta obra.</p>';
+    return `<button class="work" data-i="${i}" type="button"><h3>${escapeHTML(w.nome)}</h3><p>${escapeHTML(w.codigo||'Sem código')} · ${escapeHTML(w.situacao||'')}</p>
+      <div class="line"><span>Total</span><strong>${amount(sum.total)} m²</strong></div>
+      <div class="line"><span>Liberada</span><strong>${amount(sum.released)} m²</strong></div>
+      <div class="line"><span>A liberar</span><strong>${amount(sum.total-sum.released)} m²</strong></div>
+      <div class="line"><span>Unidades liberadas</span><strong>${sum.unitsReleased.toLocaleString("pt-BR")} / ${sum.unitsTotal.toLocaleString("pt-BR")}</strong></div>
+      <div class="line"><span>Unidades aguardando</span><strong>${(sum.unitsTotal-sum.unitsReleased).toLocaleString("pt-BR")}</strong></div>
+      <div class="expeditionProgressLabel"><span>Progresso de liberação</span><strong>${pct}%</strong></div>
+      <div class="progress"><div class="bar" style="width:${pct}%"></div></div>
+      ${envioInfo}
+      </button>`;
+  }).join('');
   node('works').querySelectorAll('[data-i]').forEach(b=>b.addEventListener('click',()=>renderDetail(works[Number(b.dataset.i)])));
 }
 // O hífen identifica a configuração, NÃO a quantidade de folhas ou módulos.
