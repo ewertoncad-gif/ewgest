@@ -206,7 +206,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • catálogo sem sufixos v35.6</div>
+        <div class="build">EWGEST • listas sem sufixos v35.7</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -854,16 +854,23 @@ function typologyCode(item){
   const mod=modulationCatalog.find(m=>m.id===item.modulacao_id);
   return codigoVariacaoTecnica(registro,mod)||principal.codigo;
 }
+// Na operação, o agrupamento exibe somente a família técnica.
+function typologyPrincipalCode(item){
+  const cadastro=typologyCatalog.find(t=>t.id===item.tipologia_id);
+  if(!cadastro)return '';
+  return (typologyCatalog.find(t=>t.id===(cadastro.tipologia_principal_id||cadastro.id))||cadastro).codigo;
+}
 function labeledDescription(item){
   const code=typologyCode(item);
   const pendente=item.tipologia_id&&!item.modulacao_id?' · MODULAÇÃO A CONFERIR':'';
   return (code?code+' — ':'')+(item.descricao||'')+pendente;
 }
 function sortWorkItems(a,b){
-  const ac=typologyCode(a),bc=typologyCode(b);
+  const ac=typologyPrincipalCode(a),bc=typologyPrincipalCode(b);
   if(!ac&&bc)return 1;
   if(ac&&!bc)return -1;
   return ac.localeCompare(bc,'pt-BR',{numeric:true,sensitivity:'base'})
+    ||typologyCode(a).localeCompare(typologyCode(b),'pt-BR',{numeric:true,sensitivity:'base'})
     ||String(a.codigo||'').localeCompare(String(b.codigo||''),'pt-BR',{numeric:true,sensitivity:'base'});
 }
 function groupRenderedItems(list){
@@ -873,7 +880,9 @@ function groupRenderedItems(list){
   host.replaceChildren();
   let previous=null,group=null;
   for(let i=0;i<list.length;i++){
-    const code=typologyCode(list[i])||'PENDENTE DE CLASSIFICAÇÃO';
+    const code=typologyPrincipalCode(list[i])||'PENDENTE DE CLASSIFICAÇÃO';
+    // Permite buscar também pelo sufixo completo, mesmo que ele esteja oculto na lista.
+    rows[i].dataset.tipologiaCompleta=typologyCode(list[i]);
     if(code!==previous){
       group=document.createElement('div');
       group.className='typologyGroup';
@@ -884,7 +893,7 @@ function groupRenderedItems(list){
       const title=document.createElement('strong');
       title.textContent=code==='PENDENTE DE CLASSIFICAÇÃO'?'SEM TIPOLOGIA IDENTIFICADA':'Tipologia: '+code;
       const count=document.createElement('span');
-      count.textContent=list.filter(x=>(typologyCode(x)||'PENDENTE DE CLASSIFICAÇÃO')===code).length+' código(s) de esquadria';
+      count.textContent=list.filter(x=>(typologyPrincipalCode(x)||'PENDENTE DE CLASSIFICAÇÃO')===code).length+' código(s) de esquadria';
       heading.append(title,count);
       group.append(heading);
       host.append(group);
@@ -993,7 +1002,7 @@ function applyItemFilter(){
   for(const item of items){
     const code=item.querySelector('.itemline strong')?.textContent||'';
     const typology=item.closest('.typologyGroup')?.dataset.tipologia||'';
-    const searchIn=mode==='tipologia'?typology:code;
+    const searchIn=mode==='tipologia'?typology+' '+(item.dataset.tipologiaCompleta||''):code;
     const matches=searchIn.toLocaleUpperCase('pt-BR').includes(query);
     item.classList.toggle('hidden',!matches);
     if(matches)visible++;
@@ -2660,7 +2669,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v35.6 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v35.7 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
