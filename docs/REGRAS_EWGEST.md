@@ -1,6 +1,6 @@
 # Regras protegidas do EWGEST
 
-**Regras versão 1.7** · **Site versão 35.7**
+**Regras versão 1.8** · **Site versão 36.0**
 
 ## Tipologia principal e variações
 1. Código principal identifica o modelo da tipologia, **não** a quantidade de módulos.
@@ -108,6 +108,21 @@
 - O sufixo técnico completo continua disponível no cadastro de modulações e pesquisável no filtro de tipologia das obras, ainda que o título não o mostre.
 - Essa é uma melhoria da apresentação operacional, aplicável às duas abas da obra, não uma fusão de configurações no banco.
 
+## Romaneios, expedição e fábricas (v36)
+- Toda **nova liberação para corte** deve registrar fábrica `AFOGADOS` ou `IMBIRIBEIRA`, no próprio lançamento, inclusive em liberações parciais. A RPC legada sem fábrica não deve ficar acessível ao cliente; usar `registrar_liberacao_corte_fabrica`.
+- As **10 liberações anteriores** não possuíam fábrica; manter `NULL` e jamais inventar valores. Nenhuma saída anterior foi apagada ou alterada.
+- Cada romaneio possui identificação sequencial interna `RM00001`, data, cliente/obra, motorista, placa e itens. O número é gerado no banco, diferente da numeração dos comprovantes antigos feitos fora do EWGEST.
+- O modelo segue a planilha `RM042 - MIRAGE.xlsx`: colunas item, código, localização, descrição, medida, quantidade, unidade, m² e valor (em branco), cliente/obra, motorista/placa, total de área e três assinaturas. Para até oito linhas curtas, imprimir **duas vias no mesmo A4**; para listas longas, **uma via por página**, com continuação quando necessário.
+- **Emitir romaneio confirma expedição física**, e registra automaticamente saídas do tipo `completo` para todas as esquadrias vinculadas. Materiais avulsos constam no romaneio mas não afetam os saldos das esquadrias.
+- **Saída parcial (marco/folha)** continua pelo fluxo existente. A emissão do romaneio usa a mesma validação de quantidade, liberação, composição de folhas e permissões via `registrar_saida_producao`.
+- Todos os itens de um romaneio são confirmados **na mesma transação**. Se algum item não tiver saldo ou for inválido, nada do romaneio ou das saídas é salvo. `chave_operacao` UUID impede emissão dupla por repetição de requisição.
+- A numeração do romaneio é sequencial, mas lacunas podem existir após tentativas/transações desfeitas. Não interpretar lacunas como romaneios excluídos.
+- Exibir na obra lista de romaneios com **reimpressão**, usando dados congelados no momento da emissão (inclusive descrição, medida, quantidade e motorista). Não atualizar o comprovante impresso quando o cadastro técnico for alterado depois.
+- Métrica de produção por fábrica: **prazo em dias corridos entre liberação para corte e expedição**, ponderado por unidades e por liberações cronológicas. Só calcular quando as liberações daquele código possuírem uma **única fábrica conhecida** e não houver ambiguidades. Não confundir com horas reais de fabricação.
+- Segurança: tabelas `romaneios` e `romaneios_itens` com RLS, leitura apenas por membros da empresa, inserção apenas por RPC que exige ADMINISTRADOR ou SUPERVISOR; nenhuma operação de emissão é permitida ao usuário anônimo.
+- **Melhoria futura recomendada:** um fluxo controlado para cancelar/estornar romaneios antes de implantar o módulo em escala; na primeira versão, revisar antes de confirmar, pois a emissão já registra as saídas.
+- A conferência de romaneios antigos impressos fora do EWGEST e o rastreio completo de produção dentro das duas fábricas ainda não foram automatizados.
+
 ## Verificação obrigatória nas atualizações
 1. Ler as regras acima antes de mexer no sistema.
 2. Executar node scripts/test-regressoes.mjs.
@@ -116,4 +131,4 @@
 5. O cadastro/importação de novas obras com edição do número de módulos por esquadria continua como etapa futura; a nova coluna foi criada sem afetar as obras existentes.
 
 ## Histórico
-- v27: FIXO; v28: prioridade das fachadas sobre FIXO; v29: MAXIM-AR próprio e prioridade das fachadas; v30: agrupamento das variações e painel de regras; v31: revisão administrativa por obra, sugestões pela descrição e auditoria de confirmação; v32: pendências visíveis, códigos MOD internos, criação ou associação manual pelo ADM; v33: correção administrativa de identificações técnicas existentes, com comparação, confirmação e auditoria; v34: códigos sufixados por família, numeração transacional, catalogação de 46 configurações legadas e pendências de modulação; v35: confirmação Sim/Não, criação/correção/adiamento e auditoria sem bloquear obras; v35.1: comparação em duas caixas e sufixo oculto somente na tela de conferência; v35.2: exibir tipologia informada na obra versus tipologia técnica do catálogo, sem misturar com código de esquadria. v35.3: explicitar código principal preservado ao criar nova configuração; v35.4: substituir quantidade de módulos por N apenas nas caixas comparativas da obra/catálogo. v35.5: descrição da obra intacta, padrão principal com N e seletor somente na correção de texto. v35.6: ocultar sufixos somente na lista principal do catálogo; v35.7: agrupar liberações e saídas por tipologia principal sem sufixos e preservar busca completa.
+- v27: FIXO; v28: prioridade das fachadas sobre FIXO; v29: MAXIM-AR próprio e prioridade das fachadas; v30: agrupamento das variações e painel de regras; v31: revisão administrativa por obra, sugestões pela descrição e auditoria de confirmação; v32: pendências visíveis, códigos MOD internos, criação ou associação manual pelo ADM; v33: correção administrativa de identificações técnicas existentes, com comparação, confirmação e auditoria; v34: códigos sufixados por família, numeração transacional, catalogação de 46 configurações legadas e pendências de modulação; v35: confirmação Sim/Não, criação/correção/adiamento e auditoria sem bloquear obras; v35.1: comparação em duas caixas e sufixo oculto somente na tela de conferência; v35.2: exibir tipologia informada na obra versus tipologia técnica do catálogo, sem misturar com código de esquadria. v35.3: explicitar código principal preservado ao criar nova configuração; v35.4: substituir quantidade de módulos por N apenas nas caixas comparativas da obra/catálogo. v35.5: descrição da obra intacta, padrão principal com N e seletor somente na correção de texto. v35.6: ocultar sufixos somente na lista principal do catálogo; v35.7: agrupar liberações e saídas por tipologia principal sem sufixos e preservar busca completa; v36: fábrica obrigatória em novas liberações, romaneio A4 em duas vias, expedição atômica e média por fábrica.
