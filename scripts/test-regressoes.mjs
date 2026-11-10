@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'abreviações e almoxarifado v40.0',
+ 'interface renovada v41.0',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -564,8 +564,19 @@ const formEnd=source.indexOf('</form>',formStart);
 const contentForm=source.slice(formStart,formEnd);
 assert.ok(contentForm.indexOf('id="romaneioNotes"')>contentForm.indexOf('id="romaneioRows"'),
  'Observações devem ficar DEPOIS de todos os itens do romaneio');
-assert.ok(contentForm.indexOf('id="romaneioNotes"')<contentForm.indexOf('id="romaneioConfirm"'),
- 'Observações antes de confirmar a expedição');
+assert.ok(contentForm.includes('class="romaneioSubmissionNote"'),
+ 'A emissão informa claramente que o botão executa a baixa das esquadrias');
+assert.ok(!contentForm.includes('id="romaneioConfirm"'),
+ 'Não exigir checkbox redundante antes da emissão');
+assert.ok(!source.includes("node('romaneioConfirm').checked"),
+ 'Validação do botão não deve exigir checkbox removido');
+assert.ok(source.includes('id="workspaceNav"') && source.includes('id="navHome"')
+ && source.includes('id="navRomaneios"'),
+ 'Nova navegação acessível permanece disponível');
+assert.ok(source.includes('id="romaneiosBack" type="button" class="btn secondary">← Tela inicial'),
+ 'Retorno de romaneios renomeado para Tela inicial');
+assert.ok(source.includes('id="sentArea"')&&source.includes('function progressoExpedicao(list)'),
+ 'Indicadores de expedição preservados na tela inicial');
 const observ=montarRomaneio({...cabecalho,observacoes:'ENTREGA PARCIAL\nCONFERIDO PELO ALMOXARIFE'},[linha(1)]);
 assert.ok(observ.includes('ENTREGA PARCIAL\nCONFERIDO PELO ALMOXARIFE'),
  'Observações com quebra de linha preservadas no comprovante');
