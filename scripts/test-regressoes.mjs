@@ -362,6 +362,15 @@ const quarenta=montarRomaneio(cabecalho,Array.from({length:40},(_,i)=>linha(i+1)
 assert.equal((quarenta.match(/class="printPage single"/g)||[]).length,6,
  'Paginar listas muito longas sem cortar itens');
 assert.ok(!duas.includes('<script>'),'Impressão não injeta scripts');
+const longas=Array.from({length:12},(_,i)=>({
+ ...linha(i+1),descricao:'CANTONEIRA LONGA DE PERFIL EM ALUMINIO '.repeat(9)
+}));
+const saidaLonga=montarRomaneio(cabecalho,longas);
+assert.ok((saidaLonga.match(/class="printPage single"/g)||[]).length>=4,
+ 'Textos longos devem gerar paginas de continuação para cada via');
+assert.ok(saidaLonga.includes('@page{size:A4 portrait;margin:9mm}'),
+ 'Romaneio configurado para A4');
+
 console.log('OK: '+cases.length+' classificacoes; romaneio duas vias, longo, fábrica e saída atômica.');
 
 
