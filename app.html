@@ -206,7 +206,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • código preservado v35.3</div>
+        <div class="build">EWGEST • comparação de módulos v35.4</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -477,6 +477,7 @@
     <label for="differenceConfig">Configuração cadastrada para comparação</label>
     <select id="differenceConfig"></select>
     <div id="differenceComparison" class="differenceComparisonGrid" aria-live="polite"></div>
+    <p class="hint">N representa uma quantidade variável de módulos apenas nesta comparação. As quantidades reais permanecem nos cadastros.</p>
     <strong>Essa esquadria corresponde à configuração do catálogo?</strong>
     <div class="differenceChoices" id="differenceMainChoices">
       <label><input type="radio" name="differenceMatch" value="sim"><span>Sim, é a mesma configuração.</span></label>
@@ -1540,6 +1541,10 @@ function abrirConferenciaDescricao(item){
   if(configs.length!==1&&!igual)seletor.focus();
   else document.querySelector('input[name="differenceMatch"]')?.focus();
 }
+// Somente apresentação na comparação: preserva quantidades reais no banco, no seletor e no relatório.
+function descricaoComparacaoComModulosN(descricao){
+  return String(descricao||'').replace(/\b\d+(?=\s+M[ÓO]DULO(?:S|\(S\))?(?=$|[\s.,;:/-]))/gi,'N');
+}
 function atualizarTelaDiferenca(){
   const item=differencePendingItem;
   const mod=modulacaoSelecionadaDiferenca();
@@ -1571,9 +1576,9 @@ function atualizarTelaDiferenca(){
     const codigoCatalogo=tipologiaPrincipal?.codigo||'Tipologia não identificada';
     compare.append(
       card('TIPOLOGIA INFORMADA NA OBRA',codigoOriginal,
-        item.descricao||'Descrição não informada','obra'),
+        descricaoComparacaoComModulosN(item.descricao||'Descrição não informada'),'obra'),
       card('TIPOLOGIA DO CATÁLOGO',codigoCatalogo,
-        mod?.descricao||'Selecione uma configuração existente para comparar.','catalog')
+        descricaoComparacaoComModulosN(mod?.descricao||'Selecione uma configuração existente para comparar.'),'catalog')
     );
   }
   node('differenceSecondStep').classList.toggle('hidden',modo!=='nao');
@@ -2638,7 +2643,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v35.3 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v35.4 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
