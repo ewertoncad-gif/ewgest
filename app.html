@@ -1394,34 +1394,96 @@ function abrirConferenciaTipologia(id){
   node('recognitionApproval').checked=false;
   node('recognitionDivergence').checked=false;
   node('recognitionMessage').textContent='';
-  atualizarComparacaoReconhecimento();
+  atualizarOpcoesModulacao();
   node('recognitionOverlay').classList.remove('hidden');
   select.focus();
+}
+
+function modulacoesDaTipologia(t){
+  if(!t)return [];
+  const raiz=t.tipologia_principal_id||t.id;
+  return modulationCatalog.filter(m=>m.tipologia_principal_id===raiz)
+    .sort((a,b)=>a.codigo_interno.localeCompare(b.codigo_interno,'pt-BR',{numeric:true}));
+}
+function atualizarOpcoesModulacao(){
+  const t=typologyCatalog.find(x=>x.id===node('recognitionTarget').value);
+  const select=node('recognitionModulation');
+  select.replaceChildren();
+  if(!t){
+    const o=document.createElement('option');o.value='';o.textContent='Escolha a tipologia primeiro';
+    select.append(o);select.disabled=true;renderizarCamposModulacao();return;
+  }
+  select.disabled=false;
+  const novo=document.createElement('option');novo.value='__CRIAR__';
+  novo.textContent='+ Criar modulação com novo código MOD';
+  select.append(novo);
+  const modulations=modulacoesDaTipologia(t);
+  const descricaoOrigem=normalizarReconhecimento(recognitionPendingItem?.descricao);
+  for(const m of modulations){
+    const op=document.createElement('option');op.value=m.id;
+    op.textContent=m.codigo_interno+' · '+m.descricao.slice(0,100)+
+      (m.quantidade_modulos?' · '+m.quantidade_modulos+' módulos':' · módulos a conferir');
+    select.append(op);
+  }
+  const exact=modulations.find(m=>normalizarReconhecimento(m.descricao)===descricaoOrigem);
+  select.value=exact?exact.id:'__CRIAR__';
+  node('recognitionModDescription').value=String(recognitionPendingItem?.descricao||'');
+  node('recognitionModCount').value='';
+  renderizarCamposModulacao();
+}
+function renderizarCamposModulacao(){
+  const criar=node('recognitionModulation').value==='__CRIAR__';
+  node('recognitionNewModFields').classList.toggle('hidden',!criar);
+  atualizarComparacaoReconhecimento();
+}
+function diferencaNoReconhecimento(){
+  const origem=recognitionPendingItem;
+  const t=typologyCatalog.find(x=>x.id===node('recognitionTarget').value);
+  const mod=modulationCatalog.find(m=>m.id===node('recognitionModulation').value);
+  const descricaoMod=node('recognitionModulation').value==='__CRIAR__'
+    ?node('recognitionModDescription').value:mod?.descricao;
+  if(!origem||!t||!descricaoMod)return false;
+  return comparacaoEstritaDescricao(origem.descricao)!==comparacaoEstritaDescricao(descricaoMod) ||
+    classificarTipoTipologia(origem)!==classificarTipoTipologia(t);
 }
 function atualizarComparacaoReconhecimento(){
   const item=recognitionPendingItem;
   const target=typologyCatalog.find(x=>x.id===node('recognitionTarget').value);
-  const mismatch=Boolean(item&&target&&
-    comparacaoEstritaDescricao(item.descricao)!==comparacaoEstritaDescricao(target.descricao));
-  const confirm=node('recognitionDivergence');confirm.checked=false;confirm.disabled=!mismatch;
+  const mod=modulationCatalog.find(x=>x.id===node('recognitionModulation').value);
+  const nova=node('recognitionModulation').value==='__CRIAR__';
+  const desc=nova?node('recognitionModDescription').value:mod?.descricao;
+  const mismatch=Boolean(item&&target&&desc&&diferencaNoReconhecimento());
+  const check=node('recognitionDivergence');check.disabled=!mismatch;
+  if(!mismatch)check.checked=false;
   const compare=node('recognitionCompare');compare.replaceChildren();
-  if(!target)compare.textContent='Selecione uma tipologia para comparar com o relatório.';
-  else {
+  if(!target){
+    compare.textContent='Escolha a tipologia técnica para continuar.';
+  }else{
     const title=document.createElement('strong');
-    title.textContent=mismatch?'Descrição diferente: confira antes de confirmar.':'Descrições correspondentes.';
+    title.textContent=mismatch?'Descrições ou tipos diferentes: confira e aceite a divergência.':'Conferir antes de confirmar.';
     compare.append(title);
-    const from=document.createElement('p');from.textContent='No relatório: '+item.descricao;compare.append(from);
-    const to=document.createElement('p');to.textContent='No cadastro: '+target.codigo+' — '+target.descricao;compare.append(to);
+    const origem=document.createElement('p');origem.textContent='Na obra: '+(item?.descricao||'');compare.append(origem);
+    const tipo=document.createElement('p');
+    const principal=typologyCatalog.find(x=>x.id===(target.tipologia_principal_id||target.id))||target;
+    tipo.textContent='Tipologia: '+principal.codigo+' — '+target.descricao;compare.append(tipo);
+    const config=document.createElement('p');
+    config.textContent=(nova?'Nova modulação (código MOD gerado ao salvar)':
+      mod?'Modulação '+mod.codigo_interno:'Selecione uma modulação')+
+      ' — '+(desc||'Sem descrição');compare.append(config);
   }
   validarReconhecimento();
 }
 function validarReconhecimento(){
-  const item=recognitionPendingItem;
-  const target=typologyCatalog.find(x=>x.id===node('recognitionTarget').value);
-  const mismatch=Boolean(item&&target&&
-    comparacaoEstritaDescricao(item.descricao)!==comparacaoEstritaDescricao(target.descricao));
-  node('recognitionConfirm').disabled=!(item&&target&&node('recognitionApproval').checked&&
-    (!mismatch||node('recognitionDivergence').checked));
+  const t=typologyCatalog.find(x=>x.id===node('recognitionTarget').value);
+  const isNew=node('recognitionModulation').value==='__CRIAR__';
+  const mod=modulationCatalog.find(m=>m.id===node('recognitionModulation').value);
+  const desc=node('recognitionModDescription').value.trim();
+  const q=node('recognitionModCount').value.trim();
+  const qtyValid=!q||(Number.isInteger(Number(q))&&Number(q)>=1&&Number(q)<=100);
+  const validMod=isNew?(desc.length>=5&&desc.length<=1000&&qtyValid):Boolean(mod);
+  node('recognitionConfirm').disabled=!(recognitionPendingItem&&t&&validMod&&
+    node('recognitionApproval').checked&&
+    (!diferencaNoReconhecimento()||node('recognitionDivergence').checked));
 }
 function fecharConferenciaTipologia(){
   node('recognitionOverlay').classList.add('hidden');
@@ -1430,26 +1492,51 @@ function fecharConferenciaTipologia(){
 async function confirmarReconhecimentoTipologia(){
   const item=recognitionPendingItem;
   const target=typologyCatalog.find(x=>x.id===node('recognitionTarget').value);
-  if(!item||!target||node('recognitionConfirm').disabled)return;
+  const nova=node('recognitionModulation').value==='__CRIAR__';
+  const mod=modulationCatalog.find(m=>m.id===node('recognitionModulation').value);
+  if(!item||!target||(!nova&&!mod)||node('recognitionConfirm').disabled)return;
   const button=node('recognitionConfirm');
   button.disabled=true;button.textContent='Confirmando…';
   node('recognitionMessage').textContent='';
-  try {
+  try{
     await ensureSession();
-    const resposta=await request('/rest/v1/rpc/vincular_tipologia_existente_admin',{
+    const q=node('recognitionModCount').value.trim();
+    const res=await request('/rest/v1/rpc/resolver_modulacao_pendente_admin',{
       method:'POST',token:session.access_token,
-      body:{p_esquadria_id:item.id,p_tipologia_id:target.id,
-        p_confirmar_divergencia:node('recognitionDivergence').checked}
+      body:{
+        p_esquadria_id:item.id,p_tipologia_id:target.id,
+        p_modulacao_id:nova?null:mod.id,
+        p_criar_modulacao:nova,
+        p_descricao_modulacao:nova?node('recognitionModDescription').value.trim():null,
+        p_quantidade_modulos:nova&&q?Number(q):null,
+        p_confirmar_divergencia:node('recognitionDivergence').checked
+      }
     });
     fecharConferenciaTipologia();
     await loadPanel();
     renderTypologiesAdmin();
     setView('typologies');
     node('pendingReviewPanel').open=true;
-    node('typologyAdminMessage').textContent='Tipologia '+target.codigo+' confirmada apenas nesta obra ('+
-      (resposta.esquadrias_vinculadas||0)+' registro(s)). Sem associação automática para outras obras.';
-  }catch(err){node('recognitionMessage').textContent='Não foi possível confirmar: '+err.message;}
-  finally{button.disabled=false;button.textContent='Confirmar associação';}
+    node('typologyAdminMessage').textContent=(res.nova_modulacao?'Modulação criada: ':'Modulação vinculada: ')+
+      res.codigo_interno+' · '+(res.esquadrias_classificadas||0)+
+      ' esquadria(s) desta obra. Nenhum código EA de outra obra foi associado.';
+  }catch(err){
+    node('recognitionMessage').textContent='Não foi possível confirmar: '+err.message;
+  }finally{button.disabled=false;button.textContent='Confirmar associação';}
+}
+function renderModulacoesCadastradas(){
+  const target=node('modulationCatalogList');
+  node('modulationCatalogCount').textContent=modulationCatalog.length+' cadastrada(s)';
+  if(!modulationCatalog.length){
+    target.innerHTML='<p class="hint">Ainda não existem modulações cadastradas.</p>';return;
+  }
+  target.innerHTML=modulationCatalog.map(m=>{
+    const t=typologyCatalog.find(x=>x.id===m.tipologia_principal_id);
+    const mod=m.quantidade_modulos?m.quantidade_modulos+' módulo(s)':'Módulos a conferir';
+    return '<div class="reviewPendingRow"><div><strong>'+escapeHTML(m.codigo_interno)+
+      ' · '+escapeHTML(t?.codigo||'Tipologia não localizada')+'</strong><p class="muted">'+
+      escapeHTML(m.descricao)+'</p><span class="hint">'+escapeHTML(mod)+'</span></div></div>';
+  }).join('');
 }
 function refreshVariationManager(){
   const signature=typologyCatalog.map(t=>[t.id,t.codigo,t.tipologia_principal_id||'',t.quantidade_modulos||''].join(':')).join('|');
@@ -1512,6 +1599,7 @@ function renderTypologiesAdmin() {
   if(String(membership?.perfil||'').toLowerCase()!=='administrador'){setView('dashboard');return;}
   refreshVariationManager();
   renderConferenciaPendentes();
+  renderModulacoesCadastradas();
   node('catalogCount').textContent=typologyCatalog.length.toLocaleString('pt-BR');
   node('croquiCatalogCount').textContent='Croquis: '+typologyCroquis.length+' de '+typologyCatalog.length;
   const options=[...new Set([...manufacturerCatalog.map(m=>m.nome),...typologyCatalog.map(t=>String(t.fabricante||'').trim().toLocaleUpperCase('pt-BR')).filter(Boolean)])]
@@ -2012,7 +2100,10 @@ node('typologyManufacturerFilter').addEventListener('change',renderTypologiesAdm
 node('typologyTypeFilter').addEventListener('change',renderTypologiesAdmin);
 node('variationRecord').addEventListener('change',syncVariationForm);
 node('variationForm').addEventListener('submit',saveVariationFamily);
-node('recognitionTarget').addEventListener('change',atualizarComparacaoReconhecimento);
+node('recognitionTarget').addEventListener('change',atualizarOpcoesModulacao);
+node('recognitionModulation').addEventListener('change',renderizarCamposModulacao);
+node('recognitionModDescription').addEventListener('input',atualizarComparacaoReconhecimento);
+node('recognitionModCount').addEventListener('input',validarReconhecimento);
 node('recognitionApproval').addEventListener('change',validarReconhecimento);
 node('recognitionDivergence').addEventListener('change',validarReconhecimento);
 node('recognitionCancel').addEventListener('click',fecharConferenciaTipologia);
