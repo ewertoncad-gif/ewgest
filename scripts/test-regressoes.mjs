@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'romaneio A4 revisado v38.0',
+ 'almoxarifado v39.0',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -416,8 +416,12 @@ const longas=Array.from({length:12},(_,i)=>({
 const saidaLonga=montarRomaneio(cabecalho,longas);
 assert.ok((saidaLonga.match(/class="printPage single"/g)||[]).length>=4,
  'Textos longos devem gerar paginas de continuação para cada via');
-assert.ok(saidaLonga.includes('@page{size:A4 portrait;margin:9mm}'),
- 'Romaneio configurado para A4');
+assert.ok(saidaLonga.includes('@page{size:A4 portrait;margin:0}'),
+ 'A4 sem margem externa para reduzir cabeçalhos automáticos do navegador');
+assert.ok(saidaLonga.includes('.printPage{height:297mm;padding:9mm;'),
+ 'Margens internas preservadas no A4');
+assert.ok(duas.includes('class="truckSlot"')&&duas.includes('class="headerTruck"'),
+ 'Caminhão fica em coluna própria, fora do título');
 const cancelado=montarRomaneio({...cabecalho,status:'cancelado',
  motivo_cancelamento:'Erro de carregamento; entrega não aconteceu'},[linha(1)]);
 assert.ok(cancelado.includes('CANCELADO · SAÍDAS ESTORNADAS'),
@@ -452,6 +456,29 @@ assert.ok(source.includes("leaves.closest('label').classList.toggle('hidden',!pe
 assert.ok(source.includes("node('shipmentCompositionSection').classList.toggle('hidden',!precisaComposicao)"),
  'Campo de folhas escondido na saída completa individual');
 
-console.log('OK: '+cases.length+' classificacoes; sem pergunta de folhas no completo, MAXIM-AR completo, regressoes de romaneio e A4.');
+for(const expected of [
+ 'id="romaneiosPage"',
+ 'id="hubWorkSelect"',
+ 'id="hubEmitRomaneio"',
+ 'id="hubRomaneioList"',
+ 'id="openRomaneioHub"',
+ 'function isAlmoxarife()',
+ 'function podeEmitirRomaneio()',
+ 'function renderRomaneioHub()',
+ 'function abrirAreaRomaneios()',
+ 'const somenteRomaneios=isAlmoxarife()',
+ "setView('romaneiosPage')",
+ 'Almoxarife — somente romaneios'
+])assert.ok(source.includes(expected),'Área exclusiva precisa de '+expected);
+const funcInicio=source.indexOf('function isAlmoxarife(){');
+const funcFinal=source.indexOf('function invalidateAppSession(reason){',funcInicio);
+assert.ok(funcInicio>=0&&funcFinal>funcInicio,'Guarda de navegação presente');
+const evaluateRole=role=>new Function('membership',
+ source.slice(funcInicio,funcFinal)+'\nreturn {isAlmoxarife,podeEmitirRomaneio};'
+)({perfil:role});
+assert.equal(evaluateRole('almoxarife').isAlmoxarife(),true,'Reconhece perfil almoxarife');
+assert.equal(evaluateRole('almoxarife').podeEmitirRomaneio(),true,'Permite emitir');
+assert.equal(evaluateRole('consulta').podeEmitirRomaneio(),false,'Consulta não pode emitir');
+console.log('OK: '+cases.length+' classificacoes; romaneio A4, guarda do almoxarife e regressões.');
 
 
