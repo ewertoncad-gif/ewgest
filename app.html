@@ -1135,7 +1135,8 @@ function abrirEmissaoRomaneio(){
   node('romaneioError').textContent='';
   romaneioOperationId=null;romaneioOperationSignature='';
   node('romaneioModal').classList.remove('hidden');
-  if(elements.some(x=>x.obra_id===selectedWork.id&&romaneioSaldoCompleto(x)>0))
+  if(elements.some(x=>x.obra_id===selectedWork.id&&Number(x.qtd_liberada)>0&&
+      (romaneioSaldoPorTipo(x,'marco')>0||romaneioSaldoPorTipo(x,'folha',1)>0)))
     adicionarLinhaRomaneio('esquadria');
   node('romaneioDriver').focus();
 }
@@ -1203,9 +1204,7 @@ function buscarEsquadriasRomaneio(row){
     .toLocaleUpperCase('pt-BR').trim();
   const antigo=combo.value;
   const disponiveis=elements.filter(x=>x.obra_id===selectedWork.id&&
-    Number(x.qtd_liberada)>0 &&
-    (romaneioSaldoPorTipo(x,'marco')>0||
-      romaneioSaldoPorTipo(x,'folha',1)>0)).filter(x=>{
+    Number(x.qtd_liberada)>0 && romaneioSaldoPorTipo(x,tipo,1)>0).filter(x=>{
       const v=(x.codigo+' '+(x.descricao||'')+' '+(x.localizacao||''))
         .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleUpperCase('pt-BR');
       return v.includes(termo);
@@ -1274,7 +1273,7 @@ function adicionarLinhaRomaneio(natureza){
       '<label>Quantidade<input data-rom-field="quantidade" type="number" min="1" step="1" required></label>'+
       '<label>Folhas por esquadria<input data-rom-field="folhas_por_unidade" type="number" min="1" max="12" step="1" required placeholder="Confirmar"></label>'+
       '</div><p class="hint">Na opção “só folhas”, a quantidade representa folhas físicas, não esquadrias completas.</p>';
-    row.querySelector('[data-rom-field="tipo_saida"]').addEventListener('change',()=>atualizarLinhaRomaneio(row));
+    row.querySelector('[data-rom-field="tipo_saida"]').addEventListener('change',()=>buscarEsquadriasRomaneio(row));
     row.querySelector('[data-rom-field="esquadria_search"]').addEventListener('input',()=>buscarEsquadriasRomaneio(row));
     row.querySelector('[data-rom-field="esquadria_id"]').addEventListener('change',()=>atualizarLinhaRomaneio(row));
     row.querySelector('[data-rom-field="folhas_por_unidade"]').addEventListener('input',()=>atualizarLinhaRomaneio(row));
@@ -1339,7 +1338,8 @@ function construirHTMLRomaneio(header,linhas){
   const itens=linhas.slice().sort((a,b)=>Number(a.sequencia)-Number(b.sequencia));
   // Estima a altura das linhas para não cortar textos longos no A4.
   const pesoLinha=i=>Math.max(1,Math.ceil(String(i.descricao||'').length/42));
-  const duasVias=itens.length<=9&&itens.reduce((n,i)=>n+pesoLinha(i),0)<=14;
+  const duasVias=itens.length<=9&&itens.reduce((n,i)=>n+pesoLinha(i),0)<=14&&
+    (header.status!=='cancelado'||itens.length<=5);
   const paginas=[];
   let paginaAtual=[],altura=0;
   for(const linha of itens){
