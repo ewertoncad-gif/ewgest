@@ -206,7 +206,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • listas sem sufixos v35.7</div>
+        <div class="build">EWGEST • romaneios e fábricas v36.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -437,6 +437,13 @@
       <input id="releaseQty" type="number" min="1" step="1" required autocomplete="off">
       <label for="releaseDate">2. Qual é a data da liberação?</label>
       <input id="releaseDate" type="date" required>
+      <label for="releaseFactory">3. Qual fábrica vai produzir?</label>
+      <select id="releaseFactory" required>
+        <option value="">Selecione a fábrica</option>
+        <option value="AFOGADOS">AFOGADOS</option>
+        <option value="IMBIRIBEIRA">IMBIRIBEIRA</option>
+      </select>
+      <p class="hint">A fábrica será registrada nesta liberação para apurar o prazo até a saída da produção.</p>
       <div id="releaseError" class="feedback" role="alert"></div>
       <div class="modalbuttons"><button type="button" id="releaseCancel" class="btn secondary">Cancelar</button><button type="submit" id="releaseSave" class="btn primary">Salvar liberação</button></div>
     </form>
@@ -800,7 +807,7 @@ async function loadPanel(){
       typologyOrigins=[];typologyOriginReady=false;
     }
   }
-  releaseHistory=await apiGet('liberacoes_corte',{select:'esquadria_id,quantidade,data_liberacao',order:'data_liberacao.desc'});
+  releaseHistory=await apiGet('liberacoes_corte',{select:'esquadria_id,quantidade,data_liberacao,fabrica',order:'data_liberacao.desc'});
   try{
     const [config,history]=await Promise.all([
       apiGet('esquadrias_saida_config',{select:'esquadria_id,folhas_por_unidade'}),
@@ -1140,7 +1147,7 @@ function openRelease(id){
   node('releaseItem').textContent=selectedItem.codigo+' · '+labeledDescription(selectedItem)+' · '+(selectedItem.localizacao||'');
   node('releaseBalance').textContent='Aguardando liberação: '+pending+' de '+selectedItem.quantidade+' unidades.';
   node('releaseQty').value='';node('releaseQty').max=String(pending);
-  node('releaseDate').value=todayLocal();node('releaseError').textContent='';
+  node('releaseDate').value=todayLocal();node('releaseFactory').value='';node('releaseError').textContent='';
   node('releaseModal').classList.remove('hidden');node('releaseQty').focus();
 }
 function closeRelease(){node('releaseModal').classList.add('hidden');selectedItem=null;}
@@ -1148,13 +1155,15 @@ node('releaseCancel').addEventListener('click',closeRelease);
 node('releaseForm').addEventListener('submit',async event=>{
   event.preventDefault();if(!selectedItem)return;
   const qty=Number(node('releaseQty').value),date=node('releaseDate').value;
+  const fabrica=node('releaseFactory').value;
   const pending=Number(selectedItem.quantidade)-Number(selectedItem.qtd_liberada);
   if(!Number.isSafeInteger(qty)||qty<=0||qty>pending){node('releaseError').textContent='Quantidade inválida. Máximo disponível: '+pending+'.';return;}
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date>todayLocal()){node('releaseError').textContent='Informe uma data válida, não futura.';return;}
+  if(!['AFOGADOS','IMBIRIBEIRA'].includes(fabrica)){node('releaseError').textContent='Escolha Afogados ou Imbiribeira.';return;}
   const button=node('releaseSave');button.disabled=true;button.textContent='Salvando…';node('releaseError').textContent='';
   try{
     await ensureSession();
-    await request('/rest/v1/rpc/registrar_liberacao_corte',{method:'POST',token:session.access_token,body:{p_esquadria_id:selectedItem.id,p_quantidade:qty,p_data_liberacao:date}});
+    await request('/rest/v1/rpc/registrar_liberacao_corte_fabrica',{method:'POST',token:session.access_token,body:{p_esquadria_id:selectedItem.id,p_quantidade:qty,p_data_liberacao:date,p_fabrica:fabrica}});
     // A gravação já foi confirmada: falha posterior de atualização não deve sugerir repetição.
     const workId=selectedWork?.id;
     closeRelease();
@@ -2669,7 +2678,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v35.7 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v36.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
