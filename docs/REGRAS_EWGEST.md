@@ -1,6 +1,6 @@
 # Regras protegidas do EWGEST
 
-**Regras versão 1.6** · **Site versão 35.5**
+**Regras versão 1.6** · **Site versão 35.6**
 
 ## Tipologia principal e variações
 1. Código principal identifica o modelo da tipologia, **não** a quantidade de módulos.
@@ -95,6 +95,12 @@
 - Se responder **Não**, conservar as escolhas de nova configuração, corrigir descrição e conferir depois. O seletor de uma modulação específica aparece **somente dentro de Corrigir descrição**, porque aí a seleção é necessária para saber qual descrição concreta aplicar.
 - Manter histórico, código técnico principal, registros de obra, croquis e aprovações do ADM; sem associação silenciosa com configuração de quantidade diferente.
 
+## Sufixo oculto na listagem principal de tipologias (v35.6)
+- Em **Consultar tipologias cadastradas**, mostrar somente o código técnico **principal** (ex.: GOL-FIXN00, GOLS-JCR20), sem o sufixo -01/-02 que representa cada configuração.
+- Não modificar os identificadores MOD, o código técnico principal, as descrições, croquis ou vínculos no banco. O vínculo do item com sua configuração própria continua intacto.
+- No painel **Modulações internas cadastradas**, manter os códigos sufixados para permitir identificação técnica da configuração, quando necessário.
+- Não alterar a exibição nas obras nem a comparação administrativa neste ajuste. A busca por códigos de configuração deve continuar funcional.
+
 ## Verificação obrigatória nas atualizações
 1. Ler as regras acima antes de mexer no sistema.
 2. Executar node scripts/test-regressoes.mjs.
@@ -103,4 +109,4 @@
 5. O cadastro/importação de novas obras com edição do número de módulos por esquadria continua como etapa futura; a nova coluna foi criada sem afetar as obras existentes.
 
 ## Histórico
-- v27: FIXO; v28: prioridade das fachadas sobre FIXO; v29: MAXIM-AR próprio e prioridade das fachadas; v30: agrupamento das variações e painel de regras; v31: revisão administrativa por obra, sugestões pela descrição e auditoria de confirmação; v32: pendências visíveis, códigos MOD internos, criação ou associação manual pelo ADM; v33: correção administrativa de identificações técnicas existentes, com comparação, confirmação e auditoria; v34: códigos sufixados por família, numeração transacional, catalogação de 46 configurações legadas e pendências de modulação; v35: confirmação Sim/Não, criação/correção/adiamento e auditoria sem bloquear obras; v35.1: comparação em duas caixas e sufixo oculto somente na tela de conferência; v35.2: exibir tipologia informada na obra versus tipologia técnica do catálogo, sem misturar com código de esquadria. v35.3: explicitar código principal preservado ao criar nova configuração; v35.4: substituir quantidade de módulos por N apenas nas caixas comparativas da obra/catálogo. v35.5: descrição da obra intacta, padrão principal com N e seletor somente na correção de texto.
+- v27: FIXO; v28: prioridade das fachadas sobre FIXO; v29: MAXIM-AR próprio e prioridade das fachadas; v30: agrupamento das variações e painel de regras; v31: revisão administrativa por obra, sugestões pela descrição e auditoria de confirmação; v32: pendências visíveis, códigos MOD internos, criação ou associação manual pelo ADM; v33: correção administrativa de identificações técnicas existentes, com comparação, confirmação e auditoria; v34: códigos sufixados por família, numeração transacional, catalogação de 46 configurações legadas e pendências de modulação; v35: confirmação Sim/Não, criação/correção/adiamento e auditoria sem bloquear obras; v35.1: comparação em duas caixas e sufixo oculto somente na tela de conferência; v35.2: exibir tipologia informada na obra versus tipologia técnica do catálogo, sem misturar com código de esquadria. v35.3: explicitar código principal preservado ao criar nova configuração; v35.4: substituir quantidade de módulos por N apenas nas caixas comparativas da obra/catálogo. v35.5: descrição da obra intacta, padrão principal com N e seletor somente na correção de texto. v35.6: ocultar sufixos somente na lista principal do catálogo.
