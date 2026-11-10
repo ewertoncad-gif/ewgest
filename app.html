@@ -200,6 +200,10 @@
     .romaneioCancelPrint{background:#f4cbcb;border:2px solid #a11;color:#a11;font-size:19px;
        font-weight:900;text-align:center;letter-spacing:5px;padding:3mm;margin:4mm 0}
     .romaneioRow .romaneioRowFields label{margin-top:9px}
+    .abbrevPanelGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}
+    .abbrevPanelGrid label{min-width:0}
+    #typologyAbbrevText,#romaneioNotes{width:100%;min-height:76px;resize:vertical;white-space:pre-wrap}
+    @media(max-width:640px){.abbrevPanelGrid{grid-template-columns:minmax(0,1fr)}}
     .romaneioRow textarea[data-rom-field="descricao_romaneio"]{width:100%;min-height:66px;resize:vertical;white-space:pre-wrap;margin-top:5px}
     .romaneioRowSummary{font-size:12px;color:#c4dbea;margin:9px 0;line-height:1.55}
     .romaneioRow .romaneioRemove{padding:7px 10px}
@@ -232,7 +236,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • descrições editáveis v39.2</div>
+        <div class="build">EWGEST • abreviações e almoxarifado v40.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -432,6 +436,28 @@
           </ul>
           <p class="hint">Antes de qualquer atualização: conferir estas regras, testar classificações e vínculos e preservar os dados históricos.</p>
         </details>
+        <details class="systemRules" id="typologyAbbrevPanel">
+          <summary>Abreviações de romaneios · <span id="typologyAbbrevCount">0 cadastradas</span></summary>
+          <p class="hint">Defina uma descrição curta por tipologia para usar nos próximos romaneios. O sistema acrescenta (COMPLETA), (MARCO) ou (FOLHAS) automaticamente. Esta configuração não modifica a descrição técnica.</p>
+          <div class="abbrevPanelGrid">
+            <label for="typologyAbbrevSearch">Buscar tipologia
+              <input id="typologyAbbrevSearch" type="search" placeholder="Código ou descrição">
+            </label>
+            <label for="typologyAbbrevSelect">Tipologia
+              <select id="typologyAbbrevSelect"><option value="">Selecione uma tipologia</option></select>
+            </label>
+          </div>
+          <p id="typologyAbbrevOriginal" class="hint"></p>
+          <label for="typologyAbbrevText">Abreviação padrão (sem o sufixo COMPLETA/MARCO/FOLHAS)
+            <textarea id="typologyAbbrevText" rows="2" maxlength="300" placeholder="Ex.: JANELA CORRER 2F GOLD SLIM"></textarea>
+          </label>
+          <p class="hint" id="typologyAbbrevPreview"></p>
+          <div class="romaneioCreateButtons">
+            <button id="typologyAbbrevSave" type="button" class="btn primary">Salvar abreviação</button>
+            <button id="typologyAbbrevReset" type="button" class="btn secondary">Restaurar automática</button>
+          </div>
+          <p id="typologyAbbrevStatus" class="hint" role="status" aria-live="polite"></p>
+        </details>
         <details class="systemRules" id="pendingReviewPanel" open>
           <summary>Pendências de cadastro · <span id="pendingReviewCount">—</span></summary>
           <p class="hint">Esquadrias sem tipologia ou com modulação ainda não confirmada. Sugestões pela descrição, nunca pelo código EA, com aprovação do ADM.</p>
@@ -561,7 +587,6 @@
             <button type="button" class="btn secondary" id="romaneioNewDriver">+ Novo</button>
           </div>
         </div>
-        <div><label for="romaneioNotes">Observações (opcional)</label><input id="romaneioNotes" maxlength="1000" placeholder="Informações da entrega"></div>
       </div>
       <h3 style="margin:22px 0 5px">Itens do romaneio</h3>
       <div id="romaneioRows"></div>
@@ -570,6 +595,9 @@
         <button type="button" id="romaneioAddMaterial" class="btn secondary">+ Material avulso</button>
       </div>
       <p class="hint">Em cada esquadria, escolha <strong>completa, só marco ou só folhas</strong>. Folhas são contadas individualmente; materiais avulsos não alteram o saldo de produção.</p>
+      <label for="romaneioNotes">Observações da entrega (opcional)</label>
+      <textarea id="romaneioNotes" rows="3" maxlength="1000" placeholder="Ex.: materiais conferidos, responsável pelo recebimento, ressalvas sobre a entrega"></textarea>
+      <p class="hint">As observações aparecerão no final do comprovante, antes das assinaturas.</p>
       <label class="romaneioConfirmBox"><input id="romaneioConfirm" type="checkbox" required>
         <span>Confirmo que os materiais foram efetivamente expedidos nesta data. A emissão registra todas as saídas das esquadrias selecionadas e não permite duplicidade de envio.</span>
       </label>
@@ -795,6 +823,7 @@ let session=null, currentUser=null, currentCompany=null, membership=null, works=
 let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='',detailMode='release',currentShipmentRequestId=null;
 let romaneios=[],romaneioItens=[],romaneioLoadError='',romaneioRows=[],romaneioOperationId=null,romaneioOperationSignature='';
 let romaneioMotoristas=[],romaneioVeiculos=[],romaneioTransportError='';
+let typologyAbbreviations=[],typologyAbbreviationError='';
 let typologyCatalog=[],typologyOrigins=[],typologyOriginReady=false,editingTypology=null,editingPendingItem=null,typologyEditingStep=1,typologyCroquis=[];
 let variationManagerCatalogSignature='';
 let recognitionPendingItem=null;
@@ -894,6 +923,13 @@ async function loadPanel(){
       apiGet('tipologias',{select:'id,codigo,descricao,provisoria,fabricante,tipologia_principal_id,quantidade_modulos',empresa_id:'eq.'+currentCompany.id})
   ]);
   works=w||[];elements=e||[];typologyCatalog=tips||[];
+  try{
+    typologyAbbreviations=await apiGet('tipologias_abreviacoes',{
+      select:'tipologia_id,descricao_base,atualizado_em',
+      empresa_id:'eq.'+currentCompany.id,limit:'1000'
+    })||[];
+    typologyAbbreviationError='';
+  }catch(err){typologyAbbreviations=[];typologyAbbreviationError=err.message;}
   typologyOrigins=[];typologyOriginReady=false;typologyCroquis=[];
   modulationCatalog=[];
   manufacturerCatalog=[];manufacturerLoadError='';
@@ -1320,7 +1356,7 @@ function atualizarLinhaRomaneio(el){
   // Trocar item/modalidade atualiza o texto. Editar quantidade não apaga texto manual.
   const chaveDescricao=item.id+'|'+modo;
   if(el.dataset.romaneioDescricaoChave!==chaveDescricao){
-    campoDescricao.value=descricaoCurtaRomaneio(item.descricao,modo);
+    campoDescricao.value=descricaoPadraoRomaneio(item,modo);
     el.dataset.romaneioDescricaoChave=chaveDescricao;
   }
   if(stats.per!==null){leaves.value=stats.per;leaves.readOnly=true;}
@@ -1474,13 +1510,16 @@ function construirHTMLRomaneio(header,linhas){
   // Considerar quebras explícitas e palavras longas para a paginação de duas vias.
   const pesoLinha=i=>Math.max(1,descricaoImpressa(i).split(/\r?\n/)
     .reduce((total,linha)=>total+Math.max(1,Math.ceil(linha.length/43)),0));
-  const duasVias=itens.length<=9&&itens.reduce((n,i)=>n+pesoLinha(i),0)<=14&&
+  const notas=String(header.observacoes||'');
+  const pesoNotas=notas.trim()?notas.split(/\r?\n/)
+    .reduce((acc,x)=>acc+Math.max(1,Math.ceil(x.length/90)),0):0;
+  const duasVias=itens.length<=9&&itens.reduce((n,i)=>n+pesoLinha(i),0)+pesoNotas<=14&&
     (header.status!=='cancelado'||itens.length<=5);
   const paginas=[];
   let paginaAtual=[],altura=0;
   for(const linha of itens){
     const peso=pesoLinha(linha);
-    if(paginaAtual.length&&(paginaAtual.length>=16||altura+peso>33)){
+    if(paginaAtual.length&&(paginaAtual.length>=16||altura+peso>Math.max(9,33-pesoNotas))){
       paginas.push(paginaAtual);paginaAtual=[];altura=0;
     }
     paginaAtual.push(linha);altura+=peso;
@@ -1530,7 +1569,7 @@ function construirHTMLRomaneio(header,linhas){
         '<tbody>'+rows+'</tbody></table>'+
       '<div class="total"><strong>Total M²:</strong> '+
         soma.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>'+
-      (header.observacoes?'<div class="notes">Observações: '+escapeHTML(header.observacoes)+'</div>':'')+
+      (header.observacoes?'<div class="notes"><strong>Observações:</strong> '+escapeHTML(header.observacoes)+'</div>':'')+
       (header.status==='cancelado'?'<div class="notes"><strong>Motivo do cancelamento:</strong> '+
         escapeHTML(header.motivo_cancelamento||'Não informado')+'</div>':'')+
       '<div class="signatures"><div>Entregue por:<span></span></div>'+
@@ -1578,7 +1617,7 @@ function construirHTMLRomaneio(header,linhas){
     'thead{display:table-header-group}th{background:#e3e3e3;text-align:center;font-weight:bold}',
     'td.center{text-align:center}td.right{text-align:right}',
     '.total{text-align:right;font-size:9px;padding:2.2mm 1mm}',
-    '.notes{font-size:8.5px;margin:2mm 0;overflow-wrap:anywhere}',
+    '.notes{font-size:8.5px;margin:2mm 0;overflow-wrap:anywhere;white-space:pre-line;line-height:1.4}',
     '.signatures{display:grid;grid-template-columns:repeat(3,1fr);gap:7mm;margin-top:8mm;font-size:8px}',
     '.signatures span{display:block;border-bottom:1px solid #777;height:12mm}',
     '.copy.compact table{font-size:8px}.copy.compact th,.copy.compact td{padding:1.5mm .8mm}',
@@ -3573,7 +3612,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v39.2 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v40.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
