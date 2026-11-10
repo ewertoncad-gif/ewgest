@@ -362,6 +362,40 @@
       .romaneioHistoryRow .btn{min-height:35px}
     }
 
+
+    /* Navegação vertical: ocupa toda a lateral da janela, sem efeito de cartão flutuante. */
+    @media (min-width:761px){
+      .wrap.workspaceOpen{max-width:none;margin:0;padding:0 0 52px}
+      .wrap.workspaceOpen>.top{
+        margin:0 0 0 240px;position:sticky;top:0;z-index:18;
+        width:calc(100% - 240px);min-height:76px;padding:14px 34px;
+        justify-content:flex-end;border-radius:0;border-top:0;border-right:0;border-left:0;
+        border-bottom:1px solid #e3eaf3;box-shadow:0 2px 10px #23436b0a
+      }
+      .wrap.workspaceOpen>.top .brandBlock{display:none}
+      .wrap.workspaceOpen>main{margin:0 0 0 240px;padding:0 34px;min-width:0}
+      .workspaceNav{
+        position:fixed;top:0;bottom:0;left:0;z-index:30;
+        width:240px;height:100vh;height:100dvh;padding:22px 14px 18px;
+        display:flex;flex-direction:column;gap:5px;overflow-y:auto;
+        background:#fff;border:0;border-right:1px solid #e3eaf3;
+        border-radius:0;box-shadow:none;margin:0
+      }
+      .workspaceNavBrand{display:block;padding:8px 12px 25px;margin-bottom:15px;border-bottom:1px solid #e9eff6}
+      .workspaceNavBrand .brand{font-size:27px}
+      .workspaceNavSubtitle{margin-top:9px;color:#7990aa;font-size:11px;line-height:1.45;font-weight:600}
+      .workspaceNavFooter{margin-top:auto;padding-top:17px}
+    }
+    @media (max-width:760px){
+      .workspaceNavBrand{display:none}
+      .wrap.workspaceOpen>.top{margin-left:0}
+      .wrap.workspaceOpen>main{margin-left:0;padding:0}
+      .workspaceNav{
+        height:auto;max-height:none;bottom:auto;overflow-x:auto;overflow-y:hidden;
+        border:1px solid #e2eaf3;border-radius:12px;box-shadow:none
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -371,6 +405,10 @@
     <div class="topactions"><span class="tag" id="topTag">Gestão de obras · liberações e saídas</span><button id="myPasswordHeader" class="btn secondary hidden" type="button">Minha senha</button><button id="logout" class="btn secondary hidden" type="button">Sair</button></div>
   </header>
   <aside id="workspaceNav" class="workspaceNav hidden" aria-label="Navegação principal">
+    <div class="workspaceNavBrand" aria-hidden="true">
+      <div class="brand">EW<span>GEST</span></div>
+      <div class="workspaceNavSubtitle">Gestão técnica de esquadrias</div>
+    </div>
     <div class="workspaceNavCaption">ESPAÇO DE TRABALHO</div>
     <button id="navHome" class="workspaceLink" type="button"><span class="navSymbol">⌂</span> Tela inicial</button>
     <button id="navRomaneios" class="workspaceLink" type="button"><span class="navSymbol">▤</span> Romaneios e expedição</button>
