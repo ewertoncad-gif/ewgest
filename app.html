@@ -703,7 +703,6 @@
                 <option value="PORTA DE GIRO">PORTA DE GIRO</option>
                 <option value="GUARDA CORPO">GUARDA CORPO</option>
                 <option value="SPLIT">SPLIT</option>
-                <option value="FACHADA_NAO_DEFINIDA">FACHADA — NÃO DEFINIDA</option>
                 <option value="OUTROS">OUTROS / NÃO IDENTIFICADOS</option>
               </select>
             </div>
@@ -2735,7 +2734,8 @@ function classificarTipoTipologia(t){
   if(/\bFACHADA\b|\bFACADE\b|\bPELE\s+DE\s+VIDRO\b/.test(desc)){
     if(/\bUNITIZAD[AO]S?\b/.test(desc))return 'FACHADA UNITIZADA';
     if(/\bSTICK\b/.test(desc))return 'FACHADA STICK';
-    return 'FACHADA_NAO_DEFINIDA';
+    // Fachadas sem sistema identificado compartilham o filtro OUTROS.
+    return 'OUTROS';
   }
   if(/\bGUARDA[\s-]*CORPO\b/.test(desc))return 'GUARDA CORPO';
   if(/\bSPLIT\b/.test(desc))return 'SPLIT';
