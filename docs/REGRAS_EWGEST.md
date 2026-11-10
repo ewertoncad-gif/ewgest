@@ -1,6 +1,6 @@
 # Regras protegidas do EWGEST
 
-**Regras versão 1.5** · **Site versão 35.1**
+**Regras versão 1.5** · **Site versão 35.2**
 
 ## Tipologia principal e variações
 1. Código principal identifica o modelo da tipologia, **não** a quantidade de módulos.
@@ -70,6 +70,12 @@
 - Exibir **Descrição da obra** e **Descrição do catálogo** em duas caixas separadas, com tipografia legível, contraste e adaptação ao celular.
 - O seletor deve continuar usando o UUID da configuração, não o texto visível, inclusive quando houver descrições repetidas. As ações Sim/Não e a trilha de auditoria continuam inalteradas.
 
+## Identificação de tipologias na comparação (v35.2)
+- Cada caixa da conferência mostra **o código da tipologia** antes da descrição: na obra, `esquadrias.rotulo_tipologia_relatorio` (código exatamente recebido do relatório, como EA6A_1); no catálogo, código da **tipologia principal** já reconhecida (como WINFAC-JCR203).
+- Nunca confundir o código da esquadria (EA6A) com o código de tipologia informado pela obra; quando o código de tipologia de origem não existir, indicar **Não informado no relatório**, sem inventá-lo.
+- O sufixo `-01` permanece oculto nesta tela, não é removido do banco. As duas descrições continuam em caixas separadas e as opções Sim/Não não mudam.
+- O código original informado pela obra nunca é alterado durante a comparação.
+
 ## Verificação obrigatória nas atualizações
 1. Ler as regras acima antes de mexer no sistema.
 2. Executar node scripts/test-regressoes.mjs.
@@ -78,4 +84,4 @@
 5. O cadastro/importação de novas obras com edição do número de módulos por esquadria continua como etapa futura; a nova coluna foi criada sem afetar as obras existentes.
 
 ## Histórico
-- v27: FIXO; v28: prioridade das fachadas sobre FIXO; v29: MAXIM-AR próprio e prioridade das fachadas; v30: agrupamento das variações e painel de regras; v31: revisão administrativa por obra, sugestões pela descrição e auditoria de confirmação; v32: pendências visíveis, códigos MOD internos, criação ou associação manual pelo ADM; v33: correção administrativa de identificações técnicas existentes, com comparação, confirmação e auditoria; v34: códigos sufixados por família, numeração transacional, catalogação de 46 configurações legadas e pendências de modulação; v35: confirmação Sim/Não, criação/correção/adiamento e auditoria sem bloquear obras; v35.1: comparação em duas caixas e sufixo oculto somente na tela de conferência.
+- v27: FIXO; v28: prioridade das fachadas sobre FIXO; v29: MAXIM-AR próprio e prioridade das fachadas; v30: agrupamento das variações e painel de regras; v31: revisão administrativa por obra, sugestões pela descrição e auditoria de confirmação; v32: pendências visíveis, códigos MOD internos, criação ou associação manual pelo ADM; v33: correção administrativa de identificações técnicas existentes, com comparação, confirmação e auditoria; v34: códigos sufixados por família, numeração transacional, catalogação de 46 configurações legadas e pendências de modulação; v35: confirmação Sim/Não, criação/correção/adiamento e auditoria sem bloquear obras; v35.1: comparação em duas caixas e sufixo oculto somente na tela de conferência; v35.2: exibir tipologia informada na obra versus tipologia técnica do catálogo, sem misturar com código de esquadria.
