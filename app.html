@@ -323,7 +323,7 @@
                 minlength="6" maxlength="128" required placeholder="Mínimo de 6 caracteres"></div>
           </div>
           <div class="userActions"><button id="createUserSubmit" class="btn primary" type="submit">Cadastrar usuário</button></div>
-          <p class="hint">A senha deve ter pelo menos 6 caracteres, exigência do Supabase. Evite senhas óbvias ou sequenciais. O administrador poderá substituí-la depois, mas não visualizar a anterior.</p>
+          <p class="hint">A senha deve ter pelo menos 6 caracteres. O administrador pode redefinir a senha inicial ou escolher outra, sem visualizar a anterior. O usuário pode trocá-la em Minha senha.</p>
           <p class="hint">Administrador gerencia o sistema e registra liberações e saídas. Técnico e Consulta têm acesso conforme as permissões da empresa.</p>
         </form>
         <div id="createUserMessage" class="feedback" role="status" aria-live="polite"></div>
@@ -746,6 +746,7 @@
       <select id="userEditRole">
         <option value="administrador">Administrador</option>
         <option value="tecnico">Técnico</option>
+        <option value="almoxarife">Almoxarife — somente romaneios</option>
         <option value="consulta">Somente consulta</option>
       </select>
       <div class="userActions">
