@@ -1618,6 +1618,47 @@ async function emitirRomaneio(event){
     if(confirmado){romaneioOperationId=null;romaneioOperationSignature='';}
   }
 }
+
+let hubObraId='';
+function renderRomaneioHub(){
+  const select=node('hubWorkSelect');
+  const valor=hubObraId||(isAlmoxarife()?'':selectedWork?.id||'');
+  select.replaceChildren();
+  const first=document.createElement('option');first.value='';first.textContent='Selecione uma obra';select.append(first);
+  for(const w of works){const opt=document.createElement('option');opt.value=w.id;opt.textContent=w.nome+(w.codigo?' · '+w.codigo:'');select.append(opt);}
+  hubObraId=works.some(w=>w.id===valor)?valor:'';
+  select.value=hubObraId;
+  const obra=works.find(w=>w.id===hubObraId);
+  if(obra)selectedWork=obra;
+  node('romaneiosBack').classList.toggle('hidden',isAlmoxarife());
+  node('hubEmitRomaneio').disabled=!obra||!podeEmitirRomaneio()||!dispatchReady||Boolean(romaneioLoadError);
+  const box=node('hubRomaneioList');
+  if(!obra){box.textContent='Escolha a obra para consultar e emitir romaneios.';return;}
+  if(romaneioLoadError){box.textContent='Falha ao carregar os romaneios: '+romaneioLoadError;return;}
+  const docs=romaneios.filter(r=>r.obra_id===obra.id);
+  if(!docs.length){box.textContent='Nenhum romaneio emitido nesta obra.';return;}
+  const adm=String(membership?.perfil||'').toLowerCase()==='administrador';
+  box.innerHTML=docs.map(r=>{
+    const count=romaneioItens.filter(x=>x.romaneio_id===r.id).length;
+    const cancelled=r.status==='cancelado';
+    return '<div class="romaneioHistoryRow"><span><strong>'+escapeHTML(r.numero)+
+      '</strong> · '+escapeHTML(dataRomaneioFormatada(r.data_saida))+
+      ' · '+count+' item(ns) · '+escapeHTML(r.motorista)+
+      (cancelled?' · <strong style="color:#ffb8aa">CANCELADO</strong>':'')+
+      '</span><span><button type="button" class="btn secondary" data-hub-print="'+escapeHTML(r.id)+'">Reimprimir</button>'+
+      (adm&&!cancelled?' <button type="button" class="btn secondary romaneioCancel" data-hub-cancel="'+escapeHTML(r.id)+'">Cancelar / estornar</button>':'')+
+      '</span></div>';
+  }).join('');
+  box.querySelectorAll('[data-hub-print]').forEach(b=>b.addEventListener('click',()=>imprimirRomaneio(b.dataset.hubPrint)));
+  box.querySelectorAll('[data-hub-cancel]').forEach(b=>b.addEventListener('click',()=>cancelarRomaneio(b.dataset.hubCancel)));
+}
+function abrirAreaRomaneios(){
+  if(!membership||!podeEmitirRomaneio())return;
+  if(selectedWork?.id&&works.some(w=>w.id===selectedWork.id))hubObraId=selectedWork.id;
+  renderRomaneioHub();
+  node('hubRomaneioMessage').textContent='';
+  setView('romaneiosPage');
+}
 function changeDetailMode(mode) {
   detailMode=mode;
   if(selectedWork)renderDetail(selectedWork);
@@ -1987,6 +2028,25 @@ function openManagedUserEdit(id){
   node('userEditLogin').focus();
 }
 node('openUsers').addEventListener('click',openManagedUsersPage);
+node('openRomaneioHub').addEventListener('click',abrirAreaRomaneios);
+node('romaneiosBack').addEventListener('click',()=>setView('dashboard'));
+node('hubWorkSelect').addEventListener('change',()=>{
+  hubObraId=node('hubWorkSelect').value;
+  renderRomaneioHub();
+  node('hubRomaneioMessage').textContent='';
+});
+node('hubEmitRomaneio').addEventListener('click',()=>{
+  const obra=works.find(w=>w.id===hubObraId);
+  if(!obra){node('hubRomaneioMessage').textContent='Selecione uma obra.';return;}
+  selectedWork=obra;
+  abrirEmissaoRomaneio();
+});
+node('hubRefreshRomaneio').addEventListener('click',async()=>{
+  node('hubRomaneioMessage').textContent='Atualizando romaneios…';
+  try{await loadPanel();renderRomaneioHub();setView('romaneiosPage');
+    node('hubRomaneioMessage').textContent='Lista atualizada.';
+  }catch(e){node('hubRomaneioMessage').textContent='Erro ao atualizar: '+e.message;}
+});
 node('usersBack').addEventListener('click',()=>setView('dashboard'));
 node('reloadUsers').addEventListener('click',async()=>{
   node('usersMessage').textContent='Atualizando…';
@@ -2089,7 +2149,7 @@ node('myPasswordHeader').addEventListener('click',()=>{
   node('myPasswordMessage').textContent='';
   setView('myPassword');
 });
-node('myPasswordBack').addEventListener('click',()=>setView('dashboard'));
+node('myPasswordBack').addEventListener('click',()=>setView(isAlmoxarife()?'romaneiosPage':'dashboard'));
 node('myPasswordForm').addEventListener('submit',async(event)=>{
   event.preventDefault();
   const old=node('myOldPassword').value;
