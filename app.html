@@ -200,6 +200,7 @@
     .romaneioCancelPrint{background:#f4cbcb;border:2px solid #a11;color:#a11;font-size:19px;
        font-weight:900;text-align:center;letter-spacing:5px;padding:3mm;margin:4mm 0}
     .romaneioRow .romaneioRowFields label{margin-top:9px}
+    .romaneioRow textarea[data-rom-field="descricao_romaneio"]{width:100%;min-height:66px;resize:vertical;white-space:pre-wrap;margin-top:5px}
     .romaneioRowSummary{font-size:12px;color:#c4dbea;margin:9px 0;line-height:1.55}
     .romaneioRow .romaneioRemove{padding:7px 10px}
     .romaneioCreateButtons{display:flex;flex-wrap:wrap;gap:9px;margin:15px 0}
@@ -231,7 +232,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • consulta de romaneios v39.1</div>
+        <div class="build">EWGEST • descrições editáveis v39.2</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -936,7 +937,7 @@ async function loadPanel(){
     const [headers,lines]=await Promise.all([
       apiGet('romaneios',{select:'id,obra_id,numero,data_saida,motorista,placa,observacoes,criado_em,status,cancelado_em,motivo_cancelamento',
         empresa_id:'eq.'+currentCompany.id,order:'data_saida.desc',limit:'1000'}),
-      apiGet('romaneios_itens',{select:'id,romaneio_id,sequencia,natureza,esquadria_id,saida_producao_id,codigo,localizacao,descricao,medida,quantidade,unidade,area_m2,fabrica,prazo_liberacao_saida_dias,tipo_saida',order:'sequencia.asc',limit:'3000'})
+      apiGet('romaneios_itens',{select:'id,romaneio_id,sequencia,natureza,esquadria_id,saida_producao_id,codigo,localizacao,descricao,descricao_impressao_definida,medida,quantidade,unidade,area_m2,fabrica,prazo_liberacao_saida_dias,tipo_saida',order:'sequencia.asc',limit:'3000'})
     ]);
     romaneios=headers||[];romaneioItens=lines||[];romaneioLoadError='';
   }catch(err){romaneios=[];romaneioItens=[];romaneioLoadError=err.message;}
@@ -1293,6 +1294,7 @@ function atualizarLinhaRomaneio(el){
   const qty=el.querySelector('[data-rom-field="quantidade"]');
   const leaves=el.querySelector('[data-rom-field="folhas_por_unidade"]');
   const kinds=el.querySelector('[data-rom-field="tipo_saida"]');
+  const campoDescricao=el.querySelector('[data-rom-field="descricao_romaneio"]');
   const max=Boolean(item&&ehMaximArRomaneio(item));
   kinds.disabled=max;
   for(const opt of kinds.options)if(opt.value!=='completo')opt.disabled=max;
@@ -1309,7 +1311,15 @@ function atualizarLinhaRomaneio(el){
   if(!item){
     summary.textContent='Busque pelo código ou descrição e selecione uma esquadria liberada.';
     qty.max='';qty.value='';leaves.value='';
+    campoDescricao.value='';
+    el.dataset.romaneioDescricaoChave='';
     return;
+  }
+  // Trocar item/modalidade atualiza o texto. Editar quantidade não apaga texto manual.
+  const chaveDescricao=item.id+'|'+modo;
+  if(el.dataset.romaneioDescricaoChave!==chaveDescricao){
+    campoDescricao.value=descricaoCurtaRomaneio(item.descricao,modo);
+    el.dataset.romaneioDescricaoChave=chaveDescricao;
   }
   if(stats.per!==null){leaves.value=stats.per;leaves.readOnly=true;}
   else if(modo!=='completo'){
@@ -1346,6 +1356,10 @@ function adicionarLinhaRomaneio(natureza){
       '<input class="romaneioSearch" type="search" data-rom-field="esquadria_search" placeholder="Ex.: EA14, JCR, veneziana">'+
       '<select data-rom-field="esquadria_id" required><option value="">Selecione uma esquadria</option></select>'+
       '<div class="romaneioRowSummary">Selecione uma esquadria com saldo.</div>'+
+      '<label>Descrição no romaneio (editável)</label>'+
+      '<textarea data-rom-field="descricao_romaneio" rows="2" maxlength="350" '+
+        'placeholder="A descrição curta aparecerá aqui" required></textarea>'+
+      '<p class="hint">Você pode editar este texto. A descrição técnica original não será alterada.</p>'+
       '<div class="romaneioRowFields">'+
       '<label>Quantidade<input data-rom-field="quantidade" type="number" min="1" step="1" required></label>'+
       '<label class="hidden">Folhas por esquadria<input data-rom-field="folhas_por_unidade" type="number" min="1" max="12" step="1" placeholder="Confirmar"></label>'+
@@ -1398,7 +1412,11 @@ function coletarItensRomaneio(){
         throw new Error('Confirme as folhas por esquadria de '+item.codigo+' (1 a 12) para desmembrar.');
       const disponivel=romaneioSaldoPorTipo(item,tipo,folhas);
       if(quantidade>disponivel)throw new Error(item.codigo+': saldo de '+tipo+' disponível: '+disponivel+'.');
-      return {natureza:'esquadria',esquadria_id:id,quantidade,folhas_por_unidade:folhas,tipo_saida:tipo};
+      const descricaoRomaneio=campo('descricao_romaneio');
+      if(descricaoRomaneio.length<2||descricaoRomaneio.length>350)
+        throw new Error(item.codigo+': informe uma descrição de 2 a 350 caracteres para o romaneio.');
+      return {natureza:'esquadria',esquadria_id:id,quantidade,folhas_por_unidade:folhas,
+        tipo_saida:tipo,descricao_romaneio:descricaoRomaneio};
     }
     const descricao=campo('descricao');
     if(descricao.length<2)throw new Error('Descreva o material do item '+(index+1)+'.');
@@ -1407,6 +1425,21 @@ function coletarItensRomaneio(){
     return {natureza:'material',descricao,codigo:campo('codigo'),
       localizacao:campo('localizacao'),medida:campo('medida'),quantidade,unidade};
   });
+}
+// Abreviação só para o comprovante: o cadastro técnico fica intacto.
+function descricaoCurtaRomaneio(descricao,tipo='completo'){
+  let d=String(descricao||'').trim().toLocaleUpperCase('pt-BR');
+  d=d.replace(/^\s*(MARCO|FOLHAS?)\s*[—–-]\s*/i,'');
+  d=d.replace(/\s*[—–-]\s*HYDRO\s*$/i,'');
+  d=d.replace(/\b(JANELA|PORTA)\s+DE\s+CORRER\b/g,'$1 CORRER');
+  d=d.replace(/\b(JANELA|PORTA)\s+DE\s+GIRO\b/g,'$1 GIRO');
+  d=d.replace(/\b(\d+)\s*FOLHA(?:\(S\)|S)?(?=\s|$|[-,])/g,'$1F');
+  d=d.replace(/\bLINHA\s+/g,'');
+  d=d.replace(/\s+[—–-]\s+/g,' ');
+  d=d.replace(/\s+/g,' ').trim();
+  const sufixo=tipo==='marco'?'MARCO':tipo==='folha'?'FOLHAS':'COMPLETA';
+  d=d.replace(/\s*\((?:COMPLETA|MARCO|FOLHAS)\)\s*$/,'');
+  return (d||'ESQUADRIA')+' ('+sufixo+')';
 }
 function dataRomaneioFormatada(value){
   return String(value||'').split('-').reverse().join('/');
@@ -1433,7 +1466,12 @@ function construirHTMLRomaneio(header,linhas){
   if(!obra||!linhas?.length)throw new Error('Romaneio sem obra ou itens para imprimir.');
   const itens=linhas.slice().sort((a,b)=>Number(a.sequencia)-Number(b.sequencia));
   // Estima a altura das linhas para não cortar textos longos no A4.
-  const pesoLinha=i=>Math.max(1,Math.ceil(String(i.descricao||'').length/52));
+  const descricaoImpressa=i=>i.natureza==='esquadria'&&!i.descricao_impressao_definida?
+    descricaoCurtaRomaneio(i.descricao,i.tipo_saida||'completo'):
+    String(i.descricao||'');
+  // Considerar quebras explícitas e palavras longas para a paginação de duas vias.
+  const pesoLinha=i=>Math.max(1,descricaoImpressa(i).split(/\r?\n/)
+    .reduce((total,linha)=>total+Math.max(1,Math.ceil(linha.length/43)),0));
   const duasVias=itens.length<=9&&itens.reduce((n,i)=>n+pesoLinha(i),0)<=14&&
     (header.status!=='cancelado'||itens.length<=5);
   const paginas=[];
@@ -1454,7 +1492,7 @@ function construirHTMLRomaneio(header,linhas){
         Number(linha.area_m2).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
       return '<tr><td class="center">'+Number(linha.sequencia)+'</td>'+
         '<td>'+escapeHTML(linha.codigo||'')+'</td>'+
-        '<td>'+escapeHTML(linha.descricao||'')+'</td>'+
+        '<td class="romaneioDescricao">'+escapeHTML(descricaoImpressa(linha))+'</td>'+
         '<td class="center">'+escapeHTML(medidaRomaneioEmMetros(linha.medida))+'</td>'+
         '<td class="center">'+Number(linha.quantidade)+'</td>'+
         '<td class="center">'+escapeHTML(linha.unidade||'UNID.')+'</td>'+
@@ -1524,7 +1562,9 @@ function construirHTMLRomaneio(header,linhas){
     '.infos{display:flex;justify-content:space-between;gap:5mm;font-size:9px;line-height:1.7;margin:3mm 0 2mm}',
     '.infos>div{width:49%}',
     'table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:8.5px}',
-    'th,td{border:1px solid #444;padding:2.2mm 1mm;vertical-align:middle;word-break:break-word}',
+    'th,td{border:1px solid #444;padding:2.2mm 1mm;vertical-align:middle;overflow-wrap:anywhere;word-break:normal;line-height:1.3}',
+    'td.romaneioDescricao{white-space:pre-line;overflow-wrap:anywhere;hyphens:auto}',
+    'tr{break-inside:avoid;page-break-inside:avoid}',
     'thead{display:table-header-group}th{background:#e3e3e3;text-align:center;font-weight:bold}',
     'td.center{text-align:center}td.right{text-align:right}',
     '.total{text-align:right;font-size:9px;padding:2.2mm 1mm}',
@@ -3523,7 +3563,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v39.1 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v39.2 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
