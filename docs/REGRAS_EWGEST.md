@@ -1,6 +1,6 @@
 # Regras protegidas do EWGEST
 
-**Regras versão 1.9** · **Site versão 37.0**
+**Regras versão 2.0** · **Site versão 37.1**
 
 ## Tipologia principal e variações
 1. Código principal identifica o modelo da tipologia, **não** a quantidade de módulos.
@@ -136,6 +136,14 @@
 - Preservar as regras anteriores de romaneio atômico, impressão em duas vias quando couber, permissões e código de tipologia principal sem sufixo em listas operacionais.
 - Testes devem cobrir o ciclo: emitir marco, estornar, emitir folhas, estornar, emitir completo, com a transação de teste revertida.
 
+## Saída completa sem perguntar folhas e MAXIM-AR sem desmembramento (v37.1)
+- Se a opção selecionada for **esquadria completa**, ocultar e **não exigir** “Folhas por esquadria”, tanto no romaneio quanto na saída individual. O parâmetro `p_folhas_por_unidade` vai como `null`; **não presumir 1 folha** nem gravar composição técnica não confirmada.
+- O banco `registrar_saida_producao` aceita composição ausente somente no tipo `completo`. Continua debitando o saldo de conjuntos pelo marco e conserva a contabilização de folhas quando a composição já é conhecida. Se houver configuração anterior, o banco a utiliza sem perguntar.
+- Na primeira saída **desmembrada** (`marco` ou `folha`), exigir a composição apenas caso ela ainda não esteja cadastrada; nesse momento, usar a quantidade confirmada para recomputar também as folhas de conjuntos completos anteriores.
+- **MAXIM-AR nunca pode ter saída parcial**: impedir a escolha de marco/folha na interface e rejeitar no servidor para proteger contra chamadas diretas. Não proibir o desmembramento de janelas ou portas; continuam com as opções habituais quando houver saldo.
+- A consulta de saldos, o cancelamento de romaneios, a reversão das saídas, a impressão e as relações de obras permanecem inalterados. Nenhuma composição é inventada em cadastros anteriores.
+- Regressão obrigatória: MAXIM-AR completo sem composição passa; tentativa de saída parcial falha; janela completa com composição desconhecida e posterior saída de marco com confirmação permite histórico e saldo corretos.
+
 ## Verificação obrigatória nas atualizações
 1. Ler as regras acima antes de mexer no sistema.
 2. Executar node scripts/test-regressoes.mjs.
@@ -144,4 +152,4 @@
 5. O cadastro/importação de novas obras com edição do número de módulos por esquadria continua como etapa futura; a nova coluna foi criada sem afetar as obras existentes.
 
 ## Histórico
-- v27: FIXO; v28: prioridade das fachadas sobre FIXO; v29: MAXIM-AR próprio e prioridade das fachadas; v30: agrupamento das variações e painel de regras; v31: revisão administrativa por obra, sugestões pela descrição e auditoria de confirmação; v32: pendências visíveis, códigos MOD internos, criação ou associação manual pelo ADM; v33: correção administrativa de identificações técnicas existentes, com comparação, confirmação e auditoria; v34: códigos sufixados por família, numeração transacional, catalogação de 46 configurações legadas e pendências de modulação; v35: confirmação Sim/Não, criação/correção/adiamento e auditoria sem bloquear obras; v35.1: comparação em duas caixas e sufixo oculto somente na tela de conferência; v35.2: exibir tipologia informada na obra versus tipologia técnica do catálogo, sem misturar com código de esquadria. v35.3: explicitar código principal preservado ao criar nova configuração; v35.4: substituir quantidade de módulos por N apenas nas caixas comparativas da obra/catálogo. v35.5: descrição da obra intacta, padrão principal com N e seletor somente na correção de texto. v35.6: ocultar sufixos somente na lista principal do catálogo; v35.7: agrupar liberações e saídas por tipologia principal sem sufixos e preservar busca completa; v36: fábrica obrigatória em novas liberações, romaneio A4 em duas vias, expedição atômica e média por fábrica; v37: transportes cadastrados, busca de esquadrias, saídas completas/parciais em romaneios, cancelamento com estorno auditável.
+- v27: FIXO; v28: prioridade das fachadas sobre FIXO; v29: MAXIM-AR próprio e prioridade das fachadas; v30: agrupamento das variações e painel de regras; v31: revisão administrativa por obra, sugestões pela descrição e auditoria de confirmação; v32: pendências visíveis, códigos MOD internos, criação ou associação manual pelo ADM; v33: correção administrativa de identificações técnicas existentes, com comparação, confirmação e auditoria; v34: códigos sufixados por família, numeração transacional, catalogação de 46 configurações legadas e pendências de modulação; v35: confirmação Sim/Não, criação/correção/adiamento e auditoria sem bloquear obras; v35.1: comparação em duas caixas e sufixo oculto somente na tela de conferência; v35.2: exibir tipologia informada na obra versus tipologia técnica do catálogo, sem misturar com código de esquadria. v35.3: explicitar código principal preservado ao criar nova configuração; v35.4: substituir quantidade de módulos por N apenas nas caixas comparativas da obra/catálogo. v35.5: descrição da obra intacta, padrão principal com N e seletor somente na correção de texto. v35.6: ocultar sufixos somente na lista principal do catálogo; v35.7: agrupar liberações e saídas por tipologia principal sem sufixos e preservar busca completa; v36: fábrica obrigatória em novas liberações, romaneio A4 em duas vias, expedição atômica e média por fábrica; v37: transportes cadastrados, busca de esquadrias, saídas completas/parciais em romaneios, cancelamento com estorno auditável; v37.1: esconder a composição na saída completa e restringir MAXIM-AR ao conjunto completo.
