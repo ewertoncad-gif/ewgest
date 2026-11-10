@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'romaneios e fábricas v36.0',
+ 'romaneios flexíveis v37.0',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -110,6 +110,22 @@ for(const token of [
  'p_fabrica:fabrica',
  'id="romaneioModal"',
  'id="romaneioForm"',
+ 'id="romaneioNewDriver"',
+ 'id="romaneioNewPlate"',
+ 'id="romaneioDriver"',
+ 'id="romaneioPlate"',
+ 'function cadastrarTransporteRomaneio(tipo)',
+ 'function buscarEsquadriasRomaneio(row)',
+ 'function romaneioSaldoPorTipo(item,tipo,folhas)',
+ 'Somente o marco',
+ 'Somente as folhas',
+ 'data-rom-field="esquadria_search"',
+ "p_motivo:texto",
+ 'cancelar_romaneio_com_estorno',
+ 'romaneioCancelPrint',
+ 'cancelado_em:',
+ "tipo_saida:tipo",
+ 'id="romaneioHistoryPanel"',
  'id="openRomaneio"',
  'id="romaneioHistoryPanel"',
  'id="romaneioOverview"',
@@ -370,7 +386,19 @@ assert.ok((saidaLonga.match(/class="printPage single"/g)||[]).length>=4,
  'Textos longos devem gerar paginas de continuação para cada via');
 assert.ok(saidaLonga.includes('@page{size:A4 portrait;margin:9mm}'),
  'Romaneio configurado para A4');
+const cancelado=montarRomaneio({...cabecalho,status:'cancelado',
+ motivo_cancelamento:'Erro de carregamento; entrega não aconteceu'},[linha(1)]);
+assert.ok(cancelado.includes('CANCELADO · SAÍDAS ESTORNADAS'),
+ 'Documento cancelado deve ser marcado também na impressão');
+assert.ok(cancelado.includes('Erro de carregamento'),
+ 'Impressão cancelada deve mostrar motivo');
+const extrair=source.slice(source.indexOf('function romaneioSaldoPorTipo(item,tipo,folhas){'),
+ source.indexOf('function buscarEsquadriasRomaneio(row){'));
+assert.ok(extrair.includes("if(tipo==='marco')return marcos")&&extrair.includes("if(tipo==='folha')return folhasRestantes"),
+ 'Envio parcial deve controlar os saldos de marcos e folhas separadamente');
+assert.ok(source.includes("cancelado_em:'is.null'"),
+ 'Saldos e histórico devem ignorar saídas estornadas');
 
-console.log('OK: '+cases.length+' classificacoes; romaneio duas vias, longo, fábrica e saída atômica.');
+console.log('OK: '+cases.length+' classificacoes; romaneio completo/parcial, transporte, cancelamento, reimpressão, A4.');
 
 
