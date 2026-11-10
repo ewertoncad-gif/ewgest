@@ -1,6 +1,6 @@
 # Regras protegidas do EWGEST
 
-**Regras versão 1.8** · **Site versão 36.0**
+**Regras versão 1.9** · **Site versão 37.0**
 
 ## Tipologia principal e variações
 1. Código principal identifica o modelo da tipologia, **não** a quantidade de módulos.
@@ -123,6 +123,19 @@
 - **Melhoria futura recomendada:** um fluxo controlado para cancelar/estornar romaneios antes de implantar o módulo em escala; na primeira versão, revisar antes de confirmar, pois a emissão já registra as saídas.
 - A conferência de romaneios antigos impressos fora do EWGEST e o rastreio completo de produção dentro das duas fábricas ainda não foram automatizados.
 
+## Romaneios flexíveis, transporte e cancelamento (v37)
+- **Motoristas e placas** ficam em cadastros próprios por empresa: `romaneios_motoristas` e `romaneios_veiculos`, acessíveis ao ADM/SUPERVISOR por RPC `cadastrar_transporte_romaneio`. Na emissão, a seleção é feita por listas; novos nomes/placas podem ser cadastrados pela própria tela.
+- **Busca de esquadrias** por código, descrição ou localização antes da escolha na lista. A filtragem não altera o UUID nem vincula automaticamente outros códigos parecidos.
+- Cada item de esquadria no romaneio possui `tipo_saida`: `completo`, `marco` ou `folha`. A opção “+ Adicionar esquadria” é genérica. “Somente folhas” registra quantidade de **folhas físicas**, não unidades de esquadria; folhas por unidade deve ser informado ou reaproveitado de configuração anterior.
+- O romaneio chama a função original `registrar_saida_producao` para as três modalidades, mantendo saldo de marcos e de folhas separado. Imprimir `MARCO —` ou `FOLHA —` na descrição das linhas parciais; não estimar m² de uma peça parcial com a área da esquadria completa.
+- **Cancelar/estornar** é permitido apenas ao ADM, com confirmação explícita e motivo escrito de 10–400 caracteres. O romaneio permanece no banco com status `cancelado`, usuário, data e motivo, e a reimpressão exibe claramente **CANCELADO**.
+- Saídas de produção vinculadas ao romaneio cancelado recebem `cancelado_em`/`cancelado_por` e **não entram mais em saldos, estatísticas ou médias**. Não apagar a saída histórica nem afetar outras expedições; todos os movimentos do mesmo romaneio são estornados na mesma transação.
+- A função `registrar_saida_producao` só soma movimentos não cancelados e rejeita reativação de identificadores de operação cancelados. A chave original de emissão permanece reservada.
+- A média da fábrica usa apenas romaneios ativos e somente saídas completas com atribuição de fábrica inequívoca. Envio de marco/folha é evento operacional, **não** equivale a conclusão do conjunto.
+- Cancelamento administrativo **não confirma devolução física**. Antes de emitir novamente após cancelar uma entrega já expedida, conferir retorno dos materiais com a expedição.
+- Preservar as regras anteriores de romaneio atômico, impressão em duas vias quando couber, permissões e código de tipologia principal sem sufixo em listas operacionais.
+- Testes devem cobrir o ciclo: emitir marco, estornar, emitir folhas, estornar, emitir completo, com a transação de teste revertida.
+
 ## Verificação obrigatória nas atualizações
 1. Ler as regras acima antes de mexer no sistema.
 2. Executar node scripts/test-regressoes.mjs.
@@ -131,4 +144,4 @@
 5. O cadastro/importação de novas obras com edição do número de módulos por esquadria continua como etapa futura; a nova coluna foi criada sem afetar as obras existentes.
 
 ## Histórico
-- v27: FIXO; v28: prioridade das fachadas sobre FIXO; v29: MAXIM-AR próprio e prioridade das fachadas; v30: agrupamento das variações e painel de regras; v31: revisão administrativa por obra, sugestões pela descrição e auditoria de confirmação; v32: pendências visíveis, códigos MOD internos, criação ou associação manual pelo ADM; v33: correção administrativa de identificações técnicas existentes, com comparação, confirmação e auditoria; v34: códigos sufixados por família, numeração transacional, catalogação de 46 configurações legadas e pendências de modulação; v35: confirmação Sim/Não, criação/correção/adiamento e auditoria sem bloquear obras; v35.1: comparação em duas caixas e sufixo oculto somente na tela de conferência; v35.2: exibir tipologia informada na obra versus tipologia técnica do catálogo, sem misturar com código de esquadria. v35.3: explicitar código principal preservado ao criar nova configuração; v35.4: substituir quantidade de módulos por N apenas nas caixas comparativas da obra/catálogo. v35.5: descrição da obra intacta, padrão principal com N e seletor somente na correção de texto. v35.6: ocultar sufixos somente na lista principal do catálogo; v35.7: agrupar liberações e saídas por tipologia principal sem sufixos e preservar busca completa; v36: fábrica obrigatória em novas liberações, romaneio A4 em duas vias, expedição atômica e média por fábrica.
+- v27: FIXO; v28: prioridade das fachadas sobre FIXO; v29: MAXIM-AR próprio e prioridade das fachadas; v30: agrupamento das variações e painel de regras; v31: revisão administrativa por obra, sugestões pela descrição e auditoria de confirmação; v32: pendências visíveis, códigos MOD internos, criação ou associação manual pelo ADM; v33: correção administrativa de identificações técnicas existentes, com comparação, confirmação e auditoria; v34: códigos sufixados por família, numeração transacional, catalogação de 46 configurações legadas e pendências de modulação; v35: confirmação Sim/Não, criação/correção/adiamento e auditoria sem bloquear obras; v35.1: comparação em duas caixas e sufixo oculto somente na tela de conferência; v35.2: exibir tipologia informada na obra versus tipologia técnica do catálogo, sem misturar com código de esquadria. v35.3: explicitar código principal preservado ao criar nova configuração; v35.4: substituir quantidade de módulos por N apenas nas caixas comparativas da obra/catálogo. v35.5: descrição da obra intacta, padrão principal com N e seletor somente na correção de texto. v35.6: ocultar sufixos somente na lista principal do catálogo; v35.7: agrupar liberações e saídas por tipologia principal sem sufixos e preservar busca completa; v36: fábrica obrigatória em novas liberações, romaneio A4 em duas vias, expedição atômica e média por fábrica; v37: transportes cadastrados, busca de esquadrias, saídas completas/parciais em romaneios, cancelamento com estorno auditável.
