@@ -1479,6 +1479,14 @@ function descricaoCurtaRomaneio(descricao,tipo='completo'){
   d=d.replace(/\s*\((?:COMPLETA|MARCO|FOLHAS)\)\s*$/,'');
   return (d||'ESQUADRIA')+' ('+sufixo+')';
 }
+function descricaoPadraoRomaneio(item,tipo='completo'){
+  const salvo=typologyAbbreviations.find(a=>a.tipologia_id===item?.tipologia_id);
+  if(!salvo?.descricao_base)return descricaoCurtaRomaneio(item?.descricao,tipo);
+  const base=String(salvo.descricao_base).trim()
+    .replace(/\s*\((?:COMPLETA|MARCO|FOLHAS)\)\s*$/i,'');
+  const estado=tipo==='marco'?'MARCO':tipo==='folha'?'FOLHAS':'COMPLETA';
+  return base+' ('+estado+')';
+}
 function dataRomaneioFormatada(value){
   return String(value||'').split('-').reverse().join('/');
 }
@@ -2901,12 +2909,89 @@ async function saveVariationFamily(event){
   }catch(err){status.textContent='Não foi possível concluir ou atualizar o agrupamento: '+err.message;}
   finally{button.disabled=false;}
 }
+
+function abreviacaoAutomaticaTipologia(t){
+  return descricaoCurtaRomaneio(t?.descricao||'ESQUADRIA','completo')
+    .replace(/\s*\(COMPLETA\)\s*$/,'');
+}
+function atualizarPreviaAbreviacao(){
+  const t=typologyCatalog.find(x=>x.id===node('typologyAbbrevSelect').value);
+  if(!t){node('typologyAbbrevPreview').textContent='Selecione uma tipologia.';return;}
+  const base=node('typologyAbbrevText').value.trim();
+  node('typologyAbbrevPreview').textContent=base?
+    'Como aparecerá na saída completa: '+base.replace(/\s*\((?:COMPLETA|MARCO|FOLHAS)\)\s*$/i,'')+' (COMPLETA)':
+    'Informe a descrição abreviada.';
+}
+function renderAbreviacoesCatalogo(){
+  const search=String(node('typologyAbbrevSearch').value||'').normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'').toLocaleUpperCase('pt-BR').trim();
+  const lista=typologyCatalog.slice()
+    .sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR',{numeric:true}))
+    .filter(t=>!search||(t.codigo+' '+t.descricao).normalize('NFD')
+      .replace(/[\u0300-\u036f]/g,'').toLocaleUpperCase('pt-BR').includes(search));
+  node('typologyAbbrevCount').textContent=typologyAbbreviations.length+' cadastrada(s)';
+  const selector=node('typologyAbbrevSelect');
+  const old=selector.value;
+  selector.replaceChildren();
+  for(const t of lista){
+    const op=document.createElement('option');op.value=t.id;
+    op.textContent=t.codigo+' · '+String(t.descricao||'').slice(0,95);
+    selector.append(op);
+  }
+  selector.value=lista.some(t=>t.id===old)?old:(lista[0]?.id||'');
+  const t=typologyCatalog.find(x=>x.id===selector.value);
+  const salvo=typologyAbbreviations.find(x=>x.tipologia_id===selector.value);
+  node('typologyAbbrevOriginal').textContent=t?
+    'Descrição técnica original: '+t.descricao+
+      (salvo?' · Abreviação personalizada cadastrada':' · Usando abreviação automática'):
+    'Nenhuma tipologia encontrada para este filtro.';
+  node('typologyAbbrevText').value=t?(salvo?.descricao_base||abreviacaoAutomaticaTipologia(t)):'';
+  node('typologyAbbrevSave').disabled=!t||Boolean(typologyAbbreviationError);
+  node('typologyAbbrevReset').disabled=!t||!salvo||Boolean(typologyAbbreviationError);
+  if(typologyAbbreviationError)node('typologyAbbrevStatus').textContent=
+    'Erro ao carregar abreviações: '+typologyAbbreviationError;
+  atualizarPreviaAbreviacao();
+}
+async function salvarAbreviacaoCatalogo(restaurar=false){
+  if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  const t=typologyCatalog.find(x=>x.id===node('typologyAbbrevSelect').value);
+  if(!t)return;
+  const texto=restaurar?null:node('typologyAbbrevText').value.trim();
+  if(!restaurar&&(texto.length<2||texto.length>300)){
+    node('typologyAbbrevStatus').textContent='Informe de 2 a 300 caracteres para a abreviação.';
+    return;
+  }
+  if(restaurar&&!window.confirm('Restaurar a abreviação automática de '+t.codigo+'?'))return;
+  const salvar=node('typologyAbbrevSave'),limpar=node('typologyAbbrevReset');
+  salvar.disabled=true;limpar.disabled=true;
+  node('typologyAbbrevStatus').textContent='Salvando abreviação…';
+  try{
+    await ensureSession();
+    const resultado=await request('/rest/v1/rpc/salvar_abreviacao_tipologia',{
+      method:'POST',token:session.access_token,
+      body:{p_tipologia_id:t.id,p_descricao_base:texto}
+    });
+    typologyAbbreviations=await apiGet('tipologias_abreviacoes',{
+      select:'tipologia_id,descricao_base,atualizado_em',
+      empresa_id:'eq.'+currentCompany.id,limit:'1000'
+    })||[];
+    typologyAbbreviationError='';
+    renderAbreviacoesCatalogo();
+    node('typologyAbbrevStatus').textContent=restaurar?
+      'Abreviação automática restaurada para '+t.codigo+'.':
+      'Abreviação de '+t.codigo+' salva. Aplicada aos PRÓXIMOS romaneios.';
+  }catch(err){
+    node('typologyAbbrevStatus').textContent='Falha ao salvar: '+err.message;
+    salvar.disabled=false;limpar.disabled=false;
+  }
+}
 function renderTypologiesAdmin() {
   if(String(membership?.perfil||'').toLowerCase()!=='administrador'){setView('dashboard');return;}
   refreshVariationManager();
   renderConferenciaPendentes();
   renderModulacoesCadastradas();
   node('catalogCount').textContent=typologyCatalog.length.toLocaleString('pt-BR');
+  renderAbreviacoesCatalogo();
   node('croquiCatalogCount').textContent='Croquis: '+typologyCroquis.length+' de '+typologyCatalog.length;
   const options=[...new Set([...manufacturerCatalog.map(m=>m.nome),...typologyCatalog.map(t=>String(t.fabricante||'').trim().toLocaleUpperCase('pt-BR')).filter(Boolean)])]
     .sort((a,b)=>a.localeCompare(b,'pt-BR'));
@@ -3577,6 +3662,11 @@ node('backTypologies').addEventListener('click',()=>setView('dashboard'));
 node('typologySearch').addEventListener('input',renderTypologiesAdmin);
 node('typologyManufacturerFilter').addEventListener('change',renderTypologiesAdmin);
 node('typologyTypeFilter').addEventListener('change',renderTypologiesAdmin);
+node('typologyAbbrevSearch').addEventListener('input',renderAbreviacoesCatalogo);
+node('typologyAbbrevSelect').addEventListener('change',renderAbreviacoesCatalogo);
+node('typologyAbbrevText').addEventListener('input',atualizarPreviaAbreviacao);
+node('typologyAbbrevSave').addEventListener('click',()=>salvarAbreviacaoCatalogo(false));
+node('typologyAbbrevReset').addEventListener('click',()=>salvarAbreviacaoCatalogo(true));
 node('variationRecord').addEventListener('change',syncVariationForm);
 node('variationForm').addEventListener('submit',saveVariationFamily);
 node('differenceConfig').addEventListener('change',atualizarTelaDiferenca);
