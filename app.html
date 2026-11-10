@@ -216,7 +216,7 @@
 <div class="wrap">
   <header class="top">
     <div class="brand">EW<span>GEST</span></div>
-    <div class="topactions"><span class="tag">Gestão de obras · liberações e saídas</span><button id="myPasswordHeader" class="btn secondary hidden" type="button">Minha senha</button><button id="logout" class="btn secondary hidden" type="button">Sair</button></div>
+    <div class="topactions"><span class="tag" id="topTag">Gestão de obras · liberações e saídas</span><button id="myPasswordHeader" class="btn secondary hidden" type="button">Minha senha</button><button id="logout" class="btn secondary hidden" type="button">Sair</button></div>
   </header>
   <main>
     <section id="login" class="panel login">
@@ -875,7 +875,8 @@ async function loadPanel(){
   currentCompany=comps.find(e=>e.nome==='GVG ESQUADRIAS')||comps[0];
   membership=rel.find(r=>r.empresa_id===currentCompany.id);
   const somenteRomaneios=isAlmoxarife();
-  node('openRomaneioHub').classList.toggle('hidden',somenteRomaneios);
+  node('openRomaneioHub').classList.toggle('hidden',!podeEmitirRomaneio()||somenteRomaneios);
+  node('topTag').textContent=somenteRomaneios?'Romaneios e expedição':'Gestão de obras · liberações e saídas';
   node('openTypologies').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
   node('openManufacturers').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
   node('openUsers').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
