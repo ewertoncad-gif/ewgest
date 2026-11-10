@@ -231,7 +231,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • emissão simplificada v37.1</div>
+        <div class="build">EWGEST • romaneio A4 revisado v38.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -1356,12 +1356,29 @@ function coletarItensRomaneio(){
 function dataRomaneioFormatada(value){
   return String(value||'').split('-').reverse().join('/');
 }
+// Conversão exclusivamente na impressão: só valores identificados como mm.
+function medidaRomaneioEmMetros(medida){
+  const original=String(medida??'').trim();
+  if(!/\bmm\s*$/i.test(original))return original;
+  const numeros=original.replace(/\s*mm\s*$/i,'').split(/\s*[x×]\s*/i);
+  if(numeros.length<1||numeros.length>2)return original;
+  const convertido=numeros.map(texto=>{
+    let valor=texto.trim().replace(/\s/g,'');
+    if(!/^\d[\d.,]*$/.test(valor))return null;
+    if(valor.includes(','))valor=valor.replace(/\./g,'').replace(',','.');
+    else if(/^\d{1,3}(?:\.\d{3})+$/.test(valor))valor=valor.replace(/\./g,'');
+    const mm=Number(valor);
+    if(!Number.isFinite(mm)||mm<0)return null;
+    return (mm/1000).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  });
+  return convertido.some(x=>x===null)?original:convertido.join(' × ')+' m';
+}
 function construirHTMLRomaneio(header,linhas){
   const obra=works.find(w=>w.id===header.obra_id);
   if(!obra||!linhas?.length)throw new Error('Romaneio sem obra ou itens para imprimir.');
   const itens=linhas.slice().sort((a,b)=>Number(a.sequencia)-Number(b.sequencia));
   // Estima a altura das linhas para não cortar textos longos no A4.
-  const pesoLinha=i=>Math.max(1,Math.ceil(String(i.descricao||'').length/42));
+  const pesoLinha=i=>Math.max(1,Math.ceil(String(i.descricao||'').length/52));
   const duasVias=itens.length<=9&&itens.reduce((n,i)=>n+pesoLinha(i),0)<=14&&
     (header.status!=='cancelado'||itens.length<=5);
   const paginas=[];
@@ -1382,33 +1399,34 @@ function construirHTMLRomaneio(header,linhas){
         Number(linha.area_m2).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
       return '<tr><td class="center">'+Number(linha.sequencia)+'</td>'+
         '<td>'+escapeHTML(linha.codigo||'')+'</td>'+
-        '<td>'+escapeHTML(linha.localizacao||'')+'</td>'+
         '<td>'+escapeHTML(linha.descricao||'')+'</td>'+
-        '<td class="center">'+escapeHTML(linha.medida||'')+'</td>'+
+        '<td class="center">'+escapeHTML(medidaRomaneioEmMetros(linha.medida))+'</td>'+
         '<td class="center">'+Number(linha.quantidade)+'</td>'+
         '<td class="center">'+escapeHTML(linha.unidade||'UNID.')+'</td>'+
-        '<td class="right">'+areax+'</td><td></td></tr>';
+        '<td class="right">'+areax+'</td></tr>';
     }).join('');
     return '<section class="copy '+(compacta?'compact':'full')+'">'+
       (header.status==='cancelado'?'<div class="romaneioCancelPrint">CANCELADO · SAÍDAS ESTORNADAS</div>':'')+
       '<div class="heading">'+
-        '<div class="logo">GVG<small>ESQUADRIAS</small></div>'+
-        '<div class="title"><strong>COMPROVANTE DE ENTREGA DE MATERIAIS</strong>'+
-          '<small>Expedição · Via '+numero+(totalPartes>1?' · Página '+parte+'/'+totalPartes:'')+'</small></div>'+
-        '<div class="docNo"><strong>'+escapeHTML(header.numero)+'</strong>'+
-          '<small>Data: '+escapeHTML(dataRomaneioFormatada(header.data_saida))+'</small></div></div>'+
+        '<div class="brandLogo"><img alt="Artefal" src="data:image/webp;base64,UklGRkACAABXRUJQVlA4IDQCAAAQCwCdASpFACwAPm0ylUikIqIhJnVZWIANiWUAI8A3lpwPfvl8vugJVUjd8+jPvqFKAQlb1zkjiGWGXvmUookG6SVqUlfgsltFOoBDeVSXiuQkpxjQbgNncHmsjEEZIJQwAP7uoKF2dPs56Kx1wn4Ie2UsDaXX3GzIxSpg/9sZqEH1VfJzPOupt3q06rmzfqq26r4aOI6y+iqKPHIVrMXow4Yh+cosbDSsa8Gq4QX+jN3vxrstEkL8barDqKjn6bhjQ/lZv8x8imC1RhQOtNAGbDHXh67urIXTSza33TQfNcBZmhpjw2Z83qS364nCzapiJyqXz4XcrW1VtN52D9EOVFLR95d8iq36l39IbJbKYz6l692htiONuTPPARV5JHmKbuDjDn/M/b/F88ocFFjfDHLbwrsRKYLloyS/1vj2FkHcZiLIMcyZ7v/ThwfEFd9C4eb1udXWLna+RD4cf2bRS4/Qrd404vIT/qdtJcR820gb1L61xPV8WBzEmTk12JY6/2F0kBVrQY/ucDo2miVyV48XRJtOoQSAWRJq96OfBMb9RJTP6KpWTrK1NOb9yJAutJE6FNJ2x2iVKhGdOF3KZBzyW10mI1oItL9yY+lT98S9ZaPVWFF1j52S7tKV0z9hC/so3sgQev7ODSEcQl46QzOpzcl7evDFW+ZvDRZ4pKvTSGzhfOUntmCW4NpFRy297EW3hQ8KM4jP+JfD53qzTnI9XUNVcvRQ1h82SNkyZYAAAAA="></div>'+
+        '<div class="headerTitle"><span><strong>Comprovante de Entrega de Materiais</strong>'+
+          '<small>Via '+numero+(totalPartes>1?' · Página '+parte+'/'+totalPartes:'')+'</small></span>'+
+          '<img class="headerTruck" alt="" src="data:image/webp;base64,UklGRgwDAABXRUJQVlA4IAADAABwEACdASouACoAPm0ulEckIiIhJzgMkIANiWwAuzPaeZ+7+YJYmwYEi2wHik/pn2Nt5E3m+szc7R4QPsPzfCD6a/JR/hPyQ4MTj/9A/0dsgmReQD6C9gn9YP9yC3zrG1NnN9gcGXAvRXEzqCJCP8kC7s3H/hbJKLMS1sKrsP8bzlXNcq6l6/+WT6E4AADgE7oPf/+WGBD5f2/LHdZStjL2nr2P9d4lAIvbOs/v9dXLRe3tRDwd0WXn0g43bK5ETu73sb7ipKy34OGIQ52Th67sKLma4xhm2bf/deVmLY1b//xzk+6br2Jld7gAOXVn9cXI/hLp3woZlXb8x//ImnGqzgM/B3R8CTcL/x/yi6wX4T1UHCv0bdr8M0zFW/lmUdr167KV048uAwZfbr9lboB2NErvE+uxU631Br6niA9AAZ34D05PBsl3ID17c1HLfSRvo5Y1zwP4z9pxQg6ja4uwb0JMtX4LdEVN3RyfNPLELpTvO/3ocrY7QLiTIiSdnxfMovBjAt8h+Rg9+yP7/MfSD7tBEqalPL4wlkABnmED0z91BMvozdqaYfHNYfd1EnBDn/oiu/8abR84ZZ8u7tWMhadYsTNAdklavOqHWTdlMdX9xIbM7ZLpn1R1lhvuiW0FaWokV5PoyGB9pNMK1wlnyS/S6/9NY/X8VvL2/7ttMXJ1T/+GgJ2zKMm0RkQNyXCJ4HJF+F/mKExk96+Dzfln5zE7H8JoQreOP5nYa0L7/8f/6fYO4lDW7MqHpIO5zRqpult6ANvulHMsft/XaKfOSHcFKdB6TajXqoeRlziV7mMmnwB5RwtQkFAYBAAJF2EX2f5SbD495dhQMDsTrtP2iAhY6cuL7EMy//w8cR8L99aZ/zkFJ1x/i/wuLsmFTVxOrBjq45RG8IJ9f/5dof3JbOqCmUSP0S1n1kG51G9Rb2XAbIwSClViahdofdprP+/M8UReSKUGz2UlUflh+GVBouviG873GqIKQEbWDq3zFiFYBdztt9c0Dh2DjQt0AAA="></div>'+
+        '<div class="docNo"><div><strong>Data:</strong> '+escapeHTML(dataRomaneioFormatada(header.data_saida))+
+          '</div><div><strong>Cód.:</strong> '+escapeHTML(header.numero)+'</div></div>'+
+        '<div class="brandLogo"><img alt="GVG" src="data:image/webp;base64,UklGRgACAABXRUJQVlA4IPQBAACQDACdASpFACsAPm00lEekIyIhJEuwgA2JaQARTuLl/c/FPcFf2z8iMlvolPEDF385/017A360/8H8sOMrJ/rNpOgKRkZj0oCeTsTyzg4VTA2ahCXwBRHZb7vLW5Lz7ZypnUeoeK2T0+X7VF1AAP7/GkWPqATFx/NH6MkV/vz//4nX//zSH3vidbFz+RDDLSR6dnodCwxj9786d4+7Q/9bs/KGMWnHVL6ht9cwtH8x/m5ONx+VGQBp/HM1y3GdoUVZ1nK+YO4LXBtLrr6Jdlr086+VJR/YmeuzPvL8Yj4So/TqS7T5/mmfCCaxZLz8DvHgvemd5oA2M9sxrAOY92S19yU5eeXlqsvn/XNRTRFC9IMFZZBdPTCQ8MseTwyf9cjdKmPjvyW7jJbQ9017FCA0fRlzS9NhQuC3+N/SB8eWnFTAvcljkxGh+9U2S56LcAidyexmiAgtnn/1EjtlntOKFLiALqLrLA7Yyiz/8lzriZDevUmWV//D447w+9dvdIKZ6uvdRh9hF5k5hFS3imlCXE4zQmeiftko+tFjIGolDO9GjzrXxYq92HQEQ9rU7xnGjEkhy3VWaqIhl/nLlJF8d2rYuXD6/hMnejhmwz/qL/vh2eDF6+96ojPJQnPjEevv7+DnU5y4rPKFUmnr8wnFAAAAAA=="></div></div>'+
       '<div class="infos"><div><b>CLIENTE:</b> '+escapeHTML(obra.cliente||'Não informado')+
         '<br><b>OBRA:</b> '+escapeHTML(obra.nome)+'</div>'+
         '<div><b>MOTORISTA:</b> '+escapeHTML(header.motorista)+
         '<br><b>PLACA:</b> '+escapeHTML(header.placa)+'</div></div>'+
-      '<table><colgroup><col style="width:5%"><col style="width:10%"><col style="width:13%">'+
-        '<col style="width:27%"><col style="width:14%"><col style="width:7%">'+
-        '<col style="width:7%"><col style="width:9%"><col style="width:8%"></colgroup>'+
-        '<thead><tr><th>Item</th><th>Cód.</th><th>Localização</th><th>Descrição</th>'+
-        '<th>Medida</th><th>Quant.</th><th>Un.</th><th>M²</th><th>Valor</th></tr></thead>'+
+      '<table><colgroup><col style="width:5%"><col style="width:9%">'+
+        '<col style="width:50%"><col style="width:16%"><col style="width:6%">'+
+        '<col style="width:6%"><col style="width:8%"></colgroup>'+
+        '<thead><tr><th>Item</th><th>Cód.</th><th>Descrição</th>'+
+        '<th>Medida</th><th>Quant.</th><th>Un.</th><th>M²</th></tr></thead>'+
         '<tbody>'+rows+'</tbody></table>'+
-      '<div class="total"><strong>Área dos itens desta '+(totalPartes>1?'página':'via')+
-        ':</strong> '+soma.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' m²</div>'+
+      '<div class="total"><strong>Total M²:</strong> '+
+        soma.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>'+
       (header.observacoes?'<div class="notes">Observações: '+escapeHTML(header.observacoes)+'</div>':'')+
       (header.status==='cancelado'?'<div class="notes"><strong>Motivo do cancelamento:</strong> '+
         escapeHTML(header.motivo_cancelamento||'Não informado')+'</div>':'')+
@@ -1438,12 +1456,16 @@ function construirHTMLRomaneio(header,linhas){
     '.printPage.two .copy:first-child{border-bottom:1px dashed #aaa;padding-bottom:6mm}',
     '.printPage.single .copy{min-height:0}',
     '.copy{padding:1mm 0;display:block;position:relative}',
-    '.heading{display:grid;grid-template-columns:21mm 1fr 32mm;border:1px solid #333;min-height:17mm;align-items:center}',
-    '.logo{margin:0 2mm;background:#14283e;color:white;text-align:center;font-weight:900;font-size:17px;letter-spacing:-1px;padding:2mm 1mm}',
-    '.logo small{display:block;font-size:6px;letter-spacing:1px;font-weight:600}',
-    '.title{text-align:center;font-size:11px}.title small{display:block;margin-top:2mm;font-size:8px}',
-    '.docNo{text-align:center;border-left:1px solid #555;padding:2mm 1mm;font-size:11px}',
-    '.docNo small{display:block;margin-top:2mm;font-size:8px}',
+    '.heading{display:grid;grid-template-columns:18mm minmax(0,1fr) 30mm 18mm;gap:1mm;align-items:stretch;height:14mm}',
+    '.brandLogo{display:flex;align-items:center;justify-content:center;min-width:0}',
+    '.brandLogo img{width:100%;max-height:14mm;object-fit:contain}',
+    '.headerTitle{border:1px solid #333;display:flex;align-items:center;justify-content:center;gap:3mm;text-align:center;min-width:0;padding:1mm}',
+    '.headerTitle strong{font-size:9px;white-space:normal}',
+    '.headerTitle small{display:block;font-size:7px;font-weight:400;margin-top:1.5mm;color:#444}',
+    '.headerTruck{width:14mm;height:12mm;object-fit:contain;flex:none}',
+    '.docNo{display:flex;flex-direction:column;border:1px solid #333;min-width:0}',
+    '.docNo div{flex:1;display:flex;align-items:center;gap:3px;padding:0 1mm;font-size:8px;white-space:nowrap}',
+    '.docNo div+div{border-top:1px solid #333}',
     '.infos{display:flex;justify-content:space-between;gap:5mm;font-size:9px;line-height:1.7;margin:3mm 0 2mm}',
     '.infos>div{width:49%}',
     'table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:8.5px}',
@@ -3345,7 +3367,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v37.1 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v38.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
