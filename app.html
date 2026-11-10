@@ -574,7 +574,22 @@
   <div class="panel modalbox romaneioModalBox" role="dialog" aria-modal="true" aria-labelledby="romaneioTitle">
     <h2 id="romaneioTitle">Emitir romaneio / comprovante de entrega</h2>
     <p id="romaneioWorkInfo" class="muted"></p>
-    <p class="hint">Selecione os itens realmente expedidos. Ao confirmar a emissão, as esquadrias completas terão sua saída registrada automaticamente.</p>
+    <p class="hint">Selecione os itens realmente expedidos. Ao emitir, cada esquadria (completa, marco ou folhas) terá sua saída registrada automaticamente no mesmo histórico das saídas manuais.</p>
+     <div class="romaneioOverview" style="margin:10px 0">
+       <div class="row" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+         <strong id="romaneioNextCode">Próximo código: consultando…</strong>
+         <button type="button" class="btn secondary hidden" id="romaneioChangeCode">Adiantar numeração</button>
+       </div>
+       <div class="hidden" id="romaneioNumberEditor" style="margin-top:12px">
+         <label for="romaneioNextInput">Próximo número desejado (somente para adiantar)</label>
+         <input id="romaneioNextInput" type="number" min="1" step="1" placeholder="Ex.: 15 para RM015">
+         <label for="romaneioNumberReason">Motivo do ajuste</label>
+         <input id="romaneioNumberReason" type="text" maxlength="300" placeholder="Ex.: RM004 a RM014 emitidos fora do sistema">
+         <button type="button" class="btn secondary" id="romaneioSaveNumber">Confirmar avanço</button>
+         <p class="hint">A alteração é registrada no histórico. Romaneios já emitidos não são renumerados.</p>
+       </div>
+       <p class="feedback" id="romaneioNumberMessage" role="status"></p>
+     </div>
     <form id="romaneioForm">
       <div class="romaneioGrid">
         <div><label for="romaneioDate">Data da saída</label><input type="date" id="romaneioDate" required></div>
@@ -1234,6 +1249,10 @@ function abrirEmissaoRomaneio(){
   node('romaneioError').textContent='';
   romaneioOperationId=null;romaneioOperationSignature='';
   node('romaneioModal').classList.remove('hidden');
+  node('romaneioNumberEditor').classList.add('hidden');
+  node('romaneioNumberMessage').textContent='';
+  node('romaneioChangeCode').classList.toggle('hidden',!['administrador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()));
+  atualizarCodigoRomaneio();
   if(elements.some(x=>x.obra_id===selectedWork.id&&Number(x.qtd_liberada)>0&&
       (romaneioSaldoPorTipo(x,'marco')>0||romaneioSaldoPorTipo(x,'folha',1)>0)))
     adicionarLinhaRomaneio('esquadria');
@@ -2187,6 +2206,40 @@ function openManagedUserEdit(id){
   node('userEditOverlay').classList.remove('hidden');
   node('userEditLogin').focus();
 }
+async function atualizarCodigoRomaneio(){
+  node('romaneioNextCode').textContent='Próximo código: consultando…';
+  try{
+    await ensureSession();
+    const r=await request('/rest/v1/rpc/consultar_proximo_romaneio',{
+      method:'POST',token:session.access_token,body:{}});
+    node('romaneioNextCode').textContent='Próximo código: '+r.codigo;
+    node('romaneioNextInput').min=String(r.proximo_numero+1);
+  }catch(e){node('romaneioNextCode').textContent='Próximo código: atribuído ao emitir';
+    node('romaneioNumberMessage').textContent='Não foi possível consultar a numeração: '+e.message;}
+}
+node('romaneioChangeCode').addEventListener('click',()=>{
+  node('romaneioNumberEditor').classList.toggle('hidden');
+  node('romaneioNumberMessage').textContent='';
+});
+node('romaneioSaveNumber').addEventListener('click',async()=>{
+  const btn=node('romaneioSaveNumber');
+  const num=Number(node('romaneioNextInput').value);
+  const motivo=node('romaneioNumberReason').value.trim();
+  if(!Number.isSafeInteger(num)||num<1||motivo.length<8){
+    node('romaneioNumberMessage').textContent='Informe um número válido e motivo com pelo menos 8 caracteres.';return;}
+  if(!confirm('Adiantar o próximo romaneio para RM'+String(num).padStart(3,'0')+'? Essa operação será registrada.'))return;
+  btn.disabled=true;
+  try{
+    await ensureSession();
+    const r=await request('/rest/v1/rpc/adiantar_numero_romaneio',{
+      method:'POST',token:session.access_token,
+      body:{p_proximo_numero:num,p_justificativa:motivo}});
+    node('romaneioNumberEditor').classList.add('hidden');
+    await atualizarCodigoRomaneio();
+    node('romaneioNumberMessage').textContent='Sequência atualizada: próximo '+r.codigo+'.';
+  }catch(e){node('romaneioNumberMessage').textContent='Não foi possível alterar: '+e.message;}
+  finally{btn.disabled=false;}
+});
 node('openUsers').addEventListener('click',openManagedUsersPage);
 node('openRomaneioHub').addEventListener('click',abrirAreaRomaneios);
 node('romaneiosBack').addEventListener('click',()=>setView('dashboard'));
