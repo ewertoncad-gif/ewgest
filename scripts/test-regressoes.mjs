@@ -103,7 +103,7 @@ for(const token of [
  'function quantidadeModulosExpressa(descricao)',
  'Essa esquadria pertence à tipologia do catálogo?',
  'A descrição original da obra permanece como foi recebida.',
- 'N representa uma quantidade variável de módulos apenas nesta comparação.',
+ 'Somente no catálogo, N representa uma quantidade variável de módulos.',
  'Criar outra configuração da mesma tipologia (mantém o código e adiciona um sufixo).',
  'Código da tipologia preservado: ',
  'class="differenceComparisonGrid"',
