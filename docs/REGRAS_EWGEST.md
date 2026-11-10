@@ -1,6 +1,6 @@
 # Regras protegidas do EWGEST
 
-**Regras versão 1.6** · **Site versão 35.6**
+**Regras versão 1.7** · **Site versão 35.7**
 
 ## Tipologia principal e variações
 1. Código principal identifica o modelo da tipologia, **não** a quantidade de módulos.
@@ -101,6 +101,13 @@
 - No painel **Modulações internas cadastradas**, manter os códigos sufixados para permitir identificação técnica da configuração, quando necessário.
 - Não alterar a exibição nas obras nem a comparação administrativa neste ajuste. A busca por códigos de configuração deve continuar funcional.
 
+## Sufixo oculto nos agrupamentos da obra (v35.7)
+- Em **Liberações para corte** e **Saídas para obra**, mostrar apenas o código principal da tipologia no título do agrupamento.
+- Esquadrias de variações `-01`, `-02` etc. da mesma família devem ser exibidas juntas no mesmo grupo, com contagem de códigos de esquadria consistente.
+- Não mudar o `modulacao_id`, o UUID da esquadria, os dados de liberação, os lançamentos de saída ou os croquis.
+- O sufixo técnico completo continua disponível no cadastro de modulações e pesquisável no filtro de tipologia das obras, ainda que o título não o mostre.
+- Essa é uma melhoria da apresentação operacional, aplicável às duas abas da obra, não uma fusão de configurações no banco.
+
 ## Verificação obrigatória nas atualizações
 1. Ler as regras acima antes de mexer no sistema.
 2. Executar node scripts/test-regressoes.mjs.
@@ -109,4 +116,4 @@
 5. O cadastro/importação de novas obras com edição do número de módulos por esquadria continua como etapa futura; a nova coluna foi criada sem afetar as obras existentes.
 
 ## Histórico
-- v27: FIXO; v28: prioridade das fachadas sobre FIXO; v29: MAXIM-AR próprio e prioridade das fachadas; v30: agrupamento das variações e painel de regras; v31: revisão administrativa por obra, sugestões pela descrição e auditoria de confirmação; v32: pendências visíveis, códigos MOD internos, criação ou associação manual pelo ADM; v33: correção administrativa de identificações técnicas existentes, com comparação, confirmação e auditoria; v34: códigos sufixados por família, numeração transacional, catalogação de 46 configurações legadas e pendências de modulação; v35: confirmação Sim/Não, criação/correção/adiamento e auditoria sem bloquear obras; v35.1: comparação em duas caixas e sufixo oculto somente na tela de conferência; v35.2: exibir tipologia informada na obra versus tipologia técnica do catálogo, sem misturar com código de esquadria. v35.3: explicitar código principal preservado ao criar nova configuração; v35.4: substituir quantidade de módulos por N apenas nas caixas comparativas da obra/catálogo. v35.5: descrição da obra intacta, padrão principal com N e seletor somente na correção de texto. v35.6: ocultar sufixos somente na lista principal do catálogo.
+- v27: FIXO; v28: prioridade das fachadas sobre FIXO; v29: MAXIM-AR próprio e prioridade das fachadas; v30: agrupamento das variações e painel de regras; v31: revisão administrativa por obra, sugestões pela descrição e auditoria de confirmação; v32: pendências visíveis, códigos MOD internos, criação ou associação manual pelo ADM; v33: correção administrativa de identificações técnicas existentes, com comparação, confirmação e auditoria; v34: códigos sufixados por família, numeração transacional, catalogação de 46 configurações legadas e pendências de modulação; v35: confirmação Sim/Não, criação/correção/adiamento e auditoria sem bloquear obras; v35.1: comparação em duas caixas e sufixo oculto somente na tela de conferência; v35.2: exibir tipologia informada na obra versus tipologia técnica do catálogo, sem misturar com código de esquadria. v35.3: explicitar código principal preservado ao criar nova configuração; v35.4: substituir quantidade de módulos por N apenas nas caixas comparativas da obra/catálogo. v35.5: descrição da obra intacta, padrão principal com N e seletor somente na correção de texto. v35.6: ocultar sufixos somente na lista principal do catálogo; v35.7: agrupar liberações e saídas por tipologia principal sem sufixos e preservar busca completa.
