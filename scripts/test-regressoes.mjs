@@ -187,8 +187,7 @@ const modReferencia={id:'m1',codigo_interno:'MOD-000045',numero_variacao:1,
 const fnInicio2=source.indexOf('function escolherDiferenca(){');
 const fnFim2=source.indexOf('function abrirConferenciaTipologia(id){',fnInicio2);
 assert.ok(fnInicio2>=0&&fnFim2>fnInicio2,'Funcoes de decisao presentes');
-const normalizarTeste=v=>String(v||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'')
- .toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
+const normalizarTeste=v=>String(v||'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
 const functions=new Function('differencePendingItem','typologyCatalog','modulationCatalog',
  'document','node','modulacoesDaTipologia','codigoVariacaoTecnica','normalizarReconhecimento',
  source.slice(fnInicio2,fnFim2)+'\nreturn {atualizarTelaDiferenca};'
