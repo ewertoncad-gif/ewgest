@@ -366,8 +366,8 @@
             <div class="variationSubmit"><button id="variationSave" class="btn primary" type="submit">Salvar agrupamento</button><span id="variationMessage" class="hint" role="status" aria-live="polite"></span></div>
           </form>
         </details>
-        <div class="itemfilter"><label for="typologySearch">Buscar código ou descrição</label>
-          <div class="filterrow"><input id="typologySearch" type="search" placeholder="Ex.: GOLS, JCR202, maxim-ar" autocomplete="off"><button id="clearTypologySearch" type="button" class="btn secondary">Limpar</button></div>
+        <div class="itemfilter"><label for="typologySearch">Buscar tipologia, variação, MOD ou descrição</label>
+          <div class="filterrow"><input id="typologySearch" type="search" placeholder="Ex.: INV-PGR207-02, MOD-000002 ou veneziana" autocomplete="off"><button id="clearTypologySearch" type="button" class="btn secondary">Limpar</button></div>
           <div class="catalogFilters">
             <div class="manufacturerFilter">
               <label for="typologyManufacturerFilter">Filtrar por fabricante</label>
@@ -1710,7 +1710,18 @@ function renderTypologiesAdmin() {
   const selectedType=node('typologyTypeFilter').value;
   const catalog=typologyCatalog.slice()
     .sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR',{numeric:true,sensitivity:'base'}))
-    .filter(t=>!query||(t.codigo+' '+t.descricao+' '+(typologyCatalog.find(p=>p.id===t.tipologia_principal_id)?.codigo||'')).toLocaleUpperCase('pt-BR').includes(query))
+    .filter(t=>{
+      if(!query)return true;
+      const raiz=typologyCatalog.find(p=>p.id===(t.tipologia_principal_id||t.id))||t;
+      const proprio=modulacaoCadastroLegado(t);
+      const codigos=modulationCatalog.filter(m=>m.tipologia_principal_id===raiz.id&&
+        (!m.tipologia_legada_id||m.tipologia_legada_id===t.id||
+          (t.id===raiz.id&&!typologyCatalog.some(x=>x.id===m.tipologia_legada_id))));
+      const texto=[t.codigo,t.descricao,raiz.codigo,proprio?.codigo_interno,
+        ...codigos.flatMap(m=>[codigoVariacaoTecnica(t,m),m.descricao,m.codigo_interno])]
+        .filter(Boolean).join(' ').toLocaleUpperCase('pt-BR');
+      return texto.includes(query);
+    })
     .filter(t=>manufacturer==='__SEM_FABRICANTE__'
       ?!String(t.fabricante||'').trim()
       :!manufacturer||String(t.fabricante||'').trim().toLocaleUpperCase('pt-BR')===manufacturer)
