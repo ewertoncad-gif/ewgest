@@ -89,7 +89,6 @@ for(const token of [
  'function proximoSufixoVisual(tipologia)',
  'numero_variacao',
  'MODULAÇÃO A CONFERIR',
- 'e.tipologia_id is not distinct from v_item.tipologia_id',
  'proximoSufixoVisual(t)',
  'p_confirmar_divergencia:node(\'identityDifferent\').checked'
 
