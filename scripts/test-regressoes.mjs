@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'catálogo sem sufixos v35.6',
+ 'listas sem sufixos v35.7',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -102,6 +102,10 @@ for(const token of [
  'function modulacaoMesmaDescricao(tipologia,descricao)',
  'function quantidadeModulosExpressa(descricao)',
  'const codigoExibicao=principal.codigo;',
+ 'function typologyPrincipalCode(item)',
+ 'const code=typologyPrincipalCode(list[i])',
+ 'rows[i].dataset.tipologiaCompleta=typologyCode(list[i]);',
+ "typology+' '+(item.dataset.tipologiaCompleta||'')",
  'const code=codigoVariacaoTecnica(t,m)||m.codigo_interno;',
  'Essa esquadria pertence à tipologia do catálogo?',
  'A descrição original da obra permanece como foi recebida.',
@@ -142,9 +146,15 @@ const mods=[
 ];
 const formatos=new Function('typologyCatalog','modulationCatalog',
  source.slice(fnInicio,fnFim)+
- '\nreturn {codigoVariacaoTecnica,modulacaoCadastroLegado,proximoSufixoVisual,typologyCode};'
+ '\nreturn {codigoVariacaoTecnica,modulacaoCadastroLegado,proximoSufixoVisual,typologyCode,typologyPrincipalCode};'
 )(catalogoRaiz,mods);
 assert.equal(formatos.typologyCode({tipologia_id:principalId,modulacao_id:'m1'}),'INV-VNZN00-01');
+assert.equal(formatos.typologyPrincipalCode({tipologia_id:principalId,modulacao_id:'m1'}),'INV-VNZN00',
+  'Liberação deve mostrar família principal sem sufixo');
+assert.equal(formatos.typologyPrincipalCode({tipologia_id:'legado-2',modulacao_id:'m2'}),'INV-VNZN00',
+  'Saída deve agrupar a mesma tipologia ainda que sejam configurações diferentes');
+assert.equal(formatos.typologyPrincipalCode({tipologia_id:'legado-2',modulacao_id:null}),'INV-VNZN00',
+  'Sem modulação mantém o código principal');
 assert.equal(formatos.typologyCode({tipologia_id:'legado-2',modulacao_id:'m2'}),'INV-VNZN00-02');
 assert.equal(formatos.typologyCode({tipologia_id:'legado-2',modulacao_id:null}),'INV-VNZN00',
   'Sem classificacao de configuracao nao inventar sufixo');
