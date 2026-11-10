@@ -1290,13 +1290,12 @@ function fecharCancelamentoRomaneio(){
   node('romaneioCancelOverlay').classList.add('hidden');
   romaneioCancelSelecionado=null;
 }
-node('romaneioCancelDismiss').addEventListener('click',fecharCancelamentoRomaneio);
-node('romaneioCancelReason').addEventListener('input',()=>{
+function onRomaneioCancelInput(){
   const len=node('romaneioCancelReason').value.trim().length;
   node('romaneioCancelCounter').textContent=len+' / 400 caracteres'+(len<10?' · mínimo 10':'');
   node('romaneioCancelError').textContent='';
-});
-node('romaneioCancelForm').addEventListener('submit',async event=>{
+}
+async function confirmarCancelamentoRomaneio(event){
   event.preventDefault();
   const original=romaneioCancelSelecionado;
   if(!original||String(membership?.perfil||'').toLowerCase()!=='administrador')return;
@@ -1335,7 +1334,7 @@ node('romaneioCancelForm').addEventListener('submit',async event=>{
     node('romaneioCancelError').textContent='Não foi possível cancelar: '+e.message+
       '. Nenhuma confirmação de estorno foi recebida; confira o histórico antes de tentar novamente.';
   }finally{button.disabled=false;}
-});
+}
 function abrirEmissaoRomaneio(){
   if(!selectedWork||!dispatchReady||romaneioLoadError||!podeEmitirRomaneio())return;
   node('romaneioWorkInfo').textContent='Cliente: '+(selectedWork.cliente||'Não informado')+
@@ -2040,6 +2039,9 @@ node('toggleRomaneioHistory').addEventListener('click',()=>{
   pane.classList.toggle('hidden',!willOpen);
   if(willOpen)renderHistoricoRomaneios(selectedWork.id);
 });
+node('romaneioCancelDismiss').addEventListener('click',fecharCancelamentoRomaneio);
+node('romaneioCancelReason').addEventListener('input',onRomaneioCancelInput);
+node('romaneioCancelForm').addEventListener('submit',confirmarCancelamentoRomaneio);
 node('romaneioCancel').addEventListener('click',fecharEmissaoRomaneio);
 node('romaneioForm').addEventListener('submit',emitirRomaneio);
 node('romaneioNewDriver').addEventListener('click',()=>cadastrarTransporteRomaneio('motorista'));
