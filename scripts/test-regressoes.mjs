@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'listas sem sufixos v35.7',
+ 'romaneios e fábricas v36.0',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -103,6 +103,22 @@ for(const token of [
  'function quantidadeModulosExpressa(descricao)',
  'const codigoExibicao=principal.codigo;',
  'function typologyPrincipalCode(item)',
+ 'id="releaseFactory"',
+ 'AFOGADOS',
+ 'IMBIRIBEIRA',
+ '/rest/v1/rpc/registrar_liberacao_corte_fabrica',
+ 'p_fabrica:fabrica',
+ 'id="romaneioModal"',
+ 'id="romaneioForm"',
+ 'id="openRomaneio"',
+ 'id="romaneioHistoryPanel"',
+ 'id="romaneioOverview"',
+ 'function emitirRomaneio(event)',
+ 'function construirHTMLRomaneio(header,linhas)',
+ 'function coletarItensRomaneio()',
+ 'emitir_romaneio_com_saidas',
+ "natureza:'material'",
+ "natureza:'esquadria'",
  'const code=typologyPrincipalCode(list[i])',
  'rows[i].dataset.tipologiaCompleta=typologyCode(list[i]);',
  "typology+' '+(item.dataset.tipologiaCompleta||'')",
@@ -317,5 +333,35 @@ assert.equal(helpers.modulacaoMesmaDescricao({id:'fam'},'GRADIL 6 MODULO(S) - CO
 assert.equal(helpers.modulacaoMesmaDescricao({id:'fam'},'GRADIL - 8 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO')?.id,'m1');
 modReferencia.descricao=modOriginal;
 
-console.log('OK: '+cases.length+' classificacoes; EA por obra; sufixos; Sim/Nao e nova/corrigir/adiar.');
+// Romaneios: duas vias no A4 para poucos itens; uma via por página quando a lista cresce.
+const iniciar=source.indexOf('function romaneioSaldoCompleto(item){');
+const terminar=source.indexOf('function changeDetailMode(mode) {',iniciar);
+assert.ok(iniciar>=0&&terminar>iniciar,'Funções de romaneios identificadas');
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({
+ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+})[c]);
+const montarRomaneio=new Function('works','escapeHTML',
+ source.slice(iniciar,terminar)+'\nreturn construirHTMLRomaneio;'
+)([{id:'obra',nome:'MIRAGE',cliente:'MOURA DUBEUX'}],esc);
+const cabecalho={id:'rm',obra_id:'obra',numero:'RM042',data_saida:'2026-07-08',
+ motorista:'IRAN FRANCISCO',placa:'UHQ4A65',observacoes:''};
+const linha=(n)=>({sequencia:n,codigo:'CG 1016',localizacao:'Ático',
+ descricao:'CANTONEIRA 1x1',medida:'6 m',quantidade:10,unidade:'UNID.',area_m2:null});
+const duas=montarRomaneio(cabecalho,[linha(1),linha(2),linha(3)]);
+assert.equal((duas.match(/class="printPage two"/g)||[]).length,1,
+ 'Pequenos romaneios com duas vias em uma folha A4');
+assert.equal((duas.match(/class="copy compact"/g)||[]).length,2,'Duas cópias idênticas');
+assert.ok(duas.includes('MOURA DUBEUX')&&duas.includes('IRAN FRANCISCO'),
+ 'Modelo preserva campos cliente e motorista');
+assert.ok(duas.includes('Quant.')&&duas.includes('Valor')&&duas.includes('Entregue por'),
+ 'Modelo com colunas e assinaturas da planilha enviada');
+const doze=montarRomaneio(cabecalho,Array.from({length:12},(_,i)=>linha(i+1)));
+assert.equal((doze.match(/class="printPage single"/g)||[]).length,2,
+ 'Listas longas usam uma via por página');
+const quarenta=montarRomaneio(cabecalho,Array.from({length:40},(_,i)=>linha(i+1)));
+assert.equal((quarenta.match(/class="printPage single"/g)||[]).length,6,
+ 'Paginar listas muito longas sem cortar itens');
+assert.ok(!duas.includes('<script>'),'Impressão não injeta scripts');
+console.log('OK: '+cases.length+' classificacoes; romaneio duas vias, longo, fábrica e saída atômica.');
+
 
