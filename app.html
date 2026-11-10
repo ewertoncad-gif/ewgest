@@ -1137,7 +1137,8 @@ async function cancelarRomaneio(id){
   if(motivo===null)return;
   const texto=motivo.trim();
   if(texto.length<10||texto.length>400){
-    node('detailError').textContent='Informe um motivo entre 10 e 400 caracteres.';
+    const destino=node('romaneiosPage').classList.contains('hidden')?'detailError':'hubRomaneioMessage';
+    node(destino).textContent='Informe um motivo entre 10 e 400 caracteres.';
     return;
   }
   if(!window.confirm('CONFIRMA CANCELAR '+original.numero+
@@ -1167,7 +1168,8 @@ async function cancelarRomaneio(id){
       node('detailError').textContent=mensagem;
     }
   }catch(e){
-    node('detailError').textContent='Não foi possível cancelar: '+e.message+
+    const destino=estaNoHub?'hubRomaneioMessage':'detailError';
+    node(destino).textContent='Não foi possível cancelar: '+e.message+
       '. Confira o histórico antes de tentar novamente.';
   }finally{button.disabled=false;}
 }
@@ -1534,7 +1536,11 @@ function imprimirRomaneio(id,janelaExistente=null){
   const cabecalho=romaneios.find(r=>r.id===id);
   const linhas=romaneioItens.filter(i=>i.romaneio_id===id);
   const pagina=janelaExistente||window.open('about:blank','_blank');
-  if(!pagina){node('detailError').textContent='Permita janelas de impressão ou use o histórico para reimprimir.';return false;}
+  if(!pagina){
+    const destino=node('romaneiosPage').classList.contains('hidden')?'detailError':'hubRomaneioMessage';
+    node(destino).textContent='Permita janelas de impressão ou use o histórico para reimprimir.';
+    return false;
+  }
   if(!cabecalho||!linhas.length){
     pagina.document.body.textContent='Romaneio não localizado. Atualize o painel e tente reimprimir.';
     return false;
@@ -1549,7 +1555,8 @@ function imprimirRomaneio(id,janelaExistente=null){
     pagina.setTimeout(()=>pagina.print(),350);
     return true;
   }catch(e){
-    node('detailError').textContent='O romaneio foi localizado, mas a impressão falhou: '+e.message;
+    const destino=node('romaneiosPage').classList.contains('hidden')?'detailError':'hubRomaneioMessage';
+    node(destino).textContent='O romaneio foi localizado, mas a impressão falhou: '+e.message;
     return false;
   }
 }
