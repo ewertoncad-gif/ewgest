@@ -2740,7 +2740,9 @@ function classificarTipoTipologia(t){
   if(/\bGUARDA[\s-]*CORPO\b/.test(desc))return 'GUARDA CORPO';
   if(/\bSPLIT\b/.test(desc))return 'SPLIT';
   if(/\bGRADIL\b|\bGRADE\b/.test(desc))return 'GRADIL';
-  if(/\bPORTA\s+DE\s+GIRO\b/.test(desc))return 'PORTA DE GIRO';
+  // A porta pivotante gira em eixo vertical, não é uma porta de correr.
+  // Prioridade antes da categoria genérica PORTA, sem modificar a descrição técnica.
+  if(/\bPORTA\s+(?:DE\s+)?PIVOTANTE\b|\bPORTA\s+DE\s+GIRO\b/.test(desc))return 'PORTA DE GIRO';
   if(/\bPORTA\b/.test(desc))return 'PORTA';
   // MAXIM-AR possui filtro próprio, após a prioridade das fachadas.
   if(/\bMAXIM[\s-]?AR\b/.test(desc))return 'MAXIM-AR';
