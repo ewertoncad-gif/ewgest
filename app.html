@@ -131,6 +131,11 @@
     .typologyFamilyHead span{font-size:12px;color:#a7c8dd}
     .typologyFamily .catalogRow{padding-left:12px;border-left:2px solid #376079}
     .catalogVariantMeta{font-size:12px;color:#8edfc6;margin:7px 0 2px}
+    .identityAction{border-top:1px solid #35546c;margin-top:15px;padding-top:14px}
+    .identityCompare{background:#0b1c2e;border:1px solid #405e77;border-radius:10px;padding:12px;margin-top:13px}
+    .identityCompare p{font-size:13px;line-height:1.55;margin:7px 0}
+    .identityConfirm{display:flex;gap:10px;align-items:start;margin-top:13px;font-size:13px;line-height:1.5}
+    .identityConfirm input{flex:none;width:auto;margin-top:3px;accent-color:#62d9b3}
     .reviewPendingRow{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:13px 0;border-bottom:1px solid #35546c}
     .reviewPendingRow:last-child{border-bottom:0}
     .reviewPendingRow strong{color:#83e2bd}
@@ -180,7 +185,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • modulações e pendências v32.0</div>
+        <div class="build">EWGEST • corrigir identificação v33.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -322,7 +327,7 @@
         </div>
         <p id="croquiImportStatus" class="hint" role="status" aria-live="polite">Os croquis aparecem somente neste catálogo, para o administrador.</p>
         <details class="systemRules" id="systemRulesPanel">
-          <summary>Regras do sistema · referência técnica v1.2</summary>
+          <summary>Regras do sistema · referência técnica v1.3</summary>
           <ul>
             <li>O código principal identifica o <strong>modelo da tipologia</strong>. A quantidade de módulos é uma variação, não um novo código principal.</li>
             <li>INV-VNZN00: 1, 2 ou mais módulos pertencem à mesma família, com descrições e croquis próprios.</li>
@@ -335,6 +340,7 @@
             <li>Classificação pendente afeta apenas a obra conferida; não cria reconhecimento automático global. Confirmar deve gerar auditoria.</li>
             <li>Pendências de cadastro: ADM confirma tipologia correta e escolhe modulação interna MOD existente ou cadastra nova pela descrição.</li>
             <li>Código EA do relatório não é código técnico confiável. Número de FOLHAS não determina automaticamente número de MÓDULOS.</li>
+            <li>Corrigir identificação de cadastro já existente vincula o código original a uma tipologia técnica principal, sem apagar os croquis, obras ou histórico. Somente ADM, com confirmação e auditoria.</li>
           </ul>
           <p class="hint">Antes de qualquer atualização: conferir estas regras, testar classificações e vínculos e preservar os dados históricos.</p>
         </details>
@@ -526,6 +532,34 @@
         <button id="typologyEditSave" type="submit" class="btn primary">Continuar</button>
       </div>
     </form>
+    <div id="identityAction" class="identityAction">
+      <button type="button" id="identityOpen" class="btn secondary">Corrigir identificação técnica</button>
+      <p id="identityActionHint" class="hint">Associar um cadastro existente à tipologia correta sem apagar o código original ou o croqui.</p>
+    </div>
+  </div>
+</div>
+<div id="identityOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="identityTitle">
+    <h2 id="identityTitle">Corrigir identificação técnica</h2>
+    <p id="identitySource" class="muted"></p>
+    <label for="identityTarget">Código técnico correto já cadastrado</label>
+    <select id="identityTarget"><option value="">Selecione a tipologia correta</option></select>
+    <div class="identityCompare" id="identityCompare" role="status" aria-live="polite">
+      Selecione a identificação técnica correta para comparar as descrições.
+    </div>
+    <label id="identityDifferentLabel" class="identityConfirm hidden">
+      <input type="checkbox" id="identityDifferent">
+      <span>As descrições ou classes técnicas são diferentes. Conferi e confirmo mesmo assim.</span>
+    </label>
+    <label class="identityConfirm">
+      <input type="checkbox" id="identityApproved">
+      <span>Confirmo a identificação técnica. O código original, o croqui e os vínculos das obras serão preservados.</span>
+    </label>
+    <p id="identityMessage" class="feedback" role="alert" aria-live="polite"></p>
+    <div class="modalbuttons">
+      <button id="identityCancel" class="btn secondary" type="button">Cancelar</button>
+      <button id="identitySave" class="btn primary" type="button" disabled>Confirmar identificação</button>
+    </div>
   </div>
 </div>
 
@@ -583,6 +617,7 @@ let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='
 let typologyCatalog=[],typologyOrigins=[],typologyOriginReady=false,editingTypology=null,editingPendingItem=null,typologyEditingStep=1,typologyCroquis=[];
 let variationManagerCatalogSignature='';
 let recognitionPendingItem=null;
+let identityEditing=null;
 let modulationCatalog=[];
 let manufacturerCatalog=[],manufacturerLoadError='',originalManufacturerForEdit='',originalDescriptionForEdit='',manufacturerAutoCandidate='';
 function setStatus(text){node('status').textContent=text;}
@@ -1628,7 +1663,7 @@ function renderTypologiesAdmin() {
   const selectedType=node('typologyTypeFilter').value;
   const catalog=typologyCatalog.slice()
     .sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR',{numeric:true,sensitivity:'base'}))
-    .filter(t=>!query||(t.codigo+' '+t.descricao).toLocaleUpperCase('pt-BR').includes(query))
+    .filter(t=>!query||(t.codigo+' '+t.descricao+' '+(typologyCatalog.find(p=>p.id===t.tipologia_principal_id)?.codigo||'')).toLocaleUpperCase('pt-BR').includes(query))
     .filter(t=>manufacturer==='__SEM_FABRICANTE__'
       ?!String(t.fabricante||'').trim()
       :!manufacturer||String(t.fabricante||'').trim().toLocaleUpperCase('pt-BR')===manufacturer)
@@ -1646,7 +1681,7 @@ function renderTypologiesAdmin() {
     const variants=typologyCatalog.filter(t=>t.id===principal.id||t.tipologia_principal_id===principal.id);
     const grouped=variants.length>1;
     const head=grouped?'<div class="typologyFamilyHead"><strong>Família '+escapeHTML(principal.codigo)+'</strong><span>'+
-      variants.length+' configurações de módulos · código principal preservado</span></div>':'';
+      variants.length+' cadastros relacionados · identificação técnica principal</span></div>':'';
     const entries=items.map(t=>{
       const origin=typologyOrigins.filter(o=>o.tipologia_id===t.id);
       const status=origin.length?(origin.some(x=>x.ativo)?'Origem reconhecida':'Origem sem reconhecimento automático'):'Sem regra de origem';
@@ -1654,12 +1689,14 @@ function renderTypologiesAdmin() {
       const preview=croqui?'<img class="croquiThumb" loading="lazy" alt="Croqui técnico de '+escapeHTML(t.codigo)+'" src="'+croqui+'">'
         :'<span class="croquiEmpty">Sem croqui</span>';
       const fabric=t.fabricante||'Não informado';
-      const moduleLabel=t.quantidade_modulos?(t.quantidade_modulos+' módulo(s)'):'Quantidade de módulos não definida';
-      const variantInfo=grouped?'<p class="catalogVariantMeta">'+escapeHTML(moduleLabel)+
-        (t.id===principal.id?' · Configuração principal':' · Cadastro original '+escapeHTML(t.codigo))+'</p>':'';
+      const moduleLabel=t.quantidade_modulos?(t.quantidade_modulos+' módulo(s)'):'Módulos não conferidos';
+      const variantInfo=t.tipologia_principal_id?
+        '<p class="catalogVariantMeta">Código original: '+escapeHTML(t.codigo)+' → Tipologia técnica: '+escapeHTML(principal.codigo)+
+        ' · '+escapeHTML(moduleLabel)+'</p>':
+        grouped?'<p class="catalogVariantMeta">Tipologia técnica principal · '+escapeHTML(moduleLabel)+'</p>':'';
       return `<div class="catalogRow"><button type="button" class="catalogEntry" data-tipologia-edit="${escapeHTML(t.id)}">
         <div class="catalogImageRow"><div class="catalogTextArea">
-          <div class="itemline"><strong class="green">${escapeHTML(t.codigo)}</strong>
+          <div class="itemline"><strong class="green">${escapeHTML(principal.codigo)}</strong>
             <span class="tap">Clique para editar</span></div>
           ${variantInfo}
           <p class="catalogManufacturer">Fabricante: ${escapeHTML(fabric)}</p>
@@ -1765,6 +1802,15 @@ function openTypologyEdit(id) {
   node('typologyEditForm').querySelectorAll('input[name="originLinkChoice"]').forEach(el=>{
     el.checked=el.value===(keep?'manter':'quebrar');
   });
+  const temFilhos=typologyCatalog.some(t=>t.tipologia_principal_id===typology.id);
+  const temModulacoes=modulationCatalog.some(m=>m.tipologia_principal_id===typology.id);
+  node('identityAction').classList.remove('hidden');
+  node('identityOpen').disabled=temFilhos||temModulacoes;
+  node('identityActionHint').textContent=temFilhos||temModulacoes
+    ?'Este cadastro tem registros associados ou modulações próprias. A identificação deve ser reorganizada antes de alterar o vínculo.'
+    :typology.tipologia_principal_id
+      ?'Identificação atual: '+(typologyCatalog.find(t=>t.id===typology.tipologia_principal_id)?.codigo||'não localizada')+'. É possível corrigir ou desvincular.'
+      :'Vincule este código de origem a uma tipologia técnica existente sem apagar o cadastro.';
   showTypologyEditStep(1);
   node('typologyEditOverlay').classList.remove('hidden');
   node('typologyEditCode').focus();
@@ -1788,6 +1834,7 @@ function openPendingTypologyClassification(id) {
   editingPendingItem=pending;
   editingTypology=null;
   node('typologyCroquiArea').classList.add('hidden');
+  node('identityAction').classList.add('hidden');
   node('typologyEditTitle').textContent='Classificar esquadria · '+pending.codigo;
   node('typologySourceInfo').textContent=
     'Código informado no CEM (pode ser somente da esquadria): '+(originalCode||'Não identificado')+
@@ -2134,7 +2181,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v32.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v33.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
