@@ -1746,6 +1746,7 @@ function openTypologyEdit(id) {
       ?'Código(s) de origem preservado(s): '+originalCodes.join(', ')+'.'
       :'Esta tipologia não possui vínculo de origem cadastrado.';
   node('typologyEditCode').value=typology.codigo;
+  node('typologyEditCode').placeholder='Código da tipologia';
   node('typologyEditDescription').value=typology.descricao;
   node('typologyEditManufacturer').value=typology.fabricante||'';
   node('typologyManufacturerSection').classList.remove('hidden');
@@ -1784,9 +1785,11 @@ function openPendingTypologyClassification(id) {
   node('typologyCroquiArea').classList.add('hidden');
   node('typologyEditTitle').textContent='Classificar esquadria · '+pending.codigo;
   node('typologySourceInfo').textContent=
-    'Código informado no CEM: '+(originalCode||'Não identificado')+
+    'Código informado no CEM (pode ser somente da esquadria): '+(originalCode||'Não identificado')+
     '. A descrição abaixo corresponde a '+group.length+' código(s) de esquadria. Apenas os itens desta mesma OBRA, origem e descrição serão associados.';
-  node('typologyEditCode').value=originalCode;
+  // EA05 e EA14_1 são identificadores de obra, não códigos técnicos seguros.
+  node('typologyEditCode').value=/^EA\d{1,4}(?:[_-]\d+)?$/i.test(originalCode)?'':originalCode;
+  node('typologyEditCode').placeholder='Código técnico correto, ex.: INV-FIN00';
   node('typologyEditDescription').value=originalDescription;
   node('typologyEditManufacturer').value='';
   node('typologyManufacturerSection').classList.add('hidden');
@@ -1853,7 +1856,7 @@ async function saveTypologyEdit(event) {
       :{p_tipologia_id:editingTypology.id,p_codigo:code,p_fabricante:manufacturer,
          p_descricao:description,p_manter_vinculo_origem:keep,
          p_criar_fabricante:Boolean(newManufacturer&&node('manufacturerConfirmRegistration').checked)};
-    await request('/rest/v1/rpc/'+route,{
+    const resultado=await request('/rest/v1/rpc/'+route,{
       method:'POST',token:session.access_token,body:payload
     });
     closeTypologyEdit();
@@ -1865,10 +1868,11 @@ async function saveTypologyEdit(event) {
       renderTypologiesAdmin();
       setView('typologies');
       node('typologyAdminMessage').textContent=(pendingItem
-        ?'Tipologia '+code+' cadastrada. As esquadrias com a mesma origem e descrição foram associadas.'
+        ?'Tipologia '+code+' cadastrada com modulação '+(resultado?.codigo_interno||'interna')+'. Apenas esquadrias desta obra foram vinculadas.'
         :'Tipologia '+code+' atualizada. As esquadrias já cadastradas continuam vinculadas.')
-        +(keep?' Vínculo de origem mantido.':' Vínculo de origem desativado.')
-        +' O reconhecimento automático será considerado quando a importação de novas obras for implementada.';
+        +(pendingItem?' Sem reconhecimento automático em outras obras.':
+          keep?' Vínculo de origem mantido para futura conferência.':' Vínculo de origem desativado.')
+        +' A importação de novas obras ainda não está disponível.';
     } catch(err) {
       node('typologyAdminMessage').textContent='Alteração SALVA no banco, mas a atualização do catálogo falhou: '+err.message+'. Recarregue o site; não salve novamente.';
     }
