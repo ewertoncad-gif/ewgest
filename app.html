@@ -144,6 +144,14 @@
     .recognitionCompare p{font-size:13px;margin:8px 0}
     .recognitionCheck{display:flex;align-items:flex-start;gap:10px;margin-top:15px;font-size:13px}
     .recognitionCheck input{width:auto;flex:none;margin-top:3px;accent-color:#62d9b3}
+    .differenceChoices{display:grid;gap:9px;margin:12px 0}
+    .differenceChoices label{display:flex;gap:12px;align-items:flex-start;border:1px solid #45647b;border-radius:9px;padding:12px;cursor:pointer;font-size:14px;line-height:1.45}
+    .differenceChoices label:has(input:checked){border-color:#62d9b3;background:#123b42}
+    .differenceChoices input{width:auto;flex:none;margin:3px 0 0;accent-color:#62d9b3}
+    .differenceStep{margin:15px 0;padding-top:12px;border-top:1px solid #35546c}
+    .differenceStep textarea,.differenceStep input[type=number]{width:100%;max-width:100%;margin:7px 0}
+    .differenceMeta{font-size:13px;color:#b1cce0;line-height:1.5}
+    .differenceMeta strong{color:#75dfba}
     @media(max-width:700px){.variationForm{grid-template-columns:1fr}.typologyFamilyHead{flex-direction:column}}
 
     .catalogMeta{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:#abc2d6}
@@ -185,7 +193,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • sufixos automáticos v34.0</div>
+        <div class="build">EWGEST • conferência sem bloqueios v35.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -327,7 +335,7 @@
         </div>
         <p id="croquiImportStatus" class="hint" role="status" aria-live="polite">Os croquis aparecem somente neste catálogo, para o administrador.</p>
         <details class="systemRules" id="systemRulesPanel">
-          <summary>Regras do sistema · referência técnica v1.4</summary>
+          <summary>Regras do sistema · referência técnica v1.5</summary>
           <ul>
             <li>O código principal identifica o <strong>modelo da tipologia</strong>. A quantidade de módulos é uma variação, não um novo código principal.</li>
             <li>INV-VNZN00: 1, 2 ou mais módulos pertencem à mesma família, com descrições e croquis próprios.</li>
@@ -343,6 +351,7 @@
             <li>Corrigir identificação de cadastro já existente vincula o código original a uma tipologia técnica principal, sem apagar os croquis, obras ou histórico. Somente ADM, com confirmação e auditoria.</li>
             <li>Cada configuração tem um sufixo automático e permanente por família: -01, -02, -03... O número NÃO equivale a módulos ou folhas.</li>
             <li>MOD-xxxxxx continua sendo o identificador interno. Croquis legados permanecem no respectivo cadastro; divergências entre descrições exigem conferência administrativa.</li>
+            <li>Se a tipologia técnica já estiver correta, diferenças de escrita permitem: confirmar a mesma configuração, registrar nova variação, corrigir a descrição com histórico ou adiar. Nenhuma opção bloqueia o andamento da obra.</li>
           </ul>
           <p class="hint">Antes de qualquer atualização: conferir estas regras, testar classificações e vínculos e preservar os dados históricos.</p>
         </details>
@@ -445,6 +454,46 @@
       <div class="modalbuttons"><button type="button" id="shipmentCancel" class="btn secondary">Cancelar</button><button type="submit" id="shipmentSave" class="btn primary">Salvar saída</button></div>
     </form>
     <div id="shipmentHistory" class="shiphistory hint"></div>
+  </div>
+</div>
+<div id="differenceOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="differenceTitle">
+    <h2 id="differenceTitle">Conferência de descrição</h2>
+    <p id="differenceOrigin" class="muted"></p>
+    <p class="hint">A tipologia técnica já está identificada. Compare apenas a configuração. A obra continua liberada para trabalhar.</p>
+    <label for="differenceConfig">Configuração cadastrada para comparação</label>
+    <select id="differenceConfig"></select>
+    <div id="differenceComparison" class="recognitionCompare" aria-live="polite"></div>
+    <strong>Essa esquadria corresponde à configuração acima?</strong>
+    <div class="differenceChoices" id="differenceMainChoices">
+      <label><input type="radio" name="differenceMatch" value="sim"><span>Sim, é a mesma configuração.</span></label>
+      <label><input type="radio" name="differenceMatch" value="nao"><span>Não, existe uma diferença técnica.</span></label>
+    </div>
+    <div id="differenceSecondStep" class="differenceStep hidden">
+      <strong>Como deseja resolver a diferença?</strong>
+      <div class="differenceChoices">
+        <label><input type="radio" name="differenceNext" value="nova"><span>Criar uma nova configuração com o próximo sufixo.</span></label>
+        <label><input type="radio" name="differenceNext" value="corrigir"><span>Corrigir a descrição da esquadria para a configuração existente.</span></label>
+        <label><input type="radio" name="differenceNext" value="adiar"><span>Deixar para conferir depois, sem bloquear a obra.</span></label>
+      </div>
+      <div id="differenceCreateFields" class="differenceStep hidden">
+        <label for="differenceNewDescription">Descrição técnica que diferencia a nova configuração</label>
+        <textarea id="differenceNewDescription" class="typologyEditInput" maxlength="1000" rows="3"></textarea>
+        <label for="differenceNewModules">Número de módulos (opcional)</label>
+        <input id="differenceNewModules" type="number" min="1" max="100" step="1" placeholder="Não confundir com folhas">
+        <p class="hint">Informe a característica diferente (abertura, veneziana, módulos etc.). O código definitivo é gerado ao salvar.</p>
+      </div>
+      <div id="differenceCorrectFields" class="differenceStep hidden">
+        <p class="differenceMeta">Nova descrição da esquadria:</p>
+        <p id="differenceCorrectDescription" class="differenceMeta"></p>
+        <p class="hint">A descrição original recebida da obra será guardada no histórico. O croqui não será modificado.</p>
+      </div>
+    </div>
+    <p id="differenceError" class="feedback" role="status" aria-live="polite"></p>
+    <div class="modalbuttons" style="flex-wrap:wrap">
+      <button type="button" id="differenceCancel" class="btn secondary">Cancelar</button>
+      <button type="button" id="differenceSave" class="btn primary" disabled>Confirmar decisão</button>
+    </div>
   </div>
 </div>
 <div id="recognitionOverlay" class="modaloverlay hidden" role="presentation">
@@ -619,6 +668,7 @@ let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='
 let typologyCatalog=[],typologyOrigins=[],typologyOriginReady=false,editingTypology=null,editingPendingItem=null,typologyEditingStep=1,typologyCroquis=[];
 let variationManagerCatalogSignature='';
 let recognitionPendingItem=null;
+let differencePendingItem=null;
 let identityEditing=null;
 let modulationCatalog=[];
 let manufacturerCatalog=[],manufacturerLoadError='',originalManufacturerForEdit='',originalDescriptionForEdit='',manufacturerAutoCandidate='';
@@ -2385,7 +2435,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v34.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v35.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
