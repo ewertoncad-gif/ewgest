@@ -1803,7 +1803,7 @@ function openTypologyEdit(id) {
     el.checked=el.value===(keep?'manter':'quebrar');
   });
   const temFilhos=typologyCatalog.some(t=>t.tipologia_principal_id===typology.id);
-  const temModulacoes=modulationCatalog.some(m=>m.tipologia_principal_id===typology.id);
+  const temModulacoes=modulationCatalog.some(m=>m.tipologia_principal_id===typology.id||m.tipologia_legada_id===typology.id);
   node('identityAction').classList.remove('hidden');
   node('identityOpen').disabled=temFilhos||temModulacoes;
   node('identityActionHint').textContent=temFilhos||temModulacoes
@@ -1861,7 +1861,7 @@ function candidatosIdentificacaoTecnica(origem,catalogo){
   const classe=classificarTipoTipologia(origem);
   return catalogo.filter(t=>t.id!==origem.id&&!t.tipologia_principal_id
     &&fab(t.fabricante)===fab(origem.fabricante)
-    &&!/^EA\\d+(?:[_-]\\d+)?$/i.test(t.codigo))
+    &&!/^EA\d+(?:[_-]\d+)?$/i.test(t.codigo))
     .sort((a,b)=>{
       const pontos=t=>(normalizarReconhecimento(t.descricao)===descricao?2:0)
         +(classificarTipoTipologia(t)===classe?1:0);
@@ -1878,7 +1878,7 @@ function abrirCorrecaoIdentificacao(){
   if(!origem||editingPendingItem||
      String(membership?.perfil||'').toLowerCase()!=='administrador')return;
   const temDependentes=typologyCatalog.some(t=>t.tipologia_principal_id===origem.id);
-  const temModulacoes=modulationCatalog.some(m=>m.tipologia_principal_id===origem.id);
+  const temModulacoes=modulationCatalog.some(m=>m.tipologia_principal_id===origem.id||m.tipologia_legada_id===origem.id);
   if(temDependentes||temModulacoes)return;
   const candidatos=candidatosIdentificacaoTecnica(origem,typologyCatalog);
   if(!candidatos.length&&!origem.tipologia_principal_id){
