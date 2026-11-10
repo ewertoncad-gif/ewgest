@@ -180,7 +180,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • conferência segura v31.0</div>
+        <div class="build">EWGEST • modulações e pendências v32.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -322,7 +322,7 @@
         </div>
         <p id="croquiImportStatus" class="hint" role="status" aria-live="polite">Os croquis aparecem somente neste catálogo, para o administrador.</p>
         <details class="systemRules" id="systemRulesPanel">
-          <summary>Regras do sistema · referência técnica v1.1</summary>
+          <summary>Regras do sistema · referência técnica v1.2</summary>
           <ul>
             <li>O código principal identifica o <strong>modelo da tipologia</strong>. A quantidade de módulos é uma variação, não um novo código principal.</li>
             <li>INV-VNZN00: 1, 2 ou mais módulos pertencem à mesma família, com descrições e croquis próprios.</li>
@@ -333,13 +333,20 @@
             <li>Código da esquadria (como EA14_1) é válido no contexto da obra e não identifica automaticamente a tipologia de outras obras.</li>
             <li>Em novas obras: sugerir pelo texto da descrição, comparar e exigir confirmação do ADM. Divergências exigem aceite adicional.</li>
             <li>Classificação pendente afeta apenas a obra conferida; não cria reconhecimento automático global. Confirmar deve gerar auditoria.</li>
+            <li>Pendências de cadastro: ADM confirma tipologia correta e escolhe modulação interna MOD existente ou cadastra nova pela descrição.</li>
+            <li>Código EA do relatório não é código técnico confiável. Número de FOLHAS não determina automaticamente número de MÓDULOS.</li>
           </ul>
           <p class="hint">Antes de qualquer atualização: conferir estas regras, testar classificações e vínculos e preservar os dados históricos.</p>
         </details>
-        <details class="systemRules" id="pendingReviewPanel">
-          <summary>Conferência do administrador · <span id="pendingReviewCount">—</span></summary>
+        <details class="systemRules" id="pendingReviewPanel" open>
+          <summary>Pendências de cadastro · <span id="pendingReviewCount">—</span></summary>
           <p class="hint">Somente esquadrias sem tipologia. Sugestões são geradas pela descrição, nunca pelo código EA, e não são aprovadas automaticamente.</p>
           <div id="pendingReviewList" aria-live="polite"></div>
+        </details>
+        <details class="systemRules" id="modulationCatalogPanel">
+          <summary>Modulações internas cadastradas · <span id="modulationCatalogCount">—</span></summary>
+          <p class="hint">O código MOD identifica cada configuração e pode ser reutilizado em outras obras. Ele não substitui o código da tipologia nem o código EA da esquadria.</p>
+          <div id="modulationCatalogList"></div>
         </details>
         <details class="systemRules" id="variationManager">
           <summary>Organizar tipologia principal e variações</summary>
@@ -439,6 +446,15 @@
     <p class="hint">Sugestões pela descrição, nunca pelo código EA. Nenhuma associação é automática.</p>
     <label for="recognitionTarget">Tipologia existente no catálogo</label>
     <select id="recognitionTarget"><option value="">Selecione para comparar</option></select>
+    <label for="recognitionModulation">Modulação interna</label>
+    <select id="recognitionModulation" disabled><option value="">Selecione primeiro uma tipologia</option></select>
+    <div id="recognitionNewModFields" class="hidden">
+      <label for="recognitionModDescription">Descrição da nova modulação</label>
+      <textarea id="recognitionModDescription" class="typologyEditInput" rows="3" maxlength="1000"></textarea>
+      <label for="recognitionModCount">Quantidade de módulos (opcional, conferir no projeto)</label>
+      <input id="recognitionModCount" type="number" min="1" max="100" step="1" placeholder="Não confundir com quantidade de folhas">
+      <p class="hint">O sistema gerará o próximo código MOD ao confirmar. Não deduzimos módulos pela quantidade de folhas.</p>
+    </div>
     <div id="recognitionCompare" class="recognitionCompare" role="status" aria-live="polite">Selecione uma tipologia para comparar com a descrição do relatório.</div>
     <label class="recognitionCheck"><input type="checkbox" id="recognitionDivergence" disabled>
       <span>Conferi a diferença entre as descrições e mesmo assim confirmo esta tipologia.</span>
@@ -567,6 +583,7 @@ let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='
 let typologyCatalog=[],typologyOrigins=[],typologyOriginReady=false,editingTypology=null,editingPendingItem=null,typologyEditingStep=1,typologyCroquis=[];
 let variationManagerCatalogSignature='';
 let recognitionPendingItem=null;
+let modulationCatalog=[];
 let manufacturerCatalog=[],manufacturerLoadError='',originalManufacturerForEdit='',originalDescriptionForEdit='',manufacturerAutoCandidate='';
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
@@ -644,11 +661,12 @@ async function loadPanel(){
   node('openUsers').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
   const [w,e,tips]=await Promise.all([
     apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'}),
-    apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id,rotulo_tipologia_relatorio,quantidade_modulos',empresa_id:'eq.'+currentCompany.id}),
+    apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id,rotulo_tipologia_relatorio,quantidade_modulos,modulacao_id',empresa_id:'eq.'+currentCompany.id}),
     apiGet('tipologias',{select:'id,codigo,descricao,provisoria,fabricante,tipologia_principal_id,quantidade_modulos',empresa_id:'eq.'+currentCompany.id})
   ]);
   works=w||[];elements=e||[];typologyCatalog=tips||[];
   typologyOrigins=[];typologyOriginReady=false;typologyCroquis=[];
+  modulationCatalog=[];
   manufacturerCatalog=[];manufacturerLoadError='';
   if(String(membership?.perfil||'').toLowerCase()==='administrador'){
     try{
@@ -656,6 +674,14 @@ async function loadPanel(){
         select:'id,empresa_id,nome',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'
       });
     }catch(err){manufacturerLoadError=err.message;manufacturerCatalog=[];}
+  }
+  if(String(membership?.perfil||'').toLowerCase()==='administrador'){
+    try{
+      modulationCatalog=await apiGet('tipologias_modulacoes',{
+        select:'id,empresa_id,tipologia_principal_id,codigo_interno,descricao,quantidade_modulos,tipologia_legada_id',
+        empresa_id:'eq.'+currentCompany.id,order:'codigo_interno.asc'
+      });
+    }catch(e){modulationCatalog=[];throw new Error('Não foi possível carregar as modulações: '+e.message);}
   }
   if(String(membership?.perfil||'').toLowerCase()==='administrador'){
     try{
@@ -2008,7 +2034,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v31.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v32.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
