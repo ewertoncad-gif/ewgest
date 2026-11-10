@@ -59,7 +59,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'código preservado v35.3',
+ 'comparação de módulos v35.4',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -98,6 +98,8 @@ for(const token of [
  'id="differenceCorrectFields"',
  'id="differenceSave"',
  'id="differencePreserveCode"',
+ 'function descricaoComparacaoComModulosN(descricao)',
+ 'N representa uma quantidade variável de módulos apenas nesta comparação.',
  'Criar outra configuração da mesma tipologia (mantém o código e adiciona um sufixo).',
  'Código da tipologia preservado: ',
  'class="differenceComparisonGrid"',
@@ -235,6 +237,43 @@ state.next='corrigir';functions.atualizarTelaDiferenca();
 assert.equal(state.form.differenceSave.disabled,false,'Permitir corrigir descrição original');
 state.next='adiar';functions.atualizarTelaDiferenca();
 assert.equal(state.form.differenceSave.disabled,false,'Permitir adiar e seguir obra');
+
+// A transformação N é apenas visual: original e seletor permanecem intactos.
+const displayStart=source.indexOf('function descricaoComparacaoComModulosN(descricao){');
+const displayEnd=source.indexOf('function atualizarTelaDiferenca(){',displayStart);
+assert.ok(displayStart>=0&&displayEnd>displayStart,'Função N somente de apresentação');
+const displayN=new Function(source.slice(displayStart,displayEnd)+
+  '\nreturn descricaoComparacaoComModulosN;')();
+for(const n of [1,3,6,8,12]){
+  assert.equal(displayN('GRADIL '+n+' MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO'),
+    'GRADIL N MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO','Deve trocar somente numero de modulos');
+}
+assert.equal(displayN('GRADIL 3 MÓDULOS / 2 FOLHAS / 1600 x 2300'),
+  'GRADIL N MÓDULOS / 2 FOLHAS / 1600 x 2300',
+  'Não modificar folhas nem dimensões');
+assert.equal(displayN('PORTA 1 MÓDULO + 2 MÓDULOS'),
+  'PORTA N MÓDULO + N MÓDULOS','Formas singular e plural');
+const modOriginal=modReferencia.descricao;
+modReferencia.descricao='GRADIL 8 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO';
+const obraOriginal='GRADIL 6 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO';
+const fakeState=[
+  {id:'ob1',tipologia_id:'fam',descricao:obraOriginal},
+  [{id:'fam',codigo:'UNIV-R08-GRADN00'}],
+  [modReferencia]
+];
+const renderN=new Function('differencePendingItem','typologyCatalog','modulationCatalog',
+ 'document','node','modulacoesDaTipologia','codigoVariacaoTecnica','normalizarReconhecimento',
+ source.slice(fnInicio2,fnFim2)+'\nreturn {atualizarTelaDiferenca};'
+)(fakeState[0],fakeState[1],fakeState[2],fakeDocument,
+ id=>state.form[id],()=>[modReferencia],()=> 'UNIV-R08-GRADN00-01',normalizarTeste);
+state.next='adiar';renderN.atualizarTelaDiferenca();
+const rendered=state.form.differenceComparison.children;
+assert.equal(rendered[0].children[3].textContent,'GRADIL N MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO');
+assert.equal(rendered[1].children[3].textContent,'GRADIL N MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO');
+assert.equal(fakeState[0].descricao,obraOriginal,'Descrição original da obra permanece inteira');
+assert.equal(modReferencia.descricao,'GRADIL 8 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO',
+  'Descrição original da modulação permanece inteira');
+modReferencia.descricao=modOriginal;
 
 console.log('OK: '+cases.length+' classificacoes; EA por obra; sufixos; Sim/Nao e nova/corrigir/adiar.');
 
