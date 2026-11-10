@@ -411,10 +411,10 @@ const ehFim=source.indexOf('function buscarEsquadriasRomaneio(row){',ehInicio);
 assert.ok(ehInicio>=0&&ehFim>ehInicio,'Validação de MAXIM-AR presente');
 const {ehMaximArRomaneio,romaneioSaldoPorTipo}=new Function('shipmentStats','suggestedLeaves',
  source.slice(ehInicio,ehFim)+
- '\\nreturn {ehMaximArRomaneio,romaneioSaldoPorTipo};'
+ '\nreturn {ehMaximArRomaneio,romaneioSaldoPorTipo};'
 )(x=>({released:Number(x.qtd_liberada),frames:Number(x.marcos||0),
  leaves:Number(x.folhas_enviadas||0),per:x.per||null}),
-  x=>Number((x.descricao||'').match(/(\\d+)\\s*FOLHA/i)?.[1]||0)||null);
+  x=>Number((x.descricao||'').match(/(\d+)\s*FOLHA/i)?.[1]||0)||null);
 assert.equal(ehMaximArRomaneio({descricao:'MAXIM-AR 1 FOLHA(S) - HYDRO'}),true);
 assert.equal(ehMaximArRomaneio({descricao:'MAXIM AR 1 FOLHA(S)'}),true);
 assert.equal(ehMaximArRomaneio({descricao:'MAXIMAR 1 FOLHA(S)'}),true);
