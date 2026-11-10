@@ -1083,6 +1083,7 @@ function abrirEmissaoRomaneio(){
   node('romaneioWorkInfo').textContent='Cliente: '+(selectedWork.cliente||'Não informado')+
     ' · Obra: '+selectedWork.nome;
   node('romaneioForm').reset();
+  preencherTransportesRomaneio();
   node('romaneioDate').value=todayLocal();
   node('romaneioRows').replaceChildren();
   node('romaneioError').textContent='';
@@ -1095,25 +1096,115 @@ function abrirEmissaoRomaneio(){
 function fecharEmissaoRomaneio(){
   node('romaneioModal').classList.add('hidden');
 }
+
+function preencherTransportesRomaneio(){
+  for(const [id,lista,campo] of [
+    ['romaneioDriver',romaneioMotoristas,'nome'],
+    ['romaneioPlate',romaneioVeiculos,'placa']
+  ]){
+    const seletor=node(id);
+    const atual=seletor.value;
+    seletor.replaceChildren();
+    const vazio=document.createElement('option');vazio.value='';
+    vazio.textContent=id==='romaneioDriver'?'Selecione um motorista':'Selecione uma placa';
+    seletor.append(vazio);
+    for(const x of lista){
+      const op=document.createElement('option');op.value=x[campo];op.textContent=x[campo];
+      seletor.append(op);
+    }
+    seletor.value=lista.some(x=>x[campo]===atual)?atual:'';
+  }
+}
+async function cadastrarTransporteRomaneio(tipo){
+  if(!['administrador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
+  const motorista=tipo==='motorista';
+  const valor=window.prompt(motorista?'Nome do novo motorista:':'Placa do veículo (ABC1D23 ou ABC1234):');
+  if(valor===null)return;
+  const texto=valor.trim().toUpperCase();
+  if(!texto){node('romaneioError').textContent='Informe um valor para cadastrar.';return;}
+  try{
+    await ensureSession();
+    const registro=await request('/rest/v1/rpc/cadastrar_transporte_romaneio',{
+      method:'POST',token:session.access_token,
+      body:{p_tipo:tipo,p_valor:texto}
+    });
+    const updated=await apiGet(motorista?'romaneios_motoristas':'romaneios_veiculos',{
+      select:motorista?'id,nome,ativo':'id,placa,ativo',
+      empresa_id:'eq.'+currentCompany.id,ativo:'eq.true',order:(motorista?'nome':'placa')+'.asc'
+    });
+    if(motorista)romaneioMotoristas=updated||[];
+    else romaneioVeiculos=updated||[];
+    preencherTransportesRomaneio();
+    node(motorista?'romaneioDriver':'romaneioPlate').value=registro.valor;
+    node('romaneioError').textContent='';
+  }catch(err){node('romaneioError').textContent='Não foi possível cadastrar: '+err.message;}
+}
+function romaneioSaldoPorTipo(item,tipo,folhas){
+  const a=shipmentStats(item);
+  const per=a.per||Number(folhas)||suggestedLeaves(item)||null;
+  const marcos=Math.max(0,a.released-a.frames);
+  const folhasRestantes=per?Math.max(0,a.released*per-a.leaves):null;
+  if(tipo==='marco')return marcos;
+  if(tipo==='folha')return folhasRestantes;
+  if(!per)return marcos; // Somente prévia. Confirmar folhas/unidade é obrigatório.
+  return Math.max(0,Math.min(marcos,Math.floor(folhasRestantes/per)));
+}
+function buscarEsquadriasRomaneio(row){
+  const busca=row.querySelector('[data-rom-field="esquadria_search"]');
+  const combo=row.querySelector('[data-rom-field="esquadria_id"]');
+  const tipo=row.querySelector('[data-rom-field="tipo_saida"]').value;
+  const termo=String(busca.value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLocaleUpperCase('pt-BR').trim();
+  const antigo=combo.value;
+  const disponiveis=elements.filter(x=>x.obra_id===selectedWork.id&&
+    Number(x.qtd_liberada)>0 &&
+    (romaneioSaldoPorTipo(x,'marco')>0||
+      romaneioSaldoPorTipo(x,'folha',1)>0)).filter(x=>{
+      const v=(x.codigo+' '+(x.descricao||'')+' '+(x.localizacao||''))
+        .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleUpperCase('pt-BR');
+      return v.includes(termo);
+    }).sort((x,y)=>x.codigo.localeCompare(y.codigo,'pt-BR',{numeric:true}));
+  combo.replaceChildren();
+  const placeholder=document.createElement('option');placeholder.value='';
+  placeholder.textContent=disponiveis.length?'Selecione a esquadria':'Nenhuma esquadria encontrada';
+  combo.append(placeholder);
+  for(const item of disponiveis){
+    const option=document.createElement('option');option.value=item.id;
+    option.textContent=item.codigo+' · '+String(item.descricao||'').slice(0,88);
+    combo.append(option);
+  }
+  combo.value=disponiveis.some(x=>x.id===antigo)?antigo:'';
+  atualizarLinhaRomaneio(row);
+}
 function atualizarLinhaRomaneio(el){
   if(el.dataset.natureza!=='esquadria')return;
-  const item=elements.find(x=>x.id===el.querySelector('[data-rom-field="esquadria_id"]').value);
+  const id=el.querySelector('[data-rom-field="esquadria_id"]').value;
+  const item=elements.find(x=>x.id===id&&x.obra_id===selectedWork?.id);
+  const tipo=el.querySelector('[data-rom-field="tipo_saida"]').value;
   const summary=el.querySelector('.romaneioRowSummary');
   const qty=el.querySelector('[data-rom-field="quantidade"]');
   const leaves=el.querySelector('[data-rom-field="folhas_por_unidade"]');
   if(!item){
-    summary.textContent='Selecione uma esquadria com saldo liberado para expedição.';
+    summary.textContent='Busque pelo código ou descrição e selecione uma esquadria liberada.';
     qty.max='';qty.value='';leaves.value='';leaves.readOnly=false;
     return;
   }
   const stats=shipmentStats(item);
-  const saldo=romaneioSaldoCompleto(item);
-  qty.max=String(saldo);
-  if(!Number(qty.value)||Number(qty.value)>saldo)qty.value=saldo?'1':'';
-  leaves.value=stats.per||suggestedLeaves(item)||'';
-  leaves.readOnly=stats.per!==null;
-  summary.textContent=(item.descricao||'')+' · '+(item.localizacao||'Sem localização')+
-    ' · '+saldo+' unidade(s) disponíveis; '+amount(item.largura_mm)+' × '+amount(item.altura_mm)+' mm.';
+  if(stats.per!==null){leaves.value=stats.per;leaves.readOnly=true;}
+  else{
+    leaves.readOnly=false;
+    if(!leaves.value)leaves.value=suggestedLeaves(item)||'';
+  }
+  const saldo=romaneioSaldoPorTipo(item,tipo,leaves.value);
+  qty.max=saldo?String(saldo):'';
+  if(!Number.isSafeInteger(Number(qty.value))||Number(qty.value)<1||
+      (saldo!==null&&Number(qty.value)>saldo)){
+    qty.value=saldo>0?'1':'';
+  }
+  const tipoTxt=tipo==='marco'?'marco(s)':tipo==='folha'?'folha(s) físicas':'esquadria(s) completas';
+  summary.textContent=item.codigo+' · '+(item.localizacao||'Sem localização')+
+    ' · '+saldo+' '+tipoTxt+' disponíveis · '+amount(item.largura_mm)+' × '+
+    amount(item.altura_mm)+' mm · '+(item.descricao||'');
 }
 function adicionarLinhaRomaneio(natureza){
   if(node('romaneioRows').children.length>=60){
@@ -1123,19 +1214,24 @@ function adicionarLinhaRomaneio(natureza){
   row.className='romaneioRow';row.dataset.natureza=natureza;
   const removable='<button type="button" class="btn secondary romaneioRemove" data-remove-rom>Remover</button>';
   if(natureza==='esquadria'){
-    const disponiveis=elements.filter(x=>x.obra_id===selectedWork.id&&romaneioSaldoCompleto(x)>0)
-      .sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR',{numeric:true}));
-    const options=disponiveis.map(x=>'<option value="'+escapeHTML(x.id)+'">'+
-      escapeHTML(x.codigo)+' · '+romaneioSaldoCompleto(x)+' un. · '+
-      escapeHTML(String(x.descricao||'').slice(0,80))+'</option>').join('');
-    row.innerHTML='<div class="itemline"><strong>Esquadria completa</strong>'+removable+'</div>'+
-      '<label>Esquadria</label><select data-rom-field="esquadria_id" required><option value="">Selecione uma esquadria</option>'+
-      options+'</select><div class="romaneioRowSummary">Selecione uma esquadria com saldo.</div>'+
+    row.innerHTML='<div class="itemline"><strong>Esquadria</strong>'+removable+'</div>'+
+      '<label>O que será enviado?</label>'+
+      '<select class="romaneioKind" data-rom-field="tipo_saida">'+
+      '<option value="completo">Esquadria completa</option>'+
+      '<option value="marco">Somente o marco</option>'+
+      '<option value="folha">Somente as folhas</option></select>'+
+      '<label>Buscar esquadria pelo código ou descrição</label>'+
+      '<input class="romaneioSearch" type="search" data-rom-field="esquadria_search" placeholder="Ex.: EA14, JCR, veneziana">'+
+      '<select data-rom-field="esquadria_id" required><option value="">Selecione uma esquadria</option></select>'+
+      '<div class="romaneioRowSummary">Selecione uma esquadria com saldo.</div>'+
       '<div class="romaneioRowFields">'+
       '<label>Quantidade<input data-rom-field="quantidade" type="number" min="1" step="1" required></label>'+
-      '<label>Folhas/unidade<input data-rom-field="folhas_por_unidade" type="number" min="1" max="12" step="1" required placeholder="Confirmar"></label>'+
-      '</div>';
+      '<label>Folhas por esquadria<input data-rom-field="folhas_por_unidade" type="number" min="1" max="12" step="1" required placeholder="Confirmar"></label>'+
+      '</div><p class="hint">Na opção “só folhas”, a quantidade representa folhas físicas, não esquadrias completas.</p>';
+    row.querySelector('[data-rom-field="tipo_saida"]').addEventListener('change',()=>atualizarLinhaRomaneio(row));
+    row.querySelector('[data-rom-field="esquadria_search"]').addEventListener('input',()=>buscarEsquadriasRomaneio(row));
     row.querySelector('[data-rom-field="esquadria_id"]').addEventListener('change',()=>atualizarLinhaRomaneio(row));
+    row.querySelector('[data-rom-field="folhas_por_unidade"]').addEventListener('input',()=>atualizarLinhaRomaneio(row));
   }else{
     row.innerHTML='<div class="itemline"><strong>Material avulso</strong>'+removable+'</div>'+
       '<label>Descrição do material<input data-rom-field="descricao" maxlength="350" placeholder="Ex.: CANTONEIRA 1x1" required></label>'+
@@ -1150,6 +1246,7 @@ function adicionarLinhaRomaneio(natureza){
   }
   row.querySelector('[data-remove-rom]').addEventListener('click',()=>row.remove());
   node('romaneioRows').append(row);
+  if(natureza==='esquadria')buscarEsquadriasRomaneio(row);
 }
 function coletarItensRomaneio(){
   const rows=[...node('romaneioRows').querySelectorAll('.romaneioRow')];
@@ -1162,19 +1259,22 @@ function coletarItensRomaneio(){
       throw new Error('Quantidade inválida no item '+(index+1)+'.');
     if(row.dataset.natureza==='esquadria'){
       const id=campo('esquadria_id');
+      const tipo=campo('tipo_saida');
       const item=elements.find(x=>x.id===id&&x.obra_id===selectedWork.id);
       if(!item)throw new Error('Selecione uma esquadria válida no item '+(index+1)+'.');
-      if(usados.has(id))throw new Error('A esquadria '+item.codigo+' aparece duas vezes. Una as quantidades.');
+      if(!['completo','marco','folha'].includes(tipo))
+        throw new Error('Escolha completa, marco ou folhas para '+item.codigo+'.');
+      if(usados.has(id))throw new Error('A esquadria '+item.codigo+' aparece duas vezes. Separe em outro romaneio.');
       usados.add(id);
-      const disponivel=romaneioSaldoCompleto(item);
-      if(quantidade>disponivel)throw new Error(item.codigo+': máximo disponível '+disponivel+'.');
       const folhas=Number(campo('folhas_por_unidade'));
       if(!Number.isInteger(folhas)||folhas<1||folhas>12)
-        throw new Error('Confirme as folhas por unidade de '+item.codigo+' (1 a 12).');
+        throw new Error('Confirme as folhas por esquadria de '+item.codigo+' (1 a 12).');
+      const disponivel=romaneioSaldoPorTipo(item,tipo,folhas);
+      if(quantidade>disponivel)throw new Error(item.codigo+': saldo de '+tipo+' disponível: '+disponivel+'.');
       const config=dispatchConfig.find(x=>x.esquadria_id===id);
       if(config&&Number(config.folhas_por_unidade)!==folhas)
         throw new Error(item.codigo+': composição já fixada em '+config.folhas_por_unidade+' folha(s).');
-      return {natureza:'esquadria',esquadria_id:id,quantidade,folhas_por_unidade:folhas};
+      return {natureza:'esquadria',esquadria_id:id,quantidade,folhas_por_unidade:folhas,tipo_saida:tipo};
     }
     const descricao=campo('descricao');
     if(descricao.length<2)throw new Error('Descreva o material do item '+(index+1)+'.');
@@ -1184,7 +1284,6 @@ function coletarItensRomaneio(){
       localizacao:campo('localizacao'),medida:campo('medida'),quantidade,unidade};
   });
 }
-
 function dataRomaneioFormatada(value){
   return String(value||'').split('-').reverse().join('/');
 }
@@ -1493,6 +1592,8 @@ node('toggleRomaneioHistory').addEventListener('click',()=>{
 });
 node('romaneioCancel').addEventListener('click',fecharEmissaoRomaneio);
 node('romaneioForm').addEventListener('submit',emitirRomaneio);
+node('romaneioNewDriver').addEventListener('click',()=>cadastrarTransporteRomaneio('motorista'));
+node('romaneioNewPlate').addEventListener('click',()=>cadastrarTransporteRomaneio('veiculo'));
 node('romaneioAddEsquadria').addEventListener('click',()=>adicionarLinhaRomaneio('esquadria'));
 node('romaneioAddMaterial').addEventListener('click',()=>adicionarLinhaRomaneio('material'));
 node('tabRelease').addEventListener('click',()=>changeDetailMode('release'));
