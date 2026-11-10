@@ -1406,7 +1406,8 @@ function renderDetail(w){
     node('items').innerHTML=list.length?list.map(x=>{
       const pending=Math.max(0,Number(x.quantidade)-Number(x.qtd_liberada));
       const latest=releaseHistory.find(r=>r.esquadria_id===x.id);
-      return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><div class="hint" style="margin-top:8px">${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Liberadas: ${Number(x.qtd_liberada)||0}</span><span>Aguardando: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline" style="margin-top:8px"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/')):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button></div>`;
+      return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><div class="hint" style="margin-top:8px">${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Liberadas: ${Number(x.qtd_liberada)||0}</span><span>Aguardando: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline" style="margin-top:8px"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/'))+
+  (latest.fabrica?' · '+escapeHTML(latest.fabrica):' · fábrica não informada (histórico)'):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button></div>`;
     }).join(''):'<div class="empty">Nenhuma esquadria nesta obra.</div>';
     node('items').querySelectorAll('[data-esq]').forEach(b=>b.addEventListener('click',()=>openRelease(b.dataset.esq)));
   }else{
@@ -1607,11 +1608,11 @@ node('releaseForm').addEventListener('submit',async event=>{
     // A gravação já foi confirmada: falha posterior de atualização não deve sugerir repetição.
     const workId=selectedWork?.id;
     closeRelease();
-    node('detailError').textContent='Liberação salva: '+qty+' unidade(s) em '+date.split('-').reverse().join('/')+'. Atualizando dados…';
+    node('detailError').textContent='Liberação salva: '+qty+' unidade(s) · '+date.split('-').reverse().join('/')+' · fábrica '+fabrica+'. Atualizando dados…';
     try{
       await loadPanel();
       const work=works.find(w=>w.id===workId);
-      if(work){renderDetail(work);node('detailError').textContent='Liberação salva: '+qty+' unidade(s) em '+date.split('-').reverse().join('/')+'.';}
+      if(work){renderDetail(work);node('detailError').textContent='Liberação salva: '+qty+' unidade(s) · '+date.split('-').reverse().join('/')+' · fábrica '+fabrica+'.';}
     }catch(refreshError){
       node('detailError').textContent='Liberação salva no banco, mas os dados não atualizaram: '+refreshError.message+'. Use Voltar e Atualizar dados. NÃO registre novamente.';
     }
