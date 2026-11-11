@@ -5308,10 +5308,10 @@ async function abrirEstoque(){
     node('stockAcesCount').textContent=matAcessorios.length.toLocaleString('pt-BR');
     node('stockCounted').textContent=(new Set(estoqueMovimentos.map(m=>m.variacao_id))).size.toLocaleString('pt-BR');
     const dropdown=node('stockWork'),previous=dropdown.value;
-    dropdown.innerHTML='<option value="">Todas as obras</option>'+works.map(w=>
+    dropdown.innerHTML='<option value="">Selecione uma obra</option>'+works.map(w=>
       '<option value="'+escapeHTML(w.id)+'">'+escapeHTML(w.nome+' · '+(w.codigo||''))+'</option>').join('');
     if(works.some(w=>w.id===previous))dropdown.value=previous;
-    else if(works.length===1)dropdown.value=works[0].id;
+    else if(works.length)dropdown.value=works.find(w=>w.codigo==='ALU-3195-GVG-PE')?.id||works[0].id;
     renderEstoque();
     node('stockMessage').textContent='';
   }catch(e){node('stockMessage').textContent='Não foi possível carregar estoque: '+e.message;}
@@ -5593,6 +5593,7 @@ function stockManualDetails(){
 }
 function stockManualOpen(variationId=''){
  if(!matIsAdmin())return;
+ node('stockManualTitle').textContent=variationId?'Ajustar material do estoque':'Adicionar material ao estoque da obra';
  stockManualOperationId=crypto.randomUUID();
  node('stockManualForm').reset();
  node('stockManualError').textContent='';
@@ -5603,6 +5604,8 @@ function stockManualOpen(variationId=''){
  node('stockNewAccessoryUnitLabel').classList.toggle('hidden',node('stockManualType').value!=='acessorio');
  node('stockManualNewMaterial').textContent='+ Material inexistente? Cadastrar';
  node('stockCreateWorkPanel').classList.add('hidden');
+ node('stockNewWorkName').value='';
+ node('stockNewWorkCode').value='';
  const workSel=node('stockManualWork');
  workSel.innerHTML='<option value="">Selecione a obra</option>'+
    works.map(w=>'<option value="'+escapeHTML(w.id)+'">'+escapeHTML(w.nome+' · '+(w.codigo||''))+'</option>').join('');
@@ -5635,8 +5638,13 @@ async function stockCriarObra(){
   works.push({...obra,situacao:'Em andamento'});
   node('stockManualWork').innerHTML+='<option value="'+escapeHTML(obra.id)+'">'+escapeHTML(obra.nome+' · '+obra.codigo)+'</option>';
   node('stockManualWork').value=obra.id;
+  const select=node('stockWork');
+  select.innerHTML+='<option value="'+escapeHTML(obra.id)+'">'+escapeHTML(obra.nome+' · '+obra.codigo)+'</option>';
+  select.value=obra.id;
+  renderEstoque();
+  node('stockManualTitle').textContent='Adicionar o primeiro material — '+obra.nome;
   node('stockCreateWorkPanel').classList.add('hidden');
-  node('stockManualError').textContent='Obra criada. Continue o cadastro dos materiais.';
+  node('stockManualError').textContent='Obra criada. Selecione abaixo o primeiro material para cadastrar seu estoque.';
  }catch(e){node('stockManualError').textContent='Não foi possível criar a obra: '+e.message;}
  finally{btn.disabled=false;}
 }
@@ -5692,6 +5700,13 @@ async function stockManualSubmit(event){
  finally{btn.disabled=false;}
 }
 node('stockNewManual').addEventListener('click',()=>stockManualOpen());
+node('stockCreateAnother').addEventListener('click',()=>{
+  stockManualOpen();
+  node('stockManualTitle').textContent='Criar estoque de outra obra';
+  node('stockManualWork').value='';
+  node('stockCreateWorkPanel').classList.remove('hidden');
+  node('stockNewWorkName').focus();
+});
 node('stockManualCancel').addEventListener('click',stockManualClose);
 node('stockManualForm').addEventListener('submit',stockManualSubmit);
 node('stockManualType').addEventListener('change',()=>{
