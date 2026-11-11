@@ -512,6 +512,18 @@
     .cemCandidate select{margin-top:6px;width:100%}
     @media(max-width:740px){.cemCandidate{grid-template-columns:1fr}}
 
+
+    #stockQuantityForm label{display:block;margin:12px 0 0}
+    #stockQuantityForm input,#stockQuantityForm textarea{margin-top:6px;width:100%}
+    .stockTable{min-width:790px}
+    .stockTable th:nth-child(4),.stockTable th:nth-child(5),
+    .stockTable td:nth-child(4),.stockTable td:nth-child(5){text-align:center}
+    .stockValue{font-size:14px;font-weight:750;color:#154d7e}
+    .stockLength{font-weight:650;color:#244968}
+    .stockEmptyValue{color:#a26c28;font-size:12px}
+    .stockRowActions{white-space:nowrap}
+    .stockRowActions .btn{min-width:140px}
+
   </style>
 </head>
 <body>
@@ -736,26 +748,30 @@
     <section id="stock" class="hidden">
       <div class="head"><div>
         <button type="button" class="btn secondary" id="stockBack">← Tela inicial</button>
-        <h1 style="margin-top:20px">Estoque e necessidades por obra</h1>
-        <p class="muted">Materiais importados do CEM, previsão de consumo e estoque físico são informações distintas.</p>
+        <h1 style="margin-top:20px">Estoque por obra</h1>
+        <p class="muted">Controle de barras inteiras por comprimento e quantidades de acessórios de cada obra.</p>
       </div>
-      <div class="stockTopActions"><button type="button" class="btn primary" id="stockNewManual">+ Lançar material na obra</button><button type="button" class="btn secondary" id="stockRefresh">Atualizar estoque</button></div></div>
+      <div class="stockTopActions">
+          <button type="button" class="btn primary" id="stockCreateAnother">+ Criar estoque de outra obra</button>
+          <button type="button" class="btn secondary" id="stockNewManual">+ Adicionar material</button>
+          <button type="button" class="btn secondary" id="stockRefresh">Atualizar</button>
+        </div></div>
       <div class="materialsSummary">
-        <div class="stat"><div class="label">Perfis no cadastro</div><div class="number" id="stockPerfCount">—</div></div>
-        <div class="stat"><div class="label">Acessórios no cadastro</div><div class="number" id="stockAcesCount">—</div></div>
-        <div class="stat"><div class="label">Variações com inventário informado</div><div class="number" id="stockCounted">—</div></div>
+        <div class="stat"><div class="label">Perfis vinculados à obra</div><div class="number" id="stockPerfCount">—</div></div>
+        <div class="stat"><div class="label">Acessórios vinculados à obra</div><div class="number" id="stockAcesCount">—</div></div>
+        <div class="stat"><div class="label">Materiais com quantidade lançada</div><div class="number" id="stockCounted">—</div></div>
       </div>
       <div class="section panel">
-        <h2>Materiais por obra e saldos</h2>
-        <p class="hint">A importação do CEM criou os cadastros técnicos e a relação de materiais com a obra, mas <strong>não adicionou materiais fisicamente ao almoxarifado</strong>. Registre o inventário real para informar a quantidade disponível.</p>
+        <h2>Materiais da obra selecionada</h2>
+        <p class="hint">O arquivo inicial do CEM cadastrou os materiais, mas não informou quantas barras comerciais foram destinadas à obra. Defina a quantidade e o comprimento pelo botão <strong>Ajustar quantidade</strong>. Não usamos metragem total nem controlamos sobras.</p>
         <div class="stockFilters">
           <label>Obra <select id="stockWork"><option value="">Todas as obras</option></select></label>
           <label>Categoria <select id="stockType"><option value="">Todos os materiais</option><option value="perfil">Perfis</option><option value="acessorio">Acessórios</option></select></label>
           <label>Buscar material <input id="stockSearch" type="search" placeholder="Código, descrição ou cor"></label>
         </div>
         <div class="stockLegend">
-          <span><strong>Previsto (CEM):</strong> material necessário para fabricação, não saldo físico.</span>
-          <span><strong>Saldo da obra:</strong> barras e acessórios lançados manualmente, menos as baixas confirmadas. Não confundir com o consumo previsto do CEM nem com o inventário geral da fábrica.</span>
+          <span><strong>Quantidade:</strong> barras inteiras do perfil ou unidades do acessório.</span>
+          <span><strong>Comprimento:</strong> tamanho comercial da barra em milímetros, independente da quantidade de peças cortadas.</span>
         </div>
         <div id="stockMessage" class="feedback" role="status"></div>
         <div id="stockRecords"></div>
@@ -934,6 +950,30 @@
 </div>
 
 
+<div id="stockQuantityOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockQuantityTitle">
+    <h2 id="stockQuantityTitle">Ajustar quantidade da obra</h2>
+    <p id="stockQuantityInfo" class="muted"></p>
+    <form id="stockQuantityForm">
+      <label id="stockQtyLengthLabel">Comprimento da barra (mm)
+        <input id="stockQtyLength" type="number" min="100" max="20000" step="1" placeholder="Ex.: 6000">
+      </label>
+      <p id="stockQtyCurrent" class="hint" role="status"></p>
+      <label>Nova quantidade no estoque da obra
+        <input id="stockQtyNew" type="number" min="0" step="1" required placeholder="Ex.: 25">
+      </label>
+      <p class="hint">Digite o <strong>saldo final desejado</strong>. O EWGEST registrará somente a diferença, mantendo o histórico anterior.</p>
+      <label>Motivo do ajuste
+        <textarea id="stockQtyReason" rows="2" minlength="5" maxlength="500" required placeholder="Ex.: Contagem das barras destinadas à obra"></textarea>
+      </label>
+      <p id="stockQtyError" class="feedback" role="alert"></p>
+      <div class="modalbuttons">
+        <button id="stockQtyCancel" class="btn secondary" type="button">Cancelar</button>
+        <button id="stockQtySave" class="btn primary" type="submit">Confirmar quantidade</button>
+      </div>
+    </form>
+  </div>
+</div>
 <div id="stockManualOverlay" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockManualTitle">
     <h2 id="stockManualTitle">Lançamento de material na obra</h2>
