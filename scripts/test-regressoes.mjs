@@ -67,7 +67,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'interface renovada v42.2',
+ 'interface renovada v42.3',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -761,6 +761,24 @@ assert.equal(testStock.perfis[0].quantidade,13,'Soma barras da mesma cor e compr
 assert.equal(testStock.perfis[1].comprimento_mm,6500,'Preserva a barra comercial de 6500mm');
 assert.equal(testStock.acessorios[0].quantidade,12.5,'Acessórios mantêm quantidades decimais');
 assert.throws(()=>stockParser({barrasAproveitamento:[],acessoriosObra:[]}),/OBAPROV/);
+
+const embalados=stockParser({
+ barrasAproveitamento:[{CODPERF:'000633',CODTRAT:'ANOD-1002-A13',NUMBARRAS:'12',BARRA:'6000'}],
+ acessoriosObra:[
+  {CODACES:'PAR1032NAT',PRENATA:'NATURAL',QTDE:'23',EMBALAGEM:'100',UNID_EMB:'PT'},
+  {CODACES:'GUA3660PTO',PRENATA:'PRETO',QTDE:'59',EMBALAGEM:'50',UNID_EMB:'RL'},
+  {CODACES:'GUA5780PTO',PRENATA:'PRETO',QTDE:'2.736',EMBALAGEM:'50',UNID_EMB:'RL'},
+  {CODACES:'LUV9900NAT',PRENATA:'NATURAL',QTDE:'47',EMBALAGEM:'1',UNID_EMB:'PC'}
+ ]});
+const bMap=new Map(embalados.acessorios.map(x=>[x.codigo,x]));
+assert.equal(bMap.get('PAR1032NAT').quantidade,2300,'23 pacotes de 100 são 2300 peças');
+assert.equal(bMap.get('GUA3660PTO').quantidade,2950,'59 rolos de 50 são 2950 metros');
+assert.equal(bMap.get('GUA5780PTO').quantidade,136.8,'Metragem fracionada deve respeitar embalagem');
+assert.equal(bMap.get('LUV9900NAT').quantidade,47,'Embalagem unitária não multiplica quantidade');
+assert.ok(source.includes("node('stockManualContinue').checked")&&
+ source.includes('stockManualOpen();')&&source.includes('id="stockManualContinue" checked'),
+ 'Cadastro em lote reutiliza a obra sem obrigar observação a cada item');
+
 
 console.log('OK: '+cases.length+' classificações; cadastro de abreviações, observações finais, almoxarife e regressões.');
 
