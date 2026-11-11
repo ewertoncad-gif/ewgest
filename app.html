@@ -4950,7 +4950,7 @@ function cemLerObra(xmlText){
     throw new Error('XML do CEM inválido ou não reconhecido.');
   const obra=documentXML.querySelector('ExportObras > Obra');
   if(!obra)throw new Error('Cabeçalho da obra ausente no XML.');
-  const tables={OBITENS:[],OBESQD:[],OBCALCP:[],OBCALCA:[],PERF:[],ACES:[]};
+  const tables={OBITENS:[],OBESQD:[],OBCALCP:[],OBCALCA:[],PERF:[],ACES:[],OBAPROV:[],OBACES:[]};
   for(const elem of documentXML.getElementsByTagName('SQL')){
     const table=elem.getAttribute('Table');
     if(!Object.hasOwn(tables,table))continue;
@@ -4976,6 +4976,7 @@ function cemLerObra(xmlText){
     codigo:obra.getAttribute('Codigo')||'',valid,other,count,
     perfCodes,acesCodes,profRows:proft.length,aceRows:acest.length,
     perfCatalog,acesCatalog,profMovs:proft,aceMovs:acest,
+    barrasAproveitamento:tables.OBAPROV,acessoriosObra:tables.OBACES,
     perfMissing:perfCodes.size-perfCatalog.length,aceMissing:acesCodes.size-acesCatalog.length,
     obraExistente:null,comparacaoConcluida:false,jaImportado:false,
     existentesPerf:new Set(),existentesAces:new Set(),
@@ -5323,7 +5324,7 @@ for(const id of ['cemFlagEsquadrias','cemFlagPerfis','cemFlagAcessorios']){
 
 
 /* Estoque: cadastro importado, planejamento CEM e saldo físico são separados. */
-let estoqueLinks=[],estoqueMovimentos=[],estoqueVarianteEscolhida=null,estoqueObraMovimentos=[];
+let estoqueLinks=[],estoqueMovimentos=[],estoqueVarianteEscolhida=null,estoqueObraMovimentos=[],stockLocais=[];
 async function abrirEstoque(){
   if(!matIsAdmin())return;
   setView('stock');
@@ -5331,7 +5332,7 @@ async function abrirEstoque(){
   try{
     await ensureSession();
     const empresa='eq.'+currentCompany.id;
-    const [perfis,aces,variacoes,links,operacoes,movObra]=await Promise.all([
+    const [perfis,aces,variacoes,links,operacoes,movObra,locais]=await Promise.all([
       apiGet('ew_perfis',{select:'*',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_acessorios',{select:'*',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_materiais_variacoes',{select:'*',empresa_id:empresa,limit:'5000'}),
@@ -5339,18 +5340,23 @@ async function abrirEstoque(){
       apiGet('ew_estoque_movimentacoes',{select:'variacao_id,quantidade_delta,unidade,tipo,criado_em',
         empresa_id:empresa,limit:'20000'}),
       apiGet('ew_estoque_obras_movimentos',{select:'id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,origem,criado_em',
-        empresa_id:empresa,limit:'30000'})
+        empresa_id:empresa,limit:'30000'}),
+      apiGet('ew_estoques_locais',{select:'id,obra_id,excluido_em,restauravel_ate,criado_em',
+        empresa_id:empresa,limit:'2000'})
     ]);
     matPerfis=perfis||[];matAcessorios=aces||[];matVariacoes=variacoes||[];
-    estoqueLinks=links||[];estoqueMovimentos=operacoes||[];estoqueObraMovimentos=movObra||[];
+    estoqueLinks=links||[];estoqueMovimentos=operacoes||[];
+    estoqueObraMovimentos=movObra||[];stockLocais=locais||[];
     node('stockPerfCount').textContent=matPerfis.length.toLocaleString('pt-BR');
     node('stockAcesCount').textContent=matAcessorios.length.toLocaleString('pt-BR');
     node('stockCounted').textContent=(new Set(estoqueMovimentos.map(m=>m.variacao_id))).size.toLocaleString('pt-BR');
     const dropdown=node('stockWork'),previous=dropdown.value;
-    dropdown.innerHTML='<option value="">Selecione uma obra</option>'+works.map(w=>
+    const ativas=new Set(stockLocais.filter(x=>!x.excluido_em).map(x=>x.obra_id));
+    const obrasEstoque=works.filter(w=>ativas.has(w.id));
+    dropdown.innerHTML='<option value="">Selecione uma obra</option>'+obrasEstoque.map(w=>
       '<option value="'+escapeHTML(w.id)+'">'+escapeHTML(w.nome+' · '+(w.codigo||''))+'</option>').join('');
-    if(works.some(w=>w.id===previous))dropdown.value=previous;
-    else if(works.length)dropdown.value=works.find(w=>w.codigo==='ALU-3195-GVG-PE')?.id||works[0].id;
+    if(obrasEstoque.some(w=>w.id===previous))dropdown.value=previous;
+    else if(obrasEstoque.length)dropdown.value=obrasEstoque.find(w=>w.codigo==='ALU-3195-GVG-PE')?.id||obrasEstoque[0].id;
     renderEstoque();
     node('stockMessage').textContent='';
   }catch(e){node('stockMessage').textContent='Não foi possível carregar estoque: '+e.message;}
@@ -5607,6 +5613,8 @@ node('stockEntryForm').addEventListener('submit',registrarMovimentoEstoque);
 let stockManualOperationId=null;
 function stockManualPopulate(){
  const type=node('stockManualType').value;
+ node('stockManualQty').min=type==='perfil'?'1':'0.001';
+ node('stockManualQty').step=type==='perfil'?'1':'0.001';
  const options=matVariacoes.filter(x=>x.tipo===type&&x.ativo).map(v=>{
   const mat=type==='perfil'?matPerfis.find(m=>m.id===v.perfil_id):matAcessorios.find(m=>m.id===v.acessorio_id);
   if(!mat)return null;
@@ -5639,17 +5647,18 @@ function stockManualOpen(variationId=''){
  node('stockManualNewFields').classList.add('hidden');
  node('stockManualMaterial').disabled=false;
  node('stockManualMaterial').required=true;
- node('stockManualQty').min='0.001';
+ node('stockManualQty').min='1';
  node('stockNewAccessoryUnitLabel').classList.toggle('hidden',node('stockManualType').value!=='acessorio');
  node('stockManualNewMaterial').textContent='+ Material inexistente? Cadastrar';
  node('stockCreateWorkPanel').classList.add('hidden');
  node('stockNewWorkName').value='';
  node('stockNewWorkCode').value='';
  const workSel=node('stockManualWork');
+ const ativas=new Set(stockLocais.filter(l=>!l.excluido_em).map(l=>l.obra_id));
  workSel.innerHTML='<option value="">Selecione a obra</option>'+
-   works.map(w=>'<option value="'+escapeHTML(w.id)+'">'+escapeHTML(w.nome+' · '+(w.codigo||''))+'</option>').join('');
+   works.filter(w=>ativas.has(w.id)).map(w=>'<option value="'+escapeHTML(w.id)+'">'+escapeHTML(w.nome+' · '+(w.codigo||''))+'</option>').join('');
  const current=node('stockWork').value;
- if(works.some(w=>w.id===current))workSel.value=current;
+ if(ativas.has(current))workSel.value=current;
  const selected=matVariacoes.find(v=>v.id===variationId);
  node('stockManualType').value=selected?.tipo||'perfil';
  node('stockManualLength').value='';
@@ -5675,6 +5684,7 @@ async function stockCriarObra(){
   const obra=await request('/rest/v1/rpc/ew_criar_obra_estoque',{method:'POST',token:session.access_token,
     body:{p_empresa_id:currentCompany.id,p_nome:nome,p_codigo:codigo}});
   works.push({...obra,situacao:'Em andamento'});
+  stockLocais.push({obra_id:obra.id,excluido_em:null});
   node('stockManualWork').innerHTML+='<option value="'+escapeHTML(obra.id)+'">'+escapeHTML(obra.nome+' · '+obra.codigo)+'</option>';
   node('stockManualWork').value=obra.id;
   const select=node('stockWork');
@@ -5706,12 +5716,11 @@ async function stockManualSubmit(event){
  const error=node('stockManualError');
  if(!obra){error.textContent='Selecione ou cadastre uma obra.';return;}
  if(!isNew&&!cadastro){error.textContent='Selecione um material.';return;}
- if(!Number.isFinite(quantidade)||quantidade===0||
-    (kind!=='AJUSTE'&&quantidade<=0)||(type==='perfil'&&
+ if(!Number.isFinite(quantidade)||quantidade<=0||(type==='perfil'&&
        (!Number.isSafeInteger(quantidade)||!Number.isSafeInteger(len)||len<100||len>20000))){
    error.textContent='Informe quantidade válida; perfis são barras inteiras e exigem comprimento.';return;
  }
- if(nota.length<5){error.textContent='Informe uma observação com no mínimo 5 caracteres.';return;}
+ // Observação opcional para a abertura e entradas do estoque manual.
  if(isNew&&['stockNewMaterialCode','stockNewMaterialDesc','stockNewMaterialMaker'].some(id=>!node(id).value.trim())){
   error.textContent='Preencha código, descrição e fabricante do novo material.';return;
  }
@@ -5721,7 +5730,7 @@ async function stockManualSubmit(event){
  try{
   await ensureSession();
   const common={p_empresa_id:currentCompany.id,p_obra_id:obra,
-    p_comprimento_mm:len,p_unidade:unidade,p_quantidade:kind==='SAIDA_MANUAL'?-Math.abs(quantidade):quantidade,
+    p_comprimento_mm:len,p_unidade:unidade,p_quantidade:quantidade,
     p_origem:kind,p_observacao:nota,p_operacao_id:stockManualOperationId};
   const url=isNew?'/rest/v1/rpc/ew_cadastrar_material_manual_estoque':
     '/rest/v1/rpc/ew_movimentar_estoque_obra';
@@ -5754,8 +5763,7 @@ node('stockManualType').addEventListener('change',()=>{
 node('stockManualMaterial').addEventListener('change',()=>{node('stockManualLength').value='';stockManualDetails();});
 node('stockManualNewMaterial').addEventListener('click',stockManualNewToggle);
 node('stockManualKind').addEventListener('change',()=>{
- const input=node('stockManualQty');input.min=node('stockManualKind').value==='AJUSTE'?'':'0.001';
- input.placeholder=node('stockManualKind').value==='AJUSTE'?'Ex.: -2 ou 3':'Ex.: 25';
+ node('stockManualQty').placeholder='Ex.: 25';
 });
 node('stockCreateWorkToggle').addEventListener('click',()=>node('stockCreateWorkPanel').classList.toggle('hidden'));
 node('stockCreateWork').addEventListener('click',stockCriarObra);
