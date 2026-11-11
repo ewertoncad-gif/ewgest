@@ -5796,11 +5796,21 @@ function stockCemDados(r){
   }
   for(const row of r.acessoriosObra){
     const codigo=cemNome(row.CODACES),cor=cemNome(row.PRENATA)||'NÃO INFORMADA';
-    const quantidade=toNumber(row.QTDE,codigo);
+    const embalagens=toNumber(row.QTDE,codigo);
+    const embalagem=Number(row.EMBALAGEM??0);
+    if(!Number.isFinite(embalagem)||embalagem<0||embalagem>1e6)
+      throw new Error('Embalagem inválida no acessório '+codigo);
+    // OBACES.QTDE pode representar pacotes/rolos; EMBALAGEM informa quantas unidades há em cada um.
+    // Se EMBALAGEM for 0 ou 1, a QTDE já está na unidade base (PC, PR, CJ, MT etc.).
+    const fator=embalagem>1?embalagem:1;
+    const quantidade=Number((embalagens*fator).toFixed(3));
+    if(!Number.isFinite(quantidade)||quantidade<=0||quantidade>1e7)
+      throw new Error('Quantidade convertida inválida para '+codigo);
     if(!codigo)throw new Error('Acessório sem código no arquivo.');
     const key=[codigo,cor].join('|'),old=accessories.get(key);
     if(old)old.quantidade=Number((old.quantidade+quantidade).toFixed(3));
-    else accessories.set(key,{codigo,cor,quantidade});
+    else accessories.set(key,{codigo,cor,quantidade,
+      origemEmbalagem:fator>1?embalagens+' × '+fator+' '+cemNome(row.UNID_EMB||'embalagem'):'Unidade individual'});
   }
   const perfis=[...profiles.values()].sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR'));
   const acessorios=[...accessories.values()].sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR'));
@@ -5839,7 +5849,7 @@ async function stockCemAnalyze(){
   stockCemParsed={...dados,codigo:parsed.codigo,obraId:obra.id,nome_arquivo:file.name};
   const bars=dados.perfis.reduce((n,x)=>n+x.quantidade,0);
   const listing=(tipo,items)=>{
-    const head=tipo==='Perfil'?'<th>Comprimento comercial</th>':'<th>Unidade</th>';
+    const head=tipo==='Perfil'?'<th>Comprimento comercial</th>':'<th>Unidade</th><th>Embalagem no CEM</th>';
     const fmt=tipo==='Perfil'?
       row=>row.comprimento_mm.toLocaleString('pt-BR')+' mm':
       row=>releaseUnidadeAcessorio(matAcessorios.find(a=>cemNome(a.codigo)===row.codigo)?.unidade_item||'PC');
@@ -5848,7 +5858,8 @@ async function stockCemAnalyze(){
     '<th>Quantidade</th>'+head+'</tr></thead><tbody>'+
     items.map(row=>'<tr><td>'+escapeHTML(row.codigo)+'</td><td>'+escapeHTML(row.cor)+
       '</td><td>'+matFormat(row.quantidade,tipo==='Perfil'?0:3)+'</td><td>'+escapeHTML(fmt(row))+
-      '</td></tr>').join('')+'</tbody></table></div>';
+      '</td>'+(tipo==='Perfil'?'':'<td>'+escapeHTML(row.origemEmbalagem||'—')+'</td>')+
+      '</tr>').join('')+'</tbody></table></div>';
   };
   node('stockCemPreview').innerHTML='<div class="stockImportStats">'+
    '<span><strong>'+dados.perfis.length+'</strong> registros de perfis</span>'+
