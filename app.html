@@ -6041,10 +6041,24 @@ function stockCemMirrorUpdate(){
  try{
   const item=stockCemReadMirror();
   node('stockCemConfirm').disabled=false;
+  const encontrados=new Map();
+  for(const v of matVariacoes){
+    const mat=v.tipo==='perfil'?matPerfis.find(x=>x.id===v.perfil_id):
+      matAcessorios.find(x=>x.id===v.acessorio_id);
+    if(mat){
+      const key=v.tipo+'|'+cemNome(mat.codigo)+'|'+cemNome(v.cor);
+      encontrados.set(key,(encontrados.get(key)||0)+1);
+    }
+  }
+  const semFicha=[...item.perfis.map(x=>({...x,tipo:'perfil'})),
+    ...item.acessorios.map(x=>({...x,tipo:'acessorio'}))].filter(x=>
+      !encontrados.get(x.tipo+'|'+x.codigo+'|'+(x.cor==='-'?'NÃO INFORMADA':x.cor)));
   node('stockCemMirrorSummary').textContent=item.perfis.length+' linhas de perfis e '+
    item.acessorios.length+' de acessórios selecionadas. '+
-   item.edicoes+' edição(ões)/inclusão(ões), '+item.ignoradas+' linha(s) desmarcada(s).';
-  node('stockCemStatus').textContent='Espelho conferido. Confirme somente após revisar as quantidades.';
+   item.edicoes+' edição(ões)/inclusão(ões), '+item.ignoradas+' linha(s) desmarcada(s).'+
+   (semFicha.length?' Atenção: '+semFicha.length+' código(s)/cor(es) sem correspondência exata no cadastro; '+
+    'não serão gravados até a conferência: '+semFicha.slice(0,5).map(x=>x.codigo).join(', ')+'.':'');
+  node('stockCemStatus').textContent='Espelho disponível para revisão. Confira as quantidades e possíveis correspondências antes de confirmar.';
  }catch(err){
   node('stockCemConfirm').disabled=true;
   node('stockCemMirrorSummary').textContent='Revisão pendente: '+err.message;
@@ -6080,8 +6094,8 @@ async function stockCemAnalyze(){
      body.insertAdjacentHTML('beforeend',stockCemMirrorRow(kind,{},-1));
      stockCemMirrorUpdate();
    }));
-  node('stockCemPreview').addEventListener('input',stockCemMirrorUpdate);
-  node('stockCemPreview').addEventListener('change',stockCemMirrorUpdate);
+  node('stockCemPreview').oninput=stockCemMirrorUpdate;
+  node('stockCemPreview').onchange=stockCemMirrorUpdate;
   stockCemMirrorUpdate();
  }catch(e){
   node('stockCemStatus').textContent='Não foi possível analisar: '+e.message;
