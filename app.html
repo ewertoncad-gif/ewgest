@@ -576,7 +576,7 @@
     <button id="navManufacturers" class="workspaceLink hidden" type="button"><span class="navSymbol">◫</span> Fabricantes</button>
     <button id="navMaterials" class="workspaceLink hidden" type="button"><span class="navSymbol">▥</span> Banco de materiais</button>
     <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
-    <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar do CEM</button>
+    <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <div class="workspaceNavFooter">EWGEST <strong>· v42.3</strong><small>Gestão em movimento</small></div>
   </aside>
@@ -795,7 +795,7 @@
       </div>
       <div class="section panel">
         <h2>Materiais da obra selecionada</h2>
-        <p class="hint">O arquivo inicial do CEM cadastrou os materiais, mas não informou quantas barras comerciais foram destinadas à obra. Defina a quantidade e o comprimento pelo botão <strong>Ajustar quantidade</strong>. Não usamos metragem total nem controlamos sobras.</p>
+        <p class="hint">Os materiais podem vir de um arquivo de exportação técnica ou do cadastro manual. Os perfis são controlados por barras inteiras e comprimento comercial. Ajuste os saldos diretamente na tabela.</p>
         <div class="stockFilters">
           <label>Obra <select id="stockWork"><option value="">Todas as obras</option></select></label>
           <label>Categoria <select id="stockType"><option value="">Todos os materiais</option><option value="perfil">Perfis</option><option value="acessorio">Acessórios</option></select></label>
@@ -1128,7 +1128,7 @@
       <div class="matFormGrid">
         <label>Código * <input id="matCodigo" maxlength="90" required placeholder="Ex.: IN024"></label>
         <label>Fabricante * <input id="matFabricante" maxlength="150" required placeholder="Ex.: HYDRO"></label>
-        <label class="matWide">Descrição * <input id="matDescricao" maxlength="500" required placeholder="Descrição técnica do CEM"></label>
+        <label class="matWide">Descrição * <input id="matDescricao" maxlength="500" required placeholder="Descrição técnica do material"></label>
         <label>Linha <input id="matLinha" maxlength="150" placeholder="Ex.: INOVA"></label>
         <label>Pré-nativo <input id="matPrenativo" maxlength="150" placeholder="Ex.: L. INOVA - T"></label>
         <label class="matOnlyPerfil">Peso (kg/m) <input id="matPeso" inputmode="decimal" type="number" min="0" max="999999" step="0.00001" placeholder="Ex.: 0,501"></label>
@@ -1204,15 +1204,15 @@
       <p class="hint">A fábrica será registrada nesta liberação para apurar o prazo até a saída da produção.</p>
       <div class="releaseMirrorIntro">
         <h3>4. Como deseja liberar e descontar os materiais?</h3>
-        <label class="releaseMethod"><input name="releaseMethod" type="radio" value="cem"> Importar arquivo do CEM e conferir o espelho</label>
+        <label class="releaseMethod"><input name="releaseMethod" type="radio" value="cem"> Importar arquivo de cálculo e conferir o espelho</label>
         <label class="releaseMethod"><input name="releaseMethod" type="radio" value="manual"> Preencher o espelho de materiais manualmente</label>
         <label class="releaseMethod"><input name="releaseMethod" type="radio" value="sem"> Somente liberação técnica (sem baixa de estoque)</label>
       </div>
       <div id="releaseMirrorPanel" class="hidden">
         <div id="releaseCemArea" class="hidden">
-          <label for="releaseCemZip">Arquivo de exportação do CEM (ZIP)</label>
+          <label for="releaseCemZip">Arquivo ZIP de exportação técnica</label>
           <input id="releaseCemZip" type="file" accept=".zip,application/zip">
-          <button id="releaseCemRead" type="button" class="btn secondary">Analisar arquivo do CEM</button>
+          <button id="releaseCemRead" type="button" class="btn secondary">Analisar arquivo técnico</button>
           <p class="hint">O ZIP completo da obra não informa automaticamente as barras comerciais do plano otimizado. Revise os materiais e informe as barras utilizadas.</p>
         </div>
         <h3>Espelho editável da liberação</h3>
@@ -2977,7 +2977,7 @@ async function releaseMetodoAtualizar(){
 }
 async function releaseLerCem(){
   const file=node('releaseCemZip').files?.[0];
-  if(!file){node('releaseMirrorMessage').textContent='Escolha um arquivo ZIP do CEM.';return;}
+  if(!file){node('releaseMirrorMessage').textContent='Escolha um arquivo ZIP de exportação.';return;}
   releaseCemChecked=false;releaseCemFileName='';
   const btn=node('releaseCemRead');btn.disabled=true;
   node('releaseMirrorMessage').textContent='Lendo o ZIP localmente…';
@@ -2994,7 +2994,7 @@ async function releaseLerCem(){
     releaseCemChecked=true;releaseCemFileName=file.name;
     node('releaseCemPreview').classList.remove('hidden');
     const cemLinhas=(rows,tipo)=>'<div class="cemTableWrap"><table class="cemTable"><thead><tr>'+
-      '<th>Código</th><th>Quantidade do CEM</th><th>'+(tipo==='perfil'?'Comprimento da peça':'Unidade')+'</th></tr></thead><tbody>'+
+      '<th>Código</th><th>Quantidade calculada</th><th>'+(tipo==='perfil'?'Comprimento da peça':'Unidade')+'</th></tr></thead><tbody>'+
       rows.map(x=>'<tr><td>'+escapeHTML(tipo==='perfil'?x.CODPERF:x.CODACES)+
         '</td><td>'+escapeHTML(x.QTDE||'—')+'</td><td>'+escapeHTML(
         tipo==='perfil'?(x.TAM?x.TAM+' mm':'—'):(x.UNID||'—'))+'</td></tr>').join('')+
@@ -3052,7 +3052,7 @@ node('releaseForm').addEventListener('submit',async event=>{
   try{
     if(metodo!=='sem'){
       if(!releaseCatalogReady)throw new Error('Os materiais ainda não foram carregados.');
-      if(metodo==='cem'&&!releaseCemChecked)throw new Error('Analise o ZIP do CEM ou selecione a liberação manual.');
+      if(metodo==='cem'&&!releaseCemChecked)throw new Error('Analise o arquivo ZIP ou selecione a liberação manual.');
       materiais=releaseColetarMateriais();
     }
   }catch(err){node('releaseError').textContent=err.message;return;}
@@ -4511,7 +4511,7 @@ async function importCroquiPackage(file){
     if(entry.mime_type!=='image/webp'||typeof data!=='string'
        ||data.length<40||data.length>200000||!/^[A-Za-z0-9+/]+={0,2}$/.test(data))
       throw new Error('Croqui inválido para a tipologia '+code);
-    return {id:typ.id,base64:data,origem:String(entry.origem||'CEM Plus').slice(0,255),
+    return {id:typ.id,base64:data,origem:String(entry.origem||'Exportação técnica').slice(0,255),
       referencia:String(entry.codigo_esquadria_exemplo||code).slice(0,100)};
   });
   button.disabled=true;
@@ -4971,8 +4971,8 @@ async function cemExtrairXML(zip){
     if(/(^|\/)ExpObras\.xml$/i.test(name))target={method,compressed,size,local};
     position+=46+nameLen+extraLen+commentLen;
   }
-  if(!target)throw new Error('ExpObras.xml não encontrado. Verifique se este é um ZIP exportado de uma obra pelo CEM Plus.');
-  if(target.size>25*1048576||target.compressed>25*1048576)throw new Error('XML do CEM excede o limite de 25 MB para análise local.');
+  if(!target)throw new Error('ExpObras.xml não encontrado. Verifique se este é um ZIP de exportação de obra compatível.');
+  if(target.size>25*1048576||target.compressed>25*1048576)throw new Error('XML do arquivo excede o limite de 25 MB para análise local.');
   const header=new DataView(await zip.slice(target.local,target.local+30).arrayBuffer());
   if(header.byteLength<30||header.getUint32(0,true)!==0x04034b50)throw new Error('Cabeçalho do XML inválido.');
   const dataOffset=target.local+30+header.getUint16(26,true)+header.getUint16(28,true);
@@ -4980,7 +4980,7 @@ async function cemExtrairXML(zip){
   const content=zip.slice(dataOffset,dataOffset+target.compressed);
   if(target.method===0)return content.text();
   if(target.method!==8)throw new Error('Compressão do ZIP não suportada (método '+target.method+').');
-  if(typeof DecompressionStream==='undefined')throw new Error('Atualize seu navegador para ler arquivos ZIP do CEM.');
+  if(typeof DecompressionStream==='undefined')throw new Error('Atualize seu navegador para ler arquivos ZIP técnicos.');
   const decomp=content.stream().pipeThrough(new DecompressionStream('deflate-raw'));
   const data=await new Response(decomp).arrayBuffer();
   if(data.byteLength!==target.size)throw new Error('O XML extraído não corresponde ao tamanho informado no ZIP.');
@@ -4990,7 +4990,7 @@ async function cemExtrairXML(zip){
 function cemLerObra(xmlText){
   const documentXML=new DOMParser().parseFromString(xmlText,'application/xml');
   if(documentXML.querySelector('parsererror')||documentXML.documentElement.tagName!=='ExportObras')
-    throw new Error('XML do CEM inválido ou não reconhecido.');
+    throw new Error('XML de exportação inválido ou não reconhecido.');
   const obra=documentXML.querySelector('ExportObras > Obra');
   if(!obra)throw new Error('Cabeçalho da obra ausente no XML.');
   const tables={OBITENS:[],OBESQD:[],OBCALCP:[],OBCALCA:[],PERF:[],ACES:[],OBAPROV:[],OBACES:[]};
@@ -5051,7 +5051,7 @@ function cemMontarPayload(r){
         comprimento_total_m:tipo==='perfil'?0:null});
       const row=vars.get(key);
       const qty=Number(mov.QTDE);
-      if(!Number.isFinite(qty)||qty<0)throw new Error('Quantidade inválida no cálculo do CEM: '+cod);
+      if(!Number.isFinite(qty)||qty<0)throw new Error('Quantidade inválida no cálculo exportado: '+cod);
       row.linhas_calculo++;
       row.quantidade_prevista+=qty;
       if(tipo==='perfil'){
@@ -5120,7 +5120,7 @@ function cemQuadroConciliacao(){
    '</select></label><label>Decisão do ADM<select class="cemCandidateDecision">'+
    '<option value="">Escolha uma ação</option>'+
    '<option value="manual"'+(x.decisao==='manual'?' selected':'')+'>Unificar e manter o código manual</option>'+
-   '<option value="cem"'+(x.decisao==='cem'?' selected':'')+'>Unificar e utilizar o código do CEM</option>'+
+   '<option value="cem"'+(x.decisao==='cem'?' selected':'')+'>Unificar e utilizar o código importado</option>'+
    '<option value="separar"'+(x.decisao==='separar'?' selected':'')+'>Manter os dois cadastros separados</option>'+
    '</select></label></div>').join('')+'</div>';
 }
@@ -5209,7 +5209,7 @@ function cemRenderPreview(){
     '<p class="hint">'+r.valid.length+' itens calculados ('+r.count+' unidades). '+
     r.other+' itens fora do cálculo serão ignorados. Cadastro de esquadrias não será modificado.</p>'+
     '<p class="hint">O ZIP também possui '+r.barrasAproveitamento.length+' registros de barras e '+
-    r.acessoriosObra.length+' de acessórios para estoque. Para cadastrar esses saldos, abra <strong>Estoque → Importar quantidades do CEM</strong>.</p></div>';
+    r.acessoriosObra.length+' de acessórios para estoque. Para cadastrar esses saldos, abra <strong>Estoque → Importar quantidades do arquivo</strong>.</p></div>';
   const cardsHTML=cards.length?'<div class="cemPreviewSummary">'+cards.map(x=>
     '<div class="stat"><div class="label">'+escapeHTML(x[0])+'</div><div class="number">'+escapeHTML(x[1])+'</div></div>').join('')+'</div>':
     '<div class="materialEmpty">Marque pelo menos uma categoria.</div>';
@@ -5249,8 +5249,8 @@ let cemOperacaoId=null;
 async function matVerificarZip(){
   const arq=node('matCemArquivo').files?.[0],out=node('matCemResposta');
   cemParsed=null;cemOperacaoId=null;node('cemImportResult').textContent='';cemRenderPreview();
-  if(!arq){out.textContent='Escolha o arquivo ZIP exportado pelo CEM.';return;}
-  if(!/\.zip$/i.test(arq.name)){out.textContent='Selecione um arquivo .zip original do CEM.';return;}
+  if(!arq){out.textContent='Escolha o arquivo ZIP de exportação técnica.';return;}
+  if(!/\.zip$/i.test(arq.name)){out.textContent='Selecione um arquivo ZIP de exportação técnica.';return;}
   const botao=node('matCemConferir');botao.disabled=true;
   out.textContent='Lendo o ZIP no navegador e separando os itens calculados…';
   try{
@@ -5909,11 +5909,11 @@ node('stockCreateWorkToggle').addEventListener('click',()=>node('stockCreateWork
 node('stockCreateWork').addEventListener('click',stockCriarObra);
 
 
-/* Importação de estoque inicial calculado pelo CEM (OBAPROV + OBACES). */
+/* Importação de estoque inicial calculado pelo arquivo (OBAPROV + OBACES). */
 let stockCemParsed=null,stockCemOperationId=null;
 function stockCemDados(r){
   if(!r.barrasAproveitamento?.length||!r.acessoriosObra?.length)
-    throw new Error('O arquivo não contém OBAPROV e OBACES. Use a exportação completa da obra pelo CEM.');
+    throw new Error('O arquivo não contém OBAPROV e OBACES. Use o arquivo completo de exportação da obra.');
   const profiles=new Map(),accessories=new Map();
   const toNumber=(value,code)=>{
     const n=Number(value);
