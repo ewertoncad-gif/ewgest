@@ -1304,9 +1304,9 @@ function invalidateAppSession(reason){
   setError(reason);
 }
 function throwFriendly(error){const e=new Error(error.message||error.msg||error.error_description||error.error||'Erro desconhecido');e.code=error.code||'';throw e;}
-async function request(path,{method='GET',body=null,token=null}={}){
+async function request(path,{method='GET',body=null,token=null,timeoutMs=16000}={}){
   const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),16000);
+  const timer=setTimeout(()=>controller.abort(),timeoutMs);
   try{
     const headers={'apikey':PUBLIC_KEY,'Accept':'application/json'};
     if(body!==null)headers['Content-Type']='application/json';
