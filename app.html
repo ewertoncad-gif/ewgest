@@ -5767,6 +5767,9 @@ function stockManualOpen(variationId=''){
  node('stockManualNewFields').classList.add('hidden');
  node('stockManualMaterial').disabled=false;
  node('stockManualMaterial').required=true;
+ node('stockManualCode').disabled=false;
+ node('stockManualCode').required=true;
+ node('stockManualColorLabel').classList.remove('hidden');
  node('stockManualQty').min='1';
  node('stockNewAccessoryUnitLabel').classList.toggle('hidden',node('stockManualType').value!=='acessorio');
  node('stockManualNewMaterial').textContent='+ Material inexistente? Cadastrar';
@@ -5781,9 +5784,12 @@ function stockManualOpen(variationId=''){
  if(ativas.has(current))workSel.value=current;
  const selected=matVariacoes.find(v=>v.id===variationId);
  node('stockManualType').value=selected?.tipo||'perfil';
- node('stockManualLength').value='';
  stockManualPopulate();
- if(selected){node('stockManualMaterial').value=variationId;stockManualDetails();}
+ if(selected){
+   node('stockManualCode').value=selected.tipo==='perfil'?selected.perfil_id:selected.acessorio_id;
+   stockManualColorPopulate();
+   node('stockManualMaterial').value=variationId;stockManualDetails();
+ }
  node('stockManualOverlay').classList.remove('hidden');
 }
 function stockManualClose(){node('stockManualOverlay').classList.add('hidden');stockManualOperationId=null;}
@@ -5792,6 +5798,9 @@ function stockManualNewToggle(){
  fields.classList.toggle('hidden',!show);
  node('stockManualMaterial').required=!show;
  node('stockManualMaterial').disabled=show;
+ node('stockManualCode').required=!show;
+ node('stockManualCode').disabled=show;
+ node('stockManualColorLabel').classList.toggle('hidden',show);
  node('stockManualNewMaterial').textContent=show?'Usar material já cadastrado':'Material inexistente? Cadastrar';
  node('stockManualError').textContent='';
 }
@@ -5884,10 +5893,14 @@ node('stockCreateAnother').addEventListener('click',()=>{
 });
 node('stockManualCancel').addEventListener('click',stockManualClose);
 node('stockManualForm').addEventListener('submit',stockManualSubmit);
-node('stockManualType').addEventListener('change',()=>{
-  node('stockManualLength').value='';stockManualPopulate();
+node('stockManualType').addEventListener('change',stockManualPopulate);
+node('stockManualCode').addEventListener('change',stockManualColorPopulate);
+node('stockManualMaterial').addEventListener('change',stockManualDetails);
+node('stockManualAddLength').addEventListener('click',()=>{
+ node('stockManualLengthPanel').classList.toggle('hidden');
+ if(!node('stockManualLengthPanel').classList.contains('hidden'))node('stockManualNewLength').focus();
 });
-node('stockManualMaterial').addEventListener('change',()=>{node('stockManualLength').value='';stockManualDetails();});
+node('stockManualSaveLength').addEventListener('click',stockManualAddLength);
 node('stockManualNewMaterial').addEventListener('click',stockManualNewToggle);
 node('stockManualKind').addEventListener('change',()=>{
  node('stockManualQty').placeholder='Ex.: 25';
