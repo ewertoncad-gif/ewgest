@@ -2714,44 +2714,217 @@ async function saveShipment(event){
 }
 
 function todayLocal(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+
+let releaseOperationId=null,releaseCatalogReady=false,releaseMirrorData=[],releaseMirrorSaldo=new Map(),releaseCemFileName='',releaseCemChecked=false;
+function releaseVariacaoLabel(v){
+  const mat=v.tipo==='perfil'?matPerfis.find(p=>p.id===v.perfil_id):matAcessorios.find(a=>a.id===v.acessorio_id);
+  return mat?(mat.codigo+' — '+mat.descricao+' · '+mat.fabricante+' · '+v.cor+' / '+v.acabamento):null;
+}
+async function releaseCarregarCatalogo(){
+  const empresa='eq.'+currentCompany.id;
+  const [perfis,aces,vars,mov]=await Promise.all([
+    apiGet('ew_perfis',{select:'*',empresa_id:empresa,limit:'5000'}),
+    apiGet('ew_acessorios',{select:'*',empresa_id:empresa,limit:'5000'}),
+    apiGet('ew_materiais_variacoes',{select:'*',empresa_id:empresa,limit:'5000'}),
+    apiGet('ew_estoque_obras_movimentos',{select:'variacao_id,comprimento_mm,unidade,quantidade_delta,obra_id',
+      empresa_id:empresa,obra_id:'eq.'+selectedItem.obra_id,limit:'20000'})
+  ]);
+  matPerfis=perfis||[];matAcessorios=aces||[];matVariacoes=vars||[];
+  releaseMirrorSaldo=new Map();
+  for(const row of mov||[]){
+    const key=[row.variacao_id,row.comprimento_mm??'',row.unidade].join('|');
+    releaseMirrorSaldo.set(key,(releaseMirrorSaldo.get(key)||0)+Number(row.quantidade_delta));
+  }
+  releaseMirrorData=matVariacoes.filter(x=>x.ativo&&releaseVariacaoLabel(x))
+    .sort((a,b)=>releaseVariacaoLabel(a).localeCompare(releaseVariacaoLabel(b),'pt-BR'));
+  releaseCatalogReady=true;
+  node('releaseMirrorMessage').textContent='Materiais carregados. Informe as barras ou acessórios que serão consumidos nesta liberação.';
+}
+function releaseAddRow(variationId=''){
+  if(!releaseCatalogReady){node('releaseMirrorMessage').textContent='Consulte os materiais antes de adicionar.';return;}
+  const row=document.createElement('div');row.className='releaseMirrorLine';
+  row.innerHTML='<div class="releaseMirrorLineTop">'+
+    '<label>Perfil ou acessório<select class="relVar" required>'+
+    '<option value="">Selecione um material</option>'+
+    releaseMirrorData.map(v=>'<option value="'+escapeHTML(v.id)+'">'+escapeHTML(releaseVariacaoLabel(v))+'</option>').join('')+
+    '</select></label>'+
+    '<label class="relLengthLabel">Barra (mm)<input class="relLength" type="number" min="100" max="20000" step="1" placeholder="6000"></label>'+
+    '<label>Quantidade<input class="relQty" type="number" min="0.001" step="0.001" placeholder="0" required></label>'+
+    '<button type="button" class="btn secondary relRemove">Remover</button></div>'+
+    '<div class="releaseMirrorLineStatus">Selecione o material e informe a quantidade.</div>';
+  node('releaseMirrorRows').append(row);
+  const combo=row.querySelector('.relVar');combo.value=variationId;
+  row.querySelector('.relRemove').addEventListener('click',()=>row.remove());
+  for(const x of ['.relVar','.relQty','.relLength'])
+    row.querySelector(x).addEventListener('input',()=>releaseAtualizarLinha(row));
+  releaseAtualizarLinha(row);
+  return row;
+}
+function releaseAtualizarLinha(row){
+  const v=releaseMirrorData.find(x=>x.id===row.querySelector('.relVar').value);
+  const isBar=v?.tipo==='perfil';
+  row.querySelector('.relLengthLabel').classList.toggle('hidden',!isBar);
+  const len=row.querySelector('.relLength');
+  len.disabled=!isBar;
+  if(!isBar)len.value='';
+  if(isBar&&!len.value){
+    const mat=matPerfis.find(p=>p.id===v.perfil_id);
+    if(mat?.comprimento_comercial_mm)len.value=mat.comprimento_comercial_mm;
+  }
+  const qty=Number(row.querySelector('.relQty').value);
+  const length=isBar?Number(len.value):null;
+  const unit=isBar?'BARRA':v?.tipo==='acessorio'?
+    releaseUnidadeAcessorio(matAcessorios.find(a=>a.id===v.acessorio_id)?.unidade_item):'';
+  const key=[v?.id,isBar?length:'',unit].join('|');
+  const saldo=releaseMirrorSaldo.get(key)||0;
+  const status=row.querySelector('.releaseMirrorLineStatus');
+  status.classList.toggle('stockInsufficient',Boolean(v&&qty>saldo));
+  status.textContent=!v?'Selecione um material.':
+    'Controle: '+unit+(isBar?' · '+(length||'—')+' mm':'')+
+    ' · disponível na obra: '+matFormat(saldo,3)+
+    (qty>0?' · após baixa: '+matFormat(saldo-qty,3):'')+
+    (qty>saldo?' · quantidade maior que o saldo!':'');
+}
+function releaseUnidadeAcessorio(value){
+  const v=cemNome(value);
+  return ({PÇ:'PC',PÇS:'PC',PECA:'PC',PEÇA:'PC',M:'MT',METRO:'MT',
+    PAR:'PR',PARES:'PR',CONJUNTO:'CJ',UNIDADE:'UN'})[v]||
+    (['PC','PR','CJ','MT','KG','UN'].includes(v)?v:'PC');
+}
+function releaseColetarMateriais(){
+  const arr=[];const seen=new Set();
+  for(const row of node('releaseMirrorRows').children){
+    const variation=releaseMirrorData.find(v=>v.id===row.querySelector('.relVar').value);
+    if(!variation)throw new Error('Selecione o material em todas as linhas.');
+    const qty=Number(row.querySelector('.relQty').value);
+    const isBar=variation.tipo==='perfil';
+    const length=isBar?Number(row.querySelector('.relLength').value):null;
+    const unit=isBar?'BARRA':releaseUnidadeAcessorio(
+      matAcessorios.find(a=>a.id===variation.acessorio_id)?.unidade_item);
+    if(!Number.isFinite(qty)||qty<=0||(isBar&&(!Number.isSafeInteger(qty)||
+       !Number.isSafeInteger(length)||length<100||length>20000)))
+      throw new Error('Informe quantidades válidas e, para perfis, barras inteiras com comprimento.');
+    const key=[variation.id,length??'',unit].join('|');
+    if(seen.has(key))throw new Error('Material repetido no espelho. Agrupe as quantidades na mesma linha.');
+    seen.add(key);
+    if(qty>(releaseMirrorSaldo.get(key)||0))throw new Error(
+      'Saldo insuficiente para '+releaseVariacaoLabel(variation)+'. Disponível: '+
+      matFormat(releaseMirrorSaldo.get(key)||0,3)+' '+unit+'.');
+    arr.push({variacao_id:variation.id,comprimento_mm:length,unidade:unit,quantidade:qty});
+  }
+  if(!arr.length)throw new Error('Adicione pelo menos um material ou escolha a opção sem baixa.');
+  return arr;
+}
+async function releaseMetodoAtualizar(){
+  const type=document.querySelector('input[name="releaseMethod"]:checked')?.value||'';
+  node('releaseMirrorPanel').classList.toggle('hidden',type==='sem'||!type);
+  node('releaseCemArea').classList.toggle('hidden',type!=='cem');
+  node('releaseSave').textContent=type==='sem'?'Confirmar liberação sem baixa':'Conferir e confirmar liberação';
+  if(type&&type!=='sem'&&!releaseCatalogReady){
+    node('releaseMirrorMessage').textContent='Carregando materiais vinculados à empresa…';
+    try{await ensureSession();await releaseCarregarCatalogo();}
+    catch(e){node('releaseMirrorMessage').textContent='Erro ao carregar materiais: '+e.message;}
+  }
+}
+async function releaseLerCem(){
+  const file=node('releaseCemZip').files?.[0];
+  if(!file){node('releaseMirrorMessage').textContent='Escolha um arquivo ZIP do CEM.';return;}
+  releaseCemChecked=false;releaseCemFileName='';
+  const btn=node('releaseCemRead');btn.disabled=true;
+  node('releaseMirrorMessage').textContent='Lendo o ZIP localmente…';
+  try{
+    const xml=await cemExtrairXML(file),r=cemLerObra(xml);
+    if(cemNome(r.codigo)!==cemNome(selectedWork?.codigo))
+      throw new Error('Este arquivo é da obra '+r.codigo+', não '+(selectedWork?.codigo||'selecionada')+'.');
+    const candidates=r.valid.filter(x=>cemNome(x.TIPO)===cemNome(selectedItem.codigo) &&
+      Number(x.L)===Number(selectedItem.largura_mm) && Number(x.H)===Number(selectedItem.altura_mm));
+    if(!candidates.length)throw new Error('Não encontrei a mesma esquadria e dimensão no ZIP; revise o arquivo.');
+    const ids=new Set(candidates.map(x=>x.ITEMOBRA));
+    const totalBars=r.profMovs.filter(m=>ids.has(m.ITEMOBRA));
+    const totalAcc=r.aceMovs.filter(m=>ids.has(m.ITEMOBRA));
+    releaseCemChecked=true;releaseCemFileName=file.name;
+    node('releaseCemPreview').classList.remove('hidden');
+    node('releaseCemPreview').innerHTML='<div class="cemPreviewSection"><h3>Referência do CEM — '+escapeHTML(selectedItem.codigo)+'</h3>'+
+      '<p>'+candidates.length+' item(ns) correspondente(s) · '+totalBars.length+' linhas de peças de perfis · '+
+      totalAcc.length+' linhas de acessórios.</p><p class="hint">Este ZIP representa dados de cálculo da obra, '+
+      '<strong>não confirma quantas barras comerciais foram consumidas no plano otimizado.</strong> '+
+      'Preencha e confira as quantidades no espelho abaixo antes da baixa.</p></div>';
+    node('releaseMirrorMessage').textContent='Arquivo CEM conferido como referência. A baixa será feita somente com as quantidades digitadas e confirmadas por você.';
+  }catch(e){node('releaseMirrorMessage').textContent='Não foi possível usar o arquivo: '+e.message;
+    node('releaseCemPreview').classList.add('hidden');}
+  finally{btn.disabled=false;}
+}
 function openRelease(id){
   if(!['administrador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
   selectedItem=elements.find(e=>e.id===id);if(!selectedItem)return;
   const pending=Number(selectedItem.quantidade)-Number(selectedItem.qtd_liberada);
   if(pending<=0)return;
+  releaseOperationId=crypto.randomUUID();releaseCatalogReady=false;releaseMirrorData=[];releaseMirrorSaldo=new Map();
+  releaseCemChecked=false;releaseCemFileName='';
   node('releaseItem').textContent=selectedItem.codigo+' · '+labeledDescription(selectedItem)+' · '+(selectedItem.localizacao||'');
   node('releaseBalance').textContent='Aguardando liberação: '+pending+' de '+selectedItem.quantidade+' unidades.';
   node('releaseQty').value='';node('releaseQty').max=String(pending);
   node('releaseDate').value=todayLocal();node('releaseFactory').value='';node('releaseError').textContent='';
-  node('releaseModal').classList.remove('hidden');node('releaseQty').focus();
+  node('releaseMirrorRows').innerHTML='';node('releaseCemZip').value='';node('releaseCemPreview').classList.add('hidden');
+  document.querySelectorAll('input[name="releaseMethod"]').forEach(x=>x.checked=false);
+  node('releaseMirrorPanel').classList.add('hidden');node('releaseModal').classList.remove('hidden');
+  node('releaseQty').focus();
 }
 function closeRelease(){node('releaseModal').classList.add('hidden');selectedItem=null;}
 node('releaseCancel').addEventListener('click',closeRelease);
+document.querySelectorAll('input[name="releaseMethod"]').forEach(x=>x.addEventListener('change',releaseMetodoAtualizar));
+node('releaseAddMaterial').addEventListener('click',()=>releaseAddRow());
+node('releaseCemRead').addEventListener('click',releaseLerCem);
+node('releaseCemZip').addEventListener('change',()=>{releaseCemChecked=false;releaseCemFileName='';node('releaseCemPreview').classList.add('hidden');});
 node('releaseForm').addEventListener('submit',async event=>{
   event.preventDefault();if(!selectedItem)return;
   const qty=Number(node('releaseQty').value),date=node('releaseDate').value;
   const fabrica=node('releaseFactory').value;
   const pending=Number(selectedItem.quantidade)-Number(selectedItem.qtd_liberada);
-  if(!Number.isSafeInteger(qty)||qty<=0||qty>pending){node('releaseError').textContent='Quantidade inválida. Máximo disponível: '+pending+'.';return;}
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date>todayLocal()){node('releaseError').textContent='Informe uma data válida, não futura.';return;}
-  if(!['AFOGADOS','IMBIRIBEIRA'].includes(fabrica)){node('releaseError').textContent='Escolha Afogados ou Imbiribeira.';return;}
-  const button=node('releaseSave');button.disabled=true;button.textContent='Salvando…';node('releaseError').textContent='';
+  const metodo=document.querySelector('input[name="releaseMethod"]:checked')?.value;
+  if(!Number.isSafeInteger(qty)||qty<=0||qty>pending){
+    node('releaseError').textContent='Quantidade inválida. Máximo: '+pending+'.';return;}
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date>todayLocal()){
+    node('releaseError').textContent='Data inválida ou futura.';return;}
+  if(!['AFOGADOS','IMBIRIBEIRA'].includes(fabrica)){
+    node('releaseError').textContent='Escolha Afogados ou Imbiribeira.';return;}
+  if(!metodo){node('releaseError').textContent='Escolha como deseja fazer a liberação.';return;}
+  let materiais=[];
+  try{
+    if(metodo!=='sem'){
+      if(!releaseCatalogReady)throw new Error('Os materiais ainda não foram carregados.');
+      if(metodo==='cem'&&!releaseCemChecked)throw new Error('Analise o ZIP do CEM ou selecione a liberação manual.');
+      materiais=releaseColetarMateriais();
+    }
+  }catch(err){node('releaseError').textContent=err.message;return;}
+  const aviso='Confirma a liberação de '+qty+' unidade(s) de '+selectedItem.codigo+
+    ' para '+fabrica+'?\n'+(materiais.length?'Serão baixadas '+materiais.length+' linha(s) de materiais do saldo da obra.':
+      'Esta liberação NÃO dará baixa de materiais.')+
+    '\nO registro será feito de uma só vez e não poderá ser duplicado.';
+  if(!window.confirm(aviso))return;
+  const button=node('releaseSave');button.disabled=true;button.textContent='Registrando…';
+  node('releaseError').textContent='';
   try{
     await ensureSession();
-    await request('/rest/v1/rpc/registrar_liberacao_corte_fabrica',{method:'POST',token:session.access_token,body:{p_esquadria_id:selectedItem.id,p_quantidade:qty,p_data_liberacao:date,p_fabrica:fabrica}});
-    // A gravação já foi confirmada: falha posterior de atualização não deve sugerir repetição.
-    const workId=selectedWork?.id;
+    // Mesmo registro de registrar_liberacao_corte_fabrica, com revisão de materiais na mesma transação.
+    const ans=await request('/rest/v1/rpc/ew_liberar_plano_corte_revisado',{method:'POST',
+      token:session.access_token,timeoutMs:45000,
+      body:{p_esquadria_id:selectedItem.id,p_quantidade:qty,p_data_liberacao:date,
+        p_fabrica:fabrica,p_materiais:materiais,
+        // Arquivo CEM serve de referência. Até validar exportação de plano otimizado, o consumo é manual.
+        p_fonte:materiais.length?'MANUAL':'SEM_BAIXA',
+        p_arquivo_nome:metodo==='cem'?releaseCemFileName:null,p_operacao_id:releaseOperationId}});
+    const workId=selectedItem.obra_id;
     closeRelease();
-    node('detailError').textContent='Liberação salva: '+qty+' unidade(s) · '+date.split('-').reverse().join('/')+' · fábrica '+fabrica+'. Atualizando dados…';
-    try{
-      await loadPanel();
-      const work=works.find(w=>w.id===workId);
-      if(work){renderDetail(work);node('detailError').textContent='Liberação salva: '+qty+' unidade(s) · '+date.split('-').reverse().join('/')+' · fábrica '+fabrica+'.';}
-    }catch(refreshError){
-      node('detailError').textContent='Liberação salva no banco, mas os dados não atualizaram: '+refreshError.message+'. Use Voltar e Atualizar dados. NÃO registre novamente.';
-    }
-  }catch(e){node('releaseError').textContent='Não foi possível confirmar a liberação: '+e.message+'\nAntes de repetir, confira o saldo atualizado para evitar duplicidade.';}
-  finally{button.disabled=false;button.textContent='Salvar liberação';}
+    node('detailError').textContent='Liberação registrada ('+qty+' unidade(s)) e '+(ans.linhas_baixadas||0)+' linha(s) de material baixada(s). Atualizando…';
+    try{await loadPanel();const w=works.find(x=>x.id===workId);
+      if(w){renderDetail(w);node('detailError').textContent='Liberação confirmada: '+qty+
+        ' unidade(s), fábrica '+fabrica+'; '+(ans.linhas_baixadas||0)+' material(is) baixado(s).';}}
+    catch(e){node('detailError').textContent='Liberação salva, mas atualização falhou: '+e.message+'. Não repita o lançamento.';}
+  }catch(e){
+    node('releaseError').textContent='Não foi possível confirmar: '+e.message+
+      '. Confira o histórico antes de repetir; a operação mantém o mesmo identificador.';
+  }finally{button.disabled=false;button.textContent='Conferir e confirmar liberação';}
 });
 window.EWGEST_LOGIN=async function(event){event.preventDefault();setError('');setStatus('Botão funcionando. Conferindo usuário e senha…');const b=node('loginButton');b.disabled=true;b.textContent='Verificando…';try{
   const login=node('email').value.trim();
