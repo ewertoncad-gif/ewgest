@@ -4444,18 +4444,153 @@ async function salvarVariacao(event){
   }catch(e){node('matVarError').textContent='Não foi possível salvar: '+e.message;}
   finally{btn.disabled=false;}
 }
+
+let cemParsed=null;
+function cemSqlValues(value){
+  const out=[];let i=0;const str=String(value||'');
+  while(i<str.length){
+    if(str[i]==="'"){
+      i++;let field='';
+      while(i<str.length){
+        if(str[i]==="'"){
+          if(str[i+1]==="'"){field+="'";i+=2;continue;}
+          i++;break;
+        }
+        field+=str[i++]; 
+      }
+      out.push(field);
+    }else{
+      const next=str.indexOf(',',i);
+      const j=next<0?str.length:next;
+      const raw=str.slice(i,j).trim();
+      out.push(/^null$/i.test(raw)?'':raw);
+      i=j;
+    }
+    if(str[i]===',')i++;
+    else if(i<str.length)throw new Error('Campo SQL inesperado na exportação CEM.');
+  }
+  return out;
+}
+async function cemExtrairXML(zip){
+  if(zip.size>150*1048576)throw new Error('Arquivo acima de 150 MB: requer análise assistida.');
+  const start=Math.max(0,zip.size-66000), tail=new DataView(await zip.slice(start).arrayBuffer());
+  let eocd=-1;
+  for(let i=tail.byteLength-22;i>=0;i--){
+    if(tail.getUint32(i,true)===0x06054b50){eocd=i;break;}
+  }
+  if(eocd<0)throw new Error('O arquivo não possui um diretório ZIP válido.');
+  const files=tail.getUint16(eocd+10,true), cdirSize=tail.getUint32(eocd+12,true), cdirOffset=tail.getUint32(eocd+16,true);
+  if(files>50000||cdirSize>16*1048576||cdirOffset+cdirSize>zip.size)throw new Error('Estrutura ZIP fora dos limites aceitos.');
+  const buf=new DataView(await zip.slice(cdirOffset,cdirOffset+cdirSize).arrayBuffer());
+  const decoder=new TextDecoder('utf-8');let position=0, target=null;
+  for(let i=0;i<files;i++){
+    if(position+46>buf.byteLength||buf.getUint32(position,true)!==0x02014b50)throw new Error('Diretório ZIP inconsistente.');
+    const method=buf.getUint16(position+10,true), compressed=buf.getUint32(position+20,true), size=buf.getUint32(position+24,true);
+    const nameLen=buf.getUint16(position+28,true),extraLen=buf.getUint16(position+30,true),
+      commentLen=buf.getUint16(position+32,true), local=buf.getUint32(position+42,true);
+    if(position+46+nameLen+extraLen+commentLen>buf.byteLength)throw new Error('Nome de arquivo ZIP inválido.');
+    const name=decoder.decode(new Uint8Array(buf.buffer,position+46,nameLen));
+    if(/(^|\/)ExpObras\.xml$/i.test(name))target={method,compressed,size,local};
+    position+=46+nameLen+extraLen+commentLen;
+  }
+  if(!target)throw new Error('ExpObras.xml não encontrado. Verifique se este é um ZIP exportado de uma obra pelo CEM Plus.');
+  if(target.size>25*1048576||target.compressed>25*1048576)throw new Error('XML do CEM excede o limite de 25 MB para análise local.');
+  const header=new DataView(await zip.slice(target.local,target.local+30).arrayBuffer());
+  if(header.byteLength<30||header.getUint32(0,true)!==0x04034b50)throw new Error('Cabeçalho do XML inválido.');
+  const dataOffset=target.local+30+header.getUint16(26,true)+header.getUint16(28,true);
+  if(dataOffset+target.compressed>zip.size)throw new Error('XML comprimido incompleto.');
+  const content=zip.slice(dataOffset,dataOffset+target.compressed);
+  if(target.method===0)return content.text();
+  if(target.method!==8)throw new Error('Compressão do ZIP não suportada (método '+target.method+').');
+  if(typeof DecompressionStream==='undefined')throw new Error('Atualize seu navegador para ler arquivos ZIP do CEM.');
+  const decomp=content.stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  const data=await new Response(decomp).arrayBuffer();
+  if(data.byteLength!==target.size)throw new Error('O XML extraído não corresponde ao tamanho informado no ZIP.');
+  return new TextDecoder('utf-8').decode(data);
+}
+function cemLerObra(xmlText){
+  const documentXML=new DOMParser().parseFromString(xmlText,'application/xml');
+  if(documentXML.querySelector('parsererror')||documentXML.documentElement.tagName!=='ExportObras')
+    throw new Error('XML do CEM inválido ou não reconhecido.');
+  const obra=documentXML.querySelector('ExportObras > Obra');
+  if(!obra)throw new Error('Cabeçalho da obra ausente no XML.');
+  const tables={OBITENS:[],OBESQD:[],OBCALCP:[],OBCALCA:[],PERF:[],ACES:[]};
+  for(const elem of documentXML.getElementsByTagName('SQL')){
+    const table=elem.getAttribute('Table');
+    if(!Object.hasOwn(tables,table))continue;
+    const keys=(elem.getAttribute('Flds1')||'').split(',');
+    const values=cemSqlValues(elem.getAttribute('Flds2')||'');
+    if(keys.length!==values.length)throw new Error('Dados inconsistentes na tabela '+table+'.');
+    const record={};
+    for(let j=0;j<keys.length;j++){
+      if(keys[j]!=='IMGICONE')record[keys[j]]=values[j];
+    }
+    tables[table].push(record);
+  }
+  const calc=new Set(tables.OBESQD.map(item=>String(item.ITEMOBRA)));
+  if(!calc.size)throw new Error('O arquivo não contém esquadrias calculadas para importar.');
+  const valid=tables.OBITENS.filter(it=>calc.has(String(it.ITEMOBRA)));
+  const other=tables.OBITENS.length-valid.length;
+  const count=valid.reduce((acc,x)=>acc+Number(x.QTDE||0),0);
+  const proft=tables.OBCALCP.filter(x=>calc.has(String(x.ITEMOBRA)));
+  const acest=tables.OBCALCA.filter(x=>calc.has(String(x.ITEMOBRA)));
+  const perfCodes=new Set(proft.map(x=>x.CODPERF).filter(Boolean));
+  const acesCodes=new Set(acest.map(x=>x.CODACES).filter(Boolean));
+  const perfCatalog=tables.PERF.filter(x=>perfCodes.has(x.CODPERF));
+  const acesCatalog=tables.ACES.filter(x=>acesCodes.has(x.CODACES));
+  return {
+    codigo:obra.getAttribute('Codigo')||'',valid,other,count,
+    perfCodes,acesCodes,profRows:proft.length,aceRows:acest.length,
+    perfCatalog,acesCatalog,perfMissing:perfCodes.size-perfCatalog.length,
+    aceMissing:acesCodes.size-acesCatalog.length
+  };
+}
+function cemRenderPreview(){
+  const r=cemParsed,el=node('cemPreview');
+  if(!r){el.classList.add('hidden');return;}
+  el.classList.remove('hidden');
+  const esk=node('cemFlagEsquadrias').checked;
+  const perf=node('cemFlagPerfis').checked;
+  const ace=node('cemFlagAcessorios').checked;
+  const cards=[
+    esk?['Esquadrias calculadas',String(r.valid.length)+' itens · '+r.count+' unidades']:null,
+    perf?['Perfis utilizados',String(r.perfCodes.size)+' códigos']:null,
+    ace?['Acessórios utilizados',String(r.acesCodes.size)+' códigos']:null
+  ].filter(Boolean);
+  const preview=(rows,fields)=>'<ul>'+rows.slice(0,6).map(x=>
+    '<li>'+fields.map(y=>escapeHTML(x[y]||'—')).join(' · ')+'</li>').join('')+'</ul>';
+  el.innerHTML='<div class="cemPreviewSection"><h3>Obra identificada: '+escapeHTML(r.codigo)+'</h3>'+
+    '<p class="hint">Foram encontrados '+r.valid.length+' itens calculados. Outros '+r.other+
+    ' itens desmarcados/fora do cálculo serão ignorados.</p></div>'+
+    (cards.length?'<div class="cemPreviewSummary">'+cards.map(x=>
+    '<div class="stat"><div class="label">'+escapeHTML(x[0])+'</div><div class="number">'+escapeHTML(x[1])+'</div></div>').join('')+'</div>':
+    '<div class="materialEmpty">Marque pelo menos uma categoria para consultar.</div>')+
+    (esk?'<div class="cemPreviewSection"><h3>Prévia de esquadrias</h3>'+
+      preview(r.valid,['TIPO','QTDE','L','H'])+
+      '<p class="hint">Ordem: código · quantidade · largura (mm) · altura (mm). O arquivo não altera obras já cadastradas.</p></div>':'')+
+    (perf?'<div class="cemPreviewSection"><h3>Perfis presentes na obra</h3>'+
+      preview(r.perfCatalog,['CODPERF','REF','DESCRICAO'])+
+      '<p class="hint">'+r.profRows+' registros de cálculo. '+r.perfMissing+
+      ' referências sem ficha correspondente no catálogo exportado. Não equivalem a barras em estoque.</p></div>':'')+
+    (ace?'<div class="cemPreviewSection"><h3>Acessórios presentes na obra</h3>'+
+      preview(r.acesCatalog,['CODACES','REF','DESCRICAO'])+
+      '<p class="hint">'+r.aceRows+' registros de cálculo. '+r.aceMissing+
+      ' referências sem ficha correspondente no catálogo exportado. Não equivalem a peças em estoque.</p></div>':'');
+}
 async function matVerificarZip(){
   const arq=node('matCemArquivo').files?.[0],out=node('matCemResposta');
+  cemParsed=null;cemRenderPreview();
   if(!arq){out.textContent='Escolha o arquivo ZIP exportado pelo CEM.';return;}
   if(!/\.zip$/i.test(arq.name)){out.textContent='Selecione um arquivo .zip original do CEM.';return;}
+  const botao=node('matCemConferir');botao.disabled=true;
+  out.textContent='Lendo o arquivo localmente e separando os itens calculados…';
   try{
-    const bytes=new Uint8Array(await arq.slice(0,4).arrayBuffer());
-    if(bytes[0]!==80||bytes[1]!==75||![3,5,7].includes(bytes[2])){
-      out.textContent='O arquivo não tem assinatura ZIP válida.';return;
-    }
-    out.textContent='ZIP identificado: '+arq.name+' ('+matFormat(arq.size/1048576,1)+
-      ' MB). Arquivo não enviado ao servidor. A leitura dos quantitativos e o cadastro automático serão implementados após validação.';
-  }catch(e){out.textContent='Não foi possível ler o arquivo: '+e.message;}
+    const xml=await cemExtrairXML(arq);
+    cemParsed=cemLerObra(xml);
+    out.textContent='Análise concluída: '+arq.name+'. A prévia abaixo respeita as opções marcadas. Nenhum dado foi gravado no Supabase.';
+    cemRenderPreview();
+  }catch(e){out.textContent='Não foi possível analisar o arquivo: '+e.message;}
+  finally{botao.disabled=false;}
 }
 node('materialsBack').addEventListener('click',()=>setView('dashboard'));
 node('matNovoHeader').addEventListener('click',()=>abrirEdicaoMaterial());
@@ -4473,6 +4608,13 @@ node('matEditForm').addEventListener('submit',salvarMaterial);
 node('matVarCancel').addEventListener('click',matVarClose);
 node('matVarForm').addEventListener('submit',salvarVariacao);
 node('matCemConferir').addEventListener('click',matVerificarZip);
+node('matCemArquivo').addEventListener('change',()=>{
+ cemParsed=null;cemRenderPreview();node('matCemResposta').textContent='Arquivo selecionado. Clique em “Analisar arquivo”.';
+});
+for(const id of ['cemFlagEsquadrias','cemFlagPerfis','cemFlagAcessorios']){
+  node(id).addEventListener('change',cemRenderPreview);
+}
+
 
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
