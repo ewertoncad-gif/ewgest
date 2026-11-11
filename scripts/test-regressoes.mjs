@@ -616,6 +616,37 @@ assert.ok(source.includes('id="cemCommit" disabled'),
  'Importação real não pode ficar ativa antes da validação');
 assert.ok(source.includes('Nenhuma informação será gravada nesta etapa.'),
  'Análise do CEM não deve prometer gravação');
+
+// Simula um ZIP real com ExpObras.xml compactado (método 8, DEFLATE).
+const zipBegin=source.indexOf('function cemSqlValues(value){');
+const zipEnd=source.indexOf('function cemLerObra(xmlText){',zipBegin);
+assert.ok(zipBegin>=0&&zipEnd>zipBegin,'Leitor ZIP do CEM deve estar disponível');
+const testZip=new Function(source.slice(zipBegin,zipEnd)+
+ '\nreturn {cemSqlValues,cemExtrairXML};')();
+assert.deepEqual(testZip.cemSqlValues("12,'PORTA, DUAS FOLHAS','JOAO''S',NULL"),
+ ['12','PORTA, DUAS FOLHAS',"JOAO'S",''],'Campos SQL do CEM com vírgulas e apóstrofos');
+const {deflateRawSync}=await import('node:zlib');
+const xmlTeste='<ExportObras><Obra Codigo="TESTE-CEM"/></ExportObras>';
+const member=Buffer.from('ExpObras.xml');
+const raw=Buffer.from(xmlTeste);
+const deflated=deflateRawSync(raw);
+const localHeader=Buffer.alloc(30);localHeader.writeUInt32LE(0x04034b50,0);
+localHeader.writeUInt16LE(20,4);localHeader.writeUInt16LE(8,8);
+localHeader.writeUInt32LE(deflated.length,18);localHeader.writeUInt32LE(raw.length,22);
+localHeader.writeUInt16LE(member.length,26);
+const centralHeader=Buffer.alloc(46);centralHeader.writeUInt32LE(0x02014b50,0);
+centralHeader.writeUInt16LE(20,6);centralHeader.writeUInt16LE(8,10);
+centralHeader.writeUInt32LE(deflated.length,20);centralHeader.writeUInt32LE(raw.length,24);
+centralHeader.writeUInt16LE(member.length,28);
+const centralOffset=localHeader.length+member.length+deflated.length;
+const centralSize=centralHeader.length+member.length;
+const footer=Buffer.alloc(22);footer.writeUInt32LE(0x06054b50,0);
+footer.writeUInt16LE(1,8);footer.writeUInt16LE(1,10);
+footer.writeUInt32LE(centralSize,12);footer.writeUInt32LE(centralOffset,16);
+const fakeZip=new Blob([localHeader,member,deflated,centralHeader,member,footer]);
+assert.equal(await testZip.cemExtrairXML(fakeZip),xmlTeste,
+ 'Extrai corretamente ExpObras.xml compactado sem subir dados para servidor');
+
 console.log('OK: '+cases.length+' classificações; cadastro de abreviações, observações finais, almoxarife e regressões.');
 
 
