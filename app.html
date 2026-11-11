@@ -483,6 +483,28 @@
     .stockFoot{margin-top:12px;color:#647f96;font-size:12px}
     @media(max-width:850px){.stockFilters{grid-template-columns:1fr}}
 
+
+    .releaseDialog{width:min(100%,880px);max-height:94vh;overflow-y:auto}
+    .releaseMirrorIntro{border:1px solid #dbe7f3;border-radius:12px;padding:15px;margin:16px 0;background:#f8fbff}
+    .releaseMirrorIntro h3{font-size:15px;margin:0 0 12px}
+    .releaseMethod{display:flex;align-items:center;gap:10px;font-weight:600;margin:9px 0;cursor:pointer}
+    .releaseMethod input{width:17px;height:17px;accent-color:#1a79ce}
+    #releaseMirrorPanel{padding:15px;border-radius:12px;border:1px solid #dce8f4;margin-top:12px;background:#fff}
+    #releaseMirrorPanel h3{font-size:15px}
+    .releaseMirrorRows{display:grid;gap:10px;margin:13px 0}
+    .releaseMirrorLine{border:1px solid #dce6f1;border-radius:10px;padding:11px;background:#f7faff;display:grid;gap:8px}
+    .releaseMirrorLineTop{display:grid;grid-template-columns:minmax(160px,1fr) 120px 110px 90px;gap:9px;align-items:end}
+    .releaseMirrorLineTop label{margin:0;font-size:11px}
+    .releaseMirrorLineTop select,.releaseMirrorLineTop input{margin-top:5px;width:100%}
+    .releaseMirrorLineTop .btn{min-height:39px}
+    .releaseMirrorLineStatus{font-size:12px;color:#567393}
+    .releaseMirrorLineStatus.stockInsufficient{color:#ab3d3d;font-weight:650}
+    .stockTopActions{display:flex;flex-wrap:wrap;gap:8px}
+    #stockManualForm label{display:block;margin:12px 0 0}
+    #stockManualForm input,#stockManualForm textarea,#stockManualForm select{margin-top:6px;width:100%}
+    #stockManualForm #stockManualNewMaterial{margin-top:9px}
+    @media(max-width:800px){.releaseMirrorLineTop{grid-template-columns:1fr 1fr}.releaseMirrorLineTop label:first-child{grid-column:1/-1}}
+
   </style>
 </head>
 <body>
@@ -710,7 +732,7 @@
         <h1 style="margin-top:20px">Estoque e necessidades por obra</h1>
         <p class="muted">Materiais importados do CEM, previsão de consumo e estoque físico são informações distintas.</p>
       </div>
-      <button type="button" class="btn secondary" id="stockRefresh">Atualizar estoque</button></div>
+      <div class="stockTopActions"><button type="button" class="btn primary" id="stockNewManual">+ Lançar material na obra</button><button type="button" class="btn secondary" id="stockRefresh">Atualizar estoque</button></div></div>
       <div class="materialsSummary">
         <div class="stat"><div class="label">Perfis no cadastro</div><div class="number" id="stockPerfCount">—</div></div>
         <div class="stat"><div class="label">Acessórios no cadastro</div><div class="number" id="stockAcesCount">—</div></div>
@@ -726,7 +748,7 @@
         </div>
         <div class="stockLegend">
           <span><strong>Previsto (CEM):</strong> material necessário para fabricação, não saldo físico.</span>
-          <span><strong>Disponível:</strong> somente materiais confirmados em inventário/entradas, descontadas as saídas registradas.</span>
+          <span><strong>Saldo da obra:</strong> barras e acessórios lançados manualmente, menos as baixas confirmadas. Não confundir com o consumo previsto do CEM nem com o inventário geral da fábrica.</span>
         </div>
         <div id="stockMessage" class="feedback" role="status"></div>
         <div id="stockRecords"></div>
@@ -905,6 +927,33 @@
 </div>
 
 
+<div id="stockManualOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockManualTitle">
+    <h2 id="stockManualTitle">Lançamento de material na obra</h2>
+    <p class="hint">Escolha a obra, o material e a quantidade de barras ou acessórios. Essa operação afeta somente o saldo da obra.</p>
+    <form id="stockManualForm">
+      <label>Obra <select id="stockManualWork" required></select></label>
+      <label>Tipo de material <select id="stockManualType"><option value="perfil">Perfil</option><option value="acessorio">Acessório</option></select></label>
+      <label>Material, cor e acabamento <select id="stockManualMaterial" required></select></label>
+      <button type="button" class="btn secondary" id="stockManualNewMaterial">+ Material inexistente? Cadastrar</button>
+      <label id="stockManualLengthLabel">Comprimento por barra (mm) <input type="number" id="stockManualLength" min="100" max="20000" step="1" placeholder="Ex.: 6000"></label>
+      <label>Operação <select id="stockManualKind">
+        <option value="ABERTURA">Quantidade inicial da obra</option>
+        <option value="COMPRA">Compra / entrada adicional</option>
+        <option value="SAIDA_MANUAL">Consumo manual / saída</option>
+        <option value="AJUSTE">Ajuste positivo ou negativo</option>
+      </select></label>
+      <label>Quantidade <input id="stockManualQty" type="number" min="0.001" step="0.001" required placeholder="Ex.: 25"></label>
+      <p id="stockManualUnit" class="hint"></p>
+      <label>Motivo / observação <textarea id="stockManualNote" rows="2" minlength="5" maxlength="500" required placeholder="Ex.: Estoque inicial da CASA BOA VIAGEM"></textarea></label>
+      <p id="stockManualError" class="feedback" role="alert"></p>
+      <div class="modalbuttons">
+        <button type="button" id="stockManualCancel" class="btn secondary">Cancelar</button>
+        <button type="submit" id="stockManualSave" class="btn primary">Confirmar lançamento</button>
+      </div>
+    </form>
+  </div>
+</div>
 <div id="stockEntryModal" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockEntryTitle">
     <h2 id="stockEntryTitle">Registrar movimentação</h2>
@@ -997,7 +1046,7 @@
   </div>
 </div>
 <div id="releaseModal" class="modaloverlay hidden" role="presentation">
-  <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="releaseTitle">
+  <div class="panel modalbox releaseDialog" role="dialog" aria-modal="true" aria-labelledby="releaseTitle">
     <h2 id="releaseTitle">Liberar para corte</h2>
     <p id="releaseItem" class="muted"></p><p id="releaseBalance" class="hint"></p>
     <form id="releaseForm">
@@ -1012,8 +1061,28 @@
         <option value="IMBIRIBEIRA">IMBIRIBEIRA</option>
       </select>
       <p class="hint">A fábrica será registrada nesta liberação para apurar o prazo até a saída da produção.</p>
+      <div class="releaseMirrorIntro">
+        <h3>4. Como deseja liberar e descontar os materiais?</h3>
+        <label class="releaseMethod"><input name="releaseMethod" type="radio" value="cem"> Importar arquivo do CEM e conferir o espelho</label>
+        <label class="releaseMethod"><input name="releaseMethod" type="radio" value="manual"> Preencher o espelho de materiais manualmente</label>
+        <label class="releaseMethod"><input name="releaseMethod" type="radio" value="sem"> Somente liberação técnica (sem baixa de estoque)</label>
+      </div>
+      <div id="releaseMirrorPanel" class="hidden">
+        <div id="releaseCemArea" class="hidden">
+          <label for="releaseCemZip">Arquivo de exportação do CEM (ZIP)</label>
+          <input id="releaseCemZip" type="file" accept=".zip,application/zip">
+          <button id="releaseCemRead" type="button" class="btn secondary">Analisar arquivo do CEM</button>
+          <p class="hint">O ZIP completo da obra não informa automaticamente as barras comerciais do plano otimizado. Revise os materiais e informe as barras utilizadas.</p>
+        </div>
+        <h3>Espelho editável da liberação</h3>
+        <p class="hint">Obra, esquadria e quantidade estão acima. Confira os materiais e os saldos antes de confirmar; cada perfil será baixado em barras inteiras.</p>
+        <p id="releaseMirrorMessage" class="hint" role="status"></p>
+        <div id="releaseCemPreview" class="hidden"></div>
+        <div id="releaseMirrorRows" class="releaseMirrorRows"></div>
+        <button id="releaseAddMaterial" class="btn secondary" type="button">+ Adicionar material à liberação</button>
+      </div>
       <div id="releaseError" class="feedback" role="alert"></div>
-      <div class="modalbuttons"><button type="button" id="releaseCancel" class="btn secondary">Cancelar</button><button type="submit" id="releaseSave" class="btn primary">Salvar liberação</button></div>
+      <div class="modalbuttons"><button type="button" id="releaseCancel" class="btn secondary">Cancelar</button><button type="submit" id="releaseSave" class="btn primary">Conferir e confirmar liberação</button></div>
     </form>
   </div>
 </div>
