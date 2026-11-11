@@ -505,6 +505,13 @@
     #stockManualForm #stockManualNewMaterial{margin-top:9px}
     @media(max-width:800px){.releaseMirrorLineTop{grid-template-columns:1fr 1fr}.releaseMirrorLineTop label:first-child{grid-column:1/-1}}
 
+
+    .cemCandidate{background:#f7faff;padding:13px;border:1px solid #dbe7f5;border-radius:10px;display:grid;grid-template-columns:1fr 1fr;gap:9px 14px;margin-top:12px}
+    .cemCandidate p{grid-column:1/-1;margin:0;color:#415f7a;font-size:12px}
+    .cemCandidate label{font-size:12px}
+    .cemCandidate select{margin-top:6px;width:100%}
+    @media(max-width:740px){.cemCandidate{grid-template-columns:1fr}}
+
   </style>
 </head>
 <body>
@@ -4931,11 +4938,56 @@ function cemMontarPayload(r){
   return {perfis:montar(r.perfCatalog,r.profMovs,'perfil'),
     acessorios:montar(r.acesCatalog,r.aceMovs,'acessorio')};
 }
+
+function cemNormalizarDescricao(x){
+ return String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+   .toUpperCase().replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+}
+function cemEncontrarConciliacoes(r,perfis,acessorios){
+ const list=[];
+ for(const [tipo,importados,atuais,existentes] of [
+  ['perfil',r.materiaisPayload.perfis,perfis,r.existentesPerf],
+  ['acessorio',r.materiaisPayload.acessorios,acessorios,r.existentesAces]]){
+  for(const imp of importados){
+   if(existentes.has(cemNome(imp.fabricante)+'|'+cemNome(imp.codigo)))continue;
+   const normalized=cemNormalizarDescricao(imp.descricao);
+   const candidates=atuais.filter(x=>cemNome(x.fabricante)===cemNome(imp.fabricante)
+     &&cemNome(x.codigo)!==cemNome(imp.codigo)&&cemNormalizarDescricao(x.descricao)===normalized
+     &&(!x.linha||!imp.linha||cemNome(x.linha)===cemNome(imp.linha)));
+   if(candidates.length)list.push({tipo,imp,candidatos:candidates,materialId:candidates[0].id,decisao:''});
+  }
+ }
+ return list;
+}
+function cemDecisoesAtivas(){
+ const r=cemParsed;
+ return (r?.conciliacoes||[]).filter(x=>x.tipo==='perfil'?
+   node('cemFlagPerfis').checked:node('cemFlagAcessorios').checked);
+}
+function cemQuadroConciliacao(){
+ const list=cemDecisoesAtivas();
+ if(!list.length)return '';
+ return '<div class="cemPreviewSection"><h3>Possíveis materiais equivalentes ('+list.length+')</h3>'+
+  '<p class="hint">Os nomes e fabricantes coincidem. Confirme a equivalência técnica antes de unir: o sistema não faz união automática.</p>'+
+  list.map((x,i)=>'<div class="cemCandidate" data-cem-candidate="'+i+'">'+
+   '<p><strong>CEM: '+escapeHTML(x.imp.codigo)+'</strong> · '+escapeHTML(x.imp.descricao)+
+   ' · '+escapeHTML(x.imp.fabricante)+'</p>'+
+   '<label>Cadastro existente<select class="cemCandidateMaterial">'+
+    x.candidatos.map(c=>'<option value="'+escapeHTML(c.id)+'"'+
+     (x.materialId===c.id?' selected':'')+'>'+escapeHTML(c.codigo+' — '+c.descricao)+'</option>').join('')+
+   '</select></label><label>Decisão do ADM<select class="cemCandidateDecision">'+
+   '<option value="">Escolha uma ação</option>'+
+   '<option value="manual"'+(x.decisao==='manual'?' selected':'')+'>Unificar e manter o código manual</option>'+
+   '<option value="cem"'+(x.decisao==='cem'?' selected':'')+'>Unificar e utilizar o código do CEM</option>'+
+   '<option value="separar"'+(x.decisao==='separar'?' selected':'')+'>Manter os dois cadastros separados</option>'+
+   '</select></label></div>').join('')+'</div>';
+}
 function cemAtualizarBotao(){
   const r=cemParsed,esk=node('cemFlagEsquadrias').checked;
   const perf=node('cemFlagPerfis').checked,ace=node('cemFlagAcessorios').checked;
+  const pendente=cemDecisoesAtivas().some(x=>!x.decisao);
   const pode=Boolean(r&&r.comparacaoConcluida&&r.obraExistente&&!esk&&(perf||ace)&&!r.jaImportado
-    &&(!perf||r.perfMissing===0)&&(!ace||r.aceMissing===0));
+    &&(!perf||r.perfMissing===0)&&(!ace||r.aceMissing===0)&&!pendente);
   node('cemCommit').disabled=!pode;
   let info='';
   if(!r)info='Analise o ZIP para habilitar a importação segura de materiais.';
@@ -4945,6 +4997,7 @@ function cemAtualizarBotao(){
   else if(!r.comparacaoConcluida)info='Conferindo a existência da obra e dos cadastros…';
   else if(!r.obraExistente)info='A obra não existe no EWGEST. O cadastro automático de obras novas ainda não está disponível.';
   else if((perf&&r.perfMissing)||(ace&&r.aceMissing))info='Há materiais sem ficha técnica no ZIP. Corrija o arquivo ou desmarque a categoria incompleta.';
+  else if(pendente)info='Revise as possíveis equivalências e decida qual código será utilizado.';
   else info='Pronto para importar materiais sem modificar esquadrias, liberações, romaneios ou estoque físico.';
   node('cemCommitHint').textContent=info;
 }
@@ -5025,7 +5078,7 @@ function cemRenderPreview(){
     (esk?'<div class="cemPreviewSection"><h3>Esquadrias calculadas — '+r.valid.length+' itens</h3>'+
       '<p class="hint">Visualização somente. A importação de esquadrias está desabilitada por segurança.</p>'+
       preview(r.valid,['Código','Quantidade','Largura (mm)','Altura (mm)'])+'</div>':'')+
-    (perf?cemTabelaHTML('perfil'):'')+(ace?cemTabelaHTML('acessorio'):'');
+    (perf?cemTabelaHTML('perfil'):'')+(ace?cemTabelaHTML('acessorio'):'')+cemQuadroConciliacao();
   for(const [id,prop] of [['cemSearchPerf','pesquisaPerf'],['cemSearchAces','pesquisaAces']]){
     const input=node(id);
     if(input)input.addEventListener('input',()=>{
@@ -5036,6 +5089,15 @@ function cemRenderPreview(){
       if(novo){novo.focus();novo.setSelectionRange(position,position);}
     });
   }
+  el.querySelectorAll('[data-cem-candidate]').forEach((row,i)=>{
+    const match=cemDecisoesAtivas()[i];
+    row.querySelector('.cemCandidateMaterial').addEventListener('change',event=>{
+      match.materialId=event.target.value;cemAtualizarBotao();
+    });
+    row.querySelector('.cemCandidateDecision').addEventListener('change',event=>{
+      match.decisao=event.target.value;cemAtualizarBotao();
+    });
+  });
   cemAtualizarBotao();
 }
 
@@ -5060,16 +5122,22 @@ async function matVerificarZip(){
     await ensureSession();
     if(!currentCompany?.id)throw new Error('Não foi possível identificar a empresa do usuário.');
     const empresa='eq.'+currentCompany.id;
-    const [obrasBanco,perfisBanco,acessoriosBanco]=await Promise.all([
+    const [obrasBanco,perfisBanco,acessoriosBanco,aliasesBanco]=await Promise.all([
       apiGet('obras',{select:'id,codigo,nome',empresa_id:empresa,limit:'1000'}),
-      apiGet('ew_perfis',{select:'codigo,fabricante',empresa_id:empresa,limit:'5000'}),
-      apiGet('ew_acessorios',{select:'codigo,fabricante',empresa_id:empresa,limit:'5000'})
+      apiGet('ew_perfis',{select:'id,codigo,fabricante,descricao,linha',empresa_id:empresa,limit:'5000'}),
+      apiGet('ew_acessorios',{select:'id,codigo,fabricante,descricao,linha',empresa_id:empresa,limit:'5000'}),
+      apiGet('ew_materiais_alias',{select:'tipo,codigo_alternativo,fabricante,perfil_id,acessorio_id',empresa_id:empresa,limit:'5000'})
     ]);
     const matching=(obrasBanco||[]).filter(x=>cemNome(x.codigo)===cemNome(r.codigo));
     r.obraExistente=matching.length===1?matching[0]:null;
     r.obraDuplicada=matching.length>1;
     r.existentesPerf=new Set((perfisBanco||[]).map(x=>cemNome(x.fabricante)+'|'+cemNome(x.codigo)));
     r.existentesAces=new Set((acessoriosBanco||[]).map(x=>cemNome(x.fabricante)+'|'+cemNome(x.codigo)));
+    for(const al of aliasesBanco||[]){
+      const k=cemNome(al.fabricante)+'|'+cemNome(al.codigo_alternativo);
+      if(al.tipo==='perfil')r.existentesPerf.add(k);else r.existentesAces.add(k);
+    }
+    r.conciliacoes=cemEncontrarConciliacoes(r,perfisBanco||[],acessoriosBanco||[]);
     if(r.obraExistente){
       // Uma obra existente não pode receber esquadrias duplicadas.
       node('cemFlagEsquadrias').checked=false;
@@ -5091,6 +5159,11 @@ async function cemImportarSelecionados(){
   if(save.disabled||!r||!r.obraExistente||node('cemFlagEsquadrias').checked)return;
   const perf=p?r.materiaisPayload.perfis:[];
   const aces=a?r.materiaisPayload.acessorios:[];
+  const decisions=cemDecisoesAtivas();
+  if(decisions.some(x=>!x.decisao)){result.textContent='Resolva primeiro os cadastros equivalentes.';return;}
+  const decisoes=decisions.filter(x=>x.decisao!=='separar').map(x=>({
+    tipo:x.tipo,codigo_cem:x.imp.codigo,fabricante:x.imp.fabricante,
+    material_id:x.materialId,usar_codigo_cem:x.decisao==='cem'}));
   const message='Confirmar a importação de '+perf.length+' perfis e '+aces.length+
     ' acessórios para '+r.obraExistente.nome+' ('+r.codigo+')?\n\n'+
     'Os cadastros já existentes serão preservados. Nenhuma esquadria, romaneio, liberação ou saldo físico será modificado.';
@@ -5099,10 +5172,10 @@ async function cemImportarSelecionados(){
   save.disabled=true;result.textContent='Gravando perfis, acessórios e variações no Supabase…';
   try{
     await ensureSession();
-    const answer=await request('/rest/v1/rpc/importar_materiais_cem',{
+    const answer=await request('/rest/v1/rpc/ew_importar_cem_conciliado',{
       method:'POST',token:session.access_token,timeoutMs:120000,
       body:{p_empresa_id:currentCompany.id,p_codigo_obra:r.codigo,
-        p_perfis:perf,p_acessorios:aces,p_operacao_id:cemOperacaoId}
+        p_perfis:perf,p_acessorios:aces,p_operacao_id:cemOperacaoId,p_decisoes:decisoes}
     });
     if(!answer||answer.esquadrias_alteradas!==0||answer.estoque_fisico_alterado!==false)
       throw new Error('Resposta de importação não confirmada. Confira o banco antes de repetir.');
