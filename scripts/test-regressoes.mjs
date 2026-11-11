@@ -603,7 +603,19 @@ for(const token of ['ew_perfis','ew_acessorios','ew_materiais_variacoes',
  'async function salvarVariacao(event)']){
   assert.ok(source.includes(token),'Cadastro de materiais deve conter '+token);
 }
-assert.ok(source.includes('Nenhum estoque físico foi lançado.'),'Estoque não pode exibir quantidades falsas');
+assert.ok(source.includes('Estoque físico ainda não cadastrado'),'Estoque precisa indicar falta de inventário físico');
+for(const id of ['navMaterials','navStock','navCem','materials','stock','cemImport',
+ 'cemFlagEsquadrias','cemFlagPerfis','cemFlagAcessorios','cemPreview','cemCommit']){
+ assert.ok(source.includes('id="'+id+'"'),'Seções e flags CEM/estoque: '+id);
+}
+assert.ok(source.includes("const calc=new Set(tables.OBESQD.map"),
+ 'Importador deve separar calculados de itens desmarcados');
+assert.ok(source.includes('function cemLerObra(xmlText)') && source.includes('async function cemExtrairXML(zip)'),
+ 'Leitura real local do XML exportado em ZIP do CEM');
+assert.ok(source.includes('id="cemCommit" disabled'),
+ 'Importação real não pode ficar ativa antes da validação');
+assert.ok(source.includes('Nenhuma informação será gravada nesta etapa.'),
+ 'Análise do CEM não deve prometer gravação');
 console.log('OK: '+cases.length+' classificações; cadastro de abreviações, observações finais, almoxarife e regressões.');
 
 
