@@ -933,6 +933,12 @@
     <p class="hint">Escolha a obra, o material e a quantidade de barras ou acessórios. Essa operação afeta somente o saldo da obra.</p>
     <form id="stockManualForm">
       <label>Obra <select id="stockManualWork" required></select></label>
+      <button class="btn secondary" id="stockCreateWorkToggle" type="button">+ Cadastrar obra manualmente</button>
+      <div id="stockCreateWorkPanel" class="hidden">
+        <label>Nome da nova obra <input id="stockNewWorkName" maxlength="180" placeholder="Ex.: CASA MOSER"></label>
+        <label>Código (opcional) <input id="stockNewWorkCode" maxlength="80" placeholder="Ex.: ALU-3200-GVG-PE"></label>
+        <button id="stockCreateWork" type="button" class="btn primary">Salvar obra</button>
+      </div>
       <label>Tipo de material <select id="stockManualType"><option value="perfil">Perfil</option><option value="acessorio">Acessório</option></select></label>
       <label>Material, cor e acabamento <select id="stockManualMaterial" required></select></label>
       <button type="button" class="btn secondary" id="stockManualNewMaterial">+ Material inexistente? Cadastrar</button>
