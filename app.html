@@ -465,6 +465,24 @@
     .cemStatusNew{color:#167c65;font-weight:650}
     .cemImportReceipt{padding:14px 16px;margin:12px 0;background:#edf8f1;border-radius:10px;border:1px solid #b2dbc1;color:#1d6240}
 
+
+    .stockFilters{display:grid;grid-template-columns:minmax(180px,1fr) minmax(180px,1fr) minmax(200px,1.5fr);gap:13px;margin:15px 0}
+    .stockFilters label{margin:0;font-size:12px}
+    .stockFilters select,.stockFilters input{margin-top:7px}
+    .stockLegend{display:flex;gap:20px;align-items:center;flex-wrap:wrap;background:#f5f9ff;border:1px solid #dfebf6;padding:13px 16px;border-radius:10px;color:#5b7895;font-size:12px;line-height:1.6;margin:14px 0}
+    .stockTableWrap{max-height:610px;overflow:auto;border:1px solid #dce5ef;border-radius:12px}
+    .stockTable{border-collapse:separate;border-spacing:0;width:100%;min-width:1060px;font-size:12px}
+    .stockTable th{position:sticky;top:0;background:#e8f1fb;color:#3d648b;border-bottom:1px solid #c9dbec;padding:12px;text-align:left;z-index:1}
+    .stockTable td{border-bottom:1px solid #e9eff5;padding:11px;color:#456079;vertical-align:top}
+    .stockTable td strong{color:#174879}
+    .stockTable tr:hover td{background:#f5faff}
+    .stockTable .btn{min-height:32px;padding:6px 10px}
+    .stockNodata{color:#9a661d}
+    .stockReady{color:#138668;font-weight:700}
+    .stockNeedValue{color:#527493}
+    .stockFoot{margin-top:12px;color:#647f96;font-size:12px}
+    @media(max-width:850px){.stockFilters{grid-template-columns:1fr}}
+
   </style>
 </head>
 <body>
@@ -685,24 +703,33 @@
 
       </div>
     </section>
+
     <section id="stock" class="hidden">
       <div class="head"><div>
         <button type="button" class="btn secondary" id="stockBack">← Tela inicial</button>
-        <h1 style="margin-top:20px">Estoque</h1>
-        <p class="muted">Controle físico e reservas de materiais para fabricação.</p>
-      </div></div>
+        <h1 style="margin-top:20px">Estoque e necessidades por obra</h1>
+        <p class="muted">Materiais importados do CEM, previsão de consumo e estoque físico são informações distintas.</p>
+      </div>
+      <button type="button" class="btn secondary" id="stockRefresh">Atualizar estoque</button></div>
+      <div class="materialsSummary">
+        <div class="stat"><div class="label">Perfis no cadastro</div><div class="number" id="stockPerfCount">—</div></div>
+        <div class="stat"><div class="label">Acessórios no cadastro</div><div class="number" id="stockAcesCount">—</div></div>
+        <div class="stat"><div class="label">Variações com inventário informado</div><div class="number" id="stockCounted">—</div></div>
+      </div>
       <div class="section panel">
-        <div class="materialEmpty">
-          <div class="materialEmptyIcon">▣</div>
-          <h2>Estoque físico ainda não cadastrado</h2>
-          <p>Os bancos de perfis e acessórios armazenam informações técnicas, mas não representam quantidades existentes no almoxarifado.</p>
-          <p>Próximas funções: inventário inicial, entradas, reservas por plano de corte, baixas físicas, devoluções e saldo por cor e acabamento.</p>
-          <strong>O arquivo do CEM informa necessidades da obra, não o estoque real da GVG.</strong>
+        <h2>Materiais por obra e saldos</h2>
+        <p class="hint">A importação do CEM criou os cadastros técnicos e a relação de materiais com a obra, mas <strong>não adicionou materiais fisicamente ao almoxarifado</strong>. Registre o inventário real para informar a quantidade disponível.</p>
+        <div class="stockFilters">
+          <label>Obra <select id="stockWork"><option value="">Todas as obras</option></select></label>
+          <label>Categoria <select id="stockType"><option value="">Todos os materiais</option><option value="perfil">Perfis</option><option value="acessorio">Acessórios</option></select></label>
+          <label>Buscar material <input id="stockSearch" type="search" placeholder="Código, descrição ou cor"></label>
         </div>
-        <div class="materialImportHead" style="margin-top:22px">
-          <h2>Consultar cadastro de materiais</h2>
-          <button type="button" class="btn secondary" id="stockOpenMaterials">Abrir banco de materiais</button>
+        <div class="stockLegend">
+          <span><strong>Previsto (CEM):</strong> material necessário para fabricação, não saldo físico.</span>
+          <span><strong>Disponível:</strong> somente materiais confirmados em inventário/entradas, descontadas as saídas registradas.</span>
         </div>
+        <div id="stockMessage" class="feedback" role="status"></div>
+        <div id="stockRecords"></div>
       </div>
     </section>
     <section id="cemImport" class="hidden">
@@ -877,6 +904,32 @@
   </main>
 </div>
 
+
+<div id="stockEntryModal" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockEntryTitle">
+    <h2 id="stockEntryTitle">Registrar movimentação</h2>
+    <p id="stockEntryInfo" class="hint"></p>
+    <form id="stockEntryForm">
+      <label for="stockEntryType">Operação</label>
+      <select id="stockEntryType">
+        <option value="INVENTARIO_INICIAL">Inventário inicial</option>
+        <option value="ENTRADA">Entrada física</option>
+        <option value="SAIDA">Saída física</option>
+        <option value="AJUSTE">Ajuste de estoque (+ ou -)</option>
+      </select>
+      <label for="stockEntryQuantity">Quantidade física</label>
+      <input id="stockEntryQuantity" type="number" step="0.0001" placeholder="Ex.: 24" required>
+      <p id="stockEntryUnitHint" class="hint"></p>
+      <label for="stockEntryReason">Observação</label>
+      <textarea id="stockEntryReason" rows="2" maxlength="500" placeholder="Ex.: Contagem inicial realizada no almoxarifado"></textarea>
+      <p id="stockEntryError" class="feedback" role="alert"></p>
+      <div class="modalbuttons">
+        <button type="button" class="btn secondary" id="stockEntryCancel">Cancelar</button>
+        <button type="submit" class="btn primary" id="stockEntrySave">Registrar movimentação</button>
+      </div>
+    </form>
+  </div>
+</div>
 <div id="matEditOverlay" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="matEditTitle">
     <h2 id="matEditTitle">Cadastrar perfil</h2>
@@ -2755,7 +2808,7 @@ node('navRomaneios').addEventListener('click',abrirAreaRomaneios);
 node('navTypologies').addEventListener('click',()=>node('openTypologies').click());
 node('navManufacturers').addEventListener('click',()=>node('openManufacturers').click());
 node('navMaterials').addEventListener('click',abrirMateriais);
-node('navStock').addEventListener('click',()=>setView('stock'));
+node('navStock').addEventListener('click',abrirEstoque);
 node('navCem').addEventListener('click',()=>setView('cemImport'));
 node('navUsers').addEventListener('click',()=>node('openUsers').click());
 node('romaneiosBack').addEventListener('click',()=>setView('dashboard'));
@@ -4588,8 +4641,21 @@ function cemMontarPayload(r){
       const cor=tipo==='perfil'?cemVarPerfil(mov):cemVarAcessorio(mov);
       if(!porCodigo.has(cod))porCodigo.set(cod,new Map());
       const vars=porCodigo.get(cod),key=[cor.acabamento,cor.cor,cor.codigo_cor].join('|');
-      if(!vars.has(key))vars.set(key,{...cor,linhas_calculo:0});
-      vars.get(key).linhas_calculo++;
+      if(!vars.has(key))vars.set(key,{...cor,linhas_calculo:0,quantidade_prevista:0,
+        unidade_prevista:tipo==='perfil'?'CORTE':cemNome(mov.UNID)||'PC',
+        comprimento_total_m:tipo==='perfil'?0:null});
+      const row=vars.get(key);
+      const qty=Number(mov.QTDE);
+      if(!Number.isFinite(qty)||qty<0)throw new Error('Quantidade inválida no cálculo do CEM: '+cod);
+      row.linhas_calculo++;
+      row.quantidade_prevista+=qty;
+      if(tipo==='perfil'){
+        const len=Number(mov.TAM);
+        if(!Number.isFinite(len)||len<0)throw new Error('Comprimento de perfil inválido: '+cod);
+        row.comprimento_total_m+=qty*len/1000;
+      }else if(row.unidade_prevista!==(cemNome(mov.UNID)||'PC')){
+        throw new Error('Unidades divergentes para o acessório '+cod+'.');
+      }
     }
     return catalogo.map(x=>{
       const codigo=cemNome(tipo==='perfil'?x.CODPERF:x.CODACES);
@@ -4805,7 +4871,7 @@ node('matNovo').addEventListener('click',()=>abrirEdicaoMaterial());
 node('matTabPerfil').addEventListener('click',()=>matSelecionarTipo('perfil'));
 node('matTabAcessorio').addEventListener('click',()=>matSelecionarTipo('acessorio'));
 node('stockBack').addEventListener('click',()=>setView('dashboard'));
-node('stockOpenMaterials').addEventListener('click',abrirMateriais);
+node('stockRefresh').addEventListener('click',abrirEstoque);
 node('cemBack').addEventListener('click',()=>setView('dashboard'));
 
 node('matPesquisa').addEventListener('input',renderMateriais);
