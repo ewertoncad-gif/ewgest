@@ -67,7 +67,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'interface renovada v41.2',
+ 'interface renovada v41.3',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -646,6 +646,36 @@ footer.writeUInt32LE(centralSize,12);footer.writeUInt32LE(centralOffset,16);
 const fakeZip=new Blob([localHeader,member,deflated,centralHeader,member,footer]);
 assert.equal(await testZip.cemExtrairXML(fakeZip),xmlTeste,
  'Extrai corretamente ExpObras.xml compactado sem subir dados para servidor');
+
+
+const mapStart=source.indexOf('function cemNome(v){');
+const mapEnd=source.indexOf('function cemAtualizarBotao(){',mapStart);
+assert.ok(mapStart>0&&mapEnd>mapStart,'Função de importação do CEM preservada');
+const mapping=new Function(source.slice(mapStart,mapEnd)+'\nreturn cemMontarPayload;')();
+const mapped=mapping({
+ perfCatalog:[{CODPERF:'IN024',REF:'HYDRO',DESCRICAO:'MONTANTE LATERAL FOLHA',
+  LINHA:'INOVA',PRENATP:'L. INOVA - T',PESO:'0.501'}],
+ acesCatalog:[{CODACES:'NYL1900PTO',REF:'HYDRO',DESCRICAO:'BOTÃO DE NYL FIXAÇÃO',
+  LINHA:'DIVERSOS',PRENATA:'PRETO',UNID:'PC',UNID_EMB:'PT'}],
+ profMovs:[{CODPERF:'IN024',CODTRAT:'ANOD-1002-A13',CODTRATEXT:'ANOD-1002-A13'},
+  {CODPERF:'IN024',CODTRAT:'ANOD-1002-A13',CODTRATEXT:'ANOD-1002-A13'},
+  {CODPERF:'IN024',CODTRAT:'NATURAL',CODTRATEXT:'NATURAL'}],
+ aceMovs:[{CODACES:'NYL1900PTO',PRENATA:'PRETO'}]
+});
+assert.equal(mapped.perfis.length,1,'Mesmo perfil deve ficar num único cadastro');
+assert.equal(mapped.perfis[0].variacoes.length,2,'Anodizado e natural são variações');
+assert.equal(mapped.perfis[0].variacoes[0].linhas_calculo,2,'Referências repetidas agrupadas');
+assert.equal(mapped.acessorios[0].variacoes[0].cor,'PRETO','Cor do acessório mantida');
+assert.ok(source.includes('id="cemExistingNotice"'),'Mostra aviso de obra já cadastrada');
+assert.ok(source.includes('id="cemCommitHint"'),'Explica quando a importação é habilitada');
+assert.ok(source.includes("node('cemFlagEsquadrias').checked=false"),
+  'Desmarca esquadrias automaticamente para obra já existente');
+assert.ok(source.includes('async function cemImportarSelecionados()')&&
+ source.includes("'/rest/v1/rpc/importar_materiais_cem'"),
+ 'Botão importa somente materiais via transação no servidor');
+assert.ok(source.includes("code=p.fabricante+'|'")===false,
+ 'Evita interpolação insegura no código da tabela');
+assert.ok(!source.includes('rows.slice(0,6)'), 'Exibe a lista completa de materiais do CEM');
 
 console.log('OK: '+cases.length+' classificações; cadastro de abreviações, observações finais, almoxarife e regressões.');
 
