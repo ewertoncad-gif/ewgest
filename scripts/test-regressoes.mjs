@@ -67,7 +67,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'interface renovada v41.4',
+ 'interface renovada v42.0',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -686,6 +686,21 @@ assert.ok(source.includes('async function cemImportarSelecionados()')&&
  'Botão importa somente materiais via transação no servidor');
 assert.ok(!source.includes('rows.slice(0,6)'), 'Exibe a lista completa de materiais do CEM');
 
+
+assert.ok(source.includes('id="stockManualForm"')&&source.includes('id="stockManualWork"')&&
+ source.includes('id="stockNewMaterialCode"'), 'Cadastro manual de obra e material deve existir');
+assert.ok(source.includes('id="releaseMirrorRows"')&&source.includes('name="releaseMethod"'),
+ 'Liberação tem escolha CEM/manual e espelho editável');
+assert.ok(source.includes("'/rest/v1/rpc/ew_liberar_plano_corte_revisado'"),
+ 'Liberação confirma materiais em operação atômica');
+assert.ok(source.includes("'/rest/v1/rpc/ew_movimentar_estoque_obra'")&&
+ source.includes("'/rest/v1/rpc/ew_cadastrar_material_manual_estoque'"),
+ 'Estoque por obra aceita materiais existentes e novos');
+assert.ok(source.includes('function cemEncontrarConciliacoes(r,perfis,acessorios)'),
+ 'Comparação de códigos importados com cadastro manual');
+assert.ok(source.includes('ew_importar_cem_conciliado'),
+ 'Importação deve solicitar decisões do ADM em casos de equivalência');
+assert.ok(!source.includes("rows.slice(0,6)"), 'Lista de materiais importados deve ser completa');
 console.log('OK: '+cases.length+' classificações; cadastro de abreviações, observações finais, almoxarife e regressões.');
 
 
