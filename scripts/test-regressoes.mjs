@@ -67,7 +67,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'interface renovada v42.1',
+ 'interface renovada v42.2',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -721,6 +721,46 @@ assert.equal(mmOrNullTeste(''),null,'Comprimento vazio não deve gerar tamanho i
 assert.equal(mmOrNullTeste(6000.5),null,'Comprimento comercial deve ser inteiro em mm');
 assert.ok(!source.includes('data-stock-manual='),'A tabela não pode exibir lançamento em cada linha');
 assert.ok(!source.includes('data-stock-var='),'A tabela não pode exibir botão Físico geral');
+
+
+assert.ok(source.includes('OBAPROV:[],OBACES:[]'),
+ 'Exportação de obra CEM deve ler OBAPROV e OBACES');
+assert.ok(source.includes('id="stockImportCem"')&&source.includes('id="stockManageLocations"'),
+ 'Estoque oferece importação calculada e administração dos locais');
+assert.ok(source.includes("'/rest/v1/rpc/ew_importar_saldo_obra_cem'")&&
+ source.includes("'/rest/v1/rpc/ew_excluir_estoque_local'")&&
+ source.includes("'/rest/v1/rpc/ew_restaurar_estoque_local'"),
+ 'Integração com importação e recuperação do Supabase');
+assert.ok(source.includes('id="stockManualNote" rows="2" maxlength="500"'),
+ 'Observação do cadastro manual deve ser opcional');
+assert.ok(source.includes('id="stockManualQty" type="number" min="1" step="1"'),
+ 'Quantidade de barras no cadastro manual é sempre positiva e inteira');
+const formKind=source.slice(source.indexOf('id="stockManualKind"'),
+ source.indexOf('id="stockManualQty"'));
+assert.ok(formKind.includes('value="ABERTURA"')&&formKind.includes('value="COMPRA"')
+ &&!formKind.includes('value="AJUSTE"')&&!formKind.includes('value="SAIDA_MANUAL"'),
+ 'Cadastro inicial manual somente aceita quantidades positivas');
+const stockReadStart=source.indexOf('function stockCemDados(r){');
+const stockReadEnd=source.indexOf('function stockCemClose(){',stockReadStart);
+const stockNameStart=source.indexOf('function cemNome(v){');
+const stockNameEnd=source.indexOf('function cemVarPerfil(v){',stockNameStart);
+assert.ok(stockReadStart>0&&stockReadEnd>stockReadStart&&stockNameEnd>stockNameStart,
+ 'Funções do analisador de estoque CEM encontradas');
+const stockParser=new Function(source.slice(stockNameStart,stockNameEnd)+
+ source.slice(stockReadStart,stockReadEnd)+'\nreturn stockCemDados;')();
+const testStock=stockParser({
+ barrasAproveitamento:[
+ {CODPERF:'LG079',CODTRATEXT:'ANOD-1002-A13',NUMBARRAS:'10',BARRA:'6000'},
+ {CODPERF:'LG079',CODTRATEXT:'ANOD-1002-A13',NUMBARRAS:'3',BARRA:'6000'},
+ {CODPERF:'LG079',CODTRATEXT:'ANOD-1002-A13',NUMBARRAS:'5',BARRA:'6500'}
+ ],
+ acessoriosObra:[{CODACES:'NYL1900PTO',PRENATA:'PRETO',QTDE:'12.5'}]
+});
+assert.equal(testStock.perfis.length,2,'Mesmo perfil com 2 comprimentos tem 2 saldos');
+assert.equal(testStock.perfis[0].quantidade,13,'Soma barras da mesma cor e comprimento');
+assert.equal(testStock.perfis[1].comprimento_mm,6500,'Preserva a barra comercial de 6500mm');
+assert.equal(testStock.acessorios[0].quantidade,12.5,'Acessórios mantêm quantidades decimais');
+assert.throws(()=>stockParser({barrasAproveitamento:[],acessoriosObra:[]}),/OBAPROV/);
 
 console.log('OK: '+cases.length+' classificações; cadastro de abreviações, observações finais, almoxarife e regressões.');
 
