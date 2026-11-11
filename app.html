@@ -5768,6 +5768,218 @@ node('stockManualKind').addEventListener('change',()=>{
 node('stockCreateWorkToggle').addEventListener('click',()=>node('stockCreateWorkPanel').classList.toggle('hidden'));
 node('stockCreateWork').addEventListener('click',stockCriarObra);
 
+
+/* Importação de estoque inicial calculado pelo CEM (OBAPROV + OBACES). */
+let stockCemParsed=null,stockCemOperationId=null;
+function stockCemDados(r){
+  if(!r.barrasAproveitamento?.length||!r.acessoriosObra?.length)
+    throw new Error('O arquivo não contém OBAPROV e OBACES. Use a exportação completa da obra pelo CEM.');
+  const profiles=new Map(),accessories=new Map();
+  const toNumber=(value,code)=>{
+    const n=Number(value);
+    if(!Number.isFinite(n)||n<=0||n>1e7||Math.abs(n*1000-Math.round(n*1000))>0.00001)
+      throw new Error('Quantidade inválida no CEM para '+code);
+    return n;
+  };
+  for(const row of r.barrasAproveitamento){
+    const codigo=cemNome(row.CODPERF),cor=cemNome(row.CODTRATEXT||row.CODTRAT);
+    const quantidade=toNumber(row.NUMBARRAS,codigo),comprimento_mm=Number(row.BARRA);
+    if(!Number.isSafeInteger(quantidade)||!Number.isSafeInteger(comprimento_mm)||
+       comprimento_mm<100||comprimento_mm>20000||!codigo||!cor)
+      throw new Error('Dados de barras inválidos para '+codigo);
+    const key=[codigo,cor,comprimento_mm].join('|');
+    const old=profiles.get(key);
+    if(old)old.quantidade+=quantidade;
+    else profiles.set(key,{codigo,cor,quantidade,comprimento_mm});
+  }
+  for(const row of r.acessoriosObra){
+    const codigo=cemNome(row.CODACES),cor=cemNome(row.PRENATA)||'NÃO INFORMADA';
+    const quantidade=toNumber(row.QTDE,codigo);
+    if(!codigo)throw new Error('Acessório sem código no arquivo.');
+    const key=[codigo,cor].join('|'),old=accessories.get(key);
+    if(old)old.quantidade=Number((old.quantidade+quantidade).toFixed(3));
+    else accessories.set(key,{codigo,cor,quantidade});
+  }
+  const perfis=[...profiles.values()].sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR'));
+  const acessorios=[...accessories.values()].sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR'));
+  return {perfis,acessorios};
+}
+function stockCemClose(){
+ node('stockImportCemOverlay').classList.add('hidden');
+}
+function stockCemOpen(){
+ const id=node('stockWork').value,obra=works.find(w=>w.id===id);
+ if(!obra){node('stockMessage').textContent='Selecione uma obra antes de importar quantidades.';return;}
+ stockCemParsed=null;stockCemOperationId=null;
+ node('stockCemFile').value='';
+ node('stockCemPreview').classList.add('hidden');
+ node('stockCemConfirm').disabled=true;
+ node('stockCemStatus').textContent='';
+ node('stockCemTarget').textContent='Estoque selecionado: '+obra.nome+' ('+obra.codigo+').';
+ node('stockImportCemOverlay').classList.remove('hidden');
+}
+async function stockCemAnalyze(){
+ const file=node('stockCemFile').files?.[0],obra=works.find(w=>w.id===node('stockWork').value);
+ if(!file){node('stockCemStatus').textContent='Selecione o ZIP da obra.';return;}
+ if(!obra){node('stockCemStatus').textContent='Selecione uma obra antes da análise.';return;}
+ const btn=node('stockCemAnalyze');
+ stockCemParsed=null;stockCemOperationId=null;btn.disabled=true;node('stockCemConfirm').disabled=true;
+ node('stockCemStatus').textContent='Lendo as tabelas OBAPROV e OBACES do arquivo…';
+ try{
+  if(!/\.zip$/i.test(file.name))throw new Error('Selecione um arquivo ZIP original do CEM.');
+  const text=await cemExtrairXML(file);
+  const parsed=cemLerObra(text);
+  if(cemNome(parsed.codigo)!==cemNome(obra.codigo))
+    throw new Error('Arquivo da obra '+parsed.codigo+'; estoque selecionado: '+obra.codigo+'. Escolha a obra correspondente.');
+  const dados=stockCemDados(parsed);
+  if(!dados.perfis.length&&!dados.acessorios.length)throw new Error('Nenhum material válido foi localizado.');
+  stockCemOperationId=crypto.randomUUID();
+  stockCemParsed={...dados,codigo:parsed.codigo,obraId:obra.id,nome_arquivo:file.name};
+  const bars=dados.perfis.reduce((n,x)=>n+x.quantidade,0);
+  const listing=(tipo,items)=>{
+    const head=tipo==='Perfil'?'<th>Comprimento comercial</th>':'<th>Unidade</th>';
+    const fmt=tipo==='Perfil'?
+      row=>row.comprimento_mm.toLocaleString('pt-BR')+' mm':
+      row=>releaseUnidadeAcessorio(matAcessorios.find(a=>cemNome(a.codigo)===row.codigo)?.unidade_item||'PC');
+    return '<h3>'+tipo+' — '+items.length+' registro(s)</h3>'+
+    '<div class="cemTableWrap"><table class="cemTable"><thead><tr><th>Código</th><th>Cor / tratamento</th>'+
+    '<th>Quantidade</th>'+head+'</tr></thead><tbody>'+
+    items.map(row=>'<tr><td>'+escapeHTML(row.codigo)+'</td><td>'+escapeHTML(row.cor)+
+      '</td><td>'+matFormat(row.quantidade,tipo==='Perfil'?0:3)+'</td><td>'+escapeHTML(fmt(row))+
+      '</td></tr>').join('')+'</tbody></table></div>';
+  };
+  node('stockCemPreview').innerHTML='<div class="stockImportStats">'+
+   '<span><strong>'+dados.perfis.length+'</strong> registros de perfis</span>'+
+   '<span><strong>'+bars.toLocaleString('pt-BR')+'</strong> barras calculadas</span>'+
+   '<span><strong>'+dados.acessorios.length+'</strong> registros de acessórios</span></div>'+
+   '<p class="hint">O sistema criará apenas os saldos ainda não lançados. '+
+   'Comprimentos diferentes do mesmo perfil permanecem separados. Tudo será registrado como <strong>saldo inicial calculado</strong>, não como inventário físico.</p>'+
+   listing('Perfil',dados.perfis)+listing('Acessório',dados.acessorios);
+  node('stockCemPreview').classList.remove('hidden');
+  node('stockCemConfirm').disabled=false;
+  node('stockCemStatus').textContent='Análise concluída. Confira os itens abaixo antes de confirmar a importação.';
+ }catch(e){
+  node('stockCemStatus').textContent='Não foi possível analisar o ZIP: '+e.message;
+  node('stockCemPreview').classList.add('hidden');
+ }finally{btn.disabled=false;}
+}
+async function stockCemCommit(){
+ const dados=stockCemParsed;
+ if(!dados||!stockCemOperationId)return;
+ if(node('stockWork').value!==dados.obraId){
+  node('stockCemStatus').textContent='A obra selecionada foi alterada. Analise o arquivo novamente.';
+  return;
+ }
+ if(!window.confirm('Confirmar estoque inicial calculado no CEM para '+dados.codigo+'?\n'+
+  dados.perfis.length+' registros de perfis e '+dados.acessorios.length+' de acessórios.\n\n'+
+  'Os saldos que já tiveram movimentações serão preservados. A operação não representa recebimento físico do material.'))return;
+ const btn=node('stockCemConfirm');btn.disabled=true;
+ node('stockCemStatus').textContent='Gravando o estoque da obra com controle de duplicidades…';
+ try{
+  await ensureSession();
+  const res=await request('/rest/v1/rpc/ew_importar_saldo_obra_cem',{
+   method:'POST',token:session.access_token,timeoutMs:120000,
+   body:{p_empresa_id:currentCompany.id,p_codigo_obra:dados.codigo,
+    p_perfis:dados.perfis,p_acessorios:dados.acessorios,p_nome_arquivo:dados.nome_arquivo,
+    p_operacao_id:stockCemOperationId}
+  });
+  const pend=res.pendencias||[];
+  stockCemClose();
+  await abrirEstoque();
+  node('stockMessage').textContent='Estoque do CEM: '+res.linhas_importadas+
+    ' linha(s) incluída(s), '+res.linhas_preservadas+' já existente(s) preservada(s).'+
+    (pend.length?' Atenção: '+pend.length+' material(is) não foram associados: '+
+      pend.slice(0,10).map(x=>x.codigo+' ('+x.cor+')').join(', ')+'.':'')+
+    (res.repetida?' Operação já registrada; não houve nova baixa.':'');
+  stockCemParsed=null;
+ }catch(err){
+  node('stockCemStatus').textContent='Não foi possível confirmar a importação: '+err.message+
+    '. Confira os saldos antes de tentar novamente.';
+  btn.disabled=false;
+ }
+}
+node('stockImportCem').addEventListener('click',stockCemOpen);
+node('stockCemAnalyze').addEventListener('click',stockCemAnalyze);
+node('stockCemConfirm').addEventListener('click',stockCemCommit);
+node('stockCemCancel').addEventListener('click',stockCemClose);
+node('stockCemFile').addEventListener('change',()=>{
+ stockCemParsed=null;stockCemOperationId=null;
+ node('stockCemConfirm').disabled=true;node('stockCemPreview').classList.add('hidden');
+ node('stockCemStatus').textContent='Arquivo selecionado. Clique em Conferir arquivo.';
+});
+
+/* Excluir significa arquivar o estoque da obra por 48h, preservando históricos. */
+function stockManageOpen(){
+ node('stockManageOverlay').classList.remove('hidden');
+ node('stockManageStatus').textContent='';
+ stockManageRender();
+}
+function stockManageRender(){
+ const root=node('stockManageRecords');
+ if(!stockLocais.length){
+  root.innerHTML='<div class="materialEmpty">Ainda não há estoques cadastrados.</div>';
+  return;
+ }
+ root.innerHTML=stockLocais.map(loc=>{
+  const obra=works.find(x=>x.id===loc.obra_id);
+  if(!obra)return '';
+  const rows=estoqueObraMovimentos.filter(x=>x.obra_id===loc.obra_id);
+  const materiais=new Set(rows.map(x=>x.variacao_id)).size;
+  const excluido=Boolean(loc.excluido_em);
+  const valido=excluido&&loc.restauravel_ate&&new Date(loc.restauravel_ate).getTime()>Date.now();
+  const status=excluido?'Excluído temporariamente'+
+   (valido?' · recuperável até '+new Date(loc.restauravel_ate).toLocaleString('pt-BR'):' · prazo de recuperação encerrado'):
+   'Ativo';
+  const button=excluido?
+    (valido?'<button type="button" class="btn secondary" data-stock-restore="'+escapeHTML(loc.obra_id)+'">Restaurar estoque</button>':''):
+    '<button type="button" class="btn secondary" data-stock-delete="'+escapeHTML(loc.obra_id)+'">Excluir estoque</button>';
+  return '<div class="stockManageRow'+(excluido?' stockManageDeleted':'')+'"><div>'+
+   '<strong>'+escapeHTML(obra.nome)+'</strong><div class="hint">'+escapeHTML(obra.codigo||'')+
+   ' · '+status+' · '+materiais+' material(is) com histórico</div></div>'+
+   '<div>'+button+'</div></div>';
+ }).join('');
+ root.querySelectorAll('[data-stock-delete]').forEach(btn=>btn.addEventListener('click',
+  ()=>stockManageDelete(btn.dataset.stockDelete)));
+ root.querySelectorAll('[data-stock-restore]').forEach(btn=>btn.addEventListener('click',
+  ()=>stockManageRestore(btn.dataset.stockRestore)));
+}
+async function stockManageDelete(id){
+ const obra=works.find(x=>x.id===id);
+ const materials=new Set(estoqueObraMovimentos.filter(x=>x.obra_id===id).map(x=>x.variacao_id)).size;
+ if(!obra)return;
+ const question='CUIDADO: deseja excluir o estoque '+obra.nome+'?\n\n'+
+  (materials?'EXISTEM '+materials+' MATERIAIS COM MOVIMENTAÇÕES NESTE ESTOQUE.\n':'Este estoque não possui movimentações.\n')+
+  'A obra, suas esquadrias e seu histórico NÃO serão excluídos.\n'+
+  'O estoque sairá da lista e poderá ser restaurado pelo ADM em até 48 horas.';
+ if(!window.confirm(question))return;
+ const status=node('stockManageStatus');status.textContent='Arquivando o estoque…';
+ try{
+  await ensureSession();
+  await request('/rest/v1/rpc/ew_excluir_estoque_local',{
+   method:'POST',token:session.access_token,body:{p_empresa_id:currentCompany.id,p_obra_id:id}
+  });
+  await abrirEstoque();
+  status.textContent='Estoque arquivado. O ADM tem 48 horas para recuperá-lo.';
+  stockManageRender();
+ }catch(e){status.textContent='Erro ao excluir: '+e.message;}
+}
+async function stockManageRestore(id){
+ const obra=works.find(x=>x.id===id);
+ if(!obra||!window.confirm('Restaurar o estoque da obra '+obra.nome+' com seu saldo e histórico?'))return;
+ const status=node('stockManageStatus');status.textContent='Restaurando estoque…';
+ try{
+  await ensureSession();
+  await request('/rest/v1/rpc/ew_restaurar_estoque_local',{
+   method:'POST',token:session.access_token,body:{p_empresa_id:currentCompany.id,p_obra_id:id}
+  });
+  await abrirEstoque();
+  status.textContent='Estoque restaurado com o histórico original.';
+  stockManageRender();
+ }catch(e){status.textContent='Erro ao restaurar: '+e.message;}
+}
+node('stockManageLocations').addEventListener('click',stockManageOpen);
+node('stockManageClose').addEventListener('click',()=>node('stockManageOverlay').classList.add('hidden'));
+
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
 try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v42.1 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
