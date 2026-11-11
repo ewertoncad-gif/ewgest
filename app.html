@@ -784,7 +784,6 @@
       </div>
       <div class="stockTopActions">
           <button type="button" class="btn primary" id="stockCreateAnother">+ Criar estoque de outra obra</button>
-          <button type="button" class="btn secondary" id="stockImportCem">Importar quantidades do arquivo</button>
           <button type="button" class="btn secondary" id="stockManageLocations">Gerenciar estoques</button>
           <button type="button" class="btn secondary" id="stockRefresh">Atualizar</button>
         </div></div>
@@ -1204,7 +1203,6 @@
       <p class="hint">A fábrica será registrada nesta liberação para apurar o prazo até a saída da produção.</p>
       <div class="releaseMirrorIntro">
         <h3>4. Como deseja liberar e descontar os materiais?</h3>
-        <label class="releaseMethod"><input name="releaseMethod" type="radio" value="cem"> Importar arquivo de cálculo e conferir o espelho</label>
         <label class="releaseMethod"><input name="releaseMethod" type="radio" value="manual"> Preencher o espelho de materiais manualmente</label>
         <label class="releaseMethod"><input name="releaseMethod" type="radio" value="sem"> Somente liberação técnica (sem baixa de estoque)</label>
       </div>
@@ -2575,8 +2573,12 @@ function renderRomaneioHub(){
   const valor=hubObraId||(isAlmoxarife()?'':selectedWork?.id||'');
   select.replaceChildren();
   const first=document.createElement('option');first.value='';first.textContent='Selecione uma obra';select.append(first);
-  for(const w of works){const opt=document.createElement('option');opt.value=w.id;opt.textContent=w.nome+(w.codigo?' · '+w.codigo:'');select.append(opt);}
-  hubObraId=works.some(w=>w.id===valor)?valor:'';
+  // Estoque sem esquadrias e arquivado não deve aparecer em expedição.
+  // Obras com histórico de romaneio continuam consultáveis mesmo sem itens ativos.
+  const obrasParaRomaneio=works.filter(w=>
+    elements.some(e=>e.obra_id===w.id)||romaneios.some(r=>r.obra_id===w.id));
+  for(const w of obrasParaRomaneio){const opt=document.createElement('option');opt.value=w.id;opt.textContent=w.nome+(w.codigo?' · '+w.codigo:'');select.append(opt);}
+  hubObraId=obrasParaRomaneio.some(w=>w.id===valor)?valor:'';
   select.value=hubObraId;
   const obra=works.find(w=>w.id===hubObraId);
   if(obra)selectedWork=obra;
@@ -6146,7 +6148,6 @@ async function stockCemCommit(){
   btn.disabled=false;
  }
 }
-node('stockImportCem').addEventListener('click',stockCemOpen);
 node('stockCemAnalyze').addEventListener('click',stockCemAnalyze);
 node('stockCemConfirm').addEventListener('click',stockCemCommit);
 node('stockCemCancel').addEventListener('click',stockCemClose);
