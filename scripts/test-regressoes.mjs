@@ -780,6 +780,64 @@ assert.ok(source.includes("node('stockManualContinue').checked")&&
  'Cadastro em lote reutiliza a obra sem obrigar observação a cada item');
 
 
+
+assert.ok(source.includes('const obrasComEsquadrias=works.filter(w=>elements.some(e=>e.obra_id===w.id));')&&
+ source.includes('node(\'count\').textContent=obrasComEsquadrias.length;')&&
+ source.includes('node(\'works\').innerHTML=obrasComEsquadrias.map('),
+ 'Tela inicial exibe apenas obras com esquadrias');
+assert.ok(source.includes('id="stockReportIncludeEmpty"')&&
+ source.includes('function stockReportRender(){')&&
+ source.includes("node('stockReportIncludeEmpty').addEventListener('change',stockReportRender)"),
+ 'Resumo de estoque pode incluir ou excluir obras sem esquadrias');
+assert.ok(source.includes('id="stockManualCode"')&&
+ source.includes('id="stockManualMaterial"')&&
+ source.includes('id="stockManualLength"')&&
+ source.includes('function stockManualColorPopulate(){'),
+ 'Cadastro manual separa código, cor/acabamento e comprimento');
+assert.ok(source.includes('ew_cadastrar_comprimento_comercial')&&
+ source.includes('function stockManualAddLength(){'),
+ 'Cadastro de novos tamanhos comerciais usa RPC com permissão ADM');
+assert.ok(source.indexOf('id="stockNewManual"')>source.indexOf('id="stockRecords"'),
+ 'Adicionar material foi movido para baixo da tabela');
+assert.ok(source.includes('function stockCemReadMirror(){')&&
+ source.includes('function stockCemMirrorRow(tipo,row={},index=-1){')&&
+ source.includes('p_perfis:mirror.perfis,p_acessorios:mirror.acessorios'),
+ 'Importação utiliza o espelho editado, não os dados originais do arquivo');
+assert.ok(source.includes('stockCemMirrorUpdate')&&source.includes('data-stock-cem-add'),
+ 'Espelho de importação permite alterações e inclusão de linhas');
+assert.ok(!source.includes('CEM Plus'),'Nome da marca não deve aparecer na interface nem em mensagens de erro');
+const mirrorStart=source.indexOf('function stockCemReadMirror(){');
+const mirrorEnd=source.indexOf('function stockCemMirrorUpdate(){',mirrorStart);
+assert.ok(mirrorStart>0&&mirrorEnd>mirrorStart,'Função do espelho importável');
+const mockNodes=[];
+const mockRoot={querySelectorAll:()=>mockNodes};
+const mockNode=()=>mockRoot;
+const normalizar=v=>String(v||'').trim().toUpperCase();
+const mirrorParsed={perfis:[{codigo:'LG079',cor:'ANODIZADO',quantidade:10,comprimento_mm:6000}],acessorios:[]};
+const mirrorExtract=new Function('node','cemNome','stockCemParsed',
+ source.slice(mirrorStart,mirrorEnd)+'\nreturn stockCemReadMirror;')(
+ mockNode,normalizar,mirrorParsed
+);
+function fakeStockRow(kind,index,data){
+ return {dataset:{stockCemKind:kind,stockCemIndex:String(index)},
+ querySelector(sel){const values={
+ '.stockCemSelect':{checked:data.enabled!==false},
+ '.stockCemCode':{value:data.codigo},
+ '.stockCemColor':{value:data.cor},
+ '.stockCemQty':{value:data.quantidade},
+ '.stockCemLength':{value:data.comprimento_mm??''}
+ };return values[sel];}};
+}
+mockNodes.push(fakeStockRow('perfil',0,{codigo:'LG079',cor:'ANODIZADO',quantidade:'12',comprimento_mm:'6500'}));
+mockNodes.push(fakeStockRow('acessorio',0,{codigo:'NYL1900PTO',cor:'PRETO',quantidade:'8',enabled:false}));
+const mirrorResult=mirrorExtract();
+assert.equal(mirrorResult.perfis[0].quantidade,12,'Quantidade editada deve chegar ao payload');
+assert.equal(mirrorResult.perfis[0].comprimento_mm,6500,'Comprimento editado deve chegar ao payload');
+assert.equal(mirrorResult.acessorios.length,0,'Itens desmarcados não podem ser enviados');
+assert.equal(mirrorResult.edicoes,1,'Alteração do arquivo original fica identificada');
+mockNodes.push(fakeStockRow('perfil',-1,{codigo:'LG079',cor:'ANODIZADO',quantidade:'1',comprimento_mm:'6500'}));
+assert.throws(()=>mirrorExtract(),/repetido/, 'Linhas duplicadas precisam de conferência');
+
 console.log('OK: '+cases.length+' classificações; cadastro de abreviações, observações finais, almoxarife e regressões.');
 
 
