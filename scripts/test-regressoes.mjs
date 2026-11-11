@@ -789,6 +789,8 @@ assert.ok(source.includes('id="stockReportIncludeEmpty"')&&
  source.includes('function stockReportRender(){')&&
  source.includes("node('stockReportIncludeEmpty').addEventListener('change',stockReportRender)"),
  'Resumo de estoque pode incluir ou excluir obras sem esquadrias');
+assert.ok(source.includes("node('stockManualQty').min='1'")&&
+ source.includes('quantidade<1'), 'Cadastro manual exige quantidade mínima de 1');
 assert.ok(source.includes('id="stockManualCode"')&&
  source.includes('id="stockManualMaterial"')&&
  source.includes('id="stockManualLength"')&&
