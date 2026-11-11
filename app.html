@@ -524,6 +524,18 @@
     .stockRowActions{white-space:nowrap}
     .stockRowActions .btn{min-width:140px}
 
+
+  .stockManageRow{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid #e0eaf3}
+  .stockManageRow:last-child{border-bottom:0}
+  .stockManageRow strong{font-size:13px;color:#203c59}
+  .stockManageRow .hint{font-size:12px;margin-top:4px}
+  .stockManageRow .btn{min-height:34px;white-space:nowrap}
+  .stockManageDeleted{background:#fff7f1;border-radius:8px;padding:12px}
+  .stockImportStats{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+  .stockImportStats span{background:#f0f7fc;border:1px solid #dceaf6;border-radius:9px;padding:10px 14px;font-size:13px}
+  .stockImportStats strong{font-size:17px;color:#184b7e}
+  @media(max-width:720px){.stockManageRow{grid-template-columns:1fr}}
+
   </style>
 </head>
 <body>
@@ -753,6 +765,8 @@
       </div>
       <div class="stockTopActions">
           <button type="button" class="btn primary" id="stockCreateAnother">+ Criar estoque de outra obra</button>
+          <button type="button" class="btn secondary" id="stockImportCem">Importar quantidades do CEM</button>
+          <button type="button" class="btn secondary" id="stockManageLocations">Gerenciar estoques</button>
           <button type="button" class="btn secondary" id="stockNewManual">+ Adicionar material</button>
           <button type="button" class="btn secondary" id="stockRefresh">Atualizar</button>
         </div></div>
@@ -950,6 +964,33 @@
 </div>
 
 
+
+<div id="stockImportCemOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockCemTitle" style="max-width:920px">
+    <h2 id="stockCemTitle">Importar estoque inicial calculado no CEM</h2>
+    <p id="stockCemTarget" class="hint"></p>
+    <p class="hint">Serão lidos <strong>OBAPROV</strong> (barras e comprimentos) e <strong>OBACES</strong> (quantidades de acessórios). Materiais com lançamentos anteriores serão preservados; nenhuma quantidade existente será sobrescrita.</p>
+    <label>Arquivo ZIP da obra exportado do CEM <input type="file" accept=".zip,application/zip" id="stockCemFile"></label>
+    <div class="stockTopActions" style="margin-top:12px">
+      <button type="button" class="btn secondary" id="stockCemAnalyze">Conferir arquivo</button>
+    </div>
+    <p id="stockCemStatus" class="hint" role="status"></p>
+    <div id="stockCemPreview" class="hidden"></div>
+    <div class="modalbuttons">
+      <button type="button" class="btn secondary" id="stockCemCancel">Fechar</button>
+      <button type="button" class="btn primary" id="stockCemConfirm" disabled>Confirmar estoque inicial do CEM</button>
+    </div>
+  </div>
+</div>
+<div id="stockManageOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockManageTitle" style="max-width:840px">
+    <h2 id="stockManageTitle">Gerenciar estoques das obras</h2>
+    <p class="hint">Excluir um estoque o oculta do controle sem apagar a obra nem os movimentos. O ADM pode restaurá-lo por <strong>48 horas</strong>, mantendo os saldos e o histórico.</p>
+    <p id="stockManageStatus" class="hint" role="status"></p>
+    <div id="stockManageRecords"></div>
+    <div class="modalbuttons"><button type="button" class="btn secondary" id="stockManageClose">Fechar</button></div>
+  </div>
+</div>
 <div id="stockQuantityOverlay" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockQuantityTitle">
     <h2 id="stockQuantityTitle">Ajustar quantidade da obra</h2>
@@ -1001,15 +1042,13 @@
         </label>
       </div>
       <label id="stockManualLengthLabel">Comprimento por barra (mm) <input type="number" id="stockManualLength" min="100" max="20000" step="1" placeholder="Ex.: 6000"></label>
-      <label>Operação <select id="stockManualKind">
-        <option value="ABERTURA">Quantidade inicial da obra</option>
+      <label>Origem <select id="stockManualKind">
+        <option value="ABERTURA">Cadastro inicial</option>
         <option value="COMPRA">Compra / entrada adicional</option>
-        <option value="SAIDA_MANUAL">Consumo manual / saída</option>
-        <option value="AJUSTE">Ajuste positivo ou negativo</option>
       </select></label>
-      <label>Quantidade <input id="stockManualQty" type="number" min="0.001" step="0.001" required placeholder="Ex.: 25"></label>
+      <label>Quantidade <input id="stockManualQty" type="number" min="1" step="1" required placeholder="Ex.: 25"></label>
       <p id="stockManualUnit" class="hint"></p>
-      <label>Motivo / observação <textarea id="stockManualNote" rows="2" minlength="5" maxlength="500" required placeholder="Ex.: Estoque inicial da CASA BOA VIAGEM"></textarea></label>
+      <label>Observação (opcional) <textarea id="stockManualNote" rows="2" maxlength="500" placeholder="Pode deixar em branco"></textarea></label>
       <p id="stockManualError" class="feedback" role="alert"></p>
       <div class="modalbuttons">
         <button type="button" id="stockManualCancel" class="btn secondary">Cancelar</button>
