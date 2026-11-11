@@ -956,6 +956,9 @@
         <label>Fabricante <input id="stockNewMaterialMaker" maxlength="150" placeholder="Ex.: HYDRO"></label>
         <label>Cor <input id="stockNewMaterialColor" maxlength="150" placeholder="Ex.: BRONZE"></label>
         <label>Acabamento <input id="stockNewMaterialFinish" maxlength="150" placeholder="Ex.: ANODIZADO"></label>
+        <label id="stockNewAccessoryUnitLabel" class="hidden">Unidade do acessório
+          <select id="stockNewAccessoryUnit"><option value="PC">Peça (PC)</option><option value="PR">Par (PR)</option><option value="CJ">Conjunto (CJ)</option><option value="MT">Metro (MT)</option><option value="KG">Quilograma (KG)</option><option value="UN">Unidade (UN)</option></select>
+        </label>
       </div>
       <label id="stockManualLengthLabel">Comprimento por barra (mm) <input type="number" id="stockManualLength" min="100" max="20000" step="1" placeholder="Ex.: 6000"></label>
       <label>Operação <select id="stockManualKind">
@@ -5396,6 +5399,7 @@ function stockManualPopulate(){
   options.map(x=>'<option value="'+escapeHTML(x.id)+'">'+escapeHTML(x.text)+'</option>').join('');
  if(options.some(x=>x.id===prior))combo.value=prior;
  node('stockManualLengthLabel').classList.toggle('hidden',type!=='perfil');
+ node('stockNewAccessoryUnitLabel').classList.toggle('hidden',type!=='acessorio');
  stockManualDetails();
 }
 function stockManualDetails(){
@@ -5414,6 +5418,10 @@ function stockManualOpen(variationId=''){
  node('stockManualForm').reset();
  node('stockManualError').textContent='';
  node('stockManualNewFields').classList.add('hidden');
+ node('stockManualMaterial').disabled=false;
+ node('stockManualMaterial').required=true;
+ node('stockManualQty').min='0.001';
+ node('stockNewAccessoryUnitLabel').classList.toggle('hidden',node('stockManualType').value!=='acessorio');
  node('stockManualNewMaterial').textContent='+ Material inexistente? Cadastrar';
  node('stockCreateWorkPanel').classList.add('hidden');
  const workSel=node('stockManualWork');
@@ -5466,7 +5474,9 @@ async function stockManualSubmit(event){
  const cadastro=matVariacoes.find(v=>v.id===varId);
  const acessorio=type==='acessorio'&&cadastro?
    matAcessorios.find(a=>a.id===cadastro.acessorio_id):null;
- const unidade=type==='perfil'?'BARRA':releaseUnidadeAcessorio(acessorio?.unidade_item||'PC');
+ const newEntry=!node('stockManualNewFields').classList.contains('hidden');
+ const unidade=type==='perfil'?'BARRA':newEntry?node('stockNewAccessoryUnit').value:
+   releaseUnidadeAcessorio(acessorio?.unidade_item||'PC');
  const error=node('stockManualError');
  if(!obra){error.textContent='Selecione ou cadastre uma obra.';return;}
  if(!isNew&&!cadastro){error.textContent='Selecione um material.';return;}
