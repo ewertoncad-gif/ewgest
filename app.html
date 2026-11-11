@@ -5300,8 +5300,7 @@ function renderEstoque(){
       let req='Não detalhado';
       if(link?.quantidade_prevista!=null){
         req=v.tipo==='perfil'?
-          (link.comprimento_total_m!=null?matFormat(link.comprimento_total_m,3)+' m lineares':'Comprimento não informado')+
-          ' · '+matFormat(link.quantidade_prevista,0)+' cortes':
+          matFormat(link.quantidade_prevista,0)+' peças de corte previstas no CEM (não são barras)':
           matFormat(link.quantidade_prevista,3)+' '+escapeHTML(link.unidade_prevista||unidade);
       }else if(link)req='Importado: '+link.linhas_calculo+' linhas de cálculo; reimporte o ZIP para obter quantitativos';
       else req='Sem demanda vinculada';
