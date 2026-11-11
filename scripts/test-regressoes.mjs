@@ -114,7 +114,7 @@ for(const token of [
  'id="releaseFactory"',
  'AFOGADOS',
  'IMBIRIBEIRA',
- '/rest/v1/rpc/registrar_liberacao_corte_fabrica',
+ '/rest/v1/rpc/ew_liberar_plano_corte_revisado',
  'p_fabrica:fabrica',
  'id="romaneioModal"',
  'id="romaneioForm"',
