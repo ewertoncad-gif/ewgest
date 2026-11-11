@@ -446,6 +446,25 @@
     .cemPreviewSection ul{margin:6px 0;padding-left:22px;font-size:13px;line-height:1.9;color:#35556e}
     @media(max-width:800px){.cemFlags{grid-template-columns:1fr}.cemFlag{min-height:auto}}
 
+
+    .cemExistingNotice{margin:13px 0;padding:15px 17px;border:1px solid #efc875;border-left:4px solid #d59a22;border-radius:11px;background:#fffaf0;color:#725116;font-size:13px;line-height:1.6}
+    .cemExistingNotice strong{display:block;font-size:15px;margin-bottom:4px}
+    .cemExistingNotice.noticeSafe{background:#edf9f7;border-color:#a3d9cf;border-left-color:#16a38c;color:#225e59}
+    .cemTableWrap{max-height:390px;overflow:auto;border:1px solid #dbe7f2;border-radius:10px;margin-top:10px}
+    .cemTable{border-collapse:separate;border-spacing:0;width:100%;font-size:12px;min-width:730px}
+    .cemTable th{position:sticky;top:0;background:#eaf2fc;z-index:1;font-size:11px;color:#395f88;text-align:left;padding:12px;border-bottom:1px solid #d0dfed}
+    .cemTable td{padding:9px 12px;border-bottom:1px solid #e6eef5;vertical-align:top;color:#45627f;overflow-wrap:anywhere}
+    .cemTable td:first-child{font-weight:750;color:#14578b;white-space:nowrap}
+    .cemTable tr:last-child td{border-bottom:none}
+    .cemTable tr:hover td{background:#f1f8ff}
+    .cemResultToolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .cemResultToolbar label{margin:0;min-width:210px;flex:1 1 250px;max-width:370px}
+    .cemResultToolbar input{display:block;margin-top:5px;width:100%}
+    .cemResultCount{font-size:12px;color:#6c8097}
+    .cemStatusOld{color:#986622;font-weight:650}
+    .cemStatusNew{color:#167c65;font-weight:650}
+    .cemImportReceipt{padding:14px 16px;margin:12px 0;background:#edf8f1;border-radius:10px;border:1px solid #b2dbc1;color:#1d6240}
+
   </style>
 </head>
 <body>
@@ -701,7 +720,7 @@
         </div>
         <div class="cemImportSteps">
           <h2>2. Escolha os dados</h2>
-          <p class="hint">Você pode marcar qualquer combinação. Os números apresentados considerarão somente a obra calculada; itens desmarcados no CEM serão ignorados.</p>
+          <p class="hint">Marque as categorias desejadas. Para obras já cadastradas, desmarque <strong>Esquadrias</strong> e importe apenas os materiais. Itens fora do cálculo são ignorados.</p>
           <div class="cemFlags">
             <label class="cemFlag"><input id="cemFlagEsquadrias" type="checkbox" checked><span><strong>Esquadrias</strong><small>Códigos, dimensões, quantidades e descrições dos itens calculados</small></span></label>
             <label class="cemFlag"><input id="cemFlagPerfis" type="checkbox" checked><span><strong>Perfis</strong><small>Materiais usados na obra, fabricante, peso e acabamento</small></span></label>
@@ -710,12 +729,14 @@
         </div>
         <div class="cemImportSteps">
           <h2>3. Conferência antes de importar</h2>
-          <p id="matCemResposta" class="hint" role="status" aria-live="polite">Selecione o ZIP e clique em “Analisar arquivo”. Nenhuma informação será gravada nesta etapa.</p>
+          <p id="matCemResposta" class="hint" role="status" aria-live="polite">Selecione o ZIP e clique em “Analisar arquivo”. A análise não altera o banco.</p>
+          <div id="cemExistingNotice" class="cemExistingNotice hidden" role="status"></div>
           <div id="cemPreview" class="hidden"></div>
           <div class="cemCommitArea">
-            <button type="button" class="btn secondary" id="cemCommit" disabled>Importar dados selecionados</button>
-            <p class="hint">A confirmação de importação só será habilitada depois de validarmos o tratamento de obras existentes, duplicidades e quantitativos. A análise funciona sem alterar o Supabase.</p>
+            <button type="button" class="btn primary" id="cemCommit" disabled>Importar dados selecionados</button>
+            <p class="hint" id="cemCommitHint">A gravação de perfis e acessórios será habilitada após a análise e conferência da obra. A importação das esquadrias ainda não está disponível.</p>
           </div>
+          <p id="cemImportResult" class="hint" role="status" aria-live="polite"></p>
         </div>
       </div>
     </section>
@@ -4508,6 +4529,7 @@ async function cemExtrairXML(zip){
   if(data.byteLength!==target.size)throw new Error('O XML extraído não corresponde ao tamanho informado no ZIP.');
   return new TextDecoder('utf-8').decode(data);
 }
+
 function cemLerObra(xmlText){
   const documentXML=new DOMParser().parseFromString(xmlText,'application/xml');
   if(documentXML.querySelector('parsererror')||documentXML.documentElement.tagName!=='ExportObras')
@@ -4522,9 +4544,7 @@ function cemLerObra(xmlText){
     const values=cemSqlValues(elem.getAttribute('Flds2')||'');
     if(keys.length!==values.length)throw new Error('Dados inconsistentes na tabela '+table+'.');
     const record={};
-    for(let j=0;j<keys.length;j++){
-      if(keys[j]!=='IMGICONE')record[keys[j]]=values[j];
-    }
+    for(let j=0;j<keys.length;j++)if(keys[j]!=='IMGICONE')record[keys[j]]=values[j];
     tables[table].push(record);
   }
   const calc=new Set(tables.OBESQD.map(item=>String(item.ITEMOBRA)));
@@ -4541,41 +4561,167 @@ function cemLerObra(xmlText){
   return {
     codigo:obra.getAttribute('Codigo')||'',valid,other,count,
     perfCodes,acesCodes,profRows:proft.length,aceRows:acest.length,
-    perfCatalog,acesCatalog,perfMissing:perfCodes.size-perfCatalog.length,
-    aceMissing:acesCodes.size-acesCatalog.length
+    perfCatalog,acesCatalog,profMovs:proft,aceMovs:acest,
+    perfMissing:perfCodes.size-perfCatalog.length,aceMissing:acesCodes.size-acesCatalog.length,
+    obraExistente:null,comparacaoConcluida:false,jaImportado:false,
+    existentesPerf:new Set(),existentesAces:new Set(),
+    pesquisaPerf:'',pesquisaAces:''
   };
 }
+function cemNome(v){return String(v||'').trim().toLocaleUpperCase('pt-BR');}
+function cemVarPerfil(v){
+  const raw=cemNome(v.CODTRATEXT||v.CODTRAT)||'NÃO INFORMADO';
+  if(raw==='NATURAL')return {acabamento:'NATURAL',cor:'NATURAL',codigo_cor:''};
+  if(raw.startsWith('ANOD'))return {acabamento:'ANODIZADO',cor:raw,codigo_cor:raw};
+  if(raw.startsWith('PINT')||raw.includes('RAL'))return {acabamento:'PINTURA',cor:raw,codigo_cor:raw};
+  return {acabamento:raw,cor:raw,codigo_cor:''};
+}
+function cemVarAcessorio(v){
+  const raw=cemNome(v.PRENATA);
+  return {acabamento:'NÃO INFORMADO',cor:raw&&raw!=='-'?raw:'NÃO INFORMADA',codigo_cor:''};
+}
+function cemMontarPayload(r){
+  function montar(catalogo,movimentos,tipo){
+    const porCodigo=new Map();
+    for(const mov of movimentos){
+      const cod=cemNome(tipo==='perfil'?mov.CODPERF:mov.CODACES);
+      const cor=tipo==='perfil'?cemVarPerfil(mov):cemVarAcessorio(mov);
+      if(!porCodigo.has(cod))porCodigo.set(cod,new Map());
+      const vars=porCodigo.get(cod),key=[cor.acabamento,cor.cor,cor.codigo_cor].join('|');
+      if(!vars.has(key))vars.set(key,{...cor,linhas_calculo:0});
+      vars.get(key).linhas_calculo++;
+    }
+    return catalogo.map(x=>{
+      const codigo=cemNome(tipo==='perfil'?x.CODPERF:x.CODACES);
+      const base={codigo,fabricante:cemNome(x.REF),descricao:String(x.DESCRICAO||'').trim(),
+        linha:cemNome(x.LINHA),prenativo:tipo==='perfil'?String(x.PRENATP||'').trim():'',
+        variacoes:[...(porCodigo.get(codigo)||new Map()).values()]};
+      if(tipo==='perfil'){
+        const peso=Number(x.PESO);
+        base.peso_kg_m=Number.isFinite(peso)&&peso>=0?peso:null;
+      }else{
+        base.unidade=cemNome(x.UNID)||'PC';
+        base.embalagem=cemNome(x.UNID_EMB);
+      }
+      return base;
+    }).sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR'));
+  }
+  return {perfis:montar(r.perfCatalog,r.profMovs,'perfil'),
+    acessorios:montar(r.acesCatalog,r.aceMovs,'acessorio')};
+}
+function cemAtualizarBotao(){
+  const r=cemParsed,esk=node('cemFlagEsquadrias').checked;
+  const perf=node('cemFlagPerfis').checked,ace=node('cemFlagAcessorios').checked;
+  const pode=Boolean(r&&r.comparacaoConcluida&&r.obraExistente&&!esk&&(perf||ace)&&!r.jaImportado
+    &&(!perf||r.perfMissing===0)&&(!ace||r.aceMissing===0));
+  node('cemCommit').disabled=!pode;
+  let info='';
+  if(!r)info='Analise o ZIP para habilitar a importação segura de materiais.';
+  else if(r.jaImportado)info='Importação concluída. Para uma nova operação, analise novamente o arquivo.';
+  else if(esk)info='A importação de esquadrias ainda não está liberada. Desmarque Esquadrias para importar somente os materiais.';
+  else if(!perf&&!ace)info='Marque Perfis e/ou Acessórios.';
+  else if(!r.comparacaoConcluida)info='Conferindo a existência da obra e dos cadastros…';
+  else if(!r.obraExistente)info='A obra não existe no EWGEST. O cadastro automático de obras novas ainda não está disponível.';
+  else if((perf&&r.perfMissing)||(ace&&r.aceMissing))info='Há materiais sem ficha técnica no ZIP. Corrija o arquivo ou desmarque a categoria incompleta.';
+  else info='Pronto para importar materiais sem modificar esquadrias, liberações, romaneios ou estoque físico.';
+  node('cemCommitHint').textContent=info;
+}
+function cemTabelaHTML(tipo){
+  const r=cemParsed;
+  const entries=tipo==='perfil'?r.materiaisPayload.perfis:r.materiaisPayload.acessorios;
+  const originals=tipo==='perfil'?r.perfCatalog:r.acesCatalog;
+  const existing=tipo==='perfil'?r.existentesPerf:r.existentesAces;
+  const search=cemNome(tipo==='perfil'?r.pesquisaPerf:r.pesquisaAces);
+  const map=new Map(originals.map(x=>[cemNome(tipo==='perfil'?x.CODPERF:x.CODACES),x]));
+  const matching=entries.filter(x=>[
+    x.codigo,x.descricao,x.fabricante,x.linha,
+    ...x.variacoes.flatMap(v=>[v.cor,v.acabamento,v.codigo_cor])
+  ].some(y=>cemNome(y).includes(search)));
+  const caption=tipo==='perfil'?'Perfis':'Acessórios';
+  const key=tipo==='perfil'?'cemSearchPerf':'cemSearchAces';
+  return '<div class="cemPreviewSection"><div class="cemResultToolbar"><div><h3>'+caption+' identificados — '+
+    entries.length+' códigos</h3><span class="cemResultCount" id="'+key+'Count">'+
+    matching.length+' de '+entries.length+' materiais exibidos</span></div>'+
+    '<label>Buscar nos '+caption.toLowerCase()+
+    '<input type="search" id="'+key+'" value="'+escapeHTML(search)+
+    '" placeholder="Código, fabricante, cor ou descrição"></label></div>'+
+    '<div class="cemTableWrap"><table class="cemTable"><thead><tr><th>Código</th><th>Fabricante</th>'+
+    '<th>Descrição</th><th>Linha</th><th>Acabamento / cor CEM</th><th>Linhas de cálculo</th><th>Cadastro</th></tr></thead><tbody>'+
+    (matching.length?matching.map(p=>{
+      const code=p.fabricante+'|'+p.codigo;
+      const rows=p.variacoes.reduce((n,v)=>n+v.linhas_calculo,0);
+      const status=existing.has(code)?
+        '<span class="cemStatusOld">Já cadastrado — será preservado</span>':
+        '<span class="cemStatusNew">Novo</span>';
+      const vars=p.variacoes.map(v=>v.acabamento+' / '+v.cor).join(' · ');
+      return '<tr><td>'+escapeHTML(p.codigo)+'</td><td>'+escapeHTML(p.fabricante)+
+      '</td><td>'+escapeHTML(p.descricao)+'</td><td>'+escapeHTML(p.linha||'—')+
+      '</td><td>'+escapeHTML(vars)+'</td><td>'+rows.toLocaleString('pt-BR')+
+      '</td><td>'+status+'</td></tr>';
+    }).join(''):'<tr><td colspan="7">Nenhum material corresponde à pesquisa.</td></tr>')+
+    '</tbody></table></div><p class="hint">Todos os códigos encontrados estão disponíveis nesta lista. '+
+    'As linhas de cálculo não equivalem a barras ou peças físicas em estoque.</p></div>';
+}
 function cemRenderPreview(){
-  const r=cemParsed,el=node('cemPreview');
-  if(!r){el.classList.add('hidden');return;}
+  const r=cemParsed,el=node('cemPreview'),notice=node('cemExistingNotice');
+  if(!r){el.classList.add('hidden');notice.classList.add('hidden');cemAtualizarBotao();return;}
   el.classList.remove('hidden');
   const esk=node('cemFlagEsquadrias').checked;
   const perf=node('cemFlagPerfis').checked;
   const ace=node('cemFlagAcessorios').checked;
   const cards=[
-    esk?['Esquadrias calculadas',String(r.valid.length)+' itens · '+r.count+' unidades']:null,
-    perf?['Perfis utilizados',String(r.perfCodes.size)+' códigos']:null,
-    ace?['Acessórios utilizados',String(r.acesCodes.size)+' códigos']:null
+    esk?['Esquadrias calculadas',r.valid.length+' itens · '+r.count+' unidades']:null,
+    perf?['Perfis utilizados',r.perfCodes.size+' códigos']:null,
+    ace?['Acessórios utilizados',r.acesCodes.size+' códigos']:null
   ].filter(Boolean);
-  const preview=(rows,fields)=>'<ul>'+rows.slice(0,6).map(x=>
-    '<li>'+fields.map(y=>escapeHTML(x[y]||'—')).join(' · ')+'</li>').join('')+'</ul>';
-  el.innerHTML='<div class="cemPreviewSection"><h3>Obra identificada: '+escapeHTML(r.codigo)+'</h3>'+
-    '<p class="hint">Foram encontrados '+r.valid.length+' itens calculados. Outros '+r.other+
-    ' itens desmarcados/fora do cálculo serão ignorados.</p></div>'+
-    (cards.length?'<div class="cemPreviewSummary">'+cards.map(x=>
+  notice.classList.remove('hidden');
+  if(!r.comparacaoConcluida){
+    notice.classList.remove('noticeSafe');
+    notice.innerHTML='<strong>Conferindo obra no EWGEST…</strong>O sistema está comparando o código com o banco de produção.';
+  }else if(r.obraExistente){
+    notice.classList.add('noticeSafe');
+    notice.innerHTML='<strong>Obra já cadastrada no EWGEST: '+escapeHTML(r.obraExistente.nome)+
+      ' ('+escapeHTML(r.codigo)+')</strong>Para preservar as esquadrias, as liberações e os romaneios, importe apenas perfis e acessórios.'+
+      ' Materiais já cadastrados serão aproveitados sem sobrescrever alterações do ADM.';
+  }else{
+    notice.classList.remove('noticeSafe');
+    notice.innerHTML='<strong>Obra não encontrada no EWGEST: '+escapeHTML(r.codigo)+
+      '</strong>A importação de materiais nesta etapa exige uma obra previamente cadastrada. Nenhum dado será gravado.';
+  }
+  const summary='<div class="cemPreviewSection"><h3>Obra identificada: '+escapeHTML(r.codigo)+'</h3>'+
+    '<p class="hint">'+r.valid.length+' itens calculados ('+r.count+' unidades). '+
+    r.other+' itens fora do cálculo serão ignorados. Cadastro de esquadrias não será modificado.</p></div>';
+  const cardsHTML=cards.length?'<div class="cemPreviewSummary">'+cards.map(x=>
     '<div class="stat"><div class="label">'+escapeHTML(x[0])+'</div><div class="number">'+escapeHTML(x[1])+'</div></div>').join('')+'</div>':
-    '<div class="materialEmpty">Marque pelo menos uma categoria para consultar.</div>')+
-    (esk?'<div class="cemPreviewSection"><h3>Prévia de esquadrias</h3>'+
-      preview(r.valid,['TIPO','QTDE','L','H'])+
-      '<p class="hint">Ordem: código · quantidade · largura (mm) · altura (mm). O arquivo não altera obras já cadastradas.</p></div>':'')+
-    (perf?'<div class="cemPreviewSection"><h3>Perfis presentes na obra</h3>'+
-      preview(r.perfCatalog,['CODPERF','REF','DESCRICAO'])+
-      '<p class="hint">'+r.profRows+' registros de cálculo. '+r.perfMissing+
-      ' referências sem ficha correspondente no catálogo exportado. Não equivalem a barras em estoque.</p></div>':'')+
-    (ace?'<div class="cemPreviewSection"><h3>Acessórios presentes na obra</h3>'+
-      preview(r.acesCatalog,['CODACES','REF','DESCRICAO'])+
-      '<p class="hint">'+r.aceRows+' registros de cálculo. '+r.aceMissing+
-      ' referências sem ficha correspondente no catálogo exportado. Não equivalem a peças em estoque.</p></div>':'');
+    '<div class="materialEmpty">Marque pelo menos uma categoria.</div>';
+  const preview=(rows,cols)=>'<div class="cemTableWrap"><table class="cemTable"><thead><tr>'+
+    cols.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+
+    rows.map(row=>'<tr>'+cols.map((c,i)=>'<td>'+escapeHTML(
+      row[['TIPO','QTDE','L','H'][i]]||'—')+'</td>').join('')+'</tr>').join('')+
+    '</tbody></table></div>';
+  el.innerHTML=summary+cardsHTML+
+    (esk?'<div class="cemPreviewSection"><h3>Esquadrias calculadas — '+r.valid.length+' itens</h3>'+
+      '<p class="hint">Visualização somente. A importação de esquadrias está desabilitada por segurança.</p>'+
+      preview(r.valid,['Código','Quantidade','Largura (mm)','Altura (mm)'])+'</div>':'')+
+    (perf?cemTabelaHTML('perfil'):'')+(ace?cemTabelaHTML('acessorio'):'');
+  for(const [id,prop] of [['cemSearchPerf','pesquisaPerf'],['cemSearchAces','pesquisaAces']]){
+    const input=node(id);
+    if(input)input.addEventListener('input',()=>{
+      r[prop]=input.value;
+      // Recria somente o quadro correspondente, preservando foco e posição.
+      const parent=input.closest('.cemPreviewSection');
+      const tipo=prop==='pesquisaPerf'?'perfil':'acessorio';
+      const scroll=parent.querySelector('.cemTableWrap')?.scrollTop||0;
+      const novo=document.createElement('div');novo.innerHTML=cemTabelaHTML(tipo);
+      parent.replaceWith(novo.firstElementChild);
+      const atualizado=node(id);
+      atualizado.focus();atualizado.setSelectionRange(atualizado.value.length,atualizado.value.length);
+      const wrap=atualizado.closest('.cemPreviewSection').querySelector('.cemTableWrap');
+      if(wrap)wrap.scrollTop=scroll;
+      atualizado.addEventListener('input',arguments.callee);
+    });
+  }
+  cemAtualizarBotao();
 }
 async function matVerificarZip(){
   const arq=node('matCemArquivo').files?.[0],out=node('matCemResposta');
