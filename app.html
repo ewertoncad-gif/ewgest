@@ -5308,6 +5308,142 @@ node('stockSearch').addEventListener('input',renderEstoque);
 node('stockEntryCancel').addEventListener('click',fecharMovimentoEstoque);
 node('stockEntryForm').addEventListener('submit',registrarMovimentoEstoque);
 
+
+/* Estoque por obra: cadastro e ajustes manuais com confirmação e histórico. */
+let stockManualOperationId=null;
+function stockManualPopulate(){
+ const type=node('stockManualType').value;
+ const options=matVariacoes.filter(x=>x.tipo===type&&x.ativo).map(v=>{
+  const mat=type==='perfil'?matPerfis.find(m=>m.id===v.perfil_id):matAcessorios.find(m=>m.id===v.acessorio_id);
+  if(!mat)return null;
+  return {id:v.id,text:mat.codigo+' · '+mat.descricao+' · '+mat.fabricante+' · '+v.cor+' / '+v.acabamento};
+ }).filter(Boolean).sort((a,b)=>a.text.localeCompare(b.text,'pt-BR'));
+ const combo=node('stockManualMaterial'),prior=combo.value;
+ combo.innerHTML='<option value="">Selecione um material cadastrado</option>'+
+  options.map(x=>'<option value="'+escapeHTML(x.id)+'">'+escapeHTML(x.text)+'</option>').join('');
+ if(options.some(x=>x.id===prior))combo.value=prior;
+ node('stockManualLengthLabel').classList.toggle('hidden',type!=='perfil');
+ stockManualDetails();
+}
+function stockManualDetails(){
+ const v=matVariacoes.find(x=>x.id===node('stockManualMaterial').value);
+ const mat=v?(v.tipo==='perfil'?matPerfis.find(m=>m.id===v.perfil_id):
+   matAcessorios.find(m=>m.id===v.acessorio_id)):null;
+ if(v?.tipo==='perfil'&&mat?.comprimento_comercial_mm&&!node('stockManualLength').value)
+   node('stockManualLength').value=mat.comprimento_comercial_mm;
+ node('stockManualUnit').textContent=node('stockManualType').value==='perfil'
+   ?'Controle em barras inteiras. O comprimento identifica barras de 6.000 mm, 6.500 mm etc.; não controla sobras.'
+   :'Unidade do acessório: '+releaseUnidadeAcessorio(mat?.unidade_item||'PC');
+}
+function stockManualOpen(variationId=''){
+ if(!matIsAdmin())return;
+ stockManualOperationId=crypto.randomUUID();
+ node('stockManualForm').reset();
+ node('stockManualError').textContent='';
+ node('stockManualNewFields').classList.add('hidden');
+ node('stockManualNewMaterial').textContent='+ Material inexistente? Cadastrar';
+ node('stockCreateWorkPanel').classList.add('hidden');
+ const workSel=node('stockManualWork');
+ workSel.innerHTML='<option value="">Selecione a obra</option>'+
+   works.map(w=>'<option value="'+escapeHTML(w.id)+'">'+escapeHTML(w.nome+' · '+(w.codigo||''))+'</option>').join('');
+ const current=node('stockWork').value;
+ if(works.some(w=>w.id===current))workSel.value=current;
+ const selected=matVariacoes.find(v=>v.id===variationId);
+ node('stockManualType').value=selected?.tipo||'perfil';
+ node('stockManualLength').value='';
+ stockManualPopulate();
+ if(selected){node('stockManualMaterial').value=variationId;stockManualDetails();}
+ node('stockManualOverlay').classList.remove('hidden');
+}
+function stockManualClose(){node('stockManualOverlay').classList.add('hidden');stockManualOperationId=null;}
+function stockManualNewToggle(){
+ const fields=node('stockManualNewFields'),show=fields.classList.contains('hidden');
+ fields.classList.toggle('hidden',!show);
+ node('stockManualMaterial').required=!show;
+ node('stockManualMaterial').disabled=show;
+ node('stockManualNewMaterial').textContent=show?'Usar material já cadastrado':'Material inexistente? Cadastrar';
+ node('stockManualError').textContent='';
+}
+async function stockCriarObra(){
+ const nome=node('stockNewWorkName').value.trim(),codigo=node('stockNewWorkCode').value.trim();
+ if(nome.length<3){node('stockManualError').textContent='Informe o nome da obra.';return;}
+ const btn=node('stockCreateWork');btn.disabled=true;
+ try{
+  await ensureSession();
+  const obra=await request('/rest/v1/rpc/ew_criar_obra_estoque',{method:'POST',token:session.access_token,
+    body:{p_empresa_id:currentCompany.id,p_nome:nome,p_codigo:codigo}});
+  works.push({...obra,situacao:'Em andamento'});
+  node('stockManualWork').innerHTML+='<option value="'+escapeHTML(obra.id)+'">'+escapeHTML(obra.nome+' · '+obra.codigo)+'</option>';
+  node('stockManualWork').value=obra.id;
+  node('stockCreateWorkPanel').classList.add('hidden');
+  node('stockManualError').textContent='Obra criada. Continue o cadastro dos materiais.';
+ }catch(e){node('stockManualError').textContent='Não foi possível criar a obra: '+e.message;}
+ finally{btn.disabled=false;}
+}
+async function stockManualSubmit(event){
+ event.preventDefault();
+ const obra=node('stockManualWork').value;
+ const type=node('stockManualType').value;
+ const isNew=!node('stockManualNewFields').classList.contains('hidden');
+ const varId=node('stockManualMaterial').value;
+ const len=type==='perfil'?Number(node('stockManualLength').value):null;
+ const quantidade=Number(node('stockManualQty').value);
+ const kind=node('stockManualKind').value;
+ const nota=node('stockManualNote').value.trim();
+ const cadastro=matVariacoes.find(v=>v.id===varId);
+ const acessorio=type==='acessorio'&&cadastro?
+   matAcessorios.find(a=>a.id===cadastro.acessorio_id):null;
+ const unidade=type==='perfil'?'BARRA':releaseUnidadeAcessorio(acessorio?.unidade_item||'PC');
+ const error=node('stockManualError');
+ if(!obra){error.textContent='Selecione ou cadastre uma obra.';return;}
+ if(!isNew&&!cadastro){error.textContent='Selecione um material.';return;}
+ if(!Number.isFinite(quantidade)||quantidade===0||
+    (kind!=='AJUSTE'&&quantidade<=0)||(type==='perfil'&&
+       (!Number.isSafeInteger(quantidade)||!Number.isSafeInteger(len)||len<100||len>20000))){
+   error.textContent='Informe quantidade válida; perfis são barras inteiras e exigem comprimento.';return;
+ }
+ if(nota.length<5){error.textContent='Informe uma observação com no mínimo 5 caracteres.';return;}
+ if(isNew&&['stockNewMaterialCode','stockNewMaterialDesc','stockNewMaterialMaker'].some(id=>!node(id).value.trim())){
+  error.textContent='Preencha código, descrição e fabricante do novo material.';return;
+ }
+ if(!window.confirm('Registrar '+(quantidade>0?'+':'')+quantidade+' '+unidade+
+    ' na obra selecionada? Esta movimentação entrará no histórico.'))return;
+ const btn=node('stockManualSave');btn.disabled=true;error.textContent='Registrando…';
+ try{
+  await ensureSession();
+  const common={p_empresa_id:currentCompany.id,p_obra_id:obra,
+    p_comprimento_mm:len,p_unidade:unidade,p_quantidade:kind==='SAIDA_MANUAL'?-Math.abs(quantidade):quantidade,
+    p_origem:kind,p_observacao:nota,p_operacao_id:stockManualOperationId};
+  const url=isNew?'/rest/v1/rpc/ew_cadastrar_material_manual_estoque':
+    '/rest/v1/rpc/ew_movimentar_estoque_obra';
+  const body=isNew?{...common,p_tipo:type,
+       p_codigo:node('stockNewMaterialCode').value,p_descricao:node('stockNewMaterialDesc').value,
+       p_fabricante:node('stockNewMaterialMaker').value,p_acabamento:node('stockNewMaterialFinish').value,
+       p_cor:node('stockNewMaterialColor').value}: {...common,p_variacao_id:varId};
+  if(isNew&&type==='acessorio')body.p_unidade=unidade;
+  await request(url,{method:'POST',token:session.access_token,body});
+  stockManualClose();
+  node('stockWork').value=obra;
+  await abrirEstoque();
+  node('stockMessage').textContent='Movimentação salva no estoque da obra, com histórico.';
+ }catch(e){error.textContent='Não foi possível concluir: '+e.message;}
+ finally{btn.disabled=false;}
+}
+node('stockNewManual').addEventListener('click',()=>stockManualOpen());
+node('stockManualCancel').addEventListener('click',stockManualClose);
+node('stockManualForm').addEventListener('submit',stockManualSubmit);
+node('stockManualType').addEventListener('change',()=>{
+  node('stockManualLength').value='';stockManualPopulate();
+});
+node('stockManualMaterial').addEventListener('change',()=>{node('stockManualLength').value='';stockManualDetails();});
+node('stockManualNewMaterial').addEventListener('click',stockManualNewToggle);
+node('stockManualKind').addEventListener('change',()=>{
+ const input=node('stockManualQty');input.min=node('stockManualKind').value==='AJUSTE'?'':'0.001';
+ input.placeholder=node('stockManualKind').value==='AJUSTE'?'Ex.: -2 ou 3':'Ex.: 25';
+});
+node('stockCreateWorkToggle').addEventListener('click',()=>node('stockCreateWorkPanel').classList.toggle('hidden'));
+node('stockCreateWork').addEventListener('click',stockCriarObra);
+
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
 try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v42.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
