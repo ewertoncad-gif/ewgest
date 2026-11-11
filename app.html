@@ -488,7 +488,7 @@
     <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar do CEM</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v41.2</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v41.3</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="login" class="panel login">
@@ -503,7 +503,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • interface renovada v41.2</div>
+        <div class="build">EWGEST • interface renovada v41.3</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -4707,36 +4707,97 @@ function cemRenderPreview(){
   for(const [id,prop] of [['cemSearchPerf','pesquisaPerf'],['cemSearchAces','pesquisaAces']]){
     const input=node(id);
     if(input)input.addEventListener('input',()=>{
+      const position=input.selectionStart;
       r[prop]=input.value;
-      // Recria somente o quadro correspondente, preservando foco e posição.
-      const parent=input.closest('.cemPreviewSection');
-      const tipo=prop==='pesquisaPerf'?'perfil':'acessorio';
-      const scroll=parent.querySelector('.cemTableWrap')?.scrollTop||0;
-      const novo=document.createElement('div');novo.innerHTML=cemTabelaHTML(tipo);
-      parent.replaceWith(novo.firstElementChild);
-      const atualizado=node(id);
-      atualizado.focus();atualizado.setSelectionRange(atualizado.value.length,atualizado.value.length);
-      const wrap=atualizado.closest('.cemPreviewSection').querySelector('.cemTableWrap');
-      if(wrap)wrap.scrollTop=scroll;
-      atualizado.addEventListener('input',arguments.callee);
+      cemRenderPreview();
+      const novo=node(id);
+      if(novo){novo.focus();novo.setSelectionRange(position,position);}
     });
   }
   cemAtualizarBotao();
 }
+
+let cemOperacaoId=null;
 async function matVerificarZip(){
   const arq=node('matCemArquivo').files?.[0],out=node('matCemResposta');
-  cemParsed=null;cemRenderPreview();
+  cemParsed=null;cemOperacaoId=null;node('cemImportResult').textContent='';cemRenderPreview();
   if(!arq){out.textContent='Escolha o arquivo ZIP exportado pelo CEM.';return;}
   if(!/\.zip$/i.test(arq.name)){out.textContent='Selecione um arquivo .zip original do CEM.';return;}
   const botao=node('matCemConferir');botao.disabled=true;
-  out.textContent='Lendo o arquivo localmente e separando os itens calculados…';
+  out.textContent='Lendo o ZIP no navegador e separando os itens calculados…';
   try{
     const xml=await cemExtrairXML(arq);
-    cemParsed=cemLerObra(xml);
-    out.textContent='Análise concluída: '+arq.name+'. A prévia abaixo respeita as opções marcadas. Nenhum dado foi gravado no Supabase.';
+    const r=cemLerObra(xml);
+    r.materiaisPayload=cemMontarPayload(r);
+    cemParsed=r;
     cemRenderPreview();
-  }catch(e){out.textContent='Não foi possível analisar o arquivo: '+e.message;}
-  finally{botao.disabled=false;}
+    if(r.materiaisPayload.perfis.length!==r.perfCodes.size ||
+       r.materiaisPayload.acessorios.length!==r.acesCodes.size){
+      throw new Error('Há códigos de materiais sem ficha técnica no XML. Corrija a exportação antes de importar.');
+    }
+    await ensureSession();
+    if(!currentCompany?.id)throw new Error('Não foi possível identificar a empresa do usuário.');
+    const empresa='eq.'+currentCompany.id;
+    const [obrasBanco,perfisBanco,acessoriosBanco]=await Promise.all([
+      apiGet('obras',{select:'id,codigo,nome',empresa_id:empresa,limit:'1000'}),
+      apiGet('ew_perfis',{select:'codigo,fabricante',empresa_id:empresa,limit:'5000'}),
+      apiGet('ew_acessorios',{select:'codigo,fabricante',empresa_id:empresa,limit:'5000'})
+    ]);
+    const matching=(obrasBanco||[]).filter(x=>cemNome(x.codigo)===cemNome(r.codigo));
+    r.obraExistente=matching.length===1?matching[0]:null;
+    r.obraDuplicada=matching.length>1;
+    r.existentesPerf=new Set((perfisBanco||[]).map(x=>cemNome(x.fabricante)+'|'+cemNome(x.codigo)));
+    r.existentesAces=new Set((acessoriosBanco||[]).map(x=>cemNome(x.fabricante)+'|'+cemNome(x.codigo)));
+    if(r.obraExistente){
+      // Uma obra existente não pode receber esquadrias duplicadas.
+      node('cemFlagEsquadrias').checked=false;
+    }
+    r.comparacaoConcluida=true;
+    out.textContent='Análise concluída. O arquivo permanece no navegador. Confira as listas completas e escolha o que deseja importar.';
+    cemRenderPreview();
+  }catch(e){
+    out.textContent='Análise incompleta: '+e.message;
+    if(cemParsed)cemParsed.comparacaoConcluida=false;
+    cemRenderPreview();
+  }finally{botao.disabled=false;}
+}
+async function cemImportarSelecionados(){
+  const r=cemParsed;
+  const p=node('cemFlagPerfis').checked,a=node('cemFlagAcessorios').checked;
+  const save=node('cemCommit'),result=node('cemImportResult');
+  cemAtualizarBotao();
+  if(save.disabled||!r||!r.obraExistente||node('cemFlagEsquadrias').checked)return;
+  const perf=p?r.materiaisPayload.perfis:[];
+  const aces=a?r.materiaisPayload.acessorios:[];
+  const message='Confirmar a importação de '+perf.length+' perfis e '+aces.length+
+    ' acessórios para '+r.obraExistente.nome+' ('+r.codigo+')?\n\n'+
+    'Os cadastros já existentes serão preservados. Nenhuma esquadria, romaneio, liberação ou saldo físico será modificado.';
+  if(!window.confirm(message))return;
+  cemOperacaoId ||= crypto.randomUUID();
+  save.disabled=true;result.textContent='Gravando perfis, acessórios e variações no Supabase…';
+  try{
+    await ensureSession();
+    const answer=await request('/rest/v1/rpc/importar_materiais_cem',{
+      method:'POST',token:session.access_token,timeoutMs:120000,
+      body:{p_empresa_id:currentCompany.id,p_codigo_obra:r.codigo,
+        p_perfis:perf,p_acessorios:aces,p_operacao_id:cemOperacaoId}
+    });
+    if(!answer||answer.esquadrias_alteradas!==0||answer.estoque_fisico_alterado!==false)
+      throw new Error('Resposta de importação não confirmada. Confira o banco antes de repetir.');
+    r.jaImportado=true;
+    result.innerHTML='<div class="cemImportReceipt"><strong>Materiais importados para '+escapeHTML(r.codigo)+'.</strong>'+
+      '<p>Perfis novos: '+Number(answer.perfis_novos)+' · já existentes: '+Number(answer.perfis_existentes)+
+      '<p>Acessórios novos: '+Number(answer.acessorios_novos)+' · já existentes: '+Number(answer.acessorios_existentes)+
+      '</p><p>Novas variações: '+Number(answer.variacoes_novas)+' · vínculos de material/obra: '+
+      Number(answer.vinculos_por_obra)+'.</p>'+
+      '<p>Esquadrias, liberações, romaneios e estoque físico não foram alterados.</p></div>';
+    cemAtualizarBotao();
+    try{await carregarMateriais();}catch(e){/* A gravação já foi confirmada pelo servidor. */}
+  }catch(e){
+    result.textContent='Não foi possível confirmar a importação: '+e.message+
+      '. Os materiais não serão cadastrados pelo navegador. Se houve falha de conexão, tente novamente com a mesma operação; o servidor impede duplicações.';
+    cemAtualizarBotao();
+  }
 }
 node('materialsBack').addEventListener('click',()=>setView('dashboard'));
 node('matNovoHeader').addEventListener('click',()=>abrirEdicaoMaterial());
@@ -4754,17 +4815,22 @@ node('matEditForm').addEventListener('submit',salvarMaterial);
 node('matVarCancel').addEventListener('click',matVarClose);
 node('matVarForm').addEventListener('submit',salvarVariacao);
 node('matCemConferir').addEventListener('click',matVerificarZip);
+node('cemCommit').addEventListener('click',cemImportarSelecionados);
 node('matCemArquivo').addEventListener('change',()=>{
- cemParsed=null;cemRenderPreview();node('matCemResposta').textContent='Arquivo selecionado. Clique em “Analisar arquivo”.';
+ cemParsed=null;cemOperacaoId=null;cemRenderPreview();
+ node('cemImportResult').textContent='';
+ node('matCemResposta').textContent='Arquivo selecionado. Clique em “Analisar arquivo”.';
 });
 for(const id of ['cemFlagEsquadrias','cemFlagPerfis','cemFlagAcessorios']){
-  node(id).addEventListener('change',cemRenderPreview);
+  node(id).addEventListener('change',()=>{
+    cemOperacaoId=null;cemRenderPreview();
+  });
 }
 
 
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v41.2 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v41.3 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
