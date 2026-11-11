@@ -525,7 +525,7 @@
     .stockRowActions .btn{min-width:140px}
 
 
-  .stockManageRow{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid #e0eaf3}
+   .stockManageRow{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid #e0eaf3}
   .stockManageRow:last-child{border-bottom:0}
   .stockManageRow strong{font-size:13px;color:#203c59}
   .stockManageRow .hint{font-size:12px;margin-top:4px}
@@ -539,6 +539,22 @@
 
     #stockManualForm .stockManualContinue{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:500;cursor:pointer}
     #stockManualForm .stockManualContinue input{margin:0;width:17px;height:17px;flex:none}
+
+  .stockBottomActions{display:flex;justify-content:flex-end;margin:15px 0 4px}
+  .stockReportPreview{border-top:1px solid #e0e9f2;margin-top:20px;padding-top:16px}
+  .stockReportPreview .rowHead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .stockReportPreview h3{font-size:14px;margin:0}
+  .stockReportPreview label{font-size:12px;font-weight:500;color:#516f89;display:flex;align-items:center;gap:7px}
+  .stockReportPreview input{height:16px;width:16px}
+  #stockManualLengthPanel{background:#f7faff;border:1px solid #d7e4ef;border-radius:9px;padding:12px;margin-top:9px}
+  #stockManualAddLength{margin-top:8px}
+  .stockCemMirrorTable input{width:100%;min-width:65px;padding:6px 8px;font-size:12px}
+  .stockCemMirrorTable td{min-width:65px}
+  .stockCemMirrorTable td:first-child{min-width:130px}
+  .stockCemMirrorTable .stockCemRemove{white-space:nowrap;padding:5px 8px}
+  .stockCemMirrorTable .stockCemSelect{width:17px;height:17px;min-width:17px}
+  .stockCemMirrorTable{width:100%;min-width:700px}
+
   </style>
 </head>
 <body>
@@ -768,9 +784,8 @@
       </div>
       <div class="stockTopActions">
           <button type="button" class="btn primary" id="stockCreateAnother">+ Criar estoque de outra obra</button>
-          <button type="button" class="btn secondary" id="stockImportCem">Importar quantidades do CEM</button>
+          <button type="button" class="btn secondary" id="stockImportCem">Importar quantidades do arquivo</button>
           <button type="button" class="btn secondary" id="stockManageLocations">Gerenciar estoques</button>
-          <button type="button" class="btn secondary" id="stockNewManual">+ Adicionar material</button>
           <button type="button" class="btn secondary" id="stockRefresh">Atualizar</button>
         </div></div>
       <div class="materialsSummary">
@@ -792,17 +807,27 @@
         </div>
         <div id="stockMessage" class="feedback" role="status"></div>
         <div id="stockRecords"></div>
+        <div class="stockBottomActions">
+          <button type="button" class="btn primary" id="stockNewManual">+ Adicionar material</button>
+        </div>
+        <div class="stockReportPreview">
+          <div class="rowHead"><h3>Resumo para relatórios de estoque</h3>
+            <label><input id="stockReportIncludeEmpty" type="checkbox"> Incluir estoques de obras sem esquadrias</label>
+          </div>
+          <p class="hint">Soma dos saldos controlados por obra, não confirmação de materiais fisicamente no almoxarifado.</p>
+          <p id="stockReportSummary" class="hint" role="status"></p>
+        </div>
       </div>
     </section>
     <section id="cemImport" class="hidden">
       <div class="head"><div>
         <button type="button" class="btn secondary" id="cemBack">← Tela inicial</button>
-        <h1 style="margin-top:20px">Importar obra do CEM Plus</h1>
-        <p class="muted">Escolha o ZIP exportado pelo CEM, selecione o que deseja importar e confira os resultados antes de qualquer gravação.</p>
+        <h1 style="margin-top:20px">Importar obra de arquivo técnico</h1>
+        <p class="muted">Escolha o arquivo ZIP de exportação, selecione os dados e confira tudo antes de gravar.</p>
       </div></div>
       <div class="section panel">
         <h2>1. Arquivo de exportação</h2>
-        <label for="matCemArquivo">Arquivo ZIP original do CEM</label>
+        <label for="matCemArquivo">Arquivo ZIP de exportação técnica</label>
         <div class="matImportBox">
           <input id="matCemArquivo" type="file" accept=".zip,application/zip">
           <button id="matCemConferir" class="btn primary" type="button">Analisar arquivo</button>
@@ -970,10 +995,10 @@
 
 <div id="stockImportCemOverlay" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockCemTitle" style="max-width:920px">
-    <h2 id="stockCemTitle">Importar estoque inicial calculado no CEM</h2>
+    <h2 id="stockCemTitle">Importar estoque de arquivo técnico</h2>
     <p id="stockCemTarget" class="hint"></p>
     <p class="hint">Serão lidos <strong>OBAPROV</strong> (barras e comprimentos) e <strong>OBACES</strong> (quantidades de acessórios). Materiais com lançamentos anteriores serão preservados; nenhuma quantidade existente será sobrescrita.</p>
-    <label>Arquivo ZIP da obra exportado do CEM <input type="file" accept=".zip,application/zip" id="stockCemFile"></label>
+    <label>Arquivo ZIP de exportação da obra <input type="file" accept=".zip,application/zip" id="stockCemFile"></label>
     <div class="stockTopActions" style="margin-top:12px">
       <button type="button" class="btn secondary" id="stockCemAnalyze">Conferir arquivo</button>
     </div>
@@ -981,7 +1006,7 @@
     <div id="stockCemPreview" class="hidden"></div>
     <div class="modalbuttons">
       <button type="button" class="btn secondary" id="stockCemCancel">Fechar</button>
-      <button type="button" class="btn primary" id="stockCemConfirm" disabled>Confirmar estoque inicial do CEM</button>
+      <button type="button" class="btn primary" id="stockCemConfirm" disabled>Confirmar importação revisada</button>
     </div>
   </div>
 </div>
@@ -1031,7 +1056,8 @@
         <button id="stockCreateWork" type="button" class="btn primary">Salvar obra</button>
       </div>
       <label>Tipo de material <select id="stockManualType"><option value="perfil">Perfil</option><option value="acessorio">Acessório</option></select></label>
-      <label>Material, cor e acabamento <select id="stockManualMaterial" required></select></label>
+      <label>Código do material <select id="stockManualCode" required></select></label>
+      <label id="stockManualColorLabel">Cor / acabamento <select id="stockManualMaterial" required></select></label>
       <button type="button" class="btn secondary" id="stockManualNewMaterial">+ Material inexistente? Cadastrar</button>
       <div id="stockManualNewFields" class="hidden">
         <p class="hint">Cadastro novo, editável depois no Banco de materiais. Possíveis duplicidades serão apresentadas ao ADM em importações futuras.</p>
@@ -1044,7 +1070,14 @@
           <select id="stockNewAccessoryUnit"><option value="PC">Peça (PC)</option><option value="PR">Par (PR)</option><option value="CJ">Conjunto (CJ)</option><option value="MT">Metro (MT)</option><option value="KG">Quilograma (KG)</option><option value="UN">Unidade (UN)</option></select>
         </label>
       </div>
-      <label id="stockManualLengthLabel">Comprimento por barra (mm) <input type="number" id="stockManualLength" min="100" max="20000" step="1" placeholder="Ex.: 6000"></label>
+      <label id="stockManualLengthLabel">Comprimento da barra
+        <select id="stockManualLength"></select>
+      </label>
+      <button type="button" class="btn secondary" id="stockManualAddLength">+ Cadastrar novo comprimento</button>
+      <div id="stockManualLengthPanel" class="hidden">
+        <label>Novo comprimento em milímetros <input type="number" id="stockManualNewLength" min="100" max="20000" step="1" placeholder="Ex.: 6100"></label>
+        <button type="button" id="stockManualSaveLength" class="btn secondary">Salvar comprimento</button>
+      </div>
       <label>Origem <select id="stockManualKind">
         <option value="ABERTURA">Cadastro inicial</option>
         <option value="COMPRA">Compra / entrada adicional</option>
@@ -1717,15 +1750,19 @@ function progressoExpedicao(list){
   return {disponivel:true,areaEnviada,unidadesEnviadas,unidadesTotais};
 }
 function renderList(){
+  // Obras utilizadas somente para estoque não entram nos indicadores de produção.
+  const obrasComEsquadrias=works.filter(w=>elements.some(e=>e.obra_id===w.id));
   const t=totals(elements),exp=progressoExpedicao(elements);
-  node('count').textContent=works.length;
+  node('count').textContent=obrasComEsquadrias.length;
   node('total').textContent=amount(t.total);
   node('released').textContent=amount(t.released);
   node('pending').textContent=amount(t.total-t.released);
   node('sentArea').textContent=exp.disponivel?amount(exp.areaEnviada):'—';
   node('sentPercent').textContent=exp.disponivel?(t.total?(exp.areaEnviada/t.total*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'% da área total':'0% da área total'):'Dados de expedição indisponíveis';
-  if(!works.length){node('works').innerHTML='<div class="empty">Nenhuma obra cadastrada ainda. O painel está conectado para consulta. O cadastro será liberado após os testes de segurança e backup.</div>';return;}
-  node('works').innerHTML=works.map((w,i)=>{
+  if(!obrasComEsquadrias.length){
+    node('works').innerHTML='<div class="empty">Nenhuma obra com esquadrias cadastradas. Estoques manuais ficam somente na área Estoque.</div>';return;
+  }
+  node('works').innerHTML=obrasComEsquadrias.map((w,i)=>{
     const itens=elements.filter(x=>x.obra_id===w.id);
     const sum=totals(itens),envio=progressoExpedicao(itens);
     const pct=sum.total?Math.max(0,Math.min(100,Math.round(sum.released/sum.total*100))):0;
@@ -1748,7 +1785,8 @@ function renderList(){
       ${envioInfo}
       </button>`;
   }).join('');
-  node('works').querySelectorAll('[data-i]').forEach(b=>b.addEventListener('click',()=>renderDetail(works[Number(b.dataset.i)])));
+  node('works').querySelectorAll('[data-i]').forEach(b=>
+    b.addEventListener('click',()=>renderDetail(obrasComEsquadrias[Number(b.dataset.i)])));
 }
 // O hífen identifica a configuração, NÃO a quantidade de folhas ou módulos.
 function codigoVariacaoTecnica(tipologia,modulacao){
