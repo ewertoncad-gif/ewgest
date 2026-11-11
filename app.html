@@ -528,7 +528,7 @@
     <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar do CEM</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v41.4</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v42.0</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="login" class="panel login">
@@ -543,7 +543,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • interface renovada v41.4</div>
+        <div class="build">EWGEST • interface renovada v42.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -5152,7 +5152,7 @@ for(const id of ['cemFlagEsquadrias','cemFlagPerfis','cemFlagAcessorios']){
 
 
 /* Estoque: cadastro importado, planejamento CEM e saldo físico são separados. */
-let estoqueLinks=[],estoqueMovimentos=[],estoqueVarianteEscolhida=null;
+let estoqueLinks=[],estoqueMovimentos=[],estoqueVarianteEscolhida=null,estoqueObraMovimentos=[];
 async function abrirEstoque(){
   if(!matIsAdmin())return;
   setView('stock');
@@ -5160,16 +5160,18 @@ async function abrirEstoque(){
   try{
     await ensureSession();
     const empresa='eq.'+currentCompany.id;
-    const [perfis,aces,variacoes,links,operacoes]=await Promise.all([
+    const [perfis,aces,variacoes,links,operacoes,movObra]=await Promise.all([
       apiGet('ew_perfis',{select:'*',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_acessorios',{select:'*',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_materiais_variacoes',{select:'*',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_cem_obras_materiais',{select:'*',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_estoque_movimentacoes',{select:'variacao_id,quantidade_delta,unidade,tipo,criado_em',
-        empresa_id:empresa,limit:'20000'})
+        empresa_id:empresa,limit:'20000'}),
+      apiGet('ew_estoque_obras_movimentos',{select:'id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,origem,criado_em',
+        empresa_id:empresa,limit:'30000'})
     ]);
     matPerfis=perfis||[];matAcessorios=aces||[];matVariacoes=variacoes||[];
-    estoqueLinks=links||[];estoqueMovimentos=operacoes||[];
+    estoqueLinks=links||[];estoqueMovimentos=operacoes||[];estoqueObraMovimentos=movObra||[];
     node('stockPerfCount').textContent=matPerfis.length.toLocaleString('pt-BR');
     node('stockAcesCount').textContent=matAcessorios.length.toLocaleString('pt-BR');
     node('stockCounted').textContent=(new Set(estoqueMovimentos.map(m=>m.variacao_id))).size.toLocaleString('pt-BR');
@@ -5197,9 +5199,11 @@ function estoqueDados(){
     const mat=v.tipo==='perfil'?perfilMap.get(v.perfil_id):acesMap.get(v.acessorio_id);
     const link=byV.get(v.id);
     const physical=mov.get(v.id);
-    return {v,mat,link,physical};
+    const perWork=estoqueObraMovimentos.filter(m=>m.variacao_id===v.id&&
+      (!node('stockWork').value||m.obra_id===node('stockWork').value));
+    return {v,mat,link,physical,perWork};
   }).filter(x=>x.mat&&x.v.ativo&&(!node('stockType').value||x.v.tipo===node('stockType').value)&&
-    (!node('stockWork').value||x.link)&&
+    (!node('stockWork').value||x.link||x.perWork.length)&&
     [x.mat.codigo,x.mat.descricao,x.mat.fabricante,x.v.cor,x.v.acabamento,x.v.codigo_cor].some(v=>cemNome(v).includes(seek)))
     .sort((a,b)=>a.mat.codigo.localeCompare(b.mat.codigo,'pt-BR'));
 }
@@ -5214,8 +5218,8 @@ function renderEstoque(){
   if(!itens.length){out.innerHTML='<div class="materialEmpty">Nenhum material corresponde aos filtros. Consulte Banco de materiais ou importe uma obra do CEM.</div>';return;}
   out.innerHTML='<div class="stockTableWrap"><table class="stockTable"><thead><tr>'+
     '<th>Código</th><th>Tipo / fabricante</th><th>Material</th><th>Cor e acabamento</th>'+
-    '<th>Previsto no CEM</th><th>Saldo físico</th><th>Ações</th></tr></thead><tbody>'+
-    itens.map(({v,mat,link,physical})=>{
+    '<th>Previsto no CEM</th><th>Saldo da obra</th><th>Físico geral</th><th>Ações</th></tr></thead><tbody>'+
+    itens.map(({v,mat,link,physical,perWork})=>{
       const unidade=estoqueUnidade({v,mat,link,physical});
       let req='Não detalhado';
       if(link?.quantidade_prevista!=null){
@@ -5226,17 +5230,31 @@ function renderEstoque(){
       }else if(link)req='Importado: '+link.linhas_calculo+' linhas de cálculo; reimporte o ZIP para obter quantitativos';
       else req='Sem demanda vinculada';
       const saldo=physical?.count?'<span class="stockReady">'+matFormat(physical.saldo,4)+' '+escapeHTML(unidade)+'</span>':
-        '<span class="stockNodata">Inventário não informado</span>';
+        '<span class="stockNodata">Não informado</span>';
+      const porComprimento=new Map();
+      for(const mov of perWork){
+        const k=[mov.comprimento_mm??'',mov.unidade].join('|');
+        if(!porComprimento.has(k))porComprimento.set(k,{q:0,length:mov.comprimento_mm,unit:mov.unidade});
+        porComprimento.get(k).q+=Number(mov.quantidade_delta);
+      }
+      const saldoObra=!node('stockWork').value?'<span class="hint">Selecione uma obra</span>':
+        porComprimento.size?[...porComprimento.values()].map(x=>
+          '<span class="stockReady">'+matFormat(x.q,3)+' '+(x.unit==='BARRA'?'barra(s) × '+x.length+' mm':escapeHTML(x.unit))+'</span>'
+        ).join('<div style="height:5px"></div>'):'<span class="stockNodata">Sem lançamento na obra</span>';
       return '<tr><td><strong>'+escapeHTML(mat.codigo)+'</strong></td><td>'+
         escapeHTML(v.tipo==='perfil'?'Perfil':'Acessório')+
         '<div class="hint">'+escapeHTML(mat.fabricante)+'</div></td>'+
         '<td>'+escapeHTML(mat.descricao)+'</td><td>'+escapeHTML(v.acabamento)+' · '+escapeHTML(v.cor)+
-        '</td><td><span class="stockNeedValue">'+req+'</span></td><td>'+saldo+'</td>'+
-        '<td><button class="btn secondary" type="button" data-stock-var="'+escapeHTML(v.id)+'">Movimentar</button></td></tr>';
+        '</td><td><span class="stockNeedValue">'+req+'</span></td><td>'+saldoObra+
+        '</td><td>'+saldo+'</td>'+
+        '<td><button class="btn secondary" type="button" data-stock-manual="'+escapeHTML(v.id)+'">Lançar na obra</button> '+
+        '<button class="btn secondary" type="button" data-stock-var="'+escapeHTML(v.id)+'">Físico geral</button></td></tr>';
     }).join('')+'</tbody></table></div>'+
-    '<p class="stockFoot">'+itens.length+' variação(ões) listada(s). O saldo físico não é preenchido pela exportação do CEM.</p>';
+    '<p class="stockFoot">'+itens.length+' variação(ões) listada(s). Estoque da obra em barras inteiras; o físico geral permanece independente.</p>';
   out.querySelectorAll('[data-stock-var]').forEach(btn=>btn.addEventListener('click',
     ()=>abrirMovimentoEstoque(btn.dataset.stockVar)));
+  out.querySelectorAll('[data-stock-manual]').forEach(btn=>btn.addEventListener('click',
+    ()=>stockManualOpen(btn.dataset.stockManual)));
 }
 function abrirMovimentoEstoque(id){
   const item=estoqueDados().find(x=>x.v.id===id);
@@ -5292,7 +5310,7 @@ node('stockEntryForm').addEventListener('submit',registrarMovimentoEstoque);
 
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v41.4 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v42.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
