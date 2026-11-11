@@ -2843,6 +2843,9 @@ async function releaseMetodoAtualizar(){
   const type=document.querySelector('input[name="releaseMethod"]:checked')?.value||'';
   node('releaseMirrorPanel').classList.toggle('hidden',type==='sem'||!type);
   node('releaseCemArea').classList.toggle('hidden',type!=='cem');
+  const semBaixa=type==='sem'||!type;
+  node('releaseMirrorRows').querySelectorAll('input,select').forEach(input=>input.disabled=semBaixa);
+  if(!semBaixa)node('releaseMirrorRows').querySelectorAll('.releaseMirrorLine').forEach(releaseAtualizarLinha);
   node('releaseSave').textContent=type==='sem'?'Confirmar liberação sem baixa':'Conferir e confirmar liberação';
   if(type&&type!=='sem'&&!releaseCatalogReady){
     node('releaseMirrorMessage').textContent='Carregando materiais vinculados à empresa…';
@@ -2940,10 +2943,13 @@ node('releaseForm').addEventListener('submit',async event=>{
         p_arquivo_nome:metodo==='cem'?releaseCemFileName:null,p_operacao_id:releaseOperationId}});
     const workId=selectedItem.obra_id;
     closeRelease();
-    node('detailError').textContent='Liberação registrada ('+qty+' unidade(s)) e '+(ans.linhas_baixadas||0)+' linha(s) de material baixada(s). Atualizando…';
+    node('detailError').textContent=ans.repetida?
+      'Esta operação já havia sido registrada. Nenhuma nova baixa foi efetuada.':
+      'Liberação registrada ('+qty+' unidade(s)) e '+(ans.linhas_baixadas||0)+' linha(s) de material baixada(s). Atualizando…';
     try{await loadPanel();const w=works.find(x=>x.id===workId);
-      if(w){renderDetail(w);node('detailError').textContent='Liberação confirmada: '+qty+
-        ' unidade(s), fábrica '+fabrica+'; '+(ans.linhas_baixadas||0)+' material(is) baixado(s).';}}
+      if(w){renderDetail(w);node('detailError').textContent=ans.repetida?
+        'Operação já registrada anteriormente; sem nova baixa.':
+        'Liberação confirmada: '+qty+' unidade(s), fábrica '+fabrica+'; '+(ans.linhas_baixadas||0)+' material(is) baixado(s).';}}
     catch(e){node('detailError').textContent='Liberação salva, mas atualização falhou: '+e.message+'. Não repita o lançamento.';}
   }catch(e){
     node('releaseError').textContent='Não foi possível confirmar: '+e.message+
