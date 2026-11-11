@@ -5659,33 +5659,104 @@ node('stockEntryForm').addEventListener('submit',registrarMovimentoEstoque);
 
 /* Estoque por obra: cadastro e ajustes manuais com confirmação e histórico. */
 let stockManualOperationId=null;
+
 function stockManualPopulate(){
  const type=node('stockManualType').value;
  node('stockManualQty').min=type==='perfil'?'1':'0.001';
  node('stockManualQty').step=type==='perfil'?'1':'0.001';
- const options=matVariacoes.filter(x=>x.tipo===type&&x.ativo).map(v=>{
-  const mat=type==='perfil'?matPerfis.find(m=>m.id===v.perfil_id):matAcessorios.find(m=>m.id===v.acessorio_id);
-  if(!mat)return null;
-  return {id:v.id,text:mat.codigo+' · '+mat.descricao+' · '+mat.fabricante+' · '+v.cor+' / '+v.acabamento};
- }).filter(Boolean).sort((a,b)=>a.text.localeCompare(b.text,'pt-BR'));
- const combo=node('stockManualMaterial'),prior=combo.value;
- combo.innerHTML='<option value="">Selecione um material cadastrado</option>'+
-  options.map(x=>'<option value="'+escapeHTML(x.id)+'">'+escapeHTML(x.text)+'</option>').join('');
- if(options.some(x=>x.id===prior))combo.value=prior;
- node('stockManualLengthLabel').classList.toggle('hidden',type!=='perfil');
- node('stockNewAccessoryUnitLabel').classList.toggle('hidden',type!=='acessorio');
+ const list=(type==='perfil'?matPerfis:matAcessorios).filter(m=>m.ativo!==false&&
+    matVariacoes.some(v=>v.ativo&&v.tipo===type&&(type==='perfil'?v.perfil_id===m.id:v.acessorio_id===m.id)))
+   .sort((a,b)=>String(a.codigo).localeCompare(String(b.codigo),'pt-BR'));
+ const code=node('stockManualCode'),old=code.value;
+ code.innerHTML='<option value="">Selecione o código</option>'+list.map(m=>
+   '<option value="'+escapeHTML(m.id)+'">'+escapeHTML(m.codigo+' · '+m.descricao+' · '+m.fabricante)+'</option>').join('');
+ if(list.some(m=>m.id===old))code.value=old;
+ const bar=type==='perfil';
+ node('stockManualLengthLabel').classList.toggle('hidden',!bar);
+ node('stockManualAddLength').classList.toggle('hidden',!bar);
+ node('stockManualLengthPanel').classList.add('hidden');
+ node('stockNewAccessoryUnitLabel').classList.toggle('hidden',bar);
+ stockManualColorPopulate();
+}
+function stockManualColorPopulate(){
+ const type=node('stockManualType').value,code=node('stockManualCode').value;
+ const list=matVariacoes.filter(v=>v.tipo===type&&v.ativo&&
+   (type==='perfil'?v.perfil_id===code:v.acessorio_id===code))
+   .sort((a,b)=>String(a.cor).localeCompare(String(b.cor),'pt-BR'));
+ const select=node('stockManualMaterial'),old=select.value;
+ select.innerHTML='<option value="">Selecione a cor / acabamento</option>'+
+   list.map(v=>'<option value="'+escapeHTML(v.id)+'">'+
+     escapeHTML(v.cor+' / '+v.acabamento)+'</option>').join('');
+ if(list.some(v=>v.id===old))select.value=old;
+ else if(list.length===1)select.value=list[0].id;
  stockManualDetails();
+}
+function stockManualLengths(prefer=null){
+ const el=node('stockManualLength'),mat=matPerfis.find(x=>x.id===node('stockManualCode').value);
+ const old=el.value,opts=[...stockComprimentos],base=mmOrNull(mat?.comprimento_comercial_mm);
+ if(base&&!opts.includes(base))opts.push(base);
+ opts.sort((a,b)=>a-b);
+ el.innerHTML='<option value="">Escolha o comprimento</option>'+
+   opts.map(mm=>'<option value="'+mm+'">'+mm.toLocaleString('pt-BR')+' mm</option>').join('');
+ const chosen=Number(prefer||old);
+ if(opts.includes(chosen))el.value=String(chosen);
+ else if(base)el.value=String(base);
+ else if(opts.length===1)el.value=String(opts[0]);
+ else el.value='';
 }
 function stockManualDetails(){
  const v=matVariacoes.find(x=>x.id===node('stockManualMaterial').value);
  const mat=v?(v.tipo==='perfil'?matPerfis.find(m=>m.id===v.perfil_id):
    matAcessorios.find(m=>m.id===v.acessorio_id)):null;
- if(v?.tipo==='perfil'&&mat?.comprimento_comercial_mm&&!node('stockManualLength').value)
-   node('stockManualLength').value=mat.comprimento_comercial_mm;
- node('stockManualUnit').textContent=node('stockManualType').value==='perfil'
-   ?'Controle em barras inteiras. O comprimento identifica barras de 6.000 mm, 6.500 mm etc.; não controla sobras.'
-   :'Unidade do acessório: '+releaseUnidadeAcessorio(mat?.unidade_item||'PC');
+ if(node('stockManualType').value==='perfil')stockManualLengths();
+ node('stockManualUnit').textContent=node('stockManualType').value==='perfil'?
+   'Controle por barras inteiras; selecione um comprimento cadastrado.':
+   'Unidade do acessório: '+releaseUnidadeAcessorio(mat?.unidade_item||'PC');
 }
+async function stockManualAddLength(){
+ const length=Number(node('stockManualNewLength').value),err=node('stockManualError');
+ if(!matIsAdmin()||!Number.isSafeInteger(length)||length<100||length>20000){
+  err.textContent='Informe um comprimento inteiro entre 100 e 20.000 mm.';return;
+ }
+ const btn=node('stockManualSaveLength');btn.disabled=true;
+ try{
+  await ensureSession();
+  await request('/rest/v1/rpc/ew_cadastrar_comprimento_comercial',{
+   method:'POST',token:session.access_token,
+   body:{p_empresa_id:currentCompany.id,p_comprimento_mm:length}
+  });
+  if(!stockComprimentos.includes(length))stockComprimentos.push(length);
+  stockManualLengths(length);
+  node('stockManualLengthPanel').classList.add('hidden');
+  node('stockManualNewLength').value='';
+  node('stockManualSuccess').textContent='Comprimento de '+length.toLocaleString('pt-BR')+' mm cadastrado.';
+  err.textContent='';
+ }catch(e){err.textContent='Erro ao cadastrar comprimento: '+e.message;}
+ finally{btn.disabled=false;}
+}
+function stockReportRender(){
+ const el=node('stockReportSummary');
+ if(!el)return;
+ const incluir=node('stockReportIncludeEmpty').checked;
+ const ativos=new Set(stockLocais.filter(x=>!x.excluido_em).map(x=>x.obra_id));
+ const comEsquadrias=new Set(elements.map(x=>x.obra_id));
+ const obras=new Set(works.filter(w=>ativos.has(w.id)&&(incluir||comEsquadrias.has(w.id))).map(w=>w.id));
+ const grouped=new Map();
+ for(const r of estoqueObraMovimentos){
+  if(!obras.has(r.obra_id))continue;
+  const key=[r.obra_id,r.variacao_id,r.comprimento_mm??'',r.unidade].join('|');
+  if(!grouped.has(key))grouped.set(key,{quantidade:0,unidade:r.unidade});
+  grouped.get(key).quantidade+=Number(r.quantidade_delta);
+ }
+ const units=new Map();
+ for(const item of grouped.values())units.set(item.unidade,(units.get(item.unidade)||0)+item.quantidade);
+ const fmt=n=>n.toLocaleString('pt-BR',{maximumFractionDigits:3});
+ const extras=[...units.entries()].filter(([u])=>u!=='BARRA').map(([u,q])=>fmt(q)+' '+u);
+ el.textContent=obras.size+' estoque(s) incluído(s) · '+fmt(units.get('BARRA')||0)+' barras'+
+  (extras.length?' · Acessórios: '+extras.join(', '):'')+
+  (incluir?' · Com estoques de obras sem esquadrias.':' · Sem estoques de obras sem esquadrias.');
+}
+node('stockReportIncludeEmpty').addEventListener('change',stockReportRender);
 function stockManualOpen(variationId=''){
  if(!matIsAdmin())return;
  node('stockManualTitle').textContent=variationId?'Ajustar material do estoque':'Adicionar material ao estoque da obra';
