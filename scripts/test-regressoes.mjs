@@ -67,7 +67,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'interface renovada v41.3',
+ 'interface renovada v41.4',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -603,7 +603,10 @@ for(const token of ['ew_perfis','ew_acessorios','ew_materiais_variacoes',
  'async function salvarVariacao(event)']){
   assert.ok(source.includes(token),'Cadastro de materiais deve conter '+token);
 }
-assert.ok(source.includes('Estoque físico ainda não cadastrado'),'Estoque precisa indicar falta de inventário físico');
+assert.ok(source.includes('Inventário não informado')&&source.includes('Previsto (CEM):'),
+ 'Estoque distingue consumo planejado de inventário físico');
+assert.ok(source.includes('async function abrirEstoque()')&&source.includes('async function registrarMovimentoEstoque(e)'),
+ 'Estoque possui consulta real e movimentação auditável');
 for(const id of ['navMaterials','navStock','navCem','materials','stock','cemImport',
  'cemFlagEsquadrias','cemFlagPerfis','cemFlagAcessorios','cemPreview','cemCommit']){
  assert.ok(source.includes('id="'+id+'"'),'Seções e flags CEM/estoque: '+id);
