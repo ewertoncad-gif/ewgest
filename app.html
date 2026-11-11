@@ -2871,11 +2871,21 @@ async function releaseLerCem(){
     const totalAcc=r.aceMovs.filter(m=>ids.has(m.ITEMOBRA));
     releaseCemChecked=true;releaseCemFileName=file.name;
     node('releaseCemPreview').classList.remove('hidden');
-    node('releaseCemPreview').innerHTML='<div class="cemPreviewSection"><h3>Referência do CEM — '+escapeHTML(selectedItem.codigo)+'</h3>'+
-      '<p>'+candidates.length+' item(ns) correspondente(s) · '+totalBars.length+' linhas de peças de perfis · '+
-      totalAcc.length+' linhas de acessórios.</p><p class="hint">Este ZIP representa dados de cálculo da obra, '+
-      '<strong>não confirma quantas barras comerciais foram consumidas no plano otimizado.</strong> '+
-      'Preencha e confira as quantidades no espelho abaixo antes da baixa.</p></div>';
+    const cemLinhas=(rows,tipo)=>'<div class="cemTableWrap"><table class="cemTable"><thead><tr>'+
+      '<th>Código</th><th>Quantidade do CEM</th><th>'+(tipo==='perfil'?'Comprimento da peça':'Unidade')+'</th></tr></thead><tbody>'+
+      rows.map(x=>'<tr><td>'+escapeHTML(tipo==='perfil'?x.CODPERF:x.CODACES)+
+        '</td><td>'+escapeHTML(x.QTDE||'—')+'</td><td>'+escapeHTML(
+        tipo==='perfil'?(x.TAM?x.TAM+' mm':'—'):(x.UNID||'—'))+'</td></tr>').join('')+
+      '</tbody></table></div>';
+    node('releaseCemPreview').innerHTML='<div class="cemPreviewSection"><h3>Espelho CEM — '+escapeHTML(selectedItem.codigo)+'</h3>'+
+      '<p>'+candidates.length+' item(ns) correspondente(s) · '+totalBars.length+' linhas de perfis · '+
+      totalAcc.length+' linhas de acessórios.</p>'+
+      '<h3>Perfis / peças para corte (não equivalem a barras inteiras)</h3>'+
+      (totalBars.length?cemLinhas(totalBars,'perfil'):'<p>Sem peças de perfil.</p>')+
+      '<h3>Acessórios calculados</h3>'+
+      (totalAcc.length?cemLinhas(totalAcc,'acessorio'):'<p>Sem acessórios.</p>')+
+      '<p class="hint">O ZIP contém os quantitativos de cálculo, mas <strong>não confirma quantas barras comerciais foram utilizadas no plano otimizado.</strong> '+
+      'Revise o espelho editável abaixo e informe as barras e acessórios que devem ser baixados.</p></div>';
     node('releaseMirrorMessage').textContent='Arquivo CEM conferido como referência. A baixa será feita somente com as quantidades digitadas e confirmadas por você.';
   }catch(e){node('releaseMirrorMessage').textContent='Não foi possível usar o arquivo: '+e.message;
     node('releaseCemPreview').classList.add('hidden');}
