@@ -429,6 +429,23 @@
     @media(max-width:850px){.materialsSummary{grid-template-columns:repeat(2,minmax(0,1fr))}.materialRow{grid-template-columns:1fr}.materialRowActions{justify-content:flex-start}}
     @media(max-width:580px){.matFormGrid{grid-template-columns:1fr}.materialsSummary{grid-template-columns:1fr}.matImportBox{align-items:stretch}.matImportBox button{width:100%}}
 
+
+    .cemImportSteps{border-top:1px solid #e4eaf2;margin-top:22px;padding-top:18px}
+    .cemFlags{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:15px 0 4px}
+    .cemFlag{display:flex;align-items:flex-start;gap:12px;cursor:pointer;background:#f7faff;border:1px solid #dce8f5;border-radius:13px;padding:16px;margin:0;min-height:96px}
+    .cemFlag:has(input:checked){background:#edf6ff;border-color:#78b6ec}
+    .cemFlag input{flex:none;width:18px;height:18px;margin:1px 0;accent-color:#1878d5}
+    .cemFlag span{display:grid;gap:7px}
+    .cemFlag strong{color:#184472;font-size:14px}
+    .cemFlag small{font-size:12px;font-weight:400;line-height:1.45;color:#607b95}
+    .cemCommitArea{margin-top:20px;display:flex;align-items:center;gap:15px;flex-wrap:wrap}
+    .cemCommitArea button:disabled{opacity:.55;cursor:not-allowed}
+    .cemPreviewSummary{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:14px 0}
+    .cemPreviewSection{background:#f8fbff;border:1px solid #deebf5;padding:15px;border-radius:11px;margin:12px 0}
+    .cemPreviewSection h3{font-size:15px;margin:0 0 9px}
+    .cemPreviewSection ul{margin:6px 0;padding-left:22px;font-size:13px;line-height:1.9;color:#35556e}
+    @media(max-width:800px){.cemFlags{grid-template-columns:1fr}.cemFlag{min-height:auto}}
+
   </style>
 </head>
 <body>
@@ -448,7 +465,9 @@
     <div class="workspaceNavCaption workspaceNavCaptionSecond">ADMINISTRAÇÃO</div>
     <button id="navTypologies" class="workspaceLink hidden" type="button"><span class="navSymbol">▦</span> Banco de tipologias</button>
     <button id="navManufacturers" class="workspaceLink hidden" type="button"><span class="navSymbol">◫</span> Fabricantes</button>
-    <button id="navMaterials" class="workspaceLink hidden" type="button"><span class="navSymbol">▥</span> Materiais e estoque</button>
+    <button id="navMaterials" class="workspaceLink hidden" type="button"><span class="navSymbol">▥</span> Banco de materiais</button>
+    <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
+    <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar do CEM</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <div class="workspaceNavFooter">EWGEST <strong>· v41.1</strong><small>Gestão em movimento</small></div>
   </aside>
@@ -618,8 +637,8 @@
     <section id="materials" class="hidden">
       <div class="head">
         <div><button id="materialsBack" type="button" class="btn secondary">← Tela inicial</button>
-          <h1 style="margin-top:20px">Materiais e estoque</h1>
-          <p class="muted">Cadastro técnico de perfis, acessórios e suas cores. Base para importar obras do CEM Plus.</p>
+          <h1 style="margin-top:20px">Banco de materiais</h1>
+          <p class="muted">Cadastros técnicos compartilhados entre as obras: perfis, acessórios, acabamentos e cores.</p>
         </div>
         <button class="btn primary" id="matNovoHeader" type="button">+ Cadastrar material</button>
       </div>
@@ -632,7 +651,6 @@
         <div class="materialTabs" role="group" aria-label="Selecionar módulo">
           <button type="button" class="btn secondary active" id="matTabPerfil">Perfis</button>
           <button type="button" class="btn secondary" id="matTabAcessorio">Acessórios</button>
-          <button type="button" class="btn secondary" id="matTabEstoque">Estoque <span class="materialFuture">em preparação</span></button>
         </div>
         <div id="matCatalogPanel">
           <div class="materialsToolbar">
@@ -645,27 +663,60 @@
           <div id="matMessage" class="feedback" role="status" aria-live="polite"></div>
           <div id="matLista" class="materialList"></div>
         </div>
-        <div id="matStockPanel" class="hidden">
-          <div class="materialEmpty">
-            <div class="materialEmptyIcon">▥</div>
-            <h2>Controle de estoque — próxima etapa</h2>
-            <p>Estrutura prevista: entradas, reservas, saídas, localização, saldos por acabamento/cor e necessidade por obra.</p>
-            <p><strong>Nenhum estoque físico foi lançado.</strong> Importar ou cadastrar materiais não criará saldo automaticamente.</p>
-          </div>
+
+      </div>
+    </section>
+    <section id="stock" class="hidden">
+      <div class="head"><div>
+        <button type="button" class="btn secondary" id="stockBack">← Tela inicial</button>
+        <h1 style="margin-top:20px">Estoque</h1>
+        <p class="muted">Controle físico e reservas de materiais para fabricação.</p>
+      </div></div>
+      <div class="section panel">
+        <div class="materialEmpty">
+          <div class="materialEmptyIcon">▣</div>
+          <h2>Estoque físico ainda não cadastrado</h2>
+          <p>Os bancos de perfis e acessórios armazenam informações técnicas, mas não representam quantidades existentes no almoxarifado.</p>
+          <p>Próximas funções: inventário inicial, entradas, reservas por plano de corte, baixas físicas, devoluções e saldo por cor e acabamento.</p>
+          <strong>O arquivo do CEM informa necessidades da obra, não o estoque real da GVG.</strong>
+        </div>
+        <div class="materialImportHead" style="margin-top:22px">
+          <h2>Consultar cadastro de materiais</h2>
+          <button type="button" class="btn secondary" id="stockOpenMaterials">Abrir banco de materiais</button>
         </div>
       </div>
+    </section>
+    <section id="cemImport" class="hidden">
+      <div class="head"><div>
+        <button type="button" class="btn secondary" id="cemBack">← Tela inicial</button>
+        <h1 style="margin-top:20px">Importar obra do CEM Plus</h1>
+        <p class="muted">Escolha o ZIP exportado pelo CEM, selecione o que deseja importar e confira os resultados antes de qualquer gravação.</p>
+      </div></div>
       <div class="section panel">
-        <div class="materialImportHead">
-          <div><h2>Importar obra do CEM Plus</h2>
-            <p class="hint">No ZIP do CEM identificamos cadastros PERF/ACES e registros de materiais calculados. Nesta versão fazemos somente a verificação local do arquivo.</p>
-          </div>
-          <span class="materialFuture">SEM GRAVAÇÃO</span>
-        </div>
+        <h2>1. Arquivo de exportação</h2>
+        <label for="matCemArquivo">Arquivo ZIP original do CEM</label>
         <div class="matImportBox">
-          <input id="matCemArquivo" type="file" accept=".zip,application/zip" aria-label="Selecionar ZIP exportado pelo CEM">
-          <button id="matCemConferir" class="btn secondary" type="button">Verificar arquivo</button>
+          <input id="matCemArquivo" type="file" accept=".zip,application/zip">
+          <button id="matCemConferir" class="btn primary" type="button">Analisar arquivo</button>
         </div>
-        <p class="hint" id="matCemResposta" role="status">Não é feita importação automática nesta etapa. O módulo de leitura e a prévia dos quantitativos ainda serão implementados.</p>
+        <div class="cemImportSteps">
+          <h2>2. Escolha os dados</h2>
+          <p class="hint">Você pode marcar qualquer combinação. Os números apresentados considerarão somente a obra calculada; itens desmarcados no CEM serão ignorados.</p>
+          <div class="cemFlags">
+            <label class="cemFlag"><input id="cemFlagEsquadrias" type="checkbox" checked><span><strong>Esquadrias</strong><small>Códigos, dimensões, quantidades e descrições dos itens calculados</small></span></label>
+            <label class="cemFlag"><input id="cemFlagPerfis" type="checkbox" checked><span><strong>Perfis</strong><small>Materiais usados na obra, fabricante, peso e acabamento</small></span></label>
+            <label class="cemFlag"><input id="cemFlagAcessorios" type="checkbox" checked><span><strong>Acessórios</strong><small>Componentes utilizados, unidades, cores e referências</small></span></label>
+          </div>
+        </div>
+        <div class="cemImportSteps">
+          <h2>3. Conferência antes de importar</h2>
+          <p id="matCemResposta" class="hint" role="status" aria-live="polite">Selecione o ZIP e clique em “Analisar arquivo”. Nenhuma informação será gravada nesta etapa.</p>
+          <div id="cemPreview" class="hidden"></div>
+          <div class="cemCommitArea">
+            <button type="button" class="btn secondary" id="cemCommit" disabled>Importar dados selecionados</button>
+            <p class="hint">A confirmação de importação só será habilitada depois de validarmos o tratamento de obras existentes, duplicidades e quantitativos. A análise funciona sem alterar o Supabase.</p>
+          </div>
+        </div>
       </div>
     </section>
     <section id="typologies" class="hidden">
@@ -1204,7 +1255,7 @@ function isAlmoxarife(){return String(membership?.perfil||'').toLowerCase()==='a
 function podeEmitirRomaneio(){return ['administrador','supervisor','almoxarife'].includes(String(membership?.perfil||'').toLowerCase());}
 function setView(view){
   if(isAlmoxarife()&&!['login','romaneiosPage','myPassword'].includes(view))view='romaneiosPage';
-  for(const id of ['login','dashboard','detail','romaneiosPage','typologies','manufacturers','materials','users','myPassword'])
+  for(const id of ['login','dashboard','detail','romaneiosPage','typologies','manufacturers','materials','stock','cemImport','users','myPassword'])
     node(id).classList.toggle('hidden',id!==view);
   node('logout').classList.toggle('hidden',view==='login');
   node('myPasswordHeader').classList.toggle('hidden',view==='login');
@@ -1213,7 +1264,7 @@ function setView(view){
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
   const ativo=view==='detail'?'dashboard':view;
   for(const [id,target] of [['navHome','dashboard'],['navRomaneios','romaneiosPage'],
-      ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navUsers','users']]){
+      ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navCem','cemImport'],['navUsers','users']]){
     const button=node(id);
     const selecionado=ativo===target;
     button.classList.toggle('active',selecionado);
@@ -1292,7 +1343,7 @@ async function loadPanel(){
   const adminNav=String(membership?.perfil||'').toLowerCase()==='administrador';
   node('navHome').classList.toggle('hidden',somenteRomaneios);
   node('navRomaneios').classList.toggle('hidden',!podeEmitirRomaneio());
-  for(const id of ['navTypologies','navManufacturers','navMaterials','navUsers'])node(id).classList.toggle('hidden',!adminNav);
+  for(const id of ['navTypologies','navManufacturers','navMaterials','navStock','navCem','navUsers'])node(id).classList.toggle('hidden',!adminNav);
   node('openRomaneioHub').classList.toggle('hidden',!podeEmitirRomaneio()||somenteRomaneios);
   node('topTag').textContent=somenteRomaneios?'Romaneios e expedição':'Gestão de obras · liberações e saídas';
   node('openTypologies').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
@@ -2683,6 +2734,8 @@ node('navRomaneios').addEventListener('click',abrirAreaRomaneios);
 node('navTypologies').addEventListener('click',()=>node('openTypologies').click());
 node('navManufacturers').addEventListener('click',()=>node('openManufacturers').click());
 node('navMaterials').addEventListener('click',abrirMateriais);
+node('navStock').addEventListener('click',()=>setView('stock'));
+node('navCem').addEventListener('click',()=>setView('cemImport'));
 node('navUsers').addEventListener('click',()=>node('openUsers').click());
 node('romaneiosBack').addEventListener('click',()=>setView('dashboard'));
 node('hubWorkSelect').addEventListener('change',()=>{
@@ -4227,21 +4280,17 @@ async function abrirMateriais(){
   catch(e){node('matMessage').textContent='Não foi possível carregar os materiais: '+e.message;}
 }
 function matSelecionarTipo(tipo){
+  if(!['perfil','acessorio'].includes(tipo))return;
   matTipo=tipo;
-  for(const [id,t] of [['matTabPerfil','perfil'],['matTabAcessorio','acessorio'],['matTabEstoque','estoque']]){
+  for(const [id,t] of [['matTabPerfil','perfil'],['matTabAcessorio','acessorio']]){
     const on=t===tipo;node(id).classList.toggle('active',on);node(id).setAttribute('aria-pressed',String(on));
   }
-  const estoque=tipo==='estoque';
-  node('matCatalogPanel').classList.toggle('hidden',estoque);
-  node('matStockPanel').classList.toggle('hidden',!estoque);
-  node('matNovoHeader').classList.toggle('hidden',estoque);
-  if(!estoque){node('matNovo').textContent='+ Novo '+matLbl();renderMateriais();}
+  node('matNovo').textContent='+ Novo '+matLbl();renderMateriais();
 }
 function renderMateriais(){
   node('matCountPerfis').textContent=matPerfis.length.toLocaleString('pt-BR');
   node('matCountAcessorios').textContent=matAcessorios.length.toLocaleString('pt-BR');
   node('matCountVariacoes').textContent=matVariacoes.length.toLocaleString('pt-BR');
-  if(matTipo==='estoque')return;
   const search=node('matPesquisa').value.trim().toLocaleUpperCase('pt-BR');
   const inativos=node('matMostrarInativos').checked;
   const itens=matEntries().filter(x=>(inativos||x.ativo)&&
@@ -4413,7 +4462,10 @@ node('matNovoHeader').addEventListener('click',()=>abrirEdicaoMaterial());
 node('matNovo').addEventListener('click',()=>abrirEdicaoMaterial());
 node('matTabPerfil').addEventListener('click',()=>matSelecionarTipo('perfil'));
 node('matTabAcessorio').addEventListener('click',()=>matSelecionarTipo('acessorio'));
-node('matTabEstoque').addEventListener('click',()=>matSelecionarTipo('estoque'));
+node('stockBack').addEventListener('click',()=>setView('dashboard'));
+node('stockOpenMaterials').addEventListener('click',abrirMateriais);
+node('cemBack').addEventListener('click',()=>setView('dashboard'));
+
 node('matPesquisa').addEventListener('input',renderMateriais);
 node('matMostrarInativos').addEventListener('change',renderMateriais);
 node('matEditCancel').addEventListener('click',matClose);
