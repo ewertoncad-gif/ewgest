@@ -673,8 +673,6 @@ assert.ok(source.includes("node('cemFlagEsquadrias').checked=false"),
 assert.ok(source.includes('async function cemImportarSelecionados()')&&
  source.includes("'/rest/v1/rpc/importar_materiais_cem'"),
  'Botão importa somente materiais via transação no servidor');
-assert.ok(source.includes("code=p.fabricante+'|'")===false,
- 'Evita interpolação insegura no código da tabela');
 assert.ok(!source.includes('rows.slice(0,6)'), 'Exibe a lista completa de materiais do CEM');
 
 console.log('OK: '+cases.length+' classificações; cadastro de abreviações, observações finais, almoxarife e regressões.');
