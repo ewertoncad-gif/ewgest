@@ -67,7 +67,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'interface renovada v42.0',
+ 'interface renovada v42.1',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -603,9 +603,9 @@ for(const token of ['ew_perfis','ew_acessorios','ew_materiais_variacoes',
  'async function salvarVariacao(event)']){
   assert.ok(source.includes(token),'Cadastro de materiais deve conter '+token);
 }
-assert.ok(source.includes('Saldo da obra:')&&source.includes('Sem lançamento na obra')&&
- source.includes('Previsto (CEM):'),
- 'Estoque distingue quantidades do CEM e saldo lançado por obra');
+assert.ok(source.includes('Quantidade na obra')&&source.includes('Comprimento da barra')&&
+ source.includes('Ajustar quantidade')&&source.includes('Não cadastrada'),
+ 'Estoque simplificado mostra barras, comprimento e ajuste de saldo');
 assert.ok(source.includes('async function abrirEstoque()')&&source.includes('async function registrarMovimentoEstoque(e)'),
  'Estoque possui consulta real e movimentação auditável');
 for(const id of ['navMaterials','navStock','navCem','materials','stock','cemImport',
@@ -702,6 +702,26 @@ assert.ok(source.includes('function cemEncontrarConciliacoes(r,perfis,acessorios
 assert.ok(source.includes('ew_importar_cem_conciliado'),
  'Importação deve solicitar decisões do ADM em casos de equivalência');
 assert.ok(!source.includes("rows.slice(0,6)"), 'Lista de materiais importados deve ser completa');
+
+assert.ok(source.includes('id="stockCreateAnother"')&&
+ source.includes("node('stockCreateAnother').addEventListener"),
+ 'Criar estoque de outra obra acessível diretamente no topo');
+assert.ok(source.includes('id="stockQuantityOverlay"')&&
+ source.includes('id="stockQtyNew"')&&source.includes('function stockQtySubmit(e)'),
+ 'Ajustar quantidade altera saldo final pelo histórico de movimentos');
+assert.ok(source.includes("p_origem:atual.informado?'AJUSTE':'ABERTURA'"),
+ 'Movimento de abertura e ajustes subsequentes separados');
+const mmFnStart=source.indexOf('function mmOrNull(value){');
+const mmFnEnd=source.indexOf('let stockQtySelected=',mmFnStart);
+assert.ok(mmFnStart>=0&&mmFnEnd>mmFnStart,'Validador de comprimento comercial disponível');
+const mmOrNullTeste=new Function(source.slice(mmFnStart,mmFnEnd)+'\nreturn mmOrNull;')();
+assert.equal(mmOrNullTeste(6000),6000,'Comprimento comercial de 6000 mm é válido');
+assert.equal(mmOrNullTeste(6500),6500,'Comprimento comercial de 6500 mm é válido');
+assert.equal(mmOrNullTeste(''),null,'Comprimento vazio não deve gerar tamanho inventado');
+assert.equal(mmOrNullTeste(6000.5),null,'Comprimento comercial deve ser inteiro em mm');
+assert.ok(!source.includes('data-stock-manual='),'A tabela não pode exibir lançamento em cada linha');
+assert.ok(!source.includes('data-stock-var='),'A tabela não pode exibir botão Físico geral');
+
 console.log('OK: '+cases.length+' classificações; cadastro de abreviações, observações finais, almoxarife e regressões.');
 
 
