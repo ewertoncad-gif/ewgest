@@ -660,15 +660,23 @@ const mapped=mapping({
   LINHA:'INOVA',PRENATP:'L. INOVA - T',PESO:'0.501'}],
  acesCatalog:[{CODACES:'NYL1900PTO',REF:'HYDRO',DESCRICAO:'BOTÃO DE NYL FIXAÇÃO',
   LINHA:'DIVERSOS',PRENATA:'PRETO',UNID:'PC',UNID_EMB:'PT'}],
- profMovs:[{CODPERF:'IN024',CODTRAT:'ANOD-1002-A13',CODTRATEXT:'ANOD-1002-A13'},
-  {CODPERF:'IN024',CODTRAT:'ANOD-1002-A13',CODTRATEXT:'ANOD-1002-A13'},
-  {CODPERF:'IN024',CODTRAT:'NATURAL',CODTRATEXT:'NATURAL'}],
- aceMovs:[{CODACES:'NYL1900PTO',PRENATA:'PRETO'}]
+ profMovs:[{CODPERF:'IN024',CODTRAT:'ANOD-1002-A13',CODTRATEXT:'ANOD-1002-A13',QTDE:'2',TAM:'1500'},
+  {CODPERF:'IN024',CODTRAT:'ANOD-1002-A13',CODTRATEXT:'ANOD-1002-A13',QTDE:'3',TAM:'1000'},
+  {CODPERF:'IN024',CODTRAT:'NATURAL',CODTRATEXT:'NATURAL',QTDE:'1',TAM:'1000'}],
+ aceMovs:[{CODACES:'NYL1900PTO',PRENATA:'PRETO',QTDE:'8',UNID:'PC'}]
 });
 assert.equal(mapped.perfis.length,1,'Mesmo perfil deve ficar num único cadastro');
 assert.equal(mapped.perfis[0].variacoes.length,2,'Anodizado e natural são variações');
 assert.equal(mapped.perfis[0].variacoes[0].linhas_calculo,2,'Referências repetidas agrupadas');
 assert.equal(mapped.acessorios[0].variacoes[0].cor,'PRETO','Cor do acessório mantida');
+assert.equal(mapped.perfis[0].variacoes[0].quantidade_prevista,5,
+ 'Quantidades de perfis devem somar todos os cortes calculados');
+assert.equal(mapped.perfis[0].variacoes[0].comprimento_total_m,6,
+ 'Comprimento total de perfil deve vir de QTDE × TAM (mm)');
+assert.equal(mapped.acessorios[0].variacoes[0].quantidade_prevista,8,
+ 'Quantidade de acessórios deve considerar o campo QTDE do CEM');
+assert.equal(mapped.acessorios[0].variacoes[0].unidade_prevista,'PC',
+ 'Unidade de acessórios deve respeitar o CEM');
 assert.ok(source.includes('id="cemExistingNotice"'),'Mostra aviso de obra já cadastrada');
 assert.ok(source.includes('id="cemCommitHint"'),'Explica quando a importação é habilitada');
 assert.ok(source.includes("node('cemFlagEsquadrias').checked=false"),
