@@ -614,8 +614,8 @@ assert.ok(source.includes('function cemLerObra(xmlText)') && source.includes('as
  'Leitura real local do XML exportado em ZIP do CEM');
 assert.ok(source.includes('id="cemCommit" disabled'),
  'Importação real não pode ficar ativa antes da validação');
-assert.ok(source.includes('Nenhuma informação será gravada nesta etapa.'),
- 'Análise do CEM não deve prometer gravação');
+assert.ok(source.includes('A análise não altera o banco.'),
+ 'Análise do CEM não altera o banco antes da confirmação');
 
 // Simula um ZIP real com ExpObras.xml compactado (método 8, DEFLATE).
 const zipBegin=source.indexOf('function cemSqlValues(value){');
