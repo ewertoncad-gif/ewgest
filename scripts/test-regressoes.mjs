@@ -603,8 +603,9 @@ for(const token of ['ew_perfis','ew_acessorios','ew_materiais_variacoes',
  'async function salvarVariacao(event)']){
   assert.ok(source.includes(token),'Cadastro de materiais deve conter '+token);
 }
-assert.ok(source.includes('Inventário não informado')&&source.includes('Previsto (CEM):'),
- 'Estoque distingue consumo planejado de inventário físico');
+assert.ok(source.includes('Saldo da obra:')&&source.includes('Sem lançamento na obra')&&
+ source.includes('Previsto (CEM):'),
+ 'Estoque distingue quantidades do CEM e saldo lançado por obra');
 assert.ok(source.includes('async function abrirEstoque()')&&source.includes('async function registrarMovimentoEstoque(e)'),
  'Estoque possui consulta real e movimentação auditável');
 for(const id of ['navMaterials','navStock','navCem','materials','stock','cemImport',
