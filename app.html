@@ -4894,6 +4894,146 @@ for(const id of ['cemFlagEsquadrias','cemFlagPerfis','cemFlagAcessorios']){
 }
 
 
+
+/* Estoque: cadastro importado, planejamento CEM e saldo físico são separados. */
+let estoqueLinks=[],estoqueMovimentos=[],estoqueVarianteEscolhida=null;
+async function abrirEstoque(){
+  if(!matIsAdmin())return;
+  setView('stock');
+  node('stockMessage').textContent='Consultando materiais e movimentações…';
+  try{
+    await ensureSession();
+    const empresa='eq.'+currentCompany.id;
+    const [perfis,aces,variacoes,links,operacoes]=await Promise.all([
+      apiGet('ew_perfis',{select:'*',empresa_id:empresa,limit:'5000'}),
+      apiGet('ew_acessorios',{select:'*',empresa_id:empresa,limit:'5000'}),
+      apiGet('ew_materiais_variacoes',{select:'*',empresa_id:empresa,limit:'5000'}),
+      apiGet('ew_cem_obras_materiais',{select:'*',empresa_id:empresa,limit:'5000'}),
+      apiGet('ew_estoque_movimentacoes',{select:'variacao_id,quantidade_delta,unidade,tipo,criado_em',
+        empresa_id:empresa,limit:'20000'})
+    ]);
+    matPerfis=perfis||[];matAcessorios=aces||[];matVariacoes=variacoes||[];
+    estoqueLinks=links||[];estoqueMovimentos=operacoes||[];
+    node('stockPerfCount').textContent=matPerfis.length.toLocaleString('pt-BR');
+    node('stockAcesCount').textContent=matAcessorios.length.toLocaleString('pt-BR');
+    node('stockCounted').textContent=(new Set(estoqueMovimentos.map(m=>m.variacao_id))).size.toLocaleString('pt-BR');
+    const dropdown=node('stockWork'),previous=dropdown.value;
+    dropdown.innerHTML='<option value="">Todas as obras</option>'+works.map(w=>
+      '<option value="'+escapeHTML(w.id)+'">'+escapeHTML(w.nome+' · '+(w.codigo||''))+'</option>').join('');
+    if(works.some(w=>w.id===previous))dropdown.value=previous;
+    else if(works.length===1)dropdown.value=works[0].id;
+    renderEstoque();
+    node('stockMessage').textContent='';
+  }catch(e){node('stockMessage').textContent='Não foi possível carregar estoque: '+e.message;}
+}
+function estoqueDados(){
+  const byV=new Map(estoqueLinks.filter(link=>!node('stockWork').value||
+    link.obra_id===node('stockWork').value).map(link=>[link.variacao_id,link]));
+  const mov=new Map();
+  for(const x of estoqueMovimentos){
+    if(!mov.has(x.variacao_id))mov.set(x.variacao_id,{saldo:0,count:0,unidade:x.unidade});
+    const m=mov.get(x.variacao_id);m.saldo+=Number(x.quantidade_delta);m.count++;
+  }
+  const perfilMap=new Map(matPerfis.map(x=>[x.id,x]));
+  const acesMap=new Map(matAcessorios.map(x=>[x.id,x]));
+  const seek=cemNome(node('stockSearch').value);
+  return matVariacoes.map(v=>{
+    const mat=v.tipo==='perfil'?perfilMap.get(v.perfil_id):acesMap.get(v.acessorio_id);
+    const link=byV.get(v.id);
+    const physical=mov.get(v.id);
+    return {v,mat,link,physical};
+  }).filter(x=>x.mat&&x.v.ativo&&(!node('stockType').value||x.v.tipo===node('stockType').value)&&
+    (!node('stockWork').value||x.link)&&
+    [x.mat.codigo,x.mat.descricao,x.mat.fabricante,x.v.cor,x.v.acabamento,x.v.codigo_cor].some(v=>cemNome(v).includes(seek)))
+    .sort((a,b)=>a.mat.codigo.localeCompare(b.mat.codigo,'pt-BR'));
+}
+function estoqueUnidade(row){
+  if(row.physical?.unidade)return row.physical.unidade;
+  return row.v.tipo==='perfil'?'M':row.link?.unidade_prevista||row.mat.unidade_item||'PC';
+}
+function renderEstoque(){
+  if(!node('stockRecords'))return;
+  const itens=estoqueDados();
+  const out=node('stockRecords');
+  if(!itens.length){out.innerHTML='<div class="materialEmpty">Nenhum material corresponde aos filtros. Consulte Banco de materiais ou importe uma obra do CEM.</div>';return;}
+  out.innerHTML='<div class="stockTableWrap"><table class="stockTable"><thead><tr>'+
+    '<th>Código</th><th>Tipo / fabricante</th><th>Material</th><th>Cor e acabamento</th>'+
+    '<th>Previsto no CEM</th><th>Saldo físico</th><th>Ações</th></tr></thead><tbody>'+
+    itens.map(({v,mat,link,physical})=>{
+      const unidade=estoqueUnidade({v,mat,link,physical});
+      let req='Não detalhado';
+      if(link?.quantidade_prevista!=null){
+        req=v.tipo==='perfil'?
+          (link.comprimento_total_m!=null?matFormat(link.comprimento_total_m,3)+' m lineares':'Comprimento não informado')+
+          ' · '+matFormat(link.quantidade_prevista,0)+' cortes':
+          matFormat(link.quantidade_prevista,3)+' '+escapeHTML(link.unidade_prevista||unidade);
+      }else if(link)req='Importado: '+link.linhas_calculo+' linhas de cálculo; reimporte o ZIP para obter quantitativos';
+      else req='Sem demanda vinculada';
+      const saldo=physical?.count?'<span class="stockReady">'+matFormat(physical.saldo,4)+' '+escapeHTML(unidade)+'</span>':
+        '<span class="stockNodata">Inventário não informado</span>';
+      return '<tr><td><strong>'+escapeHTML(mat.codigo)+'</strong></td><td>'+
+        escapeHTML(v.tipo==='perfil'?'Perfil':'Acessório')+
+        '<div class="hint">'+escapeHTML(mat.fabricante)+'</div></td>'+
+        '<td>'+escapeHTML(mat.descricao)+'</td><td>'+escapeHTML(v.acabamento)+' · '+escapeHTML(v.cor)+
+        '</td><td><span class="stockNeedValue">'+req+'</span></td><td>'+saldo+'</td>'+
+        '<td><button class="btn secondary" type="button" data-stock-var="'+escapeHTML(v.id)+'">Movimentar</button></td></tr>';
+    }).join('')+'</tbody></table></div>'+
+    '<p class="stockFoot">'+itens.length+' variação(ões) listada(s). O saldo físico não é preenchido pela exportação do CEM.</p>';
+  out.querySelectorAll('[data-stock-var]').forEach(btn=>btn.addEventListener('click',
+    ()=>abrirMovimentoEstoque(btn.dataset.stockVar)));
+}
+function abrirMovimentoEstoque(id){
+  const item=estoqueDados().find(x=>x.v.id===id);
+  if(!item)return;
+  estoqueVarianteEscolhida=item;
+  const u=estoqueUnidade(item);
+  node('stockEntryForm').reset();
+  node('stockEntryTitle').textContent='Movimentar estoque';
+  node('stockEntryInfo').textContent=item.mat.codigo+' · '+item.mat.descricao+' · '+item.v.cor;
+  node('stockEntryUnitHint').textContent='Unidade de controle: '+u+
+    (item.v.tipo==='perfil'?' (metros lineares, não quantidade de barras)':'');
+  node('stockEntryType').value=item.physical?.count?'ENTRADA':'INVENTARIO_INICIAL';
+  node('stockEntryReason').value='';
+  node('stockEntryError').textContent='';
+  node('stockEntryModal').classList.remove('hidden');
+  node('stockEntryQuantity').focus();
+}
+function fecharMovimentoEstoque(){node('stockEntryModal').classList.add('hidden');estoqueVarianteEscolhida=null;}
+async function registrarMovimentoEstoque(e){
+  e.preventDefault();
+  const item=estoqueVarianteEscolhida;
+  if(!item||!matIsAdmin())return;
+  const raw=Number(node('stockEntryQuantity').value);
+  const tipo=node('stockEntryType').value;
+  const qtd=tipo==='SAIDA'?-Math.abs(raw):raw;
+  if(!Number.isFinite(qtd)||qtd===0||(tipo!=='AJUSTE'&&raw<=0)){
+    node('stockEntryError').textContent='Informe uma quantidade válida.';return;
+  }
+  const reason=node('stockEntryReason').value.trim();
+  if(reason.length<5){node('stockEntryError').textContent='Informe o motivo da movimentação (mínimo 5 caracteres).';return;}
+  if(!window.confirm('Registrar '+tipo.toLowerCase().replaceAll('_',' ')+' de '+matFormat(qtd,4)+' '+
+   estoqueUnidade(item)+' para '+item.mat.codigo+'?'))return;
+  const btn=node('stockEntrySave');btn.disabled=true;
+  try{
+    await ensureSession();
+    const ans=await request('/rest/v1/rpc/movimentar_estoque_ewgest',{method:'POST',
+      token:session.access_token,body:{
+        p_empresa_id:currentCompany.id,p_variacao_id:item.v.id,p_tipo:tipo,
+        p_quantidade:qtd,p_unidade:estoqueUnidade(item),p_observacao:reason
+      }});
+    fecharMovimentoEstoque();
+    await abrirEstoque();
+    node('stockMessage').textContent='Movimentação registrada. Saldo físico atualizado para '+
+      matFormat(ans.saldo,4)+' '+ans.unidade+'.';
+  }catch(err){node('stockEntryError').textContent='Não foi possível registrar: '+err.message;}
+  finally{btn.disabled=false;}
+}
+node('stockWork').addEventListener('change',renderEstoque);
+node('stockType').addEventListener('change',renderEstoque);
+node('stockSearch').addEventListener('input',renderEstoque);
+node('stockEntryCancel').addEventListener('click',fecharMovimentoEstoque);
+node('stockEntryForm').addEventListener('submit',registrarMovimentoEstoque);
+
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
 try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v41.3 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
