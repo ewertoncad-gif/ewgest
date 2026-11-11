@@ -942,6 +942,14 @@
       <label>Tipo de material <select id="stockManualType"><option value="perfil">Perfil</option><option value="acessorio">Acessório</option></select></label>
       <label>Material, cor e acabamento <select id="stockManualMaterial" required></select></label>
       <button type="button" class="btn secondary" id="stockManualNewMaterial">+ Material inexistente? Cadastrar</button>
+      <div id="stockManualNewFields" class="hidden">
+        <p class="hint">Cadastro novo, editável depois no Banco de materiais. Possíveis duplicidades serão apresentadas ao ADM em importações futuras.</p>
+        <label>Código do novo material <input id="stockNewMaterialCode" maxlength="90" placeholder="Ex.: PERFIL-001"></label>
+        <label>Descrição técnica <input id="stockNewMaterialDesc" maxlength="500" placeholder="Ex.: MONTANTE LATERAL FOLHA"></label>
+        <label>Fabricante <input id="stockNewMaterialMaker" maxlength="150" placeholder="Ex.: HYDRO"></label>
+        <label>Cor <input id="stockNewMaterialColor" maxlength="150" placeholder="Ex.: BRONZE"></label>
+        <label>Acabamento <input id="stockNewMaterialFinish" maxlength="150" placeholder="Ex.: ANODIZADO"></label>
+      </div>
       <label id="stockManualLengthLabel">Comprimento por barra (mm) <input type="number" id="stockManualLength" min="100" max="20000" step="1" placeholder="Ex.: 6000"></label>
       <label>Operação <select id="stockManualKind">
         <option value="ABERTURA">Quantidade inicial da obra</option>
