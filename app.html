@@ -396,6 +396,39 @@
       }
     }
 
+
+    /* Módulo de materiais — versão inicial, sem controle de saldos */
+    .materialsSummary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+    .materialTabs{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:20px;padding-bottom:17px;border-bottom:1px solid #e4ebf2}
+    .materialTabs button.active{background:#e9f3ff;color:#155fb0;border-color:#b4d6f6}
+    .materialFuture{font-size:10px;font-weight:750;letter-spacing:.02em;color:#8b6b29;background:#fff5df;border-radius:6px;padding:5px 7px;margin-left:5px;white-space:nowrap}
+    .materialsToolbar{display:flex;align-items:end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:8px 0 16px}
+    .matSearchBox{flex:1 1 280px;max-width:500px}.matSearchBox label{margin:0 0 7px}
+    .matInactive,.matSwitch{display:flex;gap:10px;align-items:center;font-size:12px;margin:0;cursor:pointer}
+    .matInactive input,.matSwitch input{width:auto;accent-color:#257bd4}
+    .materialList{display:grid;gap:12px;margin-top:18px}
+    .materialRow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;padding:17px;border:1px solid #dfe8f1;border-radius:13px;background:#fbfdff}
+    .materialRow h3{font-size:16px;color:#174876;margin:0 0 5px}
+    .materialRow p{font-size:13px;margin:5px 0;color:#627c96}
+    .materialDetails{font-size:12px;color:#56728e;margin-top:8px}
+    .materialRowActions{display:flex;gap:7px;align-items:flex-start;flex-wrap:wrap;justify-content:flex-end}
+    .materialVariants{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+    .materialVariant{border:1px solid #cfe0ee;background:#eef7ff;color:#285f90;border-radius:8px;padding:7px 9px;font-size:12px;text-align:left}
+    .materialVariant:hover{background:#dfedfc}
+    .materialEmpty{background:#f8fbff;border:1px dashed #ccdbe9;text-align:center;border-radius:14px;padding:38px 22px;color:#657f98}
+    .materialEmpty h2{margin:6px 0 12px}.materialEmpty p{max-width:600px;margin:10px auto;font-size:13px;line-height:1.6}
+    .materialEmptyIcon{font-size:38px;color:#2b86d9}
+    .materialImportHead{display:flex;align-items:start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+    .matImportBox{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .matImportBox input{max-width:540px;flex:1}
+    .matDialog{width:min(100%,720px)}
+    .matFormGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
+    .matFormGrid label{margin-top:11px}.matFormGrid label input,.matFormGrid textarea{display:block;margin-top:7px;width:100%}
+    .matFormGrid .matWide{grid-column:1/-1}
+    .matSwitch{margin-top:20px}
+    @media(max-width:850px){.materialsSummary{grid-template-columns:repeat(2,minmax(0,1fr))}.materialRow{grid-template-columns:1fr}.materialRowActions{justify-content:flex-start}}
+    @media(max-width:580px){.matFormGrid{grid-template-columns:1fr}.materialsSummary{grid-template-columns:1fr}.matImportBox{align-items:stretch}.matImportBox button{width:100%}}
+
   </style>
 </head>
 <body>
@@ -415,6 +448,7 @@
     <div class="workspaceNavCaption workspaceNavCaptionSecond">ADMINISTRAÇÃO</div>
     <button id="navTypologies" class="workspaceLink hidden" type="button"><span class="navSymbol">▦</span> Banco de tipologias</button>
     <button id="navManufacturers" class="workspaceLink hidden" type="button"><span class="navSymbol">◫</span> Fabricantes</button>
+    <button id="navMaterials" class="workspaceLink hidden" type="button"><span class="navSymbol">▥</span> Materiais e estoque</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <div class="workspaceNavFooter">EWGEST <strong>· v41.0</strong><small>Gestão em movimento</small></div>
   </aside>
@@ -580,6 +614,60 @@
       </div>
       <p class="notice">A criação de fabricantes não altera tipologias existentes. Para mudar o fabricante de uma tipologia, abra-a no Banco de tipologias.</p>
     </section>
+
+    <section id="materials" class="hidden">
+      <div class="head">
+        <div><button id="materialsBack" type="button" class="btn secondary">← Tela inicial</button>
+          <h1 style="margin-top:20px">Materiais e estoque</h1>
+          <p class="muted">Cadastro técnico de perfis, acessórios e suas cores. Base para importar obras do CEM Plus.</p>
+        </div>
+        <button class="btn primary" id="matNovoHeader" type="button">+ Cadastrar material</button>
+      </div>
+      <div class="materialsSummary">
+        <div class="stat"><div class="label">Perfis cadastrados</div><div class="number" id="matCountPerfis">—</div></div>
+        <div class="stat"><div class="label">Acessórios cadastrados</div><div class="number" id="matCountAcessorios">—</div></div>
+        <div class="stat"><div class="label">Variações de cor / acabamento</div><div class="number" id="matCountVariacoes">—</div></div>
+      </div>
+      <div class="section panel">
+        <div class="materialTabs" role="group" aria-label="Selecionar módulo">
+          <button type="button" class="btn secondary active" id="matTabPerfil">Perfis</button>
+          <button type="button" class="btn secondary" id="matTabAcessorio">Acessórios</button>
+          <button type="button" class="btn secondary" id="matTabEstoque">Estoque <span class="materialFuture">em preparação</span></button>
+        </div>
+        <div id="matCatalogPanel">
+          <div class="materialsToolbar">
+            <div class="matSearchBox"><label for="matPesquisa">Buscar por código, descrição, fabricante ou linha</label>
+              <input type="search" id="matPesquisa" placeholder="Ex.: IN024, HYDRO, MONTANTE..."></div>
+            <label class="matInactive"><input type="checkbox" id="matMostrarInativos"> Mostrar inativos</label>
+            <button id="matNovo" type="button" class="btn primary">+ Novo perfil</button>
+          </div>
+          <p class="hint" id="matListHint">Os materiais cadastrados são compartilhados entre obras. Cor e acabamento são variações, não novos códigos técnicos.</p>
+          <div id="matMessage" class="feedback" role="status" aria-live="polite"></div>
+          <div id="matLista" class="materialList"></div>
+        </div>
+        <div id="matStockPanel" class="hidden">
+          <div class="materialEmpty">
+            <div class="materialEmptyIcon">▥</div>
+            <h2>Controle de estoque — próxima etapa</h2>
+            <p>Estrutura prevista: entradas, reservas, saídas, localização, saldos por acabamento/cor e necessidade por obra.</p>
+            <p><strong>Nenhum estoque físico foi lançado.</strong> Importar ou cadastrar materiais não criará saldo automaticamente.</p>
+          </div>
+        </div>
+      </div>
+      <div class="section panel">
+        <div class="materialImportHead">
+          <div><h2>Importar obra do CEM Plus</h2>
+            <p class="hint">No ZIP do CEM identificamos cadastros PERF/ACES e registros de materiais calculados. Nesta versão fazemos somente a verificação local do arquivo.</p>
+          </div>
+          <span class="materialFuture">SEM GRAVAÇÃO</span>
+        </div>
+        <div class="matImportBox">
+          <input id="matCemArquivo" type="file" accept=".zip,application/zip" aria-label="Selecionar ZIP exportado pelo CEM">
+          <button id="matCemConferir" class="btn secondary" type="button">Verificar arquivo</button>
+        </div>
+        <p class="hint" id="matCemResposta" role="status">Não é feita importação automática nesta etapa. O módulo de leitura e a prévia dos quantitativos ainda serão implementados.</p>
+      </div>
+    </section>
     <section id="typologies" class="hidden">
       <div class="head"><div>
         <button id="backTypologies" type="button" class="btn secondary" style="margin-bottom:18px">← Tela inicial</button><button id="openManufacturersFromCatalog" type="button" class="btn secondary" style="margin-bottom:18px;margin-left:10px">Cadastro de fabricantes</button>
@@ -715,6 +803,56 @@
       <p class="notice">As alterações são feitas apenas pelo administrador e ficam registradas. O vínculo com os códigos de origem é configurado separadamente; os históricos das obras permanecem preservados.</p>
     </section>
   </main>
+</div>
+
+<div id="matEditOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="matEditTitle">
+    <h2 id="matEditTitle">Cadastrar perfil</h2>
+    <p class="hint" id="matEditSub">O código e o fabricante identificam o material. As cores são cadastradas separadamente.</p>
+    <form id="matEditForm">
+      <div class="matFormGrid">
+        <label>Código * <input id="matCodigo" maxlength="90" required placeholder="Ex.: IN024"></label>
+        <label>Fabricante * <input id="matFabricante" maxlength="150" required placeholder="Ex.: HYDRO"></label>
+        <label class="matWide">Descrição * <input id="matDescricao" maxlength="500" required placeholder="Descrição técnica do CEM"></label>
+        <label>Linha <input id="matLinha" maxlength="150" placeholder="Ex.: INOVA"></label>
+        <label>Pré-nativo <input id="matPrenativo" maxlength="150" placeholder="Ex.: L. INOVA - T"></label>
+        <label class="matOnlyPerfil">Peso (kg/m) <input id="matPeso" inputmode="decimal" type="number" min="0" max="999999" step="0.00001" placeholder="Ex.: 0,501"></label>
+        <label class="matOnlyPerfil">Comprimento comercial (mm) <input id="matComprimento" type="number" min="1" max="100000" step="1" placeholder="Ex.: 6000"></label>
+        <label class="matOnlyPerfil">Unidade de referência <select id="matUnidadePerfil"><option>BARRA</option><option>METRO</option><option>KG</option></select></label>
+        <label class="matOnlyAcessorio hidden">Unidade por peça <input id="matUnidadeAcessorio" maxlength="15" placeholder="PC"></label>
+        <label class="matOnlyAcessorio hidden">Unidade da embalagem <input id="matUnidadeEmbalagem" maxlength="30" placeholder="Ex.: PT"></label>
+        <label class="matOnlyAcessorio hidden">Peças por embalagem <input id="matQuantidadeEmbalagem" type="number" min="0.001" step="0.001" placeholder="Ex.: 500"></label>
+        <label class="matWide">Observações <textarea id="matObservacoes" rows="2" maxlength="1000"></textarea></label>
+      </div>
+      <label class="matSwitch"><input id="matAtivo" type="checkbox" checked> Cadastro ativo</label>
+      <div id="matEditError" class="feedback" role="alert"></div>
+      <div class="modalbuttons">
+        <button type="button" class="btn secondary" id="matEditCancel">Cancelar</button>
+        <button type="submit" class="btn primary" id="matEditSave">Salvar cadastro</button>
+      </div>
+    </form>
+  </div>
+</div>
+<div id="matVarOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="matVarTitle">
+    <h2 id="matVarTitle">Variação de material</h2>
+    <p class="hint" id="matVarSubtitle"></p>
+    <form id="matVarForm">
+      <div class="matFormGrid">
+        <label>Acabamento <input id="matVarAcabamento" maxlength="150" placeholder="Ex.: PINTURA, ANODIZADO"></label>
+        <label>Cor <input id="matVarCor" maxlength="150" placeholder="Ex.: PRETO, BRONZE"></label>
+        <label>Código / referência da cor <input id="matVarCodigoCor" maxlength="150" placeholder="Ex.: RAL 9005, A13"></label>
+        <label class="matWide">Observações <textarea id="matVarObservacoes" rows="2" maxlength="1000"></textarea></label>
+      </div>
+      <label class="matSwitch"><input id="matVarAtiva" type="checkbox" checked> Variação ativa</label>
+      <p class="hint">Cada variação será controlada separadamente no futuro estoque. Este cadastro não cria quantidade física.</p>
+      <div id="matVarError" class="feedback" role="alert"></div>
+      <div class="modalbuttons">
+        <button type="button" class="btn secondary" id="matVarCancel">Cancelar</button>
+        <button type="submit" class="btn primary" id="matVarSave">Salvar variação</button>
+      </div>
+    </form>
+  </div>
 </div>
 <div id="romaneioCancelOverlay" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="romaneioCancelTitle">
@@ -1058,6 +1196,7 @@ let recognitionPendingItem=null;
 let differencePendingItem=null;
 let identityEditing=null;
 let modulationCatalog=[];
+let matPerfis=[],matAcessorios=[],matVariacoes=[],matTipo='perfil',matSelected=null,matVarSelected=null,matVarOriginal=null;
 let manufacturerCatalog=[],manufacturerLoadError='',originalManufacturerForEdit='',originalDescriptionForEdit='',manufacturerAutoCandidate='';
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
@@ -1065,7 +1204,7 @@ function isAlmoxarife(){return String(membership?.perfil||'').toLowerCase()==='a
 function podeEmitirRomaneio(){return ['administrador','supervisor','almoxarife'].includes(String(membership?.perfil||'').toLowerCase());}
 function setView(view){
   if(isAlmoxarife()&&!['login','romaneiosPage','myPassword'].includes(view))view='romaneiosPage';
-  for(const id of ['login','dashboard','detail','romaneiosPage','typologies','manufacturers','users','myPassword'])
+  for(const id of ['login','dashboard','detail','romaneiosPage','typologies','manufacturers','materials','users','myPassword'])
     node(id).classList.toggle('hidden',id!==view);
   node('logout').classList.toggle('hidden',view==='login');
   node('myPasswordHeader').classList.toggle('hidden',view==='login');
@@ -1074,7 +1213,7 @@ function setView(view){
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
   const ativo=view==='detail'?'dashboard':view;
   for(const [id,target] of [['navHome','dashboard'],['navRomaneios','romaneiosPage'],
-      ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navUsers','users']]){
+      ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navUsers','users']]){
     const button=node(id);
     const selecionado=ativo===target;
     button.classList.toggle('active',selecionado);
@@ -1153,7 +1292,7 @@ async function loadPanel(){
   const adminNav=String(membership?.perfil||'').toLowerCase()==='administrador';
   node('navHome').classList.toggle('hidden',somenteRomaneios);
   node('navRomaneios').classList.toggle('hidden',!podeEmitirRomaneio());
-  for(const id of ['navTypologies','navManufacturers','navUsers'])node(id).classList.toggle('hidden',!adminNav);
+  for(const id of ['navTypologies','navManufacturers','navMaterials','navUsers'])node(id).classList.toggle('hidden',!adminNav);
   node('openRomaneioHub').classList.toggle('hidden',!podeEmitirRomaneio()||somenteRomaneios);
   node('topTag').textContent=somenteRomaneios?'Romaneios e expedição':'Gestão de obras · liberações e saídas';
   node('openTypologies').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
@@ -2543,6 +2682,7 @@ node('navHome').addEventListener('click',()=>setView('dashboard'));
 node('navRomaneios').addEventListener('click',abrirAreaRomaneios);
 node('navTypologies').addEventListener('click',()=>node('openTypologies').click());
 node('navManufacturers').addEventListener('click',()=>node('openManufacturers').click());
+node('navMaterials').addEventListener('click',abrirMateriais);
 node('navUsers').addEventListener('click',()=>node('openUsers').click());
 node('romaneiosBack').addEventListener('click',()=>setView('dashboard'));
 node('hubWorkSelect').addEventListener('change',()=>{
@@ -4061,6 +4201,227 @@ node('clearTypologySearch').addEventListener('click',()=>{
 
 node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
+
+/* Cadastros editáveis por ADM. Não registra saldo e não importa automaticamente materiais. */
+const matIsAdmin=()=>String(membership?.perfil||'').toLowerCase()==='administrador';
+const matTable=()=>matTipo==='perfil'?'ew_perfis':'ew_acessorios';
+const matEntries=()=>matTipo==='perfil'?matPerfis:matAcessorios;
+const matLbl=()=>matTipo==='perfil'?'perfil':'acessório';
+function matFormat(n,d=3){return Number(n).toLocaleString('pt-BR',{maximumFractionDigits:d});}
+async function carregarMateriais(){
+  await ensureSession();
+  if(!currentCompany)throw new Error('Empresa não selecionada.');
+  const filtro='eq.'+currentCompany.id;
+  const [p,a,v]=await Promise.all([
+    apiGet('ew_perfis',{select:'*',empresa_id:filtro,order:'codigo.asc',limit:'2000'}),
+    apiGet('ew_acessorios',{select:'*',empresa_id:filtro,order:'codigo.asc',limit:'2000'}),
+    apiGet('ew_materiais_variacoes',{select:'*',empresa_id:filtro,order:'cor.asc',limit:'4000'})
+  ]);
+  matPerfis=p||[];matAcessorios=a||[];matVariacoes=v||[];
+  renderMateriais();
+}
+async function abrirMateriais(){
+  if(!matIsAdmin())return;
+  setView('materials');node('matMessage').textContent='Consultando cadastros…';
+  try{await carregarMateriais();node('matMessage').textContent='';}
+  catch(e){node('matMessage').textContent='Não foi possível carregar os materiais: '+e.message;}
+}
+function matSelecionarTipo(tipo){
+  matTipo=tipo;
+  for(const [id,t] of [['matTabPerfil','perfil'],['matTabAcessorio','acessorio'],['matTabEstoque','estoque']]){
+    const on=t===tipo;node(id).classList.toggle('active',on);node(id).setAttribute('aria-pressed',String(on));
+  }
+  const estoque=tipo==='estoque';
+  node('matCatalogPanel').classList.toggle('hidden',estoque);
+  node('matStockPanel').classList.toggle('hidden',!estoque);
+  node('matNovoHeader').classList.toggle('hidden',estoque);
+  if(!estoque){node('matNovo').textContent='+ Novo '+matLbl();renderMateriais();}
+}
+function renderMateriais(){
+  node('matCountPerfis').textContent=matPerfis.length.toLocaleString('pt-BR');
+  node('matCountAcessorios').textContent=matAcessorios.length.toLocaleString('pt-BR');
+  node('matCountVariacoes').textContent=matVariacoes.length.toLocaleString('pt-BR');
+  if(matTipo==='estoque')return;
+  const search=node('matPesquisa').value.trim().toLocaleUpperCase('pt-BR');
+  const inativos=node('matMostrarInativos').checked;
+  const itens=matEntries().filter(x=>(inativos||x.ativo)&&
+    [x.codigo,x.descricao,x.fabricante,x.linha,x.prenativo].some(v=>String(v||'').toLocaleUpperCase('pt-BR').includes(search)));
+  const container=node('matLista');
+  if(!itens.length){
+    container.innerHTML='<div class="materialEmpty"><div class="materialEmptyIcon">▤</div><h2>Nenhum '+(matTipo==='perfil'?'perfil':'acessório')+' encontrado</h2>'+
+      '<p>Cadastre materiais manualmente ou aguarde o importador CEM. Nenhum dado de exemplo foi gravado no banco.</p></div>';
+    return;
+  }
+  container.innerHTML=itens.map(x=>{
+    const vars=matVariacoes.filter(v=>v.tipo===matTipo&&(matTipo==='perfil'?v.perfil_id===x.id:v.acessorio_id===x.id));
+    const extras=matTipo==='perfil'
+      ?'Peso: '+(x.peso_kg_m===null?'não informado':matFormat(x.peso_kg_m,5)+' kg/m')+
+       ' · Comprimento: '+(x.comprimento_comercial_mm?matFormat(x.comprimento_comercial_mm,0)+' mm':'não informado')
+      :'Unidade: '+escapeHTML(x.unidade_item||'PC')+
+       ' · Embalagem: '+escapeHTML(x.unidade_embalagem||'não informada')+
+       (x.quantidade_por_embalagem?' ('+matFormat(x.quantidade_por_embalagem)+' peças)':'');
+    return '<div class="materialRow"><div><h3>'+escapeHTML(x.codigo)+(x.ativo?'':' · INATIVO')+'</h3>'+
+      '<p><strong>'+escapeHTML(x.descricao)+'</strong></p>'+
+      '<div class="materialDetails">Fabricante: '+escapeHTML(x.fabricante)+
+      ' · Linha: '+escapeHTML(x.linha||'—')+' · Pré-nativo: '+escapeHTML(x.prenativo||'—')+'</div>'+
+      '<div class="materialDetails">'+extras+'</div>'+
+      '<div class="materialVariants">'+(vars.length?vars.map(v=>
+        '<button class="materialVariant" type="button" data-mat-var-edit="'+escapeHTML(v.id)+'">'+
+        escapeHTML(v.acabamento)+' / '+escapeHTML(v.cor)+(v.codigo_cor?' ('+escapeHTML(v.codigo_cor)+')':'')+
+        (v.ativo?'':' · inativa')+'</button>').join(''):'<span class="hint">Nenhuma cor/acabamento cadastrada</span>')+
+      '</div></div><div class="materialRowActions">'+
+      '<button type="button" class="btn secondary" data-mat-edit="'+escapeHTML(x.id)+'">Editar</button>'+
+      '<button type="button" class="btn secondary" data-mat-new-var="'+escapeHTML(x.id)+'">+ Cor / acabamento</button>'+
+      '</div></div>';
+  }).join('');
+  container.querySelectorAll('[data-mat-edit]').forEach(b=>b.addEventListener('click',()=>abrirEdicaoMaterial(b.dataset.matEdit)));
+  container.querySelectorAll('[data-mat-new-var]').forEach(b=>b.addEventListener('click',()=>abrirVariacaoMaterial(b.dataset.matNewVar)));
+  container.querySelectorAll('[data-mat-var-edit]').forEach(b=>b.addEventListener('click',()=>editarVariacaoMaterial(b.dataset.matVarEdit)));
+}
+function abrirEdicaoMaterial(id=null){
+  if(!matIsAdmin())return;
+  matSelected=id?matEntries().find(v=>v.id===id)||null:null;
+  if(id&&!matSelected)return;
+  const x=matSelected||{};
+  node('matEditTitle').textContent=(matSelected?'Editar ':'Cadastrar ')+matLbl();
+  node('matEditForm').reset();
+  const data={matCodigo:x.codigo||'',matDescricao:x.descricao||'',matFabricante:x.fabricante||'',
+    matLinha:x.linha||'',matPrenativo:x.prenativo||'',matObservacoes:x.observacoes||'',
+    matPeso:x.peso_kg_m??'',matComprimento:x.comprimento_comercial_mm??'',
+    matUnidadePerfil:x.unidade_referencia||'BARRA',matUnidadeAcessorio:x.unidade_item||'PC',
+    matUnidadeEmbalagem:x.unidade_embalagem||'',matQuantidadeEmbalagem:x.quantidade_por_embalagem??''};
+  for(const [id,value] of Object.entries(data))node(id).value=String(value);
+  node('matAtivo').checked=x.ativo!==false;
+  document.querySelectorAll('.matOnlyPerfil').forEach(e=>e.classList.toggle('hidden',matTipo!=='perfil'));
+  document.querySelectorAll('.matOnlyAcessorio').forEach(e=>e.classList.toggle('hidden',matTipo!=='acessorio'));
+  node('matEditError').textContent='';node('matEditOverlay').classList.remove('hidden');node('matCodigo').focus();
+}
+function matClose(){node('matEditOverlay').classList.add('hidden');matSelected=null;}
+async function salvarMaterial(event){
+  event.preventDefault();if(!matIsAdmin())return;
+  const codigo=node('matCodigo').value.trim().toUpperCase();
+  const fabricante=node('matFabricante').value.trim().toUpperCase();
+  const descricao=node('matDescricao').value.trim();
+  if(!codigo||!fabricante||descricao.length<2){node('matEditError').textContent='Informe código, fabricante e descrição.';return;}
+  const payload={empresa_id:currentCompany.id,codigo,fabricante,descricao,
+    linha:node('matLinha').value.trim().toUpperCase(),
+    prenativo:node('matPrenativo').value.trim(),observacoes:node('matObservacoes').value.trim(),
+    ativo:node('matAtivo').checked,atualizado_em:new Date().toISOString(),atualizado_por:currentUser.id};
+  if(matTipo==='perfil'){
+    const peso=node('matPeso').value,comp=node('matComprimento').value;
+    payload.peso_kg_m=peso===''?null:Number(peso);
+    payload.comprimento_comercial_mm=comp===''?null:Number(comp);
+    payload.unidade_referencia=node('matUnidadePerfil').value;
+  }else{
+    const pack=node('matQuantidadeEmbalagem').value;
+    payload.unidade_item=node('matUnidadeAcessorio').value.trim().toUpperCase()||'PC';
+    payload.unidade_embalagem=node('matUnidadeEmbalagem').value.trim().toUpperCase();
+    payload.quantidade_por_embalagem=pack===''?null:Number(pack);
+  }
+  if(matTipo==='perfil'&&
+     ((payload.peso_kg_m!==null&&(!Number.isFinite(payload.peso_kg_m)||payload.peso_kg_m<0))||
+     (payload.comprimento_comercial_mm!==null&&(!Number.isSafeInteger(payload.comprimento_comercial_mm)||payload.comprimento_comercial_mm<1)))){
+    node('matEditError').textContent='Peso ou comprimento inválido.';return;
+  }
+  if(matTipo==='acessorio'&&payload.quantidade_por_embalagem!==null&&
+     (!Number.isFinite(payload.quantidade_por_embalagem)||payload.quantidade_por_embalagem<=0)){
+     node('matEditError').textContent='Quantidade por embalagem inválida.';return;
+  }
+  const btn=node('matEditSave');btn.disabled=true;node('matEditError').textContent='';
+  try{
+    await ensureSession();
+    if(matSelected){
+      const {empresa_id,...changes}=payload;
+      await request('/rest/v1/'+matTable()+'?id=eq.'+encodeURIComponent(matSelected.id)+
+        '&empresa_id=eq.'+encodeURIComponent(currentCompany.id),{
+        method:'PATCH',token:session.access_token,body:changes});
+    }else{
+      await request('/rest/v1/'+matTable(),{
+        method:'POST',token:session.access_token,body:{...payload,criado_por:currentUser.id}});
+    }
+    await carregarMateriais();matClose();
+    node('matMessage').textContent='Cadastro salvo. Quantidades de estoque não foram alteradas.';
+  }catch(e){node('matEditError').textContent='Não foi possível salvar: '+e.message;}
+  finally{btn.disabled=false;}
+}
+function abrirVariacaoMaterial(id){
+  if(!matIsAdmin())return;
+  matVarSelected=matEntries().find(x=>x.id===id)||null;matVarOriginal=null;
+  if(!matVarSelected)return;
+  node('matVarForm').reset();node('matVarAcabamento').value='';
+  node('matVarCor').value='';node('matVarCodigoCor').value='';node('matVarObservacoes').value='';
+  node('matVarAtiva').checked=true;
+  node('matVarTitle').textContent='Nova variação de cor / acabamento';
+  node('matVarSubtitle').textContent=matVarSelected.codigo+' · '+matVarSelected.descricao;
+  node('matVarError').textContent='';node('matVarOverlay').classList.remove('hidden');node('matVarAcabamento').focus();
+}
+function editarVariacaoMaterial(id){
+  if(!matIsAdmin())return;
+  const v=matVariacoes.find(x=>x.id===id);
+  if(!v)return;
+  matTipo=v.tipo;
+  matVarSelected=matEntries().find(x=>x.id===(matTipo==='perfil'?v.perfil_id:v.acessorio_id))||null;
+  if(!matVarSelected)return;
+  matVarOriginal=v;node('matVarForm').reset();
+  node('matVarTitle').textContent='Editar variação';
+  node('matVarSubtitle').textContent=matVarSelected.codigo+' · '+matVarSelected.descricao;
+  node('matVarAcabamento').value=v.acabamento||'';
+  node('matVarCor').value=v.cor||'';
+  node('matVarCodigoCor').value=v.codigo_cor||'';
+  node('matVarObservacoes').value=v.observacoes||'';
+  node('matVarAtiva').checked=v.ativo;
+  node('matVarError').textContent='';node('matVarOverlay').classList.remove('hidden');
+}
+function matVarClose(){node('matVarOverlay').classList.add('hidden');matVarSelected=null;matVarOriginal=null;}
+async function salvarVariacao(event){
+  event.preventDefault();if(!matIsAdmin()||!matVarSelected)return;
+  const dados={acabamento:node('matVarAcabamento').value.trim().toUpperCase()||'NÃO INFORMADO',
+    cor:node('matVarCor').value.trim().toUpperCase()||'NÃO INFORMADA',
+    codigo_cor:node('matVarCodigoCor').value.trim().toUpperCase(),
+    observacoes:node('matVarObservacoes').value.trim(),ativo:node('matVarAtiva').checked,
+    atualizado_em:new Date().toISOString(),atualizado_por:currentUser.id};
+  const btn=node('matVarSave');btn.disabled=true;node('matVarError').textContent='';
+  try{
+    await ensureSession();
+    if(matVarOriginal)await request('/rest/v1/ew_materiais_variacoes?id=eq.'+encodeURIComponent(matVarOriginal.id)+
+        '&empresa_id=eq.'+encodeURIComponent(currentCompany.id),{
+          method:'PATCH',token:session.access_token,body:dados});
+    else await request('/rest/v1/ew_materiais_variacoes',{method:'POST',token:session.access_token,
+      body:{...dados,empresa_id:currentCompany.id,tipo:matTipo,
+        perfil_id:matTipo==='perfil'?matVarSelected.id:null,
+        acessorio_id:matTipo==='acessorio'?matVarSelected.id:null,criado_por:currentUser.id}});
+    await carregarMateriais();matVarClose();
+    node('matMessage').textContent='Variação salva sem alterar estoque.';
+  }catch(e){node('matVarError').textContent='Não foi possível salvar: '+e.message;}
+  finally{btn.disabled=false;}
+}
+async function matVerificarZip(){
+  const arq=node('matCemArquivo').files?.[0],out=node('matCemResposta');
+  if(!arq){out.textContent='Escolha o arquivo ZIP exportado pelo CEM.';return;}
+  if(!/\.zip$/i.test(arq.name)){out.textContent='Selecione um arquivo .zip original do CEM.';return;}
+  try{
+    const bytes=new Uint8Array(await arq.slice(0,4).arrayBuffer());
+    if(bytes[0]!==80||bytes[1]!==75||![3,5,7].includes(bytes[2])){
+      out.textContent='O arquivo não tem assinatura ZIP válida.';return;
+    }
+    out.textContent='ZIP identificado: '+arq.name+' ('+matFormat(arq.size/1048576,1)+
+      ' MB). Arquivo não enviado ao servidor. A leitura dos quantitativos e o cadastro automático serão implementados após validação.';
+  }catch(e){out.textContent='Não foi possível ler o arquivo: '+e.message;}
+}
+node('materialsBack').addEventListener('click',()=>setView('dashboard'));
+node('matNovoHeader').addEventListener('click',()=>abrirEdicaoMaterial());
+node('matNovo').addEventListener('click',()=>abrirEdicaoMaterial());
+node('matTabPerfil').addEventListener('click',()=>matSelecionarTipo('perfil'));
+node('matTabAcessorio').addEventListener('click',()=>matSelecionarTipo('acessorio'));
+node('matTabEstoque').addEventListener('click',()=>matSelecionarTipo('estoque'));
+node('matPesquisa').addEventListener('input',renderMateriais);
+node('matMostrarInativos').addEventListener('change',renderMateriais);
+node('matEditCancel').addEventListener('click',matClose);
+node('matEditForm').addEventListener('submit',salvarMaterial);
+node('matVarCancel').addEventListener('click',matVarClose);
+node('matVarForm').addEventListener('submit',salvarVariacao);
+node('matCemConferir').addEventListener('click',matVerificarZip);
+
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
 try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v41.0 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
