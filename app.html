@@ -5369,7 +5369,7 @@ for(const id of ['cemFlagEsquadrias','cemFlagPerfis','cemFlagAcessorios']){
 
 
 /* Estoque: cadastro importado, planejamento CEM e saldo físico são separados. */
-let estoqueLinks=[],estoqueMovimentos=[],estoqueVarianteEscolhida=null,estoqueObraMovimentos=[],stockLocais=[];
+let estoqueLinks=[],estoqueMovimentos=[],estoqueVarianteEscolhida=null,estoqueObraMovimentos=[],stockLocais=[],stockComprimentos=[];
 async function abrirEstoque(){
   if(!matIsAdmin())return;
   setView('stock');
@@ -5377,7 +5377,7 @@ async function abrirEstoque(){
   try{
     await ensureSession();
     const empresa='eq.'+currentCompany.id;
-    const [perfis,aces,variacoes,links,operacoes,movObra,locais]=await Promise.all([
+    const [perfis,aces,variacoes,links,operacoes,movObra,locais,comprimentos]=await Promise.all([
       apiGet('ew_perfis',{select:'*',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_acessorios',{select:'*',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_materiais_variacoes',{select:'*',empresa_id:empresa,limit:'5000'}),
@@ -5387,11 +5387,13 @@ async function abrirEstoque(){
       apiGet('ew_estoque_obras_movimentos',{select:'id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,origem,criado_em',
         empresa_id:empresa,limit:'30000'}),
       apiGet('ew_estoques_locais',{select:'id,obra_id,excluido_em,restauravel_ate,criado_em',
-        empresa_id:empresa,limit:'2000'})
+        empresa_id:empresa,limit:'2000'}),
+      apiGet('ew_comprimentos_comerciais',{select:'comprimento_mm',empresa_id:empresa,limit:'1000'})
     ]);
     matPerfis=perfis||[];matAcessorios=aces||[];matVariacoes=variacoes||[];
     estoqueLinks=links||[];estoqueMovimentos=operacoes||[];
     estoqueObraMovimentos=movObra||[];stockLocais=locais||[];
+    stockComprimentos=(comprimentos||[]).map(x=>Number(x.comprimento_mm)).filter(Number.isSafeInteger);
     node('stockPerfCount').textContent=matPerfis.length.toLocaleString('pt-BR');
     node('stockAcesCount').textContent=matAcessorios.length.toLocaleString('pt-BR');
     node('stockCounted').textContent=(new Set(estoqueMovimentos.map(m=>m.variacao_id))).size.toLocaleString('pt-BR');
@@ -5403,6 +5405,7 @@ async function abrirEstoque(){
     if(obrasEstoque.some(w=>w.id===previous))dropdown.value=previous;
     else if(obrasEstoque.length)dropdown.value=obrasEstoque.find(w=>w.codigo==='ALU-3195-GVG-PE')?.id||obrasEstoque[0].id;
     renderEstoque();
+    stockReportRender();
     node('stockMessage').textContent='';
   }catch(e){node('stockMessage').textContent='Não foi possível carregar estoque: '+e.message;}
 }
