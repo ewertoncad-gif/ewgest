@@ -5662,7 +5662,7 @@ let stockManualOperationId=null;
 
 function stockManualPopulate(){
  const type=node('stockManualType').value;
- node('stockManualQty').min=type==='perfil'?'1':'0.001';
+ node('stockManualQty').min='1';
  node('stockManualQty').step=type==='perfil'?'1':'0.001';
  const list=(type==='perfil'?matPerfis:matAcessorios).filter(m=>m.ativo!==false&&
     matVariacoes.some(v=>v.ativo&&v.tipo===type&&(type==='perfil'?v.perfil_id===m.id:v.acessorio_id===m.id)))
@@ -5845,7 +5845,7 @@ async function stockManualSubmit(event){
  const error=node('stockManualError');
  if(!obra){error.textContent='Selecione ou cadastre uma obra.';return;}
  if(!isNew&&!cadastro){error.textContent='Selecione um material.';return;}
- if(!Number.isFinite(quantidade)||quantidade<=0||(type==='perfil'&&
+ if(!Number.isFinite(quantidade)||quantidade<1||(type==='perfil'&&
        (!Number.isSafeInteger(quantidade)||!Number.isSafeInteger(len)||len<100||len>20000))){
    error.textContent='Informe quantidade válida; perfis são barras inteiras e exigem comprimento.';return;
  }
