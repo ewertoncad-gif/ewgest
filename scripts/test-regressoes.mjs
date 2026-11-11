@@ -67,7 +67,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'interface renovada v41.0',
+ 'interface renovada v41.1',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -590,6 +590,20 @@ assert.ok(observ.includes('ENTREGA PARCIAL\nCONFERIDO PELO ALMOXARIFE'),
  'Observações com quebra de linha preservadas no comprovante');
 assert.ok(observ.includes('.notes{')&&observ.includes('white-space:pre-line'),
  'Observações aceitam linhas múltiplas na impressão');
+
+const applicationScript=source.match(/<script>([\s\S]*?)<\/script>/);
+assert.ok(applicationScript,'Script principal deve existir');
+assert.doesNotThrow(()=>new Function(applicationScript[1]),'O script completo deve ser sintaticamente válido');
+for(const id of ['navMaterials','materials','matCountPerfis','matCountAcessorios','matCountVariacoes',
+ 'matLista','matEditOverlay','matVarOverlay','matCemArquivo','matCemConferir']){
+  assert.ok(source.includes('id="'+id+'"'),'Novo módulo de materiais deve conter '+id);
+}
+for(const token of ['ew_perfis','ew_acessorios','ew_materiais_variacoes',
+ 'function renderMateriais()','async function salvarMaterial(event)',
+ 'async function salvarVariacao(event)']){
+  assert.ok(source.includes(token),'Cadastro de materiais deve conter '+token);
+}
+assert.ok(source.includes('Nenhum estoque físico foi lançado.'),'Estoque não pode exibir quantidades falsas');
 console.log('OK: '+cases.length+' classificações; cadastro de abreviações, observações finais, almoxarife e regressões.');
 
 
