@@ -5343,50 +5343,174 @@ function estoqueUnidade(row){
   if(row.physical?.unidade)return row.physical.unidade;
   return row.v.tipo==='perfil'?'M':row.link?.unidade_prevista||row.mat.unidade_item||'PC';
 }
+
 function renderEstoque(){
-  if(!node('stockRecords'))return;
+  const out=node('stockRecords'),obra=node('stockWork').value;
+  if(!out)return;
+  if(!obra){
+    node('stockPerfCount').textContent='—';
+    node('stockAcesCount').textContent='—';
+    node('stockCounted').textContent='—';
+    out.innerHTML='<div class="materialEmpty">Selecione uma obra para consultar o estoque, ou clique em <strong>Criar estoque de outra obra</strong>.</div>';
+    return;
+  }
   const itens=estoqueDados();
-  const out=node('stockRecords');
-  if(!itens.length){out.innerHTML='<div class="materialEmpty">Nenhum material corresponde aos filtros. Consulte Banco de materiais ou importe uma obra do CEM.</div>';return;}
+  node('stockPerfCount').textContent=itens.filter(x=>x.v.tipo==='perfil').length.toLocaleString('pt-BR');
+  node('stockAcesCount').textContent=itens.filter(x=>x.v.tipo==='acessorio').length.toLocaleString('pt-BR');
+  node('stockCounted').textContent=itens.filter(x=>x.perWork.length>0).length.toLocaleString('pt-BR');
+  if(!itens.length){
+    out.innerHTML='<div class="materialEmpty">Esta obra ainda não possui materiais relacionados ao estoque. '+
+      'Clique em <strong>Adicionar material</strong> para começar, usando um item do banco de materiais ou cadastrando um novo.</div>';
+    return;
+  }
+  const linhas=[];
+  for(const item of itens){
+    const {v,mat,perWork,link}=item;
+    const grupos=new Map();
+    for(const mov of perWork){
+      const k=[mov.comprimento_mm??'',mov.unidade].join('|');
+      if(!grupos.has(k))grupos.set(k,{quantidade:0,comprimento:mmOrNull(mov.comprimento_mm),
+        unidade:mov.unidade,informado:true});
+      grupos.get(k).quantidade+=Number(mov.quantidade_delta);
+    }
+    if(grupos.size){
+      for(const v of grupos.values())linhas.push({...item,...v});
+    }else{
+      const length=v.tipo==='perfil'?mmOrNull(mat.comprimento_comercial_mm):null;
+      const unit=v.tipo==='perfil'?'BARRA':releaseUnidadeAcessorio(mat.unidade_item||link?.unidade_prevista);
+      linhas.push({...item,comprimento:length,unidade:unit,quantidade:null,informado:false});
+    }
+  }
+  linhas.sort((a,b)=>a.mat.codigo.localeCompare(b.mat.codigo,'pt-BR')||
+    (a.comprimento||0)-(b.comprimento||0));
   out.innerHTML='<div class="stockTableWrap"><table class="stockTable"><thead><tr>'+
-    '<th>Código</th><th>Tipo / fabricante</th><th>Material</th><th>Cor e acabamento</th>'+
-    '<th>Previsto no CEM</th><th>Saldo da obra</th><th>Físico geral</th><th>Ações</th></tr></thead><tbody>'+
-    itens.map(({v,mat,link,physical,perWork})=>{
-      const unidade=estoqueUnidade({v,mat,link,physical});
-      let req='Não detalhado';
-      if(link?.quantidade_prevista!=null){
-        req=v.tipo==='perfil'?
-          matFormat(link.quantidade_prevista,0)+' peças de corte previstas no CEM (não são barras)':
-          matFormat(link.quantidade_prevista,3)+' '+escapeHTML(link.unidade_prevista||unidade);
-      }else if(link)req='Importado: '+link.linhas_calculo+' linhas de cálculo; reimporte o ZIP para obter quantitativos';
-      else req='Sem demanda vinculada';
-      const saldo=physical?.count?'<span class="stockReady">'+matFormat(physical.saldo,4)+' '+escapeHTML(unidade)+'</span>':
-        '<span class="stockNodata">Não informado</span>';
-      const porComprimento=new Map();
-      for(const mov of perWork){
-        const k=[mov.comprimento_mm??'',mov.unidade].join('|');
-        if(!porComprimento.has(k))porComprimento.set(k,{q:0,length:mov.comprimento_mm,unit:mov.unidade});
-        porComprimento.get(k).q+=Number(mov.quantidade_delta);
-      }
-      const saldoObra=!node('stockWork').value?'<span class="hint">Selecione uma obra</span>':
-        porComprimento.size?[...porComprimento.values()].map(x=>
-          '<span class="stockReady">'+matFormat(x.q,3)+' '+(x.unit==='BARRA'?'barra(s) × '+x.length+' mm':escapeHTML(x.unit))+'</span>'
-        ).join('<div style="height:5px"></div>'):'<span class="stockNodata">Sem lançamento na obra</span>';
-      return '<tr><td><strong>'+escapeHTML(mat.codigo)+'</strong></td><td>'+
-        escapeHTML(v.tipo==='perfil'?'Perfil':'Acessório')+
-        '<div class="hint">'+escapeHTML(mat.fabricante)+'</div></td>'+
-        '<td>'+escapeHTML(mat.descricao)+'</td><td>'+escapeHTML(v.acabamento)+' · '+escapeHTML(v.cor)+
-        '</td><td><span class="stockNeedValue">'+req+'</span></td><td>'+saldoObra+
-        '</td><td>'+saldo+'</td>'+
-        '<td><button class="btn secondary" type="button" data-stock-manual="'+escapeHTML(v.id)+'">Lançar na obra</button> '+
-        '<button class="btn secondary" type="button" data-stock-var="'+escapeHTML(v.id)+'">Físico geral</button></td></tr>';
+    '<th>Código</th><th>Material / fabricante</th><th>Cor e acabamento</th>'+
+    '<th>Quantidade na obra</th><th>Comprimento da barra</th><th>Ação</th></tr></thead><tbody>'+
+    linhas.map(x=>{
+      const unit=x.v.tipo==='perfil'?'barra(s)':escapeHTML(x.unidade);
+      const amount=x.informado?
+        '<span class="stockValue">'+matFormat(x.quantidade,x.v.tipo==='perfil'?0:3)+
+          ' '+unit+'</span>':
+        '<span class="stockEmptyValue">Não cadastrada</span>';
+      const size=x.v.tipo==='perfil'?
+        (x.comprimento?'<span class="stockLength">'+x.comprimento.toLocaleString('pt-BR')+
+          ' mm</span>':'<span class="stockEmptyValue">Não informado</span>'):'—';
+      return '<tr><td><strong>'+escapeHTML(x.mat.codigo)+'</strong></td>'+
+        '<td>'+escapeHTML(x.mat.descricao)+'<div class="hint">'+escapeHTML(x.mat.fabricante)+'</div></td>'+
+        '<td>'+escapeHTML(x.v.cor)+'<div class="hint">'+escapeHTML(x.v.acabamento)+'</div></td>'+
+        '<td>'+amount+'</td><td>'+size+'</td>'+
+        '<td class="stockRowActions"><button type="button" class="btn secondary" data-stock-adjust="'+
+          escapeHTML(x.v.id)+'" data-stock-length="'+(x.comprimento??'')+
+          '" data-stock-unit="'+escapeHTML(x.unidade)+'">Ajustar quantidade</button></td></tr>';
     }).join('')+'</tbody></table></div>'+
-    '<p class="stockFoot">'+itens.length+' variação(ões) listada(s). Estoque da obra em barras inteiras; o físico geral permanece independente.</p>';
-  out.querySelectorAll('[data-stock-var]').forEach(btn=>btn.addEventListener('click',
-    ()=>abrirMovimentoEstoque(btn.dataset.stockVar)));
-  out.querySelectorAll('[data-stock-manual]').forEach(btn=>btn.addEventListener('click',
-    ()=>stockManualOpen(btn.dataset.stockManual)));
+    '<p class="stockFoot">'+linhas.length+' linha(s) de material nesta obra. '+
+    'Quando houver barras de comprimentos diferentes, elas aparecerão separadas. '+
+    'Peças previstas para corte no CEM não são convertidas automaticamente em barras.</p>';
+  out.querySelectorAll('[data-stock-adjust]').forEach(btn=>btn.addEventListener('click',()=>{
+    stockQtyOpen(btn.dataset.stockAdjust,btn.dataset.stockLength,btn.dataset.stockUnit);
+  }));
 }
+function mmOrNull(value){
+  const n=Number(value);
+  return Number.isSafeInteger(n)&&n>=100&&n<=20000?n:null;
+}
+let stockQtySelected=null,stockQtyOperationId=null;
+function stockQtyAvailable(item,length,unit){
+  if(!item)return {saldo:0,informado:false};
+  const movs=estoqueObraMovimentos.filter(row=>
+    row.obra_id===node('stockWork').value&&row.variacao_id===item.v.id&&
+    row.comprimento_mm===(item.v.tipo==='perfil'?length:null)&&row.unidade===unit);
+  return {saldo:movs.reduce((sum,row)=>sum+Number(row.quantidade_delta),0),informado:movs.length>0};
+}
+function stockQtyOpen(variationId,length='',unit=''){
+  if(!matIsAdmin())return;
+  const item=estoqueDados().find(x=>x.v.id===variationId);
+  if(!item||!node('stockWork').value)return;
+  stockQtySelected={...item,unidade:item.v.tipo==='perfil'?'BARRA':unit||
+    releaseUnidadeAcessorio(item.mat.unidade_item)};
+  stockQtyOperationId=crypto.randomUUID();
+  node('stockQuantityForm').reset();
+  node('stockQtyError').textContent='';
+  const isBar=item.v.tipo==='perfil';
+  node('stockQtyLengthLabel').classList.toggle('hidden',!isBar);
+  node('stockQtyLength').disabled=!isBar;
+  node('stockQtyLength').value=isBar?(mmOrNull(length)||mmOrNull(item.mat.comprimento_comercial_mm)||''):'';
+  node('stockQtyNew').step=isBar?'1':'0.001';
+  node('stockQuantityInfo').textContent=item.mat.codigo+' · '+item.mat.descricao+
+    ' · '+item.v.cor+' · '+(works.find(w=>w.id===node('stockWork').value)?.nome||'obra selecionada');
+  node('stockQuantityOverlay').classList.remove('hidden');
+  stockQtyUpdate();
+  (isBar&&!node('stockQtyLength').value?node('stockQtyLength'):node('stockQtyNew')).focus();
+}
+function stockQtyUpdate(){
+  if(!stockQtySelected)return;
+  const item=stockQtySelected,isBar=item.v.tipo==='perfil';
+  const len=isBar?mmOrNull(node('stockQtyLength').value):null;
+  if(isBar&&!len){
+    node('stockQtyCurrent').textContent='Informe o comprimento da barra em milímetros para consultar o saldo.';
+    node('stockQtyNew').value='';
+    return;
+  }
+  const current=stockQtyAvailable(item,len,item.unidade);
+  node('stockQtyCurrent').textContent=current.informado?
+    'Quantidade atual: '+matFormat(current.saldo,isBar?0:3)+' '+
+      (isBar?'barra(s) de '+len.toLocaleString('pt-BR')+' mm':item.unidade)+'.':
+    'Quantidade ainda não cadastrada para '+(isBar?'barras de '+len.toLocaleString('pt-BR')+' mm':item.unidade)+'.';
+  node('stockQtyNew').value=current.informado?String(current.saldo):'';
+}
+function stockQtyClose(){
+  node('stockQuantityOverlay').classList.add('hidden');
+  stockQtySelected=null;stockQtyOperationId=null;
+}
+async function stockQtySubmit(e){
+  e.preventDefault();
+  const item=stockQtySelected;
+  if(!item||!matIsAdmin())return;
+  const isBar=item.v.tipo==='perfil',length=isBar?mmOrNull(node('stockQtyLength').value):null;
+  const novo=Number(node('stockQtyNew').value);
+  const err=node('stockQtyError');
+  if((isBar&&!length)||!node('stockQtyNew').value.trim()||
+    !Number.isFinite(novo)||novo<0||(isBar&&!Number.isSafeInteger(novo))){
+    err.textContent='Informe o comprimento e a nova quantidade. Perfis exigem número inteiro de barras.';return;
+  }
+  const atual=stockQtyAvailable(item,length,item.unidade);
+  const delta=Number((novo-atual.saldo).toFixed(3));
+  if(delta===0){err.textContent='O saldo não mudou. Informe uma quantidade diferente da atual.';return;}
+  const motivo=node('stockQtyReason').value.trim();
+  if(motivo.length<5){err.textContent='Informe um motivo de pelo menos cinco caracteres.';return;}
+  if(!window.confirm('Confirmar estoque de '+item.mat.codigo+' para '+novo+' '+
+      (isBar?'barra(s) de '+length+' mm':item.unidade)+'?\n'+
+      'Anterior: '+matFormat(atual.saldo,isBar?0:3)+
+      ' · Ajuste: '+(delta>0?'+':'')+matFormat(delta,isBar?0:3)+
+      '\nO histórico será mantido.'))return;
+  const btn=node('stockQtySave');
+  btn.disabled=true;err.textContent='Registrando ajuste…';
+  try{
+    await ensureSession();
+    const answer=await request('/rest/v1/rpc/ew_movimentar_estoque_obra',{
+      method:'POST',token:session.access_token,
+      body:{
+        p_empresa_id:currentCompany.id,p_obra_id:node('stockWork').value,
+        p_variacao_id:item.v.id,p_comprimento_mm:length,
+        p_unidade:item.unidade,p_quantidade:delta,
+        p_origem:atual.informado?'AJUSTE':'ABERTURA',
+        p_observacao:motivo,p_operacao_id:stockQtyOperationId
+      }
+    });
+    stockQtyClose();
+    await abrirEstoque();
+    node('stockMessage').textContent=answer?.repetida?
+      'Esta operação já estava registrada; nenhum lançamento foi duplicado.':
+      'Quantidade atualizada para '+matFormat(novo,isBar?0:3)+' '+
+      (isBar?'barra(s) de '+length+' mm':item.unidade)+'.';
+  }catch(error){
+    err.textContent='Não foi possível confirmar: '+error.message+
+      '. Antes de repetir, confira se o saldo já foi atualizado.';
+  }finally{btn.disabled=false;}
+}
+node('stockQtyLength').addEventListener('change',stockQtyUpdate);
+node('stockQtyCancel').addEventListener('click',stockQtyClose);
+node('stockQuantityForm').addEventListener('submit',stockQtySubmit);
 function abrirMovimentoEstoque(id){
   const item=estoqueDados().find(x=>x.v.id===id);
   if(!item)return;
