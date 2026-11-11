@@ -536,6 +536,9 @@
   .stockImportStats strong{font-size:17px;color:#184b7e}
   @media(max-width:720px){.stockManageRow{grid-template-columns:1fr}}
 
+
+    #stockManualForm .stockManualContinue{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:500;cursor:pointer}
+    #stockManualForm .stockManualContinue input{margin:0;width:17px;height:17px;flex:none}
   </style>
 </head>
 <body>
@@ -1049,6 +1052,8 @@
       <label>Quantidade <input id="stockManualQty" type="number" min="1" step="1" required placeholder="Ex.: 25"></label>
       <p id="stockManualUnit" class="hint"></p>
       <label>Observação (opcional) <textarea id="stockManualNote" rows="2" maxlength="500" placeholder="Pode deixar em branco"></textarea></label>
+      <label class="stockManualContinue"><input type="checkbox" id="stockManualContinue" checked> Continuar adicionando materiais nesta obra depois de salvar</label>
+      <p id="stockManualSuccess" class="hint" role="status"></p>
       <p id="stockManualError" class="feedback" role="alert"></p>
       <div class="modalbuttons">
         <button type="button" id="stockManualCancel" class="btn secondary">Cancelar</button>
@@ -5646,6 +5651,7 @@ function stockManualOpen(variationId=''){
  stockManualOperationId=crypto.randomUUID();
  node('stockManualForm').reset();
  node('stockManualError').textContent='';
+ node('stockManualSuccess').textContent='';
  node('stockManualNewFields').classList.add('hidden');
  node('stockManualMaterial').disabled=false;
  node('stockManualMaterial').required=true;
@@ -5742,10 +5748,17 @@ async function stockManualSubmit(event){
        p_cor:node('stockNewMaterialColor').value}: {...common,p_variacao_id:varId};
   if(isNew&&type==='acessorio')body.p_unidade=unidade;
   await request(url,{method:'POST',token:session.access_token,body});
+  const continuar=node('stockManualContinue').checked;
   stockManualClose();
   node('stockWork').value=obra;
   await abrirEstoque();
   node('stockMessage').textContent='Movimentação salva no estoque da obra, com histórico.';
+  if(continuar){
+    stockManualOpen();
+    node('stockManualWork').value=obra;
+    node('stockManualSuccess').textContent='Material salvo. Escolha o próximo material da mesma obra.';
+    node('stockManualMaterial').focus();
+  }
  }catch(e){error.textContent='Não foi possível concluir: '+e.message;}
  finally{btn.disabled=false;}
 }
