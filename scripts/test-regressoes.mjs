@@ -67,7 +67,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'interface renovada v42.5',
+ 'interface renovada v42.6',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -849,6 +849,27 @@ assert.equal(mirrorResult.edicoes,1,'Alteração do arquivo original fica identi
 mockNodes.push(fakeStockRow('perfil',-1,{codigo:'LG079',cor:'ANODIZADO',quantidade:'1',comprimento_mm:'6500'}));
 assert.throws(()=>mirrorExtract(),/repetido/, 'Linhas duplicadas precisam de conferência');
 
-console.log('OK: '+cases.length+' classificações; cadastro de abreviações, observações finais, almoxarife e regressões.');
+// Monitoramento de acessos: a senha e os tokens nunca são guardados no histórico.
+for(const id of ['userAccessHistoryToggle','userAccessHistoryPanel',
+ 'userAccessHistoryUser','userAccessHistoryPeriod','userAccessHistoryRefresh',
+ 'userAccessHistoryList','userAccessHistoryStatus'])
+ assert.ok(source.includes('id="'+id+'"'), 'Campo de auditoria ausente: '+id);
+for(const fragment of ["'/rest/v1/rpc/ew_registrar_evento_acesso'",
+ "accessLogRegister('entrada')","accessLogRegister('saida',5000)",
+ "accessLogRegister('atividade')","function accessHistoryLoad()",
+ "timeZone:'America/Recife'","AUTENTICACAO_ANTERIOR",
+ "'Últimos 7 dias'"])
+ assert.ok(source.includes(fragment)||fragment==="'Últimos 7 dias'"&&source.includes('Últimos 7 dias'),
+  'Funcionalidade de histórico ausente: '+fragment);
+assert.ok(source.includes("select:'usuario_id,entrada_em,saida_em,ultima_atividade_em,origem'"),
+ 'Histórico não deve exibir senhas, tokens ou IPs');
+const auditFmtStart=source.indexOf('function accessHistoryDate(raw){');
+const auditFmtEnd=source.indexOf('function accessHistoryPopulateUsers(){',auditFmtStart);
+assert.ok(auditFmtStart>0&&auditFmtEnd>auditFmtStart);
+const formatTest=new Function(source.slice(auditFmtStart,auditFmtEnd)+'return accessHistoryDate;')();
+assert.match(formatTest('2026-11-12T12:00:00Z'),/09:00:00/,
+ 'Horário de Recife deve ser UTC-3');
+
+console.log('OK: '+cases.length+' classificações; cadastros, estoques, histórico de acessos e regressões.');
 
 
