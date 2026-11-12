@@ -644,6 +644,9 @@
           <button type="button" class="btn primary" id="openRomaneio">+ Emitir romaneio</button>
           <button type="button" class="btn secondary" id="toggleRomaneioHistory">Romaneios emitidos</button>
         </div>
+        <div id="releaseBatchActions" class="romaneioActions">
+          <button type="button" class="btn primary" id="releaseBatchOpen">+ Liberar a partir do arquivo CEM</button>
+        </div>
         <h2 id="itemListTitle">Itens da obra</h2>
         
 <div class="itemfilter"><label for="itemSearch">Buscar na lista</label><div class="filterrow"><select id="itemSearchMode" aria-label="Buscar por"><option value="esquadria">Código da esquadria</option><option value="tipologia">Código da tipologia</option></select><input id="itemSearch" type="search" placeholder="Ex.: EA2 ou 2" autocomplete="off" spellcheck="false"><button id="clearItemSearch" type="button" class="btn secondary">Limpar</button></div><div class="displayoptions"><label><input id="showItemDescription" type="checkbox"> Mostrar descrição</label><label><input id="showItemLocation" type="checkbox"> Mostrar localização</label></div><p id="itemFilterCount" class="hint filtercount" role="status" aria-live="polite"></p></div>
@@ -1241,6 +1244,35 @@
       <div id="releaseError" class="feedback" role="alert"></div>
       <div class="modalbuttons"><button type="button" id="releaseCancel" class="btn secondary">Cancelar</button><button type="submit" id="releaseSave" class="btn primary">Conferir e confirmar liberação</button></div>
     </form>
+  </div>
+</div>
+<div id="releaseBatchOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="releaseBatchTitle" style="max-width:1050px;max-height:94vh;overflow-y:auto">
+    <h2 id="releaseBatchTitle">Liberação em lote a partir de arquivo técnico</h2>
+    <p id="releaseBatchWork" class="hint"></p>
+    <p class="hint">Importe o ZIP do cálculo completo desta liberação. Confira as esquadrias, suas quantidades, os materiais e seus galpões. Nada será registrado até confirmar.</p>
+    <label>Arquivo ZIP de exportação técnica <input id="releaseBatchFile" type="file" accept=".zip,application/zip"></label>
+    <div class="stockTopActions"><button id="releaseBatchAnalyze" type="button" class="btn secondary">Analisar e gerar espelho</button></div>
+    <p id="releaseBatchStatus" role="status" class="hint"></p>
+    <div id="releaseBatchPreview" class="hidden">
+      <div class="stockFilters" style="grid-template-columns:repeat(2,minmax(180px,1fr))">
+        <label>Data da liberação <input id="releaseBatchDate" type="date" required></label>
+        <label>Fábrica que vai produzir <select id="releaseBatchFactory" required><option value="">Selecione a fábrica</option><option value="IMBIRIBEIRA">IMBIRIBEIRA</option><option value="AFOGADOS">AFOGADOS</option></select></label>
+      </div>
+      <h3>Espelho editável de esquadrias</h3>
+      <p class="hint">A relação vem do arquivo, mas a associação com os itens da obra, a quantidade e a inclusão devem ser confirmadas antes da liberação.</p>
+      <div id="releaseBatchItems" class="cemTableWrap"></div>
+      <h3>Materiais a descontar do estoque</h3>
+      <p class="hint">Os perfis são calculados a partir das <strong>barras comerciais</strong> informadas na exportação, não das peças cortadas. Escolha o cadastro e o galpão para cada material. É possível alterar a quantidade ou desmarcar linhas; materiais sem correspondência serão ignorados até a conferência.</p>
+      <div id="releaseBatchMaterials" class="cemTableWrap"></div>
+      <button id="releaseBatchAddMaterial" type="button" class="btn secondary" style="margin-top:9px">+ Adicionar material à baixa</button>
+      <p id="releaseBatchSummary" class="hint" role="status"></p>
+    </div>
+    <div id="releaseBatchError" class="feedback" role="alert"></div>
+    <div class="modalbuttons">
+      <button id="releaseBatchCancel" class="btn secondary" type="button">Cancelar</button>
+      <button id="releaseBatchConfirm" class="btn primary" type="button" disabled>Conferir e confirmar lote</button>
+    </div>
   </div>
 </div>
 <div id="shipmentModal" class="modaloverlay hidden" role="presentation">
@@ -2655,6 +2687,7 @@ function renderDetail(w){
   node('tabShip').setAttribute('aria-pressed',String(shipping));
   node('shipmentOverview').classList.toggle('hidden',!shipping);
   node('romaneioActions').classList.toggle('hidden',!shipping);
+  node('releaseBatchActions').classList.toggle('hidden',shipping||!canEdit);
   node('openRomaneio').disabled=!canEdit||!dispatchReady||Boolean(romaneioLoadError);
   node('romaneioOverview').classList.toggle('hidden',!shipping);
   node('romaneioHistoryPanel').classList.add('hidden');
@@ -2881,24 +2914,26 @@ async function saveShipment(event){
 
 function todayLocal(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 
-let releaseOperationId=null,releaseCatalogReady=false,releaseMirrorData=[],releaseMirrorSaldo=new Map(),releaseCemFileName='',releaseCemChecked=false;
+let releaseOperationId=null,releaseCatalogReady=false,releaseMirrorData=[],releaseMirrorSaldo=new Map(),releaseCemFileName='',releaseCemChecked=false,releaseStockLocations=[];
 function releaseVariacaoLabel(v){
   const mat=v.tipo==='perfil'?matPerfis.find(p=>p.id===v.perfil_id):matAcessorios.find(a=>a.id===v.acessorio_id);
   return mat?(mat.codigo+' — '+mat.descricao+' · '+mat.fabricante+' · '+v.cor+' / '+v.acabamento):null;
 }
-async function releaseCarregarCatalogo(){
+async function releaseCarregarCatalogo(obraId=selectedItem?.obra_id){
   const empresa='eq.'+currentCompany.id;
-  const [perfis,aces,vars,mov]=await Promise.all([
+  const [perfis,aces,vars,mov,locais]=await Promise.all([
     apiGet('ew_perfis',{select:'*',empresa_id:empresa,limit:'5000'}),
     apiGet('ew_acessorios',{select:'*',empresa_id:empresa,limit:'5000'}),
     apiGet('ew_materiais_variacoes',{select:'*',empresa_id:empresa,limit:'5000'}),
-    apiGet('ew_estoque_obras_movimentos',{select:'variacao_id,comprimento_mm,unidade,quantidade_delta,obra_id',
-      empresa_id:empresa,obra_id:'eq.'+selectedItem.obra_id,limit:'20000'})
+    apiGet('ew_estoque_obras_movimentos',{select:'variacao_id,comprimento_mm,unidade,quantidade_delta,obra_id,local_estoque',
+      empresa_id:empresa,obra_id:'eq.'+obraId,limit:'20000'}),
+    apiGet('ew_locais_fisicos',{select:'nome,ativo',empresa_id:empresa,order:'nome.asc'})
   ]);
   matPerfis=perfis||[];matAcessorios=aces||[];matVariacoes=vars||[];
+  releaseStockLocations=(locais||[]).filter(l=>l.ativo).map(l=>l.nome);
   releaseMirrorSaldo=new Map();
   for(const row of mov||[]){
-    const key=[row.variacao_id,row.comprimento_mm??'',row.unidade].join('|');
+    const key=[row.variacao_id,row.comprimento_mm??'',row.unidade,row.local_estoque||'IMBIRIBEIRA'].join('|');
     releaseMirrorSaldo.set(key,(releaseMirrorSaldo.get(key)||0)+Number(row.quantidade_delta));
   }
   releaseMirrorData=matVariacoes.filter(x=>x.ativo&&releaseVariacaoLabel(x))
@@ -2914,6 +2949,7 @@ function releaseAddRow(variationId=''){
     '<option value="">Selecione um material</option>'+
     releaseMirrorData.map(v=>'<option value="'+escapeHTML(v.id)+'">'+escapeHTML(releaseVariacaoLabel(v))+'</option>').join('')+
     '</select></label>'+
+    '<label>Galpão do estoque<select class="relLocation" required><option value="">Escolha o galpão</option>'+releaseStockLocations.map(x=>'<option value="'+escapeHTML(x)+'">'+escapeHTML(x)+'</option>').join('')+'</select></label>'+
     '<label class="relLengthLabel">Barra (mm)<input class="relLength" type="number" min="100" max="20000" step="1" placeholder="6000"></label>'+
     '<label>Quantidade<input class="relQty" type="number" min="0.001" step="0.001" placeholder="0" required></label>'+
     '<button type="button" class="btn secondary relRemove">Remover</button></div>'+
@@ -2921,7 +2957,7 @@ function releaseAddRow(variationId=''){
   node('releaseMirrorRows').append(row);
   const combo=row.querySelector('.relVar');combo.value=variationId;
   row.querySelector('.relRemove').addEventListener('click',()=>row.remove());
-  for(const x of ['.relVar','.relQty','.relLength'])
+  for(const x of ['.relVar','.relQty','.relLength','.relLocation'])
     row.querySelector(x).addEventListener('input',()=>releaseAtualizarLinha(row));
   releaseAtualizarLinha(row);
   return row;
@@ -2941,12 +2977,18 @@ function releaseAtualizarLinha(row){
   const length=isBar?Number(len.value):null;
   const unit=isBar?'BARRA':v?.tipo==='acessorio'?
     releaseUnidadeAcessorio(matAcessorios.find(a=>a.id===v.acessorio_id)?.unidade_item):'';
-  const key=[v?.id,isBar?length:'',unit].join('|');
+  const localSelect=row.querySelector('.relLocation');
+  if(v&&!localSelect.value){
+    const comSaldo=releaseStockLocations.filter(x=>
+      (releaseMirrorSaldo.get([v.id,isBar?length:'',unit,x].join('|'))||0)>0);
+    if(comSaldo.length===1)localSelect.value=comSaldo[0];
+  }
+  const key=[v?.id,isBar?length:'',unit,localSelect.value].join('|');
   const saldo=releaseMirrorSaldo.get(key)||0;
   const status=row.querySelector('.releaseMirrorLineStatus');
   status.classList.toggle('stockInsufficient',Boolean(v&&qty>saldo));
   status.textContent=!v?'Selecione um material.':
-    'Controle: '+unit+(isBar?' · '+(length||'—')+' mm':'')+
+    'Estoque em '+(localSelect.value||'galpão não selecionado')+' · '+unit+(isBar?' · '+(length||'—')+' mm':'')+
     ' · disponível na obra: '+matFormat(saldo,3)+
     (qty>0?' · após baixa: '+matFormat(saldo-qty,3):'')+
     (qty>saldo?' · quantidade maior que o saldo!':'');
@@ -2970,13 +3012,15 @@ function releaseColetarMateriais(){
     if(!Number.isFinite(qty)||qty<=0||(isBar&&(!Number.isSafeInteger(qty)||
        !Number.isSafeInteger(length)||length<100||length>20000)))
       throw new Error('Informe quantidades válidas e, para perfis, barras inteiras com comprimento.');
-    const key=[variation.id,length??'',unit].join('|');
+    const location=row.querySelector('.relLocation').value;
+    if(!releaseStockLocations.includes(location))throw new Error('Selecione o galpão do material.');
+    const key=[variation.id,length??'',unit,location].join('|');
     if(seen.has(key))throw new Error('Material repetido no espelho. Agrupe as quantidades na mesma linha.');
     seen.add(key);
     if(qty>(releaseMirrorSaldo.get(key)||0))throw new Error(
       'Saldo insuficiente para '+releaseVariacaoLabel(variation)+'. Disponível: '+
       matFormat(releaseMirrorSaldo.get(key)||0,3)+' '+unit+'.');
-    arr.push({variacao_id:variation.id,comprimento_mm:length,unidade:unit,quantidade:qty});
+    arr.push({variacao_id:variation.id,comprimento_mm:length,unidade:unit,quantidade:qty,local_estoque:location});
   }
   if(!arr.length)throw new Error('Adicione pelo menos um material ou escolha a opção sem baixa.');
   return arr;
