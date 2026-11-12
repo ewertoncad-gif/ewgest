@@ -584,7 +584,7 @@
     <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v42.5</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v42.6</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="login" class="panel login">
@@ -599,7 +599,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • interface renovada v42.5</div>
+        <div class="build">EWGEST • interface renovada v42.6</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -1631,6 +1631,7 @@ function setView(view){
   }
 }
 function invalidateAppSession(reason){
+  accessLogClear();
   session=null;
   sessionStorage.removeItem('ewgest_session_v3');
   node('userEditOverlay').classList.add('hidden');
@@ -3188,10 +3189,53 @@ window.EWGEST_LOGIN=async function(event){event.preventDefault();setError('');se
     })
     :await userApi({acao:'entrar',login,senha:pass},false);
   if(!data.access_token)throw new Error('O servidor não retornou uma sessão válida.');
-  saveSession(data);node('password').value='';setStatus('Login aceito. Carregando obras…');await loadPanel();
+  saveSession(data);accessLogSessionNew();
+  node('password').value='';setStatus('Login aceito. Carregando obras…');await loadPanel();
+  try{await accessLogRegister('entrada');}
+  catch(err){node('panelError').textContent='Login realizado, mas o histórico não registrou esta entrada: '+err.message;}
+  accessLogStartHeartbeat();
  }catch(e){setStatus('Não foi possível entrar.');setError('Detalhe: '+(e.message||'Falha desconhecida')+'\nSe persistir, envie uma captura apenas desta mensagem, sem mostrar a senha.');}
  finally{b.disabled=false;b.textContent='Entrar no painel';}return false;};
 
+const ACCESS_LOG_ID_KEY='ewgest_acesso_sessao_v1';
+let accessLogSessionId=null,accessLogTimer=null;
+function accessLogSessionNew(){
+  accessLogSessionId=crypto.randomUUID();
+  sessionStorage.setItem(ACCESS_LOG_ID_KEY,accessLogSessionId);
+  return accessLogSessionId;
+}
+function accessLogSessionResume(){
+  const id=sessionStorage.getItem(ACCESS_LOG_ID_KEY)||'';
+  accessLogSessionId=/^[a-f0-9-]{36}$/i.test(id)?id:accessLogSessionNew();
+  return accessLogSessionId;
+}
+async function accessLogRegister(evento,timeoutMs=6500){
+  if(!session?.access_token||!currentUser?.id||!currentCompany?.id)return false;
+  if(!accessLogSessionId){
+    if(evento==='saida')return false;
+    accessLogSessionResume();
+  }
+  const result=await request('/rest/v1/rpc/ew_registrar_evento_acesso',{
+    method:'POST',token:session.access_token,timeoutMs,
+    body:{p_empresa_id:currentCompany.id,p_sessao_id:accessLogSessionId,p_evento:evento}
+  });
+  return result?.registrado===true;
+}
+function accessLogStartHeartbeat(){
+  if(accessLogTimer!==null)return;
+  accessLogTimer=window.setInterval(()=>{
+    if(session&&document.visibilityState==='visible')
+      ensureSession().then(()=>accessLogRegister('atividade')).catch(()=>{});
+  },120000);
+}
+function accessLogStopHeartbeat(){
+  if(accessLogTimer!==null){window.clearInterval(accessLogTimer);accessLogTimer=null;}
+}
+function accessLogClear(){
+  accessLogStopHeartbeat();
+  accessLogSessionId=null;
+  sessionStorage.removeItem(ACCESS_LOG_ID_KEY);
+}
 let managedAccounts=[];
 let editingManagedAccount=null;
 function canManageUsers(){return String(membership?.perfil||'').toLowerCase()==='administrador';}
@@ -3443,7 +3487,19 @@ node('myPasswordForm').addEventListener('submit',async(event)=>{
   finally{button.disabled=false;button.textContent='Alterar minha senha';}
 });
 
-node('logout').addEventListener('click',async()=>{const old=session;session=null;sessionStorage.removeItem('ewgest_session_v3');setView('login');setStatus('Sessão encerrada.');if(old)try{await request('/auth/v1/logout',{method:'POST',token:old.access_token});}catch{}});
+node('logout').addEventListener('click',async()=>{
+  const old=session;
+  accessLogStopHeartbeat();
+  let saidaRegistrada=!old;
+  if(old)try{saidaRegistrada=await accessLogRegister('saida',5000);}catch{saidaRegistrada=false;}
+  accessLogClear();
+  session=null;currentUser=null;currentCompany=null;membership=null;
+  sessionStorage.removeItem('ewgest_session_v3');
+  setView('login');
+  setStatus(saidaRegistrada?'Sessão encerrada.':
+    'Sessão encerrada. Não foi possível confirmar a saída no histórico.');
+  if(old)try{await request('/auth/v1/logout',{method:'POST',token:old.access_token,timeoutMs:5000});}catch{}
+});
 node('refresh').addEventListener('click',async()=>{node('panelError').textContent='Atualizando…';try{await loadPanel();}catch(e){node('panelError').textContent='Erro ao atualizar: '+e.message;}});
 node('shipmentKind').addEventListener('change',updateShipmentForm);
 node('shipmentPart').addEventListener('change',updateShipmentForm);
@@ -6706,7 +6762,24 @@ node('releaseBatchConfirm').addEventListener('click',async()=>{
 
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{const cached=sessionStorage.getItem('ewgest_session_v3');if(cached){session=JSON.parse(cached);setStatus('Sessão encontrada. Carregando painel…');loadPanel().catch(e=>{sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');setError('Sessão anterior não restaurada: '+e.message);setStatus('Pode tentar entrar novamente.');});}else{setStatus('Aplicativo v42.5 pronto. Digite sua senha e clique em Entrar no painel.');}}catch(e){setError('Falha de inicialização: '+e.message);}
+try{
+  const cached=sessionStorage.getItem('ewgest_session_v3');
+  if(cached){
+    session=JSON.parse(cached);
+    accessLogSessionResume();
+    setStatus('Sessão encontrada. Carregando painel…');
+    loadPanel().then(async()=>{
+      try{await accessLogRegister('atividade');}
+      catch(err){node('panelError').textContent='Histórico de acessos temporariamente indisponível: '+err.message;}
+      accessLogStartHeartbeat();
+    }).catch(e=>{
+      accessLogClear();
+      sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');
+      setError('Sessão anterior não restaurada: '+e.message);
+      setStatus('Pode tentar entrar novamente.');
+    });
+  }else{setStatus('Aplicativo v42.6 pronto. Digite sua senha e clique em Entrar no painel.');}
+}catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
 </html>
