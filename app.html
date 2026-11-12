@@ -484,6 +484,12 @@
     @media(max-width:850px){.stockFilters{grid-template-columns:1fr}}
 
 
+    .userAccessHistoryWrap{overflow:auto;max-height:460px;border:1px solid #dbe6f2;border-radius:10px;margin-top:10px}
+    .userAccessHistoryTable{border-collapse:separate;border-spacing:0;width:100%;min-width:830px;font-size:12px}
+    .userAccessHistoryTable th{position:sticky;top:0;background:#eaf2fc;border-bottom:1px solid #ccddec;color:#305c85;text-align:left;padding:11px;z-index:1}
+    .userAccessHistoryTable td{border-bottom:1px solid #e5edf5;padding:11px;color:#415d78;vertical-align:top}
+    .userAccessHistoryTable td strong{color:#193f68}
+    .userAccessHistoryTable tbody tr:hover{background:#f8fbff}
     .releaseDialog{width:min(100%,880px);max-height:94vh;overflow-y:auto}
     .releaseMirrorIntro{border:1px solid #dbe7f3;border-radius:12px;padding:15px;margin:16px 0;background:#f8fbff}
     .releaseMirrorIntro h3{font-size:15px;margin:0 0 12px}
@@ -664,9 +670,30 @@
     <section id="users" class="hidden">
       <div class="head"><div>
         <button id="usersBack" class="btn secondary" type="button">← Tela inicial</button>
+        <button id="userAccessHistoryToggle" class="btn secondary" type="button" style="margin-left:8px">Histórico de acessos</button>
         <h1 style="margin-top:18px">Cadastro de usuários</h1>
         <div class="muted">Apenas administradores podem criar usuários, redefinir senhas ou retirar acessos.</div>
       </div></div>
+      <div id="userAccessHistoryPanel" class="section panel hidden">
+        <div class="row" style="justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap">
+          <h2 style="margin:0">Histórico de acessos</h2>
+          <button id="userAccessHistoryRefresh" class="btn secondary" type="button">Atualizar histórico</button>
+        </div>
+        <p class="hint">Entradas, saídas confirmadas e última comunicação com o EWGEST. Horários de Recife. Apenas o administrador consulta estes registros.</p>
+        <div class="stockFilters" style="grid-template-columns:repeat(2,minmax(190px,1fr))">
+          <label>Usuário <select id="userAccessHistoryUser"><option value="">Todos os usuários</option></select></label>
+          <label>Período
+            <select id="userAccessHistoryPeriod">
+              <option value="7">Últimos 7 dias</option>
+              <option value="15">Últimos 15 dias</option>
+              <option value="30">Últimos 30 dias</option>
+            </select>
+          </label>
+        </div>
+        <p id="userAccessHistoryStatus" class="hint" role="status" aria-live="polite"></p>
+        <div id="userAccessHistoryList"></div>
+        <p class="hint">A saída é confirmada quando o usuário clica em <strong>Sair</strong>. Fechar a aba ou perder a conexão não confirma saída. Registros antigos mostram apenas o início de autenticação disponível.</p>
+      </div>
       <div class="section panel">
         <h2>Cadastrar novo usuário</h2>
         <form id="createUserForm">
