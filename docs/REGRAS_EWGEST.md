@@ -218,3 +218,15 @@
 - Confirmar o lote de forma **atômica, idempotente, com UUID de operação**, registrando individualmente as esquadrias liberadas e debitando cada material **uma única vez por lote**, em \`ew_liberacoes_lotes\` e movimentos \`PLANO_CORTE_LOTE\`.
 - Antes da confirmação, destacar a quantidade de linhas de material **não selecionadas para baixa**. Permitir liberação técnica sem baixa quando confirmada expressamente.
 - Permanecem preservados romaneios, saídas, histórico de tipologias, liberações anteriores e permissões dos usuários.
+
+
+## Histórico de acessos dos usuários (versão 42.6)
+- A tela **Administração → Usuários** oferece o botão **Histórico de acessos**, com filtros por usuário e últimos 7, 15 ou 30 dias. Horários apresentados em **America/Recife**.
+- O controle usa \`ew_historico_acessos\`: usuário, empresa, identificador aleatório de sessão, início, última comunicação, saída confirmada e origem. **Não são gravados senha, token, IP ou dados de navegação**.
+- **Entrada**: após autenticação e carregamento do painel, o cliente registra um evento com identidade obtida do próprio JWT, nunca de nome/usuário informado no formulário.
+- **Última comunicação**: atualizada enquanto a sessão está aberta e a página está visível, em intervalos de aproximadamente 2 minutos; não significa que uma pessoa esteja trabalhando ativamente ou necessariamente online.
+- **Saída**: registrada apenas quando o usuário seleciona **Sair** e a requisição é confirmada pelo servidor. Fechamento da aba, desconexão ou expiração não devem gerar saída fictícia; essas sessões permanecem com **saída não registrada**.
+- Sessões reabertas de versões antigas ficam marcadas como **SESSAO_RECUPERADA**: a data corresponde à primeira observação pelo novo monitoramento, não necessariamente ao login original.
+- Na implantação, foram aproveitados apenas os horários de criação de sessão que ainda estavam disponíveis em \`auth.sessions\` durante os 7 dias anteriores, identificados como **AUTENTICACAO_ANTERIOR** e sem inventar horário de saída.
+- A tabela não autoriza INSERT/UPDATE/DELETE pela API. A leitura é protegida por **RLS apenas para administradores da mesma empresa**. Eventos são gravados somente via \`ew_registrar_evento_acesso\`, com verificação de \`auth.uid()\` e vínculo da empresa, sem timestamps informados pelo navegador.
+- O histórico de liberações, estoque, expedição, cadastro e permissões existentes não é alterado.
