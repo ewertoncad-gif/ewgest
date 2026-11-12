@@ -690,13 +690,22 @@ assert.ok(!source.includes('rows.slice(0,6)'), 'Exibe a lista completa de materi
 
 assert.ok(source.includes('id="stockManualForm"')&&source.includes('id="stockManualWork"')&&
  source.includes('id="stockNewMaterialCode"'), 'Cadastro manual de obra e material deve existir');
-assert.ok(source.includes('id="releaseMirrorRows"')&&source.includes('name="releaseMethod"'),
- 'Liberação tem escolha CEM/manual e espelho editável');
+assert.ok(source.includes('id="releaseMirrorRows"')&&source.includes('name="releaseMethod"')&&
+ !source.includes('name="releaseMethod" type="radio" value="cem"'),
+ 'Liberação individual tem espelho manual, sem importação de lote CEM');
+assert.ok(source.includes('id="releaseBatchOpen"')&&source.includes('id="releaseBatchPreview"')&&
+ source.includes("'/rest/v1/rpc/ew_liberar_lote_cem'")&&source.includes('function releaseBatchCollect()'),
+ 'Liberação em lote CEM deve ter espelho editável, validação e confirmação única');
+assert.ok(source.includes('id="stockFactoryFilter"')&&source.includes('id="stockManualFactory"')&&
+ source.includes('data-stock-transfer=')&&source.includes("'/rest/v1/rpc/ew_transferir_estoque_obra'"),
+ 'Estoque controlado, transferível e filtrável por local físico');
+assert.ok(source.includes('const obrasParaRomaneio=works.filter'),
+ 'Romaneios escondem obra de estoque arquivado sem esquadrias e sem histórico');
 assert.ok(source.includes("'/rest/v1/rpc/ew_liberar_plano_corte_revisado'"),
  'Liberação confirma materiais em operação atômica');
-assert.ok(source.includes("'/rest/v1/rpc/ew_movimentar_estoque_obra'")&&
- source.includes("'/rest/v1/rpc/ew_cadastrar_material_manual_estoque'"),
- 'Estoque por obra aceita materiais existentes e novos');
+assert.ok(source.includes("'/rest/v1/rpc/ew_movimentar_estoque_obra_local'")&&
+ source.includes("'/rest/v1/rpc/ew_cadastrar_material_manual_estoque_local'"),
+ 'Cadastro existente e novos materiais exigem local físico do estoque');
 assert.ok(source.includes('function cemEncontrarConciliacoes(r,perfis,acessorios)'),
  'Comparação de códigos importados com cadastro manual');
 assert.ok(source.includes('ew_importar_cem_conciliado'),
@@ -725,8 +734,8 @@ assert.ok(!source.includes('data-stock-var='),'A tabela não pode exibir botão 
 
 assert.ok(source.includes('OBAPROV:[],OBACES:[]'),
  'Exportação de obra CEM deve ler OBAPROV e OBACES');
-assert.ok(source.includes('id="stockImportCem"')&&source.includes('id="stockManageLocations"'),
- 'Estoque oferece importação calculada e administração dos locais');
+assert.ok(!source.includes('id="stockImportCem"')&&source.includes('id="stockManageLocations"'),
+ 'Remover botão de importar quantidades da tela de estoque, preservando administração');
 assert.ok(source.includes("'/rest/v1/rpc/ew_importar_saldo_obra_cem'")&&
  source.includes("'/rest/v1/rpc/ew_excluir_estoque_local'")&&
  source.includes("'/rest/v1/rpc/ew_restaurar_estoque_local'"),
