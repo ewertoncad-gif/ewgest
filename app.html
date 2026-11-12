@@ -466,7 +466,7 @@
     .cemImportReceipt{padding:14px 16px;margin:12px 0;background:#edf8f1;border-radius:10px;border:1px solid #b2dbc1;color:#1d6240}
 
 
-    .stockFilters{display:grid;grid-template-columns:minmax(180px,1fr) minmax(180px,1fr) minmax(200px,1.5fr);gap:13px;margin:15px 0}
+    .stockFilters{display:grid;grid-template-columns:repeat(2,minmax(170px,1fr)) minmax(180px,1fr) minmax(200px,1.4fr);gap:13px;margin:15px 0}
     .stockFilters label{margin:0;font-size:12px}
     .stockFilters select,.stockFilters input{margin-top:7px}
     .stockLegend{display:flex;gap:20px;align-items:center;flex-wrap:wrap;background:#f5f9ff;border:1px solid #dfebf6;padding:13px 16px;border-radius:10px;color:#5b7895;font-size:12px;line-height:1.6;margin:14px 0}
@@ -797,9 +797,11 @@
         <p class="hint">Os materiais podem vir de um arquivo de exportação técnica ou do cadastro manual. Os perfis são controlados por barras inteiras e comprimento comercial. Ajuste os saldos diretamente na tabela.</p>
         <div class="stockFilters">
           <label>Obra <select id="stockWork"><option value="">Todas as obras</option></select></label>
+          <label>Local do estoque <select id="stockFactoryFilter"><option value="">Todos os galpões</option></select></label>
           <label>Categoria <select id="stockType"><option value="">Todos os materiais</option><option value="perfil">Perfis</option><option value="acessorio">Acessórios</option></select></label>
           <label>Buscar material <input id="stockSearch" type="search" placeholder="Código, descrição ou cor"></label>
         </div>
+        <div class="stockTopActions"><button type="button" class="btn secondary" id="stockFactoryCreate">+ Cadastrar galpão</button></div>
         <div class="stockLegend">
           <span><strong>Quantidade:</strong> barras inteiras do perfil ou unidades do acessório.</span>
           <span><strong>Comprimento:</strong> tamanho comercial da barra em milímetros, independente da quantidade de peças cortadas.</span>
@@ -1018,11 +1020,26 @@
     <div class="modalbuttons"><button type="button" class="btn secondary" id="stockManageClose">Fechar</button></div>
   </div>
 </div>
+<div id="stockTransferOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockTransferTitle">
+    <h2 id="stockTransferTitle">Transferir material entre galpões</h2>
+    <p id="stockTransferInfo" class="hint"></p>
+    <form id="stockTransferForm">
+      <label>Local de origem <input id="stockTransferSource" readonly></label>
+      <label>Local de destino <select id="stockTransferTarget" required></select></label>
+      <label>Quantidade para transferir <input id="stockTransferQty" type="number" min="0.001" step="1" required></label>
+      <label>Motivo da transferência <textarea id="stockTransferReason" rows="2" minlength="5" maxlength="500" required placeholder="Ex.: Remanejamento para Afogados"></textarea></label>
+      <p id="stockTransferError" class="feedback" role="alert"></p>
+      <div class="modalbuttons"><button id="stockTransferCancel" class="btn secondary" type="button">Cancelar</button><button id="stockTransferSave" class="btn primary" type="submit">Confirmar transferência</button></div>
+    </form>
+  </div>
+</div>
 <div id="stockQuantityOverlay" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockQuantityTitle">
     <h2 id="stockQuantityTitle">Ajustar quantidade da obra</h2>
     <p id="stockQuantityInfo" class="muted"></p>
     <form id="stockQuantityForm">
+      <p id="stockQtyFactory" class="hint"></p>
       <label id="stockQtyLengthLabel">Comprimento da barra (mm)
         <input id="stockQtyLength" type="number" min="100" max="20000" step="1" placeholder="Ex.: 6000">
       </label>
@@ -1048,6 +1065,7 @@
     <p class="hint">Escolha a obra, o material e a quantidade de barras ou acessórios. Essa operação afeta somente o saldo da obra.</p>
     <form id="stockManualForm">
       <label>Obra <select id="stockManualWork" required></select></label>
+      <label>Onde ficará o material? <select id="stockManualFactory" required></select></label>
       <button class="btn secondary" id="stockCreateWorkToggle" type="button">+ Cadastrar obra manualmente</button>
       <div id="stockCreateWorkPanel" class="hidden">
         <label>Nome da nova obra <input id="stockNewWorkName" maxlength="180" placeholder="Ex.: CASA MOSER"></label>
@@ -5371,7 +5389,7 @@ for(const id of ['cemFlagEsquadrias','cemFlagPerfis','cemFlagAcessorios']){
 
 
 /* Estoque: cadastro importado, planejamento CEM e saldo físico são separados. */
-let estoqueLinks=[],estoqueMovimentos=[],estoqueVarianteEscolhida=null,estoqueObraMovimentos=[],stockLocais=[],stockComprimentos=[];
+let estoqueLinks=[],estoqueMovimentos=[],estoqueVarianteEscolhida=null,estoqueObraMovimentos=[],stockLocais=[],stockComprimentos=[],stockLocaisFisicos=[];
 async function abrirEstoque(){
   if(!matIsAdmin())return;
   setView('stock');
@@ -5379,22 +5397,25 @@ async function abrirEstoque(){
   try{
     await ensureSession();
     const empresa='eq.'+currentCompany.id;
-    const [perfis,aces,variacoes,links,operacoes,movObra,locais,comprimentos]=await Promise.all([
+    const [perfis,aces,variacoes,links,operacoes,movObra,locais,comprimentos,galpoes]=await Promise.all([
       apiGet('ew_perfis',{select:'*',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_acessorios',{select:'*',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_materiais_variacoes',{select:'*',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_cem_obras_materiais',{select:'*',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_estoque_movimentacoes',{select:'variacao_id,quantidade_delta,unidade,tipo,criado_em',
         empresa_id:empresa,limit:'20000'}),
-      apiGet('ew_estoque_obras_movimentos',{select:'id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,origem,criado_em',
+      apiGet('ew_estoque_obras_movimentos',{select:'id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,origem,criado_em,local_estoque',
         empresa_id:empresa,limit:'30000'}),
       apiGet('ew_estoques_locais',{select:'id,obra_id,excluido_em,restauravel_ate,criado_em',
         empresa_id:empresa,limit:'2000'}),
-      apiGet('ew_comprimentos_comerciais',{select:'comprimento_mm',empresa_id:empresa,limit:'1000'})
+      apiGet('ew_comprimentos_comerciais',{select:'comprimento_mm',empresa_id:empresa,limit:'1000'}),
+      apiGet('ew_locais_fisicos',{select:'nome,ativo',empresa_id:empresa,order:'nome.asc'})
     ]);
     matPerfis=perfis||[];matAcessorios=aces||[];matVariacoes=variacoes||[];
     estoqueLinks=links||[];estoqueMovimentos=operacoes||[];
     estoqueObraMovimentos=movObra||[];stockLocais=locais||[];
+    stockLocaisFisicos=(galpoes||[]).filter(g=>g.ativo).map(g=>g.nome);
+    stockPreencherGalpoes();
     stockComprimentos=(comprimentos||[]).map(x=>Number(x.comprimento_mm)).filter(Number.isSafeInteger);
     node('stockPerfCount').textContent=matPerfis.length.toLocaleString('pt-BR');
     node('stockAcesCount').textContent=matAcessorios.length.toLocaleString('pt-BR');
@@ -5411,6 +5432,33 @@ async function abrirEstoque(){
     node('stockMessage').textContent='';
   }catch(e){node('stockMessage').textContent='Não foi possível carregar estoque: '+e.message;}
 }
+function stockPreencherGalpoes(){
+ const locations=stockLocaisFisicos.slice().sort((a,b)=>a.localeCompare(b,'pt-BR'));
+ for(const id of ['stockFactoryFilter','stockManualFactory']){
+  const select=node(id),anterior=select.value;
+  select.innerHTML=(id==='stockFactoryFilter'?'<option value="">Todos os galpões</option>':
+     '<option value="">Selecione o galpão</option>')+
+   locations.map(v=>'<option value="'+escapeHTML(v)+'">'+escapeHTML(v)+'</option>').join('');
+  if(locations.includes(anterior))select.value=anterior;
+ }
+}
+async function stockCadastrarGalpao(){
+ if(!matIsAdmin())return;
+ const raw=window.prompt('Nome do novo galpão / local físico:');
+ if(raw===null)return;
+ const nome=cemNome(raw);
+ if(nome.length<3||nome.length>80||stockLocaisFisicos.includes(nome)){
+  node('stockMessage').textContent='Informe um nome novo com 3 a 80 caracteres.';return;
+ }
+ try{
+  await ensureSession();
+  await request('/rest/v1/ew_locais_fisicos',{method:'POST',token:session.access_token,
+    body:{empresa_id:currentCompany.id,nome,criado_por:currentUser.id}});
+  stockLocaisFisicos.push(nome);stockPreencherGalpoes();
+  node('stockMessage').textContent='Galpão '+nome+' cadastrado. Ele já está disponível nos lançamentos.';
+ }catch(e){node('stockMessage').textContent='Erro ao cadastrar galpão: '+e.message;}
+}
+node('stockFactoryCreate').addEventListener('click',stockCadastrarGalpao);
 function estoqueDados(){
   const byV=new Map(estoqueLinks.filter(link=>!node('stockWork').value||
     link.obra_id===node('stockWork').value).map(link=>[link.variacao_id,link]));
@@ -5463,24 +5511,24 @@ function renderEstoque(){
     const {v,mat,perWork,link}=item;
     const grupos=new Map();
     for(const mov of perWork){
-      const k=[mov.comprimento_mm??'',mov.unidade].join('|');
+      const k=[mov.comprimento_mm??'',mov.unidade,mov.local_estoque||'IMBIRIBEIRA'].join('|');
       if(!grupos.has(k))grupos.set(k,{quantidade:0,comprimento:mmOrNull(mov.comprimento_mm),
-        unidade:mov.unidade,informado:true});
+        unidade:mov.unidade,local_estoque:mov.local_estoque||'IMBIRIBEIRA',informado:true});
       grupos.get(k).quantidade+=Number(mov.quantidade_delta);
     }
     if(grupos.size){
-      for(const v of grupos.values())linhas.push({...item,...v});
-    }else{
+      for(const v of grupos.values())if(!node('stockFactoryFilter').value||node('stockFactoryFilter').value===v.local_estoque)linhas.push({...item,...v});
+    }else if(!node('stockFactoryFilter').value){
       const length=v.tipo==='perfil'?mmOrNull(mat.comprimento_comercial_mm):null;
       const unit=v.tipo==='perfil'?'BARRA':releaseUnidadeAcessorio(mat.unidade_item||link?.unidade_prevista);
-      linhas.push({...item,comprimento:length,unidade:unit,quantidade:null,informado:false});
+      linhas.push({...item,comprimento:length,unidade:unit,local_estoque:'',quantidade:null,informado:false});
     }
   }
   linhas.sort((a,b)=>a.mat.codigo.localeCompare(b.mat.codigo,'pt-BR')||
-    (a.comprimento||0)-(b.comprimento||0));
+    (a.comprimento||0)-(b.comprimento||0)||String(a.local_estoque).localeCompare(String(b.local_estoque),'pt-BR'));
   out.innerHTML='<div class="stockTableWrap"><table class="stockTable"><thead><tr>'+
     '<th>Código</th><th>Material / fabricante</th><th>Cor e acabamento</th>'+
-    '<th>Quantidade na obra</th><th>Comprimento da barra</th><th>Ação</th></tr></thead><tbody>'+
+    '<th>Quantidade na obra</th><th>Comprimento da barra</th><th>Galpão</th><th>Ação</th></tr></thead><tbody>'+
     linhas.map(x=>{
       const unit=x.v.tipo==='perfil'?'barra(s)':escapeHTML(x.unidade);
       const amount=x.informado?
@@ -5493,36 +5541,43 @@ function renderEstoque(){
       return '<tr><td><strong>'+escapeHTML(x.mat.codigo)+'</strong></td>'+
         '<td>'+escapeHTML(x.mat.descricao)+'<div class="hint">'+escapeHTML(x.mat.fabricante)+'</div></td>'+
         '<td>'+escapeHTML(x.v.cor)+'<div class="hint">'+escapeHTML(x.v.acabamento)+'</div></td>'+
-        '<td>'+amount+'</td><td>'+size+'</td>'+
+        '<td>'+amount+'</td><td>'+size+'</td><td><strong>'+escapeHTML(x.local_estoque||'—')+'</strong></td>'+
         '<td class="stockRowActions"><button type="button" class="btn secondary" data-stock-adjust="'+
           escapeHTML(x.v.id)+'" data-stock-length="'+(x.comprimento??'')+
-          '" data-stock-unit="'+escapeHTML(x.unidade)+'">Ajustar quantidade</button></td></tr>';
+          '" data-stock-unit="'+escapeHTML(x.unidade)+'" data-stock-local="'+escapeHTML(x.local_estoque)+'">Ajustar quantidade</button>'+
+          (x.informado&&x.quantidade>0?' <button type="button" class="btn secondary" data-stock-transfer="'+
+          escapeHTML(x.v.id)+'" data-stock-length="'+(x.comprimento??'')+'" data-stock-unit="'+escapeHTML(x.unidade)+
+          '" data-stock-local="'+escapeHTML(x.local_estoque)+'">Transferir local</button>':'')+'</td></tr>';
     }).join('')+'</tbody></table></div>'+
     '<p class="stockFoot">'+linhas.length+' linha(s) de material nesta obra. '+
     'Quando houver barras de comprimentos diferentes, elas aparecerão separadas. '+
     'Peças previstas para corte no CEM não são convertidas automaticamente em barras.</p>';
   out.querySelectorAll('[data-stock-adjust]').forEach(btn=>btn.addEventListener('click',()=>{
-    stockQtyOpen(btn.dataset.stockAdjust,btn.dataset.stockLength,btn.dataset.stockUnit);
+    stockQtyOpen(btn.dataset.stockAdjust,btn.dataset.stockLength,btn.dataset.stockUnit,btn.dataset.stockLocal);
   }));
+  out.querySelectorAll('[data-stock-transfer]').forEach(btn=>btn.addEventListener('click',()=>
+    stockTransferOpen(btn.dataset.stockTransfer,btn.dataset.stockLength,btn.dataset.stockUnit,btn.dataset.stockLocal)));
 }
 function mmOrNull(value){
   const n=Number(value);
   return Number.isSafeInteger(n)&&n>=100&&n<=20000?n:null;
 }
 let stockQtySelected=null,stockQtyOperationId=null;
-function stockQtyAvailable(item,length,unit){
+function stockQtyAvailable(item,length,unit,local){
   if(!item)return {saldo:0,informado:false};
   const movs=estoqueObraMovimentos.filter(row=>
     row.obra_id===node('stockWork').value&&row.variacao_id===item.v.id&&
-    row.comprimento_mm===(item.v.tipo==='perfil'?length:null)&&row.unidade===unit);
+    row.comprimento_mm===(item.v.tipo==='perfil'?length:null)&&row.unidade===unit&&
+    (row.local_estoque||'IMBIRIBEIRA')===local);
   return {saldo:movs.reduce((sum,row)=>sum+Number(row.quantidade_delta),0),informado:movs.length>0};
 }
-function stockQtyOpen(variationId,length='',unit=''){
+function stockQtyOpen(variationId,length='',unit='',local='IMBIRIBEIRA'){
   if(!matIsAdmin())return;
   const item=estoqueDados().find(x=>x.v.id===variationId);
   if(!item||!node('stockWork').value)return;
-  stockQtySelected={...item,unidade:item.v.tipo==='perfil'?'BARRA':unit||
+  stockQtySelected={...item,local_estoque:local,unidade:item.v.tipo==='perfil'?'BARRA':unit||
     releaseUnidadeAcessorio(item.mat.unidade_item)};
+  node('stockQtyFactory').textContent='Local do estoque: '+local+'. Para mover para outro galpão, use Transferir local na tabela.';
   stockQtyOperationId=crypto.randomUUID();
   node('stockQuantityForm').reset();
   node('stockQtyError').textContent='';
@@ -5546,7 +5601,7 @@ function stockQtyUpdate(){
     node('stockQtyNew').value='';
     return;
   }
-  const current=stockQtyAvailable(item,len,item.unidade);
+  const current=stockQtyAvailable(item,len,item.unidade,item.local_estoque);
   node('stockQtyCurrent').textContent=current.informado?
     'Quantidade atual: '+matFormat(current.saldo,isBar?0:3)+' '+
       (isBar?'barra(s) de '+len.toLocaleString('pt-BR')+' mm':item.unidade)+'.':
@@ -5568,7 +5623,7 @@ async function stockQtySubmit(e){
     !Number.isFinite(novo)||novo<0||(isBar&&!Number.isSafeInteger(novo))){
     err.textContent='Informe o comprimento e a nova quantidade. Perfis exigem número inteiro de barras.';return;
   }
-  const atual=stockQtyAvailable(item,length,item.unidade);
+  const atual=stockQtyAvailable(item,length,item.unidade,item.local_estoque);
   const delta=Number((novo-atual.saldo).toFixed(3));
   if(delta===0){err.textContent='O saldo não mudou. Informe uma quantidade diferente da atual.';return;}
   const motivo=node('stockQtyReason').value.trim();
@@ -5582,14 +5637,14 @@ async function stockQtySubmit(e){
   btn.disabled=true;err.textContent='Registrando ajuste…';
   try{
     await ensureSession();
-    const answer=await request('/rest/v1/rpc/ew_movimentar_estoque_obra',{
+    const answer=await request('/rest/v1/rpc/ew_movimentar_estoque_obra_local',{
       method:'POST',token:session.access_token,
       body:{
         p_empresa_id:currentCompany.id,p_obra_id:node('stockWork').value,
         p_variacao_id:item.v.id,p_comprimento_mm:length,
         p_unidade:item.unidade,p_quantidade:delta,
         p_origem:atual.informado?'AJUSTE':'ABERTURA',
-        p_observacao:motivo,p_operacao_id:stockQtyOperationId
+        p_observacao:motivo,p_operacao_id:stockQtyOperationId,p_local_estoque:item.local_estoque
       }
     });
     stockQtyClose();
@@ -5603,6 +5658,57 @@ async function stockQtySubmit(e){
       '. Antes de repetir, confira se o saldo já foi atualizado.';
   }finally{btn.disabled=false;}
 }
+let stockTransferSelected=null,stockTransferOperationId=null;
+function stockTransferOpen(variationId,length='',unit='',local='IMBIRIBEIRA'){
+ if(!matIsAdmin())return;
+ const item=estoqueDados().find(x=>x.v.id===variationId);
+ if(!item)return;
+ const comprimento=item.v.tipo==='perfil'?mmOrNull(length):null;
+ const saldo=stockQtyAvailable(item,comprimento,unit,local).saldo;
+ if(saldo<=0){node('stockMessage').textContent='Este material não tem saldo disponível nesse local.';return;}
+ stockTransferSelected={item,comprimento,unit,local,saldo};
+ stockTransferOperationId=crypto.randomUUID();
+ const dst=node('stockTransferTarget');
+ dst.innerHTML='<option value="">Selecione o destino</option>'+
+   stockLocaisFisicos.filter(n=>n!==local).map(n=>'<option value="'+escapeHTML(n)+'">'+escapeHTML(n)+'</option>').join('');
+ node('stockTransferForm').reset();
+ node('stockTransferSource').value=local;
+ node('stockTransferInfo').textContent=item.mat.codigo+' · '+item.mat.descricao+
+   ' · '+(comprimento?comprimento+' mm · ':'')+'Saldo em '+local+': '+matFormat(saldo,3)+' '+unit;
+ node('stockTransferQty').max=String(saldo);
+ node('stockTransferQty').step=item.v.tipo==='perfil'?'1':'0.001';
+ node('stockTransferError').textContent='';
+ node('stockTransferOverlay').classList.remove('hidden');
+}
+function stockTransferClose(){
+ node('stockTransferOverlay').classList.add('hidden');
+ stockTransferSelected=null;stockTransferOperationId=null;
+}
+node('stockTransferCancel').addEventListener('click',stockTransferClose);
+node('stockTransferForm').addEventListener('submit',async e=>{
+ e.preventDefault();
+ const selected=stockTransferSelected;if(!selected)return;
+ const qty=Number(node('stockTransferQty').value),dest=node('stockTransferTarget').value,
+    motivo=node('stockTransferReason').value.trim(),isBar=selected.item.v.tipo==='perfil';
+ if(!dest||dest===selected.local||!Number.isFinite(qty)||qty<=0||qty>selected.saldo||
+   (isBar&&!Number.isSafeInteger(qty))||motivo.length<5){
+  node('stockTransferError').textContent='Informe destino diferente, quantidade disponível e motivo (5 caracteres).';return;
+ }
+ if(!window.confirm('Transferir '+qty+' '+selected.unit+' de '+selected.local+' para '+dest+'?'))return;
+ const btn=node('stockTransferSave');btn.disabled=true;
+ try{
+  await ensureSession();
+  const reply=await request('/rest/v1/rpc/ew_transferir_estoque_obra',{method:'POST',
+   token:session.access_token,body:{p_empresa_id:currentCompany.id,p_obra_id:node('stockWork').value,
+    p_variacao_id:selected.item.v.id,p_comprimento_mm:selected.comprimento,p_unidade:selected.unit,
+    p_quantidade:qty,p_origem_local:selected.local,p_destino_local:dest,
+    p_observacao:motivo,p_operacao_id:stockTransferOperationId}});
+  stockTransferClose();await abrirEstoque();
+  node('stockMessage').textContent=reply.repetida?'Transferência já estava registrada.':
+   'Transferência registrada: '+qty+' '+selected.unit+' de '+selected.local+' para '+dest+'.';
+ }catch(error){node('stockTransferError').textContent='Não foi possível transferir: '+error.message;}
+ finally{btn.disabled=false;}
+});
 node('stockQtyLength').addEventListener('change',stockQtyUpdate);
 node('stockQtyCancel').addEventListener('click',stockQtyClose);
 node('stockQuantityForm').addEventListener('submit',stockQtySubmit);
@@ -5653,6 +5759,7 @@ async function registrarMovimentoEstoque(e){
   finally{btn.disabled=false;}
 }
 node('stockWork').addEventListener('change',renderEstoque);
+node('stockFactoryFilter').addEventListener('change',renderEstoque);
 node('stockType').addEventListener('change',renderEstoque);
 node('stockSearch').addEventListener('input',renderEstoque);
 node('stockEntryCancel').addEventListener('click',fecharMovimentoEstoque);
@@ -5764,6 +5871,7 @@ function stockManualOpen(variationId=''){
  node('stockManualTitle').textContent=variationId?'Ajustar material do estoque':'Adicionar material ao estoque da obra';
  stockManualOperationId=crypto.randomUUID();
  node('stockManualForm').reset();
+ node('stockManualFactory').value='';
  node('stockManualError').textContent='';
  node('stockManualSuccess').textContent='';
  node('stockManualNewFields').classList.add('hidden');
@@ -5836,6 +5944,7 @@ async function stockManualSubmit(event){
  const varId=node('stockManualMaterial').value;
  const len=type==='perfil'?Number(node('stockManualLength').value):null;
  const quantidade=Number(node('stockManualQty').value);
+ const galpao=node('stockManualFactory').value;
  const kind=node('stockManualKind').value;
  const nota=node('stockManualNote').value.trim();
  const cadastro=matVariacoes.find(v=>v.id===varId);
@@ -5846,6 +5955,7 @@ async function stockManualSubmit(event){
    releaseUnidadeAcessorio(acessorio?.unidade_item||'PC');
  const error=node('stockManualError');
  if(!obra){error.textContent='Selecione ou cadastre uma obra.';return;}
+ if(!stockLocaisFisicos.includes(galpao)){error.textContent='Selecione o galpão físico deste material.';return;}
  if(!isNew&&!cadastro){error.textContent='Selecione um material.';return;}
  if(!Number.isFinite(quantidade)||quantidade<1||(type==='perfil'&&
        (!Number.isSafeInteger(quantidade)||!Number.isSafeInteger(len)||len<100||len>20000))){
@@ -5862,9 +5972,9 @@ async function stockManualSubmit(event){
   await ensureSession();
   const common={p_empresa_id:currentCompany.id,p_obra_id:obra,
     p_comprimento_mm:len,p_unidade:unidade,p_quantidade:quantidade,
-    p_origem:kind,p_observacao:nota,p_operacao_id:stockManualOperationId};
-  const url=isNew?'/rest/v1/rpc/ew_cadastrar_material_manual_estoque':
-    '/rest/v1/rpc/ew_movimentar_estoque_obra';
+    p_origem:kind,p_observacao:nota,p_operacao_id:stockManualOperationId,p_local_estoque:galpao};
+  const url=isNew?'/rest/v1/rpc/ew_cadastrar_material_manual_estoque_local':
+    '/rest/v1/rpc/ew_movimentar_estoque_obra_local';
   const body=isNew?{...common,p_tipo:type,
        p_codigo:node('stockNewMaterialCode').value,p_descricao:node('stockNewMaterialDesc').value,
        p_fabricante:node('stockNewMaterialMaker').value,p_acabamento:node('stockNewMaterialFinish').value,
@@ -5879,6 +5989,7 @@ async function stockManualSubmit(event){
   if(continuar){
     stockManualOpen();
     node('stockManualWork').value=obra;
+    node('stockManualFactory').value=galpao;
     node('stockManualSuccess').textContent='Material salvo. Escolha o próximo material da mesma obra.';
     node('stockManualMaterial').focus();
   }
