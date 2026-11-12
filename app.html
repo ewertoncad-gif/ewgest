@@ -3288,6 +3288,84 @@ async function openManagedUsersPage(){
     }
   }
 }
+
+let accessHistoryRecords=[],accessHistoryQuerySequence=0;
+function accessHistoryDate(raw){
+ if(!raw)return '—';
+ const d=new Date(raw);
+ return Number.isFinite(d.getTime())?
+  new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Recife',day:'2-digit',month:'2-digit',
+   year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(d):'—';
+}
+function accessHistoryPopulateUsers(){
+ const select=node('userAccessHistoryUser'),old=select.value;
+ select.innerHTML='<option value="">Todos os usuários</option>'+
+  managedAccounts.slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'))
+   .map(u=>'<option value="'+escapeHTML(u.usuario_id)+'">'+
+     escapeHTML(u.nome+' · '+u.login)+'</option>').join('');
+ if(managedAccounts.some(u=>u.usuario_id===old))select.value=old;
+}
+function accessHistoryRender(){
+ const list=node('userAccessHistoryList');
+ if(!accessHistoryRecords.length){
+  list.innerHTML='<div class="materialEmpty" style="padding:24px">Nenhum acesso encontrado neste período.</div>';
+  return;
+ }
+ const names=new Map(managedAccounts.map(u=>[u.usuario_id,u]));
+ list.innerHTML='<div class="userAccessHistoryWrap"><table class="userAccessHistoryTable">'+
+  '<thead><tr><th>Usuário</th><th>Entrada</th><th>Saída</th><th>Última comunicação</th><th>Situação</th></tr></thead><tbody>'+
+  accessHistoryRecords.map(r=>{
+   const user=names.get(r.usuario_id);
+   const previous=r.origem==='AUTENTICACAO_ANTERIOR',restored=r.origem==='SESSAO_RECUPERADA';
+   const status=previous?'Autenticação anterior à atualização':
+     restored?'Sessão recuperada; início real desconhecido':
+     r.saida_em?'Saída confirmada':'Saída não registrada';
+   return '<tr><td><strong>'+escapeHTML(user?.nome||'Usuário não localizado')+'</strong>'+
+    (user?.login?'<div class="hint">'+escapeHTML(user.login)+'</div>':'')+'</td>'+
+    '<td>'+escapeHTML(accessHistoryDate(r.entrada_em))+(restored?'*':'')+'</td>'+
+    '<td>'+escapeHTML(r.saida_em?accessHistoryDate(r.saida_em):'Não registrada')+'</td>'+
+    '<td>'+escapeHTML(r.ultima_atividade_em?accessHistoryDate(r.ultima_atividade_em):'Não disponível')+'</td>'+
+    '<td>'+escapeHTML(status)+'</td></tr>';
+  }).join('')+'</tbody></table></div>'+
+  '<p class="hint">* Sessões recuperadas mostram a primeira observação no novo controle, não necessariamente a entrada original.</p>';
+}
+async function accessHistoryLoad(){
+ if(!canManageUsers()||!currentCompany?.id)return;
+ const seq=++accessHistoryQuerySequence;
+ const period=Number(node('userAccessHistoryPeriod').value)||7;
+ const userId=node('userAccessHistoryUser').value;
+ const status=node('userAccessHistoryStatus'),button=node('userAccessHistoryRefresh');
+ status.textContent='Consultando histórico…';button.disabled=true;
+ try{
+  await ensureSession();
+  const params={select:'usuario_id,entrada_em,saida_em,ultima_atividade_em,origem',
+    empresa_id:'eq.'+currentCompany.id,
+    entrada_em:'gte.'+new Date(Date.now()-period*86400000).toISOString(),
+    order:'entrada_em.desc',limit:'500'};
+  if(userId)params.usuario_id='eq.'+userId;
+  const records=await apiGet('ew_historico_acessos',params);
+  if(seq!==accessHistoryQuerySequence)return;
+  accessHistoryRecords=records||[];accessHistoryRender();
+  status.textContent=accessHistoryRecords.length+' acesso(s) nos últimos '+period+' dias.'+
+   (accessHistoryRecords.length===500?' Limite de 500 linhas: refine os filtros.':'');
+ }catch(e){
+  if(seq===accessHistoryQuerySequence){
+   status.textContent='Erro ao consultar histórico: '+e.message;
+   node('userAccessHistoryList').innerHTML='';
+  }
+ }finally{if(seq===accessHistoryQuerySequence)button.disabled=false;}
+}
+node('userAccessHistoryToggle').addEventListener('click',()=>{
+ if(!canManageUsers())return;
+ const panel=node('userAccessHistoryPanel'),opening=panel.classList.contains('hidden');
+ panel.classList.toggle('hidden',!opening);
+ node('userAccessHistoryToggle').textContent=opening?'Ocultar histórico':'Histórico de acessos';
+ if(opening){accessHistoryPopulateUsers();accessHistoryLoad();}
+});
+node('userAccessHistoryRefresh').addEventListener('click',accessHistoryLoad);
+node('userAccessHistoryUser').addEventListener('change',accessHistoryLoad);
+node('userAccessHistoryPeriod').addEventListener('change',accessHistoryLoad);
+
 function openManagedUserEdit(id){
   if(!canManageUsers())return;
   const account=managedAccounts.find(x=>x.usuario_id===id);
