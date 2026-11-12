@@ -6072,8 +6072,8 @@ node('stockCreateWork').addEventListener('click',stockCriarObra);
 /* Importação de estoque inicial calculado pelo arquivo (OBAPROV + OBACES). */
 let stockCemParsed=null,stockCemOperationId=null;
 function stockCemDados(r){
-  if(!r.barrasAproveitamento?.length||!r.acessoriosObra?.length)
-    throw new Error('O arquivo não contém OBAPROV e OBACES. Use o arquivo completo de exportação da obra.');
+  if(!r.barrasAproveitamento?.length&&!r.acessoriosObra?.length)
+    throw new Error('O arquivo não contém barras comerciais nem acessórios em OBAPROV ou OBACES.');
   const profiles=new Map(),accessories=new Map();
   const toNumber=(value,code)=>{
     const n=Number(value);
@@ -6385,6 +6385,286 @@ async function stockManageRestore(id){
 }
 node('stockManageLocations').addEventListener('click',stockManageOpen);
 node('stockManageClose').addEventListener('click',()=>node('stockManageOverlay').classList.add('hidden'));
+
+
+/* Liberação em lote CEM: revisão completa, sem gravações antes da confirmação. */
+let releaseBatchWorkId=null,releaseBatchParsed=null,releaseBatchFileName='',
+    releaseBatchOperationId=null;
+function releaseBatchOpen(){
+ if(!selectedWork||!['administrador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
+ releaseBatchWorkId=selectedWork.id;
+ releaseBatchParsed=null;releaseBatchOperationId=null;releaseBatchFileName='';
+ node('releaseBatchWork').textContent='Obra: '+selectedWork.nome+' · '+selectedWork.codigo;
+ node('releaseBatchFile').value='';node('releaseBatchError').textContent='';
+ node('releaseBatchStatus').textContent='Selecione o ZIP completo da liberação.';
+ node('releaseBatchPreview').classList.add('hidden');
+ node('releaseBatchConfirm').disabled=true;
+ node('releaseBatchOverlay').classList.remove('hidden');
+}
+function releaseBatchClose(){
+ node('releaseBatchOverlay').classList.add('hidden');
+ releaseBatchWorkId=null;releaseBatchParsed=null;releaseBatchFileName='';
+ releaseBatchOperationId=null;
+}
+function releaseBatchEsquadriaRow(cemItem,index){
+ const code=cemNome(cemItem.TIPO),l=Number(cemItem.L),h=Number(cemItem.H);
+ const candidatos=elements.filter(e=>e.obra_id===releaseBatchWorkId&&
+   cemNome(e.codigo)===code&&Number(e.largura_mm)===l&&Number(e.altura_mm)===h);
+ const restantes=candidatos.filter(x=>Number(x.quantidade)>Number(x.qtd_liberada));
+ const unico=restantes.length===1?restantes[0]:null;
+ const qtyCem=Number(cemItem.QTDE);
+ const disponivel=unico?Number(unico.quantidade)-Number(unico.qtd_liberada):0;
+ const qty=Number.isSafeInteger(qtyCem)&&qtyCem>0?Math.min(qtyCem,disponivel):0;
+ const opts=candidatos.map(x=>'<option value="'+escapeHTML(x.id)+'" '+(unico?.id===x.id?'selected':'')+'>'+
+   escapeHTML(x.codigo+' · '+l+'×'+h+' mm · aguardando '+(Number(x.quantidade)-Number(x.qtd_liberada))+
+     ' · '+(x.localizacao||'sem localização'))+'</option>').join('');
+ return '<tr class="batchEsqRow" data-cem-index="'+index+'">'+
+   '<td><input class="batchEsqEnabled" type="checkbox" '+(unico&&qty>0?'checked':'')+' aria-label="Incluir esquadria"></td>'+
+   '<td><strong>'+escapeHTML(code)+'</strong><div class="hint">'+escapeHTML(l+' × '+h+' mm · arquivo: '+(cemItem.QTDE||'—')+' un.')+'</div></td>'+
+   '<td><select class="batchEsqTarget"><option value="">'+(candidatos.length?'Selecione o item da obra':'Sem correspondente na obra')+'</option>'+opts+'</select></td>'+
+   '<td><input class="batchEsqQty" type="number" min="1" step="1" value="'+(qty>0?qty:'')+'" placeholder="Qtd."></td>'+
+   '</tr>';
+}
+function releaseBatchMatches(type,code){
+ return releaseMirrorData.filter(v=>{
+   if(v.tipo!==type)return false;
+   const m=type==='perfil'?matPerfis.find(p=>p.id===v.perfil_id):
+     matAcessorios.find(p=>p.id===v.acessorio_id);
+   return m&&cemNome(m.codigo)===cemNome(code);
+ });
+}
+function releaseBatchMaterialRow(row={},type='perfil'){
+ const code=cemNome(row.codigo),cor=cemNome(row.cor);
+ const candidates=releaseBatchMatches(type,code);
+ const exact=candidates.filter(v=>cemNome(v.cor)===cor);
+ const matched=exact.length===1?exact[0]:null;
+ const qty=Number(row.quantidade)||0,len=type==='perfil'?Number(row.comprimento_mm)||'':'';
+ const unidade=type==='perfil'?'BARRA':
+   matched?releaseUnidadeAcessorio(matAcessorios.find(a=>a.id===matched.acessorio_id)?.unidade_item):'PC';
+ const locais=matched?releaseStockLocations.filter(l=>
+   (releaseMirrorSaldo.get([matched.id,type==='perfil'?len:'',unidade,l].join('|'))||0)>0):[];
+ const local=locais.length===1?locais[0]:'';
+ const checked=matched&&qty>0&&local&&(releaseMirrorSaldo.get(
+   [matched.id,type==='perfil'?len:'',unidade,local].join('|'))||0)>=qty;
+ return '<tr class="batchMatRow">'+
+   '<td><input class="batchMatEnabled" type="checkbox" '+(checked?'checked':'')+'></td>'+
+   '<td><select class="batchMatType"><option value="perfil" '+(type==='perfil'?'selected':'')+'>Perfil</option><option value="acessorio" '+(type==='acessorio'?'selected':'')+'>Acessório</option></select></td>'+
+   '<td><input class="batchMatCode" type="text" maxlength="90" value="'+escapeHTML(code)+'" placeholder="Código"><div class="hint">Cor original: '+escapeHTML(cor||'—')+'</div></td>'+
+   '<td><select class="batchMatVar"><option value="">Selecione a variação</option>'+
+     candidates.map(v=>'<option value="'+escapeHTML(v.id)+'" '+(matched?.id===v.id?'selected':'')+'>'+
+       escapeHTML(v.cor+' / '+v.acabamento)+'</option>').join('')+'</select></td>'+
+   '<td><input class="batchMatLength" type="number" min="100" max="20000" step="1" value="'+len+'" '+(type!=='perfil'?'disabled':'')+' placeholder="mm"></td>'+
+   '<td><input class="batchMatQty" type="number" min="0.001" step="'+(type==='perfil'?'1':'0.001')+'" value="'+(qty||'')+'" placeholder="Qtd."></td>'+
+   '<td><select class="batchMatLocal"><option value="">Escolha o local</option>'+releaseStockLocations.map(l=>
+     '<option value="'+escapeHTML(l)+'" '+(l===local?'selected':'')+'>'+escapeHTML(l)+'</option>').join('')+'</select></td>'+
+   '<td class="batchMatStatus hint">'+(checked?'Saldo conferido':'Conferir cadastro e saldo')+'</td></tr>';
+}
+function releaseBatchRefreshMaterialVar(tr){
+ const code=cemNome(tr.querySelector('.batchMatCode').value);
+ const tipo=tr.querySelector('.batchMatType').value;
+ const combo=tr.querySelector('.batchMatVar'),old=combo.value;
+ const candidates=releaseBatchMatches(tipo,code);
+ combo.innerHTML='<option value="">Selecione variação / cor</option>'+
+  candidates.map(v=>'<option value="'+escapeHTML(v.id)+'">'+escapeHTML(v.cor+' / '+v.acabamento)+'</option>').join('');
+ if(candidates.some(v=>v.id===old))combo.value=old;
+ else if(candidates.length===1)combo.value=candidates[0].id;
+ const size=tr.querySelector('.batchMatLength');
+ size.disabled=tipo!=='perfil';if(tipo!=='perfil')size.value='';
+ tr.querySelector('.batchMatQty').step=tipo==='perfil'?'1':'0.001';
+ releaseBatchCheckMaterial(tr);
+}
+function releaseBatchCheckMaterial(tr){
+ const varId=tr.querySelector('.batchMatVar').value;
+ const v=releaseMirrorData.find(x=>x.id===varId);
+ const type=tr.querySelector('.batchMatType').value;
+ const len=type==='perfil'?Number(tr.querySelector('.batchMatLength').value):null;
+ const unit=type==='perfil'?'BARRA':
+   v?releaseUnidadeAcessorio(matAcessorios.find(a=>a.id===v.acessorio_id)?.unidade_item):'PC';
+ const sel=tr.querySelector('.batchMatLocal');
+ if(v&&!sel.value){
+  const comSaldo=releaseStockLocations.filter(loc=>
+   (releaseMirrorSaldo.get([varId,type==='perfil'?len:'',unit,loc].join('|'))||0)>0);
+  if(comSaldo.length===1)sel.value=comSaldo[0];
+ }
+ const saldo=releaseMirrorSaldo.get([varId,type==='perfil'?len:'',unit,sel.value].join('|'))||0;
+ const qty=Number(tr.querySelector('.batchMatQty').value);
+ const status=tr.querySelector('.batchMatStatus');
+ status.textContent=!v?'Vincule código e cor.':
+  !sel.value?'Selecione o galpão.':
+  'Saldo: '+matFormat(saldo,3)+' '+unit+(qty>saldo?' · insuficiente!':'');
+ status.classList.toggle('stockInsufficient',Boolean(v&&sel.value&&qty>saldo));
+}
+function releaseBatchCollect(){
+ if(!releaseBatchParsed)throw new Error('Analise o ZIP antes de confirmar.');
+ const work=works.find(w=>w.id===releaseBatchWorkId);
+ if(!work)throw new Error('Obra selecionada não encontrada.');
+ const itens=[],usados=new Set();
+ for(const tr of node('releaseBatchItems').querySelectorAll('.batchEsqRow')){
+  if(!tr.querySelector('.batchEsqEnabled').checked)continue;
+  const id=tr.querySelector('.batchEsqTarget').value;
+  const esq=elements.find(e=>e.id===id&&e.obra_id===work.id);
+  const q=Number(tr.querySelector('.batchEsqQty').value);
+  if(!esq||usados.has(id))throw new Error('Selecione uma esquadria válida para cada item (sem duplicidades).');
+  if(!Number.isSafeInteger(q)||q<1||q>Number(esq.quantidade)-Number(esq.qtd_liberada))
+   throw new Error('Quantidade acima do saldo a liberar para '+esq.codigo+'.');
+  const c=releaseBatchParsed.valid[Number(tr.dataset.cemIndex)];
+  if(cemNome(c.TIPO)!==cemNome(esq.codigo)||Number(c.L)!==Number(esq.largura_mm)||Number(c.H)!==Number(esq.altura_mm))
+   throw new Error('A esquadria selecionada não corresponde ao código e dimensões do CEM.');
+  itens.push({esquadria_id:id,quantidade:q});usados.add(id);
+ }
+ if(!itens.length)throw new Error('Marque pelo menos uma esquadria para liberar.');
+ const materiais=[],usadosMat=new Set();
+ for(const tr of node('releaseBatchMaterials').querySelectorAll('.batchMatRow')){
+  if(!tr.querySelector('.batchMatEnabled').checked)continue;
+  const tipo=tr.querySelector('.batchMatType').value;
+  const codigo=cemNome(tr.querySelector('.batchMatCode').value);
+  const v=releaseMirrorData.find(x=>x.id===tr.querySelector('.batchMatVar').value&&x.tipo===tipo);
+  const mat=v?(tipo==='perfil'?matPerfis.find(m=>m.id===v.perfil_id):
+    matAcessorios.find(m=>m.id===v.acessorio_id)):null;
+  if(!v||!mat||cemNome(mat.codigo)!==codigo)
+   throw new Error('Vincule código, fabricante e cor do material ao catálogo da empresa.');
+  const length=tipo==='perfil'?Number(tr.querySelector('.batchMatLength').value):null;
+  const q=Number(tr.querySelector('.batchMatQty').value),local=tr.querySelector('.batchMatLocal').value;
+  const unit=tipo==='perfil'?'BARRA':releaseUnidadeAcessorio(mat.unidade_item);
+  if(!Number.isFinite(q)||q<=0||q>1e6||
+     (tipo==='perfil'&&(!Number.isSafeInteger(q)||!Number.isSafeInteger(length)||length<100||length>20000)))
+   throw new Error('Quantidades e comprimentos comerciais inválidos no espelho.');
+  if(!releaseStockLocations.includes(local))throw new Error('Selecione o galpão físico do material '+codigo+'.');
+  const key=[v.id,length??'',unit,local].join('|');
+  if(usadosMat.has(key))throw new Error('Material repetido no mesmo galpão. Agrupe as quantidades.');
+  usadosMat.add(key);
+  const saldo=releaseMirrorSaldo.get(key)||0;
+  if(q>saldo)throw new Error('Saldo insuficiente para '+codigo+' em '+local+'. Disponível: '+matFormat(saldo,3)+' '+unit+'.');
+  materiais.push({variacao_id:v.id,comprimento_mm:length,unidade:unit,quantidade:q,local_estoque:local});
+ }
+ return {itens,materiais};
+}
+function releaseBatchSummaryUpdate(){
+ const status=node('releaseBatchSummary');
+ try{
+  const {itens,materiais}=releaseBatchCollect();
+  const un=itens.reduce((n,e)=>n+e.quantidade,0);
+  const data=node('releaseBatchDate').value,fabrica=node('releaseBatchFactory').value;
+  const dateOk=/^\d{4}-\d{2}-\d{2}$/.test(data)&&data<=todayLocal();
+  const excluded=[...node('releaseBatchMaterials').querySelectorAll('.batchMatRow')].filter(
+    tr=>!tr.querySelector('.batchMatEnabled').checked).length;
+  status.textContent=itens.length+' esquadria(s) · '+un+' unidade(s) · '+materiais.length+
+   ' linha(s) de material selecionadas para baixa · '+excluded+' linha(s) não descontadas.'+
+   (materiais.length?'':' ATENÇÃO: será uma liberação técnica sem baixa de estoque.');
+  node('releaseBatchConfirm').disabled=!(dateOk&&['IMBIRIBEIRA','AFOGADOS'].includes(fabrica));
+ }catch(e){status.textContent='Espelho pendente: '+e.message;node('releaseBatchConfirm').disabled=true;}
+}
+async function releaseBatchAnalyze(){
+ const file=node('releaseBatchFile').files?.[0];
+ const status=node('releaseBatchStatus'),btn=node('releaseBatchAnalyze');
+ if(!file){status.textContent='Selecione o arquivo ZIP.';return;}
+ if(!/\.zip$/i.test(file.name)){status.textContent='Escolha um arquivo .zip.';return;}
+ btn.disabled=true;node('releaseBatchConfirm').disabled=true;
+ releaseBatchParsed=null;releaseBatchOperationId=null;
+ node('releaseBatchPreview').classList.add('hidden');
+ node('releaseBatchError').textContent='';status.textContent='Analisando esquadrias e materiais do ZIP…';
+ try{
+  const r=cemLerObra(await cemExtrairXML(file));
+  const w=works.find(w=>w.id===releaseBatchWorkId);
+  if(!w||cemNome(r.codigo)!==cemNome(w.codigo))
+   throw new Error('ZIP pertence à obra '+r.codigo+', mas foi selecionada '+(w?.codigo||'outra obra')+'.');
+  await ensureSession();
+  await releaseCarregarCatalogo(releaseBatchWorkId);
+  releaseBatchParsed=r;releaseBatchFileName=file.name;
+  releaseBatchOperationId=crypto.randomUUID();
+  node('releaseBatchDate').value=todayLocal();
+  node('releaseBatchFactory').value='';
+  node('releaseBatchItems').innerHTML='<table class="cemTable stockCemMirrorTable"><thead><tr>'+
+    '<th>Incluir</th><th>Esquadria no arquivo</th><th>Item correspondente da obra</th><th>Qtd. a liberar</th>'+
+    '</tr></thead><tbody>'+r.valid.map(releaseBatchEsquadriaRow).join('')+'</tbody></table>';
+  let perfis=[],acessorios=[];
+  if(r.barrasAproveitamento?.length||r.acessoriosObra?.length){
+   const dados=stockCemDados(r);
+   perfis=dados.perfis;acessorios=dados.acessorios;
+  }
+  node('releaseBatchMaterials').innerHTML='<table class="cemTable stockCemMirrorTable"><thead><tr>'+
+    '<th>Baixar</th><th>Tipo</th><th>Código</th><th>Cor cadastrada</th><th>Barra mm</th><th>Quantidade</th><th>Galpão</th><th>Saldo no galpão</th>'+
+    '</tr></thead><tbody id="releaseBatchMatBody">'+
+    perfis.map(x=>releaseBatchMaterialRow(x,'perfil')).join('')+
+    acessorios.map(x=>releaseBatchMaterialRow(x,'acessorio')).join('')+'</tbody></table>';
+  node('releaseBatchPreview').classList.remove('hidden');
+  node('releaseBatchMaterials').querySelectorAll('.batchMatRow').forEach(releaseBatchCheckMaterial);
+  status.textContent='Arquivo '+file.name+': '+r.valid.length+' item(ns) calculado(s), '+
+   perfis.length+' perfil(is) comerciais e '+acessorios.length+' acessório(s). Revise o espelho.';
+  releaseBatchSummaryUpdate();
+ }catch(err){status.textContent='Falha na conferência: '+err.message;releaseBatchParsed=null;}
+ finally{btn.disabled=false;}
+}
+node('releaseBatchOpen').addEventListener('click',releaseBatchOpen);
+node('releaseBatchCancel').addEventListener('click',releaseBatchClose);
+node('releaseBatchAnalyze').addEventListener('click',releaseBatchAnalyze);
+node('releaseBatchFile').addEventListener('change',()=>{
+ releaseBatchParsed=null;releaseBatchOperationId=null;
+ node('releaseBatchPreview').classList.add('hidden');
+ node('releaseBatchConfirm').disabled=true;
+ node('releaseBatchStatus').textContent='Arquivo alterado. Analise novamente antes de confirmar.';
+});
+node('releaseBatchAddMaterial').addEventListener('click',()=>{
+ if(!releaseBatchParsed)return;
+ node('releaseBatchMatBody').insertAdjacentHTML('beforeend',releaseBatchMaterialRow({},'perfil'));
+ releaseBatchSummaryUpdate();
+});
+node('releaseBatchItems').addEventListener('input',releaseBatchSummaryUpdate);
+node('releaseBatchItems').addEventListener('change',releaseBatchSummaryUpdate);
+node('releaseBatchMaterials').addEventListener('input',e=>{
+ const tr=e.target.closest('.batchMatRow');if(!tr)return;
+ if(e.target.matches('.batchMatCode,.batchMatType'))releaseBatchRefreshMaterialVar(tr);
+ else releaseBatchCheckMaterial(tr);
+ releaseBatchSummaryUpdate();
+});
+node('releaseBatchMaterials').addEventListener('change',e=>{
+ const tr=e.target.closest('.batchMatRow');if(!tr)return;
+ if(e.target.matches('.batchMatCode,.batchMatType'))releaseBatchRefreshMaterialVar(tr);
+ else releaseBatchCheckMaterial(tr);
+ releaseBatchSummaryUpdate();
+});
+node('releaseBatchDate').addEventListener('change',releaseBatchSummaryUpdate);
+node('releaseBatchFactory').addEventListener('change',releaseBatchSummaryUpdate);
+node('releaseBatchConfirm').addEventListener('click',async()=>{
+ if(!releaseBatchOperationId||!releaseBatchParsed)return;
+ let draft;
+ try{draft=releaseBatchCollect();}
+ catch(e){node('releaseBatchError').textContent=e.message;return;}
+ const date=node('releaseBatchDate').value,fabrica=node('releaseBatchFactory').value;
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date>todayLocal()||
+   !['IMBIRIBEIRA','AFOGADOS'].includes(fabrica)){
+  node('releaseBatchError').textContent='Informe uma data válida e a fábrica da produção.';return;
+ }
+ const qtd=draft.itens.reduce((n,x)=>n+x.quantidade,0);
+ if(!window.confirm('Confirma liberação de '+qtd+' unidade(s) distribuída(s) em '+
+   draft.itens.length+' esquadria(s) para '+fabrica+'?\n'+
+   (draft.materiais.length?'Serão baixadas '+draft.materiais.length+' linha(s) de material nos galpões escolhidos.':
+     'ATENÇÃO: nenhum material será descontado do estoque.')+
+   '\nEsta confirmação é indivisível e fica no histórico.'))return;
+ const btn=node('releaseBatchConfirm');btn.disabled=true;
+ node('releaseBatchError').textContent='';
+ try{
+  await ensureSession();
+  const response=await request('/rest/v1/rpc/ew_liberar_lote_cem',{
+   method:'POST',token:session.access_token,timeoutMs:120000,
+   body:{p_obra_id:releaseBatchWorkId,p_data_liberacao:date,p_fabrica:fabrica,
+     p_itens:draft.itens,p_materiais:draft.materiais,
+     p_arquivo_nome:releaseBatchFileName,p_operacao_id:releaseBatchOperationId}});
+  const obraId=releaseBatchWorkId;releaseBatchClose();
+  node('detailError').textContent=response.repetida?'Este lote já havia sido registrado; não houve duplicação.':
+    'Lote confirmado: '+qtd+' unidade(s) · '+draft.itens.length+' esquadria(s) · '+draft.materiais.length+' baixa(s).';
+  try{
+   await loadPanel();
+   const w=works.find(w=>w.id===obraId);
+   if(w){detailMode='release';renderDetail(w);
+    node('detailError').textContent=response.repetida?'Lote já registrado, sem duplicação.':
+      'Liberação em lote concluída: '+qtd+' unidade(s), fábrica '+fabrica+
+      ' e '+draft.materiais.length+' linha(s) de estoque baixadas.';}
+  }catch(e){node('detailError').textContent='Lote registrado, mas a atualização falhou: '+e.message+'. NÃO confirme novamente; atualize o painel.';}
+ }catch(err){node('releaseBatchError').textContent='Não foi possível confirmar: '+err.message+
+   '. Antes de tentar novamente, confira as liberações. A tentativa preserva o mesmo identificador.';}
+ finally{btn.disabled=false;}
+});
 
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
