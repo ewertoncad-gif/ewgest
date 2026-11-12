@@ -5586,16 +5586,21 @@ function renderEstoque(){
         '<td>'+escapeHTML(x.mat.descricao)+'<div class="hint">'+escapeHTML(x.mat.fabricante)+'</div></td>'+
         '<td>'+escapeHTML(x.v.cor)+'<div class="hint">'+escapeHTML(x.v.acabamento)+'</div></td>'+
         '<td>'+amount+'</td><td>'+size+'</td><td><strong>'+escapeHTML(x.local_estoque||'—')+'</strong></td>'+
-        '<td class="stockRowActions"><button type="button" class="btn secondary" data-stock-adjust="'+
+        '<td class="stockRowActions">'+(x.informado?
+          '<button type="button" class="btn secondary" data-stock-adjust="'+
           escapeHTML(x.v.id)+'" data-stock-length="'+(x.comprimento??'')+
           '" data-stock-unit="'+escapeHTML(x.unidade)+'" data-stock-local="'+escapeHTML(x.local_estoque)+'">Ajustar quantidade</button>'+
-          (x.informado&&x.quantidade>0?' <button type="button" class="btn secondary" data-stock-transfer="'+
+          (x.quantidade>0?' <button type="button" class="btn secondary" data-stock-transfer="'+
           escapeHTML(x.v.id)+'" data-stock-length="'+(x.comprimento??'')+'" data-stock-unit="'+escapeHTML(x.unidade)+
-          '" data-stock-local="'+escapeHTML(x.local_estoque)+'">Transferir local</button>':'')+'</td></tr>';
+          '" data-stock-local="'+escapeHTML(x.local_estoque)+'">Transferir local</button>':''):
+          '<button type="button" class="btn secondary" data-stock-open-new="'+escapeHTML(x.v.id)+
+          '">Cadastrar quantidade</button>')+'</td></tr>';
     }).join('')+'</tbody></table></div>'+
     '<p class="stockFoot">'+linhas.length+' linha(s) de material nesta obra. '+
     'Quando houver barras de comprimentos diferentes, elas aparecerão separadas. '+
     'Peças previstas para corte no CEM não são convertidas automaticamente em barras.</p>';
+  out.querySelectorAll('[data-stock-open-new]').forEach(btn=>btn.addEventListener('click',()=>
+    stockManualOpen(btn.dataset.stockOpenNew)));
   out.querySelectorAll('[data-stock-adjust]').forEach(btn=>btn.addEventListener('click',()=>{
     stockQtyOpen(btn.dataset.stockAdjust,btn.dataset.stockLength,btn.dataset.stockUnit,btn.dataset.stockLocal);
   }));
