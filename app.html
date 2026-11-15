@@ -584,7 +584,7 @@
     <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v42.6</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v42.7</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="login" class="panel login">
@@ -599,7 +599,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • interface renovada v42.6</div>
+        <div class="build">EWGEST • interface renovada v42.7</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -1631,6 +1631,7 @@ function setView(view){
   }
 }
 function invalidateAppSession(reason){
+  sessaoUnicaParar();
   accessLogClear();
   session=null;
   sessionStorage.removeItem('ewgest_session_v3');
@@ -1687,8 +1688,64 @@ async function userApi(payload,authenticated=true) {
     throw err;
   }finally{clearTimeout(timer);}
 }
-function saveSession(data){session={access_token:data.access_token,refresh_token:data.refresh_token,expires_at:Math.floor(Date.now()/1000)+Number(data.expires_in||3600),user:data.user};sessionStorage.setItem('ewgest_session_v3',JSON.stringify(session));}
-async function ensureSession(){if(!session)throw new Error('Sua sessão expirou. Entre novamente.');if(Number(session.expires_at)<Math.floor(Date.now()/1000)+60){const data=await request('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:{refresh_token:session.refresh_token}});saveSession(data);}return session;}
+let sessaoUnicaUltima=0,sessaoUnicaTimer=null,sessaoUnicaChecando=null;
+const SESSAO_SUBSTITUIDA='Sua conta foi acessada em outro dispositivo. Esta sessão foi encerrada.';
+function sessaoUnicaParar(){if(sessaoUnicaTimer!==null){clearInterval(sessaoUnicaTimer);sessaoUnicaTimer=null;}sessaoUnicaUltima=0;sessaoUnicaChecando=null;}
+async function sessaoUnicaRPC(acao){
+ if(!session?.access_token)throw new Error('É necessário entrar novamente.');
+ return request('/rest/v1/rpc/ew_controlar_sessao_unica',{method:'POST',token:session.access_token,body:{p_acao:acao},timeoutMs:12000});
+}
+async function sessaoUnicaEntrar(){
+ const atual=await sessaoUnicaRPC('consultar');
+ if(atual.autorizado){sessaoUnicaUltima=Date.now();return true;}
+ if(atual.estado!=='outro_dispositivo')throw new Error('Não foi possível validar este acesso.');
+ if(!window.confirm('USUÁRIO JÁ CONECTADO\n\nEsta conta já está em uso em outro dispositivo.\n\nDeseja encerrar o acesso anterior e continuar aqui?\n\nO outro computador perderá o acesso.'))return false;
+ const novo=await sessaoUnicaRPC('assumir');
+ if(!novo.autorizado)throw new Error('Falha ao substituir a sessão anterior.');
+ sessaoUnicaUltima=Date.now();return true;
+}
+function sessaoUnicaExpulsar(){sessaoUnicaParar();invalidateAppSession(SESSAO_SUBSTITUIDA);}
+async function sessaoUnicaValidar(force=false){
+ if(!session)return false;
+ if(!force&&Date.now()-sessaoUnicaUltima<12000)return true;
+ if(sessaoUnicaChecando)return sessaoUnicaChecando;
+ sessaoUnicaChecando=(async()=>{
+  try{
+   const estado=await sessaoUnicaRPC('validar');
+   if(!estado.autorizado){sessaoUnicaExpulsar();return false;}
+   sessaoUnicaUltima=Date.now();return true;
+  }catch(e){
+   if(/EWGEST_SESSAO_SUBSTITUIDA|Sessão de autenticação expirada|Usuário sem acesso ativo/i.test(e.message)){
+    sessaoUnicaExpulsar();return false;
+   }
+   throw e;
+  }finally{sessaoUnicaChecando=null;}
+ })();
+ return sessaoUnicaChecando;
+}
+function sessaoUnicaMonitorar(){
+ if(sessaoUnicaTimer!==null)return;
+ sessaoUnicaTimer=setInterval(()=>{if(session)sessaoUnicaValidar(true).catch(()=>{});},15000);
+}
+async function sessaoUnicaCancelarNova(){
+ const token=session?.access_token;sessaoUnicaParar();accessLogClear();
+ session=null;currentUser=null;currentCompany=null;membership=null;
+ sessionStorage.removeItem('ewgest_session_v3');setView('login');
+ if(token)try{await request('/auth/v1/logout',{method:'POST',token,timeoutMs:4500});}catch{}
+}
+function saveSession(data){
+ session={access_token:data.access_token,refresh_token:data.refresh_token,expires_at:Math.floor(Date.now()/1000)+Number(data.expires_in||3600),user:data.user};
+ sessionStorage.setItem('ewgest_session_v3',JSON.stringify(session));
+}
+async function ensureSession(){
+ if(!session)throw new Error('Sua sessão expirou. Entre novamente.');
+ if(Number(session.expires_at)<Math.floor(Date.now()/1000)+60){
+  const data=await request('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:{refresh_token:session.refresh_token}});
+  saveSession(data);
+ }
+ if(!await sessaoUnicaValidar())throw new Error(SESSAO_SUBSTITUIDA);
+ return session;
+}
 async function loadPanel(){
   await ensureSession();
   currentUser = session.user || await request('/auth/v1/user',{token:session.access_token});
@@ -3189,8 +3246,14 @@ window.EWGEST_LOGIN=async function(event){event.preventDefault();setError('');se
     })
     :await userApi({acao:'entrar',login,senha:pass},false);
   if(!data.access_token)throw new Error('O servidor não retornou uma sessão válida.');
-  saveSession(data);accessLogSessionNew();
-  node('password').value='';setStatus('Login aceito. Carregando obras…');await loadPanel();
+  saveSession(data);node('password').value='';
+  if(!await sessaoUnicaEntrar()){
+   await sessaoUnicaCancelarNova();
+   setStatus('Entrada cancelada. O outro computador permaneceu conectado.');
+   return false;
+  }
+  sessaoUnicaMonitorar();accessLogSessionNew();
+  setStatus('Login aceito. Carregando obras…');await loadPanel();
   try{await accessLogRegister('entrada');}
   catch(err){node('panelError').textContent='Login realizado, mas o histórico não registrou esta entrada: '+err.message;}
   accessLogStartHeartbeat();
@@ -3568,8 +3631,10 @@ node('myPasswordForm').addEventListener('submit',async(event)=>{
 node('logout').addEventListener('click',async()=>{
   const old=session;
   accessLogStopHeartbeat();
+  sessaoUnicaParar();
   let saidaRegistrada=!old;
   if(old)try{saidaRegistrada=await accessLogRegister('saida',5000);}catch{saidaRegistrada=false;}
+  if(old)try{await sessaoUnicaRPC('sair');}catch{}
   accessLogClear();
   session=null;currentUser=null;currentCompany=null;membership=null;
   sessionStorage.removeItem('ewgest_session_v3');
@@ -6846,7 +6911,15 @@ try{
     session=JSON.parse(cached);
     accessLogSessionResume();
     setStatus('Sessão encontrada. Carregando painel…');
-    loadPanel().then(async()=>{
+    sessaoUnicaEntrar().then(async permitido=>{
+      if(!permitido){
+       await sessaoUnicaCancelarNova();
+       setStatus('A sessão anterior foi mantida; acesso cancelado neste dispositivo.');
+       return false;
+      }
+      sessaoUnicaMonitorar();await loadPanel();return true;
+    }).then(async entrou=>{
+      if(!entrou)return;
       try{await accessLogRegister('atividade');}
       catch(err){node('panelError').textContent='Histórico de acessos temporariamente indisponível: '+err.message;}
       accessLogStartHeartbeat();
@@ -6856,7 +6929,7 @@ try{
       setError('Sessão anterior não restaurada: '+e.message);
       setStatus('Pode tentar entrar novamente.');
     });
-  }else{setStatus('Aplicativo v42.6 pronto. Digite sua senha e clique em Entrar no painel.');}
+  }else{setStatus('Aplicativo v42.7 pronto. Digite sua senha e clique em Entrar no painel.');}
 }catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
