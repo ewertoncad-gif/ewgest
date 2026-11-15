@@ -44,7 +44,7 @@ function validPassword(input) {
 }
 function normalizeProfile(value) {
   const role = String(value || '');
-  if (!['administrador', 'tecnico', 'consulta'].includes(role))
+  if (!['administrador', 'tecnico', 'consulta', 'almoxarife'].includes(role))
     throw new Error('Perfil de usuário inválido.');
   return role;
 }
@@ -68,6 +68,18 @@ async function accountForToken(req) {
     .select('empresa_id,perfil').eq('usuario_id', user.id)
     .eq('empresa_id', account.empresa_id).maybeSingle();
   if (membershipError || !member) throw new Error('Acesso à empresa não autorizado.');
+  // O JWT já foi autenticado por admin.auth.getUser acima.
+  // session_id é assinado pelo Auth e não vem dos dados enviados no formulário.
+  let sid = '';
+  try {
+    const data = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    sid = typeof data.session_id === 'string' ? data.session_id : '';
+  } catch { throw new Error('Sessão inválida. Entre novamente.'); }
+  if (!/^[a-f0-9-]{36}$/i.test(sid)) throw new Error('Sessão inválida. Entre novamente.');
+  const { data: active, error: sessionError } = await admin.from('ew_sessoes_unicas')
+    .select('sessao_auth_id').eq('usuario_id', user.id).maybeSingle();
+  if (sessionError || active?.sessao_auth_id !== sid)
+    throw new Error('Sessão substituída por outro dispositivo. Entre novamente.');
   return { user, account, member };
 }
 function requireAdmin(caller) {
@@ -254,7 +266,7 @@ Deno.serve(async (req) => {
     return reply(400, { error: 'Operação não reconhecida.' }, origin);
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Falha inesperada.';
-    const unauthorized = /Acesse sua conta|Sessão inválida|sem acesso ativo|não autorizado/.test(message);
+    const unauthorized = /Acesse sua conta|Sessão inválida|Sessão substituída|sem acesso ativo|não autorizado/.test(message);
     return reply(unauthorized ? 401 : 400, { error: message }, origin);
   }
 });
