@@ -230,3 +230,16 @@
 - Na implantação, foram aproveitados apenas os horários de criação de sessão que ainda estavam disponíveis em \`auth.sessions\` durante os 7 dias anteriores, identificados como **AUTENTICACAO_ANTERIOR** e sem inventar horário de saída.
 - A tabela não autoriza INSERT/UPDATE/DELETE pela API. A leitura é protegida por **RLS apenas para administradores da mesma empresa**. Eventos são gravados somente via \`ew_registrar_evento_acesso\`, com verificação de \`auth.uid()\` e vínculo da empresa, sem timestamps informados pelo navegador.
 - O histórico de liberações, estoque, expedição, cadastro e permissões existentes não é alterado.
+
+
+## Sessão única para todos os perfis (versão 42.7)
+- Nenhum perfil, inclusive o administrador, pode manter duas sessões de autenticação do EWGEST ativas simultaneamente.
+- O controle usa o \`session_id\` assinado pelo Supabase Auth e a tabela \`ew_sessoes_unicas\` (somente leitura interna por RPC e por políticas), indexada por usuário.
+- No login, a RPC \`ew_controlar_sessao_unica('consultar')\` reserva uma sessão se a conta estiver livre. Se já houver outra sessão, o EWGEST pergunta se a pessoa quer **substituir a sessão anterior**. Cancelar NÃO altera a sessão antiga; confirmar substitui por operação atômica.
+- O navegador anterior é avisado e retorna à tela de login no monitoramento periódico (aproximadamente 15 segundos). Mesmo antes do aviso, políticas RLS e as operações privilegiadas negam acesso ao banco para o \`session_id\` que perdeu a titularidade.
+- O botão **Sair** libera somente a sessão atual. Sessão antiga não pode excluir ou substituir a titularidade da sessão nova.
+- O controle está no banco: todos os vínculos usados pelas políticas RLS exigem sessão atual, e todas as RPCs privilegiadas de operação do EWGEST verificam explicitamente a sessão. A Edge Function de contas, que utiliza service-role, também compara o \`session_id\` validado com a sessão ativa da tabela.
+- O mecanismo não depende de IP, identificação da máquina, nome do navegador, localização, user-agent ou armazenamento de senhas.
+- Para acesso simultâneo com o mesmo JWT em múltiplas abas do mesmo navegador, continua se tratando da mesma sessão autenticada, não de logins independentes.
+- Novos dispositivos podem obter tokens pelo Auth ao validar a senha, mas **não** podem usar o EWGEST sem assumir explicitamente a titularidade no servidor; tokens antigos perdem autorização no sistema após substituição.
+- Não apagar histórico nem alterar movimentações existentes. O histórico de acessos continua distinguindo **Sair** confirmado de saídas forçadas sem registro de logout.
