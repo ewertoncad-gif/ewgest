@@ -67,7 +67,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'interface renovada v42.6',
+ 'interface renovada v42.7',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -870,6 +870,15 @@ const formatTest=new Function(source.slice(auditFmtStart,auditFmtEnd)+'return ac
 assert.match(formatTest('2026-11-12T12:00:00Z'),/09:00:00/,
  'Horário de Recife deve ser UTC-3');
 
-console.log('OK: '+cases.length+' classificações; cadastros, estoques, histórico de acessos e regressões.');
+assert.ok(source.includes('async function sessaoUnicaEntrar()')&&
+ source.includes("sessaoUnicaRPC('consultar')")&&source.includes("sessaoUnicaRPC('assumir')")&&
+ source.includes("sessaoUnicaRPC('validar')")&&source.includes("sessaoUnicaRPC('sair')"),
+ 'Uma conta pode manter apenas uma sessão ativa, com substituição consciente');
+assert.ok(source.includes("sessaoUnicaMonitorar()")&&source.includes("setInterval(()=>{if(session)sessaoUnicaValidar(true)"),
+ 'A sessão substituída deve ser identificada com monitor periódico');
+assert.ok(source.includes("if(!await sessaoUnicaEntrar())")&&
+ source.includes("sessaoUnicaEntrar().then(async permitido=>"),
+ 'Login e restauração de sessão devem passar pelo controle de sessão única');
+console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
 
 
