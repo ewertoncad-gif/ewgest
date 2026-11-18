@@ -243,3 +243,10 @@
 - Para acesso simultâneo com o mesmo JWT em múltiplas abas do mesmo navegador, continua se tratando da mesma sessão autenticada, não de logins independentes.
 - Novos dispositivos podem obter tokens pelo Auth ao validar a senha, mas **não** podem usar o EWGEST sem assumir explicitamente a titularidade no servidor; tokens antigos perdem autorização no sistema após substituição.
 - Não apagar histórico nem alterar movimentações existentes. O histórico de acessos continua distinguindo **Sair** confirmado de saídas forçadas sem registro de logout.
+
+## Correção de acesso à tela Usuários (versão 42.7.1 — 18/11/2026)
+- Causa diagnosticada em logs: a Edge Function `ewgest-acesso` reconhecia o usuário e sua sessão, mas a leitura de `ew_sessoes_unicas` pelo perfil `service_role` retornava **403 (42501)**. Essa falha era tratada como sessão substituída, e o navegador interpretava o **401** resultante como expiração do login.
+- Conceder somente **SELECT a `service_role`** na tabela de sessões; `anon` e `authenticated` continuam sem acesso direto, assim como todos os perfis comuns. Não conceder UPDATE/DELETE a `service_role` desnecessariamente.
+- Na Edge Function, distinguir erro técnico ao consultar a tabela de sessão de efetiva substituição de sessão. Em erro técnico, não emitir 401 de credencial revogada.
+- No navegador, só invalidar a sessão quando a resposta 401 identifica autenticação realmente inválida ou substituída. Demais falhas exibem erro, sem limpar o login.
+- Validar regressão ao abrir **Usuários** após assumir sessão em outro computador. Não modificar obras, estoques, romaneios ou histórico.
