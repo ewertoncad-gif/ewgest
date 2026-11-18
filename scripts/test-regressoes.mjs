@@ -877,7 +877,8 @@ assert.ok(source.includes('async function sessaoUnicaEntrar()')&&
 assert.ok(source.includes("sessaoUnicaMonitorar()")&&source.includes("setInterval(()=>{if(session)sessaoUnicaValidar(true)"),
  'A sessão substituída deve ser identificada com monitor periódico');
 assert.ok(source.includes("if(!await sessaoUnicaEntrar())")&&
- source.includes("sessaoUnicaEntrar().then(async permitido=>"),
+ source.includes("const permitido=await sessaoUnicaEntrar();")&&
+ source.includes("async function restaurarSessaoSalva()"),
  'Login e restauração de sessão devem passar pelo controle de sessão única');
 // Não derrubar o usuário por falhas temporárias ou de permissão da função de contas.
 assert.ok(source.includes('const invalidAuth=/Acesse sua conta')&&
