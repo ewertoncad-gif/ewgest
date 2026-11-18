@@ -287,3 +287,17 @@
 - Registrar o evento em \`ew_obras_exclusoes_historico\`, com empresa, obra original, motivo, resumo e responsável, sem chave estrangeira de volta à obra excluída.
 - Nunca forçar a exclusão em uma obra bloqueada — nem por ADM. Para correções após iniciar operações, usar processo futuro de revisão com trilha de auditoria e conciliação, não apagar a obra.
 - As obras existentes não foram alteradas na implantação, e o recurso só executa a exclusão após confirmação explícita no navegador.
+
+
+## Reversão por etapas e histórico de operações (v43.1 — 18/11/2026)
+A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída, para obras com histórico, por **reconciliação antes do arquivamento**.
+
+- Primeiro cancelar os romaneios emitidos pela tela de Expedição (inclusive as saídas associadas); saídas avulsas de produção ainda ativas bloqueiam o processo e exigem conferência específica.
+- Depois em **Gerenciar obras** cancelar as liberações da obra. Esse cancelamento é atômico, só é permitido se não houver expedição ativa nem unidades fabricadas; preserva cada registro original em \`liberacoes_corte\` com \`cancelado_em\`, \`cancelado_por\`, \`motivo_cancelamento\`; marca os lotes CEM cancelados e ajusta \`esquadrias.qtd_liberada\` a zero. Não apaga planos, liberações ou históricos.
+- Em seguida **estornar o estoque** (após conferência física do material e galpões). Cada movimento histórico recebe uma contrapartida \`origem='ESTORNO'\`, ligada por \`estorno_de_id\` único. Somente com saldo final zero por código, acabamento, comprimento, unidade e galpão a obra fica apta.
+- Se houver fabricação registrada, saída não cancelada, saldo inconsistente, vínculos externos ou outras pendências, a exclusão é bloqueada. Não zerar esses dados artificialmente.
+- Concluída a reconciliação, **Remover obra do acompanhamento** marca \`obras.arquivada_em\` com responsável e motivo, preservando integralmente a obra, seus lançamentos e todos os cadastros. Ela desaparece da tela inicial, estoque e seletores operacionais; uma nova importação do CEM com mesmo código cria obra nova. A obra anterior permanece histórica, não será fisicamente excluída.
+- As antigas RPCs \`ew_excluir_obra_sem_operacoes\` e \`ew_verificar_exclusao_obra\` passam a delegar às rotinas seguras, impedindo um cliente antigo de executar exclusão física.
+- A tabela de auditoria \`ew_auditoria_operacoes\` registra operador, empresa, obra/código, data/hora, ação, motivo, dados originais e detalhes do estorno/cancelamento/remoção. O cancelamento de romaneio é capturado por trigger. A tabela tem RLS, sem INSERT/UPDATE/DELETE direto para usuários.
+- Em **Usuários → Relatório de operações**, ADM e Gerenciador podem filtrar período (7/30/90/365 dias), usuário, tipo de evento, nome/código da obra, visualizar detalhes e exportar CSV. **Histórico de acessos** continua separado.
+- Não existe exclusão automática, nem restauração física implícita, nem anulação de movimentação por apagar linhas. Testes transacionais são feitos com ROLLBACK.
