@@ -44,7 +44,7 @@ function validPassword(input) {
 }
 function normalizeProfile(value) {
   const role = String(value || '');
-  if (!['administrador', 'tecnico', 'consulta', 'almoxarife'].includes(role))
+  if (!['administrador', 'gerenciador', 'tecnico', 'consulta', 'almoxarife'].includes(role))
     throw new Error('Perfil de usuário inválido.');
   return role;
 }
@@ -83,10 +83,25 @@ async function accountForToken(req) {
     throw new Error('Sessão substituída por outro dispositivo. Entre novamente.');
   return { user, account, member };
 }
-function requireAdmin(caller) {
-  if (caller.member.perfil !== 'administrador' || caller.account.perfil !== 'administrador') {
-    throw new Error('Apenas o administrador pode gerenciar usuários.');
+function isFullAdmin(caller) {
+  return caller.member.perfil === 'administrador' && caller.account.perfil === 'administrador';
+}
+function requireManager(caller) {
+  if (caller.member.perfil !== caller.account.perfil ||
+      !['administrador', 'gerenciador'].includes(caller.member.perfil)) {
+    throw new Error('Somente ADM ou Gerenciador podem administrar usuários.');
   }
+}
+async function requireTargetEditable(caller, account) {
+  if (isFullAdmin(caller)) return;
+  if (account.perfil === 'administrador')
+    throw new Error('O Gerenciador não pode alterar dados de usuários ADM.');
+  // Verifica também o vínculo, para impedir alteração por inconsistências entre tabelas.
+  const { data: member, error } = await admin.from('usuarios_empresas')
+    .select('perfil').eq('empresa_id', caller.account.empresa_id)
+    .eq('usuario_id', account.usuario_id).maybeSingle();
+  if (error || member?.perfil === 'administrador')
+    throw new Error('O Gerenciador não pode alterar dados de usuários ADM.');
 }
 async function targetAccount(caller, id) {
   if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/i.test(id))
@@ -95,6 +110,7 @@ async function targetAccount(caller, id) {
     .select('usuario_id,empresa_id,login,nome,perfil,ativo,criado_em')
     .eq('usuario_id', id).eq('empresa_id', caller.account.empresa_id).maybeSingle();
   if (error || !data) throw new Error('Usuário não encontrado nesta empresa.');
+  await requireTargetEditable(caller, data);
   return data;
 }
 async function accountLogin(payload, origin) {
@@ -160,7 +176,7 @@ Deno.serve(async (req) => {
       if (error) throw new Error('Não foi possível atualizar a senha.');
       return reply(200, { ok: true }, origin);
     }
-    requireAdmin(caller);
+    requireManager(caller);
     if (action === 'listar') {
       const { data, error } = await admin.from('usuarios_login')
         .select('usuario_id,empresa_id,login,nome,perfil,ativo,criado_em')
@@ -173,6 +189,8 @@ Deno.serve(async (req) => {
       if (login.includes('@')) throw new Error('Para novos usuários, informe um nome de login, sem e-mail.');
       const nome = validName(payload.nome);
       const perfil = normalizeProfile(payload.perfil);
+      if (!isFullAdmin(caller) && perfil === 'administrador')
+        throw new Error('Somente o ADM pode criar outro Administrador.');
       const senha = validPassword(payload.senha);
       const { data: existing } = await admin.from('usuarios_login')
         .select('usuario_id').eq('login_chave', login.toLocaleLowerCase('pt-BR')).maybeSingle();
@@ -208,7 +226,9 @@ Deno.serve(async (req) => {
       const login = normalizeLogin(payload.login);
       const nome = validName(payload.nome);
       let perfil = normalizeProfile(payload.perfil);
-      if (target.usuario_id === caller.user.id) perfil = 'administrador';
+      if (!isFullAdmin(caller) && perfil === 'administrador')
+        throw new Error('O Gerenciador não pode conceder perfil ADM.');
+      if (target.usuario_id === caller.user.id) perfil = caller.member.perfil;
       const { data: collision } = await admin.from('usuarios_login')
         .select('usuario_id').eq('login_chave', login.toLocaleLowerCase('pt-BR'))
         .neq('usuario_id', target.usuario_id).maybeSingle();
