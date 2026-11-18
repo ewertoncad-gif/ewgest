@@ -7146,6 +7146,60 @@ node('manageWorksRefresh').addEventListener('click',async()=>{
   node('manageWorksFeedback').textContent='Obras atualizadas.';
  }catch(err){node('manageWorksFeedback').textContent='Falha ao atualizar: '+err.message;}
 });
+
+function motivoDeReversao(){
+ const motivo=node('manageWorksUndoReason').value.trim();
+ if(motivo.length<10||motivo.length>400)
+  throw new Error('Descreva o motivo do cancelamento ou estorno com 10 a 400 caracteres.');
+ return motivo;
+}
+async function executarReversaoObra(tipo){
+ const obra=workDeleteInspection;
+ if(!obra?.obra_id||!works.some(w=>w.id===obra.obra_id)||!canAdministrate())return;
+ const btn=node(tipo==='liberacoes'?'manageWorksCancelReleases':'manageWorksReverseStock');
+ const estado=node('manageWorksUndoStatus');
+ let motivo;
+ try{motivo=motivoDeReversao();}catch(e){estado.textContent=e.message;return;}
+ const acao=tipo==='liberacoes'?'CANCELAR TODAS AS LIBERAÇÕES':'ESTORNAR TODOS OS MOVIMENTOS DE ESTOQUE';
+ if(!window.confirm(acao+' de '+obra.nome+'?\n\nA ação será registrada com sua conta, data e motivo. O histórico antigo não será apagado.'))return;
+ if(tipo==='estoque'){
+  const frase='ESTORNAR';
+  const confirmar=window.prompt('Antes de prosseguir, confira a movimentação física dos materiais e a localização por galpão.\n\nDigite ESTORNAR para confirmar:','');
+  if(confirmar!==frase){estado.textContent='Estorno cancelado. Nenhum movimento foi alterado.';return;}
+ }
+ btn.disabled=true;estado.textContent='Processando a reversão e salvando auditoria…';
+ try{
+  await ensureSession();
+  const path=tipo==='liberacoes'?'ew_cancelar_liberacoes_obra':'ew_estornar_estoque_obra';
+  const body=tipo==='liberacoes'?
+   {p_obra_id:obra.obra_id,p_motivo:motivo}:
+   {p_obra_id:obra.obra_id,p_motivo:motivo,p_operacao_id:crypto.randomUUID()};
+  const result=await request('/rest/v1/rpc/'+path,{
+    method:'POST',token:session.access_token,body,timeoutMs:60000});
+  await loadPanel();
+  abrirGerenciamentoObras();
+  await inspecionarExclusaoObra(obra.obra_id);
+  node('manageWorksFeedback').textContent=tipo==='liberacoes'?
+   'Liberações canceladas: '+(result?.canceladas||0)+'. Unidades revertidas: '+(result?.unidades||0)+
+   '. Agora confira as baixas de estoque.':
+   'Movimentos estornados: '+(result?.estornados||0)+
+   '. Saldo reconciliado e registro de auditoria disponível em Usuários.';
+ }catch(err){
+  estado.textContent='Não foi possível concluir a reversão: '+err.message+
+    '. Confira o estado da obra antes de repetir.';
+ }finally{btn.disabled=false;}
+}
+node('manageWorksGoRomaneios').addEventListener('click',()=>{
+ const obra=works.find(w=>w.id===workDeleteInspection?.obra_id);
+ if(!obra)return;
+ selectedWork=obra;hubObraId=obra.id;
+ abrirAreaRomaneios();
+ node('hubRomaneioMessage').textContent=
+  'Cancele os romaneios emitidos desta obra, depois retorne a Gerenciar obras e clique Verificar exclusão.';
+});
+node('manageWorksCancelReleases').addEventListener('click',()=>executarReversaoObra('liberacoes'));
+node('manageWorksReverseStock').addEventListener('click',()=>executarReversaoObra('estoque'));
+
 node('manageWorksDelete').addEventListener('click',async()=>{
  if(!canAdministrate()||!workDeleteInspection?.permitido||!workDeleteOperationId)return;
  atualizarEstadoExclusaoObra();
