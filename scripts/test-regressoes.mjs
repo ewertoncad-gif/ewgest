@@ -67,7 +67,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'interface renovada v42.8',
+ 'interface renovada v42.9',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -917,6 +917,41 @@ const checkRoles=new Function('membership',source.slice(startRole,endRole)+
 assert.deepEqual(checkRoles({perfil:'gerenciador'}),{manager:true,admin:false});
 assert.deepEqual(checkRoles({perfil:'administrador'}),{manager:true,admin:true});
 assert.deepEqual(checkRoles({perfil:'tecnico'}),{manager:false,admin:false});
+
+// Exclusão administrativa: sem remover identidade Auth nem o histórico dos autores.
+assert.ok(source.includes('id="userDeleteButton"')&&
+ source.includes("node('userDeleteButton').addEventListener('click'")&&
+ source.includes("acao:'excluir'")&&
+ source.includes("excluido_em:'is.null'"),
+ 'O cadastro deve oferecer exclusão e ocultar contas excluídas');
+assert.ok(source.includes("target.perfil==='administrador'")&&
+ source.includes("target.usuario_id===currentUser?.id"),
+ 'Bloquear exclusão de ADM e do próprio usuário');
+assert.ok(edgeSource.includes("if (action === 'excluir')")&&
+ edgeSource.includes("target.perfil === 'administrador'")&&
+ edgeSource.includes("adminLink?.perfil === 'administrador'")&&
+ edgeSource.includes("excluido_por:caller.user.id")&&
+ edgeSource.includes("historico_preservado:true")&&
+ edgeSource.includes("!account.ativo || account.excluido_em"),
+ 'Excluir deve bloquear Auth, preservar identidade e impedir logins');
+const deleteAction=edgeSource.slice(edgeSource.indexOf("if (action === 'excluir')"),
+ edgeSource.indexOf("if (action === 'reativar')"));
+assert.ok(!deleteAction.includes('admin.auth.admin.deleteUser'),
+ 'Exclusão não pode apagar referências históricas a auth.users');
+const removalMigration=readFileSync(fileURLToPath(new URL('../supabase/migrations/20261118_exclusao_administrativa_usuarios.sql',import.meta.url)),'utf8');
+assert.ok(removalMigration.includes('excluido_em')&&removalMigration.includes('excluido_por'),
+ 'Exclusão precisa ficar registrada no banco');
+assert.ok(source.includes('id="restoreSessionBtn"')&&
+ source.includes("node('restoreSessionBtn').addEventListener('click',restaurarSessaoSalva)")&&
+ source.includes("function erroDeSessaoIrrecuperavel(error)"),
+ 'Restaurar sessão no F5 sem pedir senha e sem limpar token por erro temporário');
+const restoreFn=source.slice(source.indexOf('async function restaurarSessaoSalva(){'),
+ source.indexOf("node('restoreSessionBtn').addEventListener"));
+assert.ok(restoreFn.indexOf("'/auth/v1/token?grant_type=refresh_token'")<
+ restoreFn.indexOf("sessaoUnicaEntrar()"),'Renovar credenciais antes de validar a sessão única');
+assert.ok(restoreFn.includes('if(!session||erroDeSessaoIrrecuperavel(error))')&&
+ restoreFn.includes("retry.classList.remove('hidden')"),
+ 'Falha de rede deve preservar a sessão, oferecendo botão de tentar novamente');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
 
