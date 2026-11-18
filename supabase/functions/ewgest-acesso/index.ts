@@ -78,7 +78,8 @@ async function accountForToken(req) {
   if (!/^[a-f0-9-]{36}$/i.test(sid)) throw new Error('Sessão inválida. Entre novamente.');
   const { data: active, error: sessionError } = await admin.from('ew_sessoes_unicas')
     .select('sessao_auth_id').eq('usuario_id', user.id).maybeSingle();
-  if (sessionError || active?.sessao_auth_id !== sid)
+  if (sessionError) throw new Error('Não foi possível consultar o controle de sessões. Tente novamente.');
+  if (active?.sessao_auth_id !== sid)
     throw new Error('Sessão substituída por outro dispositivo. Entre novamente.');
   return { user, account, member };
 }
