@@ -590,7 +590,7 @@
     <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v42.8</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v42.9</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="login" class="panel login">
@@ -606,7 +606,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • interface renovada v42.8</div>
+        <div class="build">EWGEST • interface renovada v42.9</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -1664,6 +1664,7 @@ function invalidateAppSession(reason){
   accessLogClear();
   session=null;
   sessionStorage.removeItem('ewgest_session_v3');
+  node('restoreSessionBtn').classList.add('hidden');
   node('userEditOverlay').classList.add('hidden');
   node('userResetPassword').value='';
   node('createUserPassword').value='';
@@ -3286,6 +3287,7 @@ window.EWGEST_LOGIN=async function(event){event.preventDefault();setError('');se
     :await userApi({acao:'entrar',login,senha:pass},false);
   if(!data.access_token)throw new Error('O servidor não retornou uma sessão válida.');
   saveSession(data);node('password').value='';
+  node('restoreSessionBtn').classList.add('hidden');
   if(!await sessaoUnicaEntrar()){
    await sessaoUnicaCancelarNova();
    setStatus('Entrada cancelada. O outro computador permaneceu conectado.');
@@ -3716,6 +3718,7 @@ node('logout').addEventListener('click',async()=>{
   accessLogClear();
   session=null;currentUser=null;currentCompany=null;membership=null;
   sessionStorage.removeItem('ewgest_session_v3');
+  node('restoreSessionBtn').classList.add('hidden');
   setView('login');
   setStatus(saidaRegistrada?'Sessão encerrada.':
     'Sessão encerrada. Não foi possível confirmar a saída no histórico.');
@@ -6983,32 +6986,76 @@ node('releaseBatchConfirm').addEventListener('click',async()=>{
 
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
-try{
-  const cached=sessionStorage.getItem('ewgest_session_v3');
-  if(cached){
-    session=JSON.parse(cached);
-    accessLogSessionResume();
-    setStatus('Sessão encontrada. Carregando painel…');
-    sessaoUnicaEntrar().then(async permitido=>{
-      if(!permitido){
-       await sessaoUnicaCancelarNova();
-       setStatus('A sessão anterior foi mantida; acesso cancelado neste dispositivo.');
-       return false;
-      }
-      sessaoUnicaMonitorar();await loadPanel();return true;
-    }).then(async entrou=>{
-      if(!entrou)return;
-      try{await accessLogRegister('atividade');}
-      catch(err){node('panelError').textContent='Histórico de acessos temporariamente indisponível: '+err.message;}
-      accessLogStartHeartbeat();
-    }).catch(e=>{
-      accessLogClear();
-      sessionStorage.removeItem('ewgest_session_v3');session=null;setView('login');
-      setError('Sessão anterior não restaurada: '+e.message);
-      setStatus('Pode tentar entrar novamente.');
-    });
-  }else{setStatus('Aplicativo v42.8 pronto. Digite sua senha e clique em Entrar no painel.');}
-}catch(e){setError('Falha de inicialização: '+e.message);}
+function erroDeSessaoIrrecuperavel(error){
+ const msg=String(error?.message||'');
+ return /EWGEST_SESSAO_SUBSTITUIDA|Sessão substituída|Sessão de autenticação expirada|Sessão de acesso inválida|Refresh Token Not Found|Invalid Refresh Token|refresh token.*(expir|inválid|invalid)|invalid_grant|token.*revoked|Sessão encerrada/i.test(msg);
+}
+let restauracaoEmAndamento=false;
+async function restaurarSessaoSalva(){
+ if(restauracaoEmAndamento)return;
+ const raw=sessionStorage.getItem('ewgest_session_v3');
+ const retry=node('restoreSessionBtn');
+ if(!raw){
+  retry.classList.add('hidden');
+  setStatus('Aplicativo v42.9 pronto. Digite seu login e senha para entrar.');
+  return;
+ }
+ restauracaoEmAndamento=true;retry.disabled=true;retry.classList.add('hidden');
+ try{
+  if(!session){
+   const previous=JSON.parse(raw);
+   if(!previous?.access_token||!previous?.refresh_token)
+    throw new Error('Sessão local incompleta. Entre novamente.');
+   session=previous;
+  }
+  accessLogSessionResume();
+  setStatus('Restaurando a sessão deste navegador…');
+  setError('');
+  // O refresh pode ser necessário antes de consultar a sessão única;
+  // uma autenticação válida conserva o mesmo session_id no Supabase.
+  if(Number(session.expires_at||0)<Math.floor(Date.now()/1000)+75){
+   const renewal=await request('/auth/v1/token?grant_type=refresh_token',{
+     method:'POST',body:{refresh_token:session.refresh_token},timeoutMs:16000});
+   if(!renewal?.access_token)throw new Error('Não foi possível renovar as credenciais desta sessão.');
+   saveSession(renewal);
+  }
+  const permitido=await sessaoUnicaEntrar();
+  if(!permitido){
+    await sessaoUnicaCancelarNova();
+    setStatus('A outra sessão foi mantida; acesso cancelado neste dispositivo.');
+    return;
+  }
+  sessaoUnicaMonitorar();
+  await loadPanel();
+  try{await accessLogRegister('atividade');}
+  catch(err){node('panelError').textContent='Histórico de acessos temporariamente indisponível: '+err.message;}
+  accessLogStartHeartbeat();
+  retry.classList.add('hidden');
+ }catch(error){
+  sessaoUnicaParar();
+  const mensagem=String(error?.message||'Falha desconhecida');
+  if(!session||erroDeSessaoIrrecuperavel(error)){
+   accessLogClear();session=null;
+   sessionStorage.removeItem('ewgest_session_v3');
+   retry.classList.add('hidden');
+   setView('login');
+   setStatus('Sessão encerrada. Entre novamente com sua senha.');
+   setError(mensagem);
+  }else{
+   // Uma falha de rede/consulta não é motivo para apagar tokens válidos.
+   setView('login');
+   retry.classList.remove('hidden');
+   setStatus('Não foi possível restaurar automaticamente. A sessão foi preservada.');
+   setError('Tente novamente em “Restaurar sessão” sem digitar a senha. Detalhe: '+mensagem);
+  }
+ }finally{
+  restauracaoEmAndamento=false;
+  retry.disabled=false;
+ }
+}
+node('restoreSessionBtn').addEventListener('click',restaurarSessaoSalva);
+restaurarSessaoSalva().catch(e=>setError('Erro inesperado na restauração: '+(e.message||e)));
+
 </script>
 </body>
 </html>
