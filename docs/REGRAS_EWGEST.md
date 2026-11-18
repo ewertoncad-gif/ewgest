@@ -270,3 +270,20 @@
 - Se houver falha transitória de rede, serviço ou consultas, manter o token armazenado e oferecer **Tentar restaurar sessão sem informar senha**. Só eliminar tokens em autenticação comprovadamente inválida, revogada ou substituída.
 - A regra de **uma sessão por usuário** continua ativa; se houver outra sessão de Auth, a confirmação explícita de substituição permanece necessária.
 - Exclusão administrativa nunca é feita automaticamente na implantação e só ocorre após confirmação dentro do EWGEST.
+
+
+## Exclusão controlada de obras antes de operações (v43.0 — 18/11/2026)
+- **Administração → Gerenciar obras** lista todas as obras da empresa, inclusive obras com somente estoque.
+- ADM e Gerenciador podem **verificar** se uma obra é excluível. A consulta retorna motivo do bloqueio e contadores.
+- A exclusão só pode acontecer se NÃO EXISTIR:
+  - Liberação de corte (incluindo individual, legado, lote CEM e liberação técnica sem baixa).
+  - Quantidade liberada/fabricada ou saída de produção.
+  - Romaneio ou item de romaneio associado, inclusive cancelado.
+  - Qualquer movimentação de estoque, incluindo abertura, ajuste, transferência, baixa ou estorno.
+  - Vínculo externo de outra obra às esquadrias da obra em questão.
+- Se a obra ainda estiver sem qualquer dessas operações, o usuário pode excluí-la para corrigir uma exportação CEM e importar outra vez.
+- Exige motivo de 8 a 300 caracteres, digitação exata do código da obra e confirmação adicional. O banco verifica tudo novamente durante a transação, sob bloqueio da obra e das esquadrias; a verificação na tela é apenas informativa.
+- Exclusão física de dados **exclusivos da obra**: cabeçalho da obra, esquadrias, histórico de classificação/descrição dessas esquadrias, espelho de materiais e importações da obra, configurações de saída ainda não utilizadas e vínculo do estoque vazio. Não apagar fabricantes, tipologias, origem/vínculos globais, croquis, abreviações, perfis, acessórios, cores, comprimentos comerciais, galpões, motoristas, veículos ou contas.
+- Registrar o evento em \`ew_obras_exclusoes_historico\`, com empresa, obra original, motivo, resumo e responsável, sem chave estrangeira de volta à obra excluída.
+- Nunca forçar a exclusão em uma obra bloqueada — nem por ADM. Para correções após iniciar operações, usar processo futuro de revisão com trilha de auditoria e conciliação, não apagar a obra.
+- As obras existentes não foram alteradas na implantação, e o recurso só executa a exclusão após confirmação explícita no navegador.

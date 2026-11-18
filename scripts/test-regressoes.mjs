@@ -67,7 +67,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'interface renovada v42.9',
+ 'interface renovada v43.0',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -953,6 +953,45 @@ assert.ok(restoreFn.indexOf("'/auth/v1/token?grant_type=refresh_token'")<
 assert.ok(restoreFn.includes('if(!session||erroDeSessaoIrrecuperavel(error))')&&
  restoreFn.includes("retry.classList.remove('hidden')"),
  'Falha de rede deve preservar a sessão, oferecendo botão de tentar novamente');
+
+
+// Exclusão de obra segura somente antes de qualquer liberação/romaneio/estoque.
+const worksMigration=readFileSync(fileURLToPath(new URL(
+ '../supabase/migrations/20261118_exclusao_segura_obras_pre_operacao.sql',import.meta.url)),'utf8');
+for(const id of ['manageWorks','openManageWorks','navManageWorks','manageWorksList',
+ 'manageWorksReview','manageWorksConfirmation','manageWorksReason','manageWorksDelete',
+ 'manageWorksRefresh','manageWorksFeedback'])
+ assert.ok(source.includes('id="'+id+'"'), 'Gestão de obras incompleta: '+id);
+assert.ok(source.includes("abrirGerenciamentoObras")&&
+ source.includes("request('/rest/v1/rpc/ew_verificar_exclusao_obra'")&&
+ source.includes("request('/rest/v1/rpc/ew_excluir_obra_sem_operacoes'"),
+ 'Exclusão deve passar por consulta e revalidação no servidor');
+assert.ok(source.includes('workDeleteOperationId=crypto.randomUUID()')&&
+ source.includes("p_operacao_id:operation")&&source.includes('window.confirm(aviso)'),
+ 'Exclusão exige chave idempotente, código e confirmação reforçada');
+for(const t of ['public.liberacoes_corte','public.saidas_producao','public.romaneios',
+ 'public.ew_estoque_obras_movimentos','public.ew_liberacoes_lotes',
+ 'public.ew_planos_liberados','v_qtd_liberada>0','v_qtd_fabricada>0']){
+ assert.ok(worksMigration.includes(t),'Banco precisa impedir exclusão com operações: '+t);
+}
+for(const t of ['delete from public.classificacoes_tipologias_auditoria',
+ 'delete from public.esquadrias_descricoes_revisoes','delete from public.ew_cem_obras_materiais',
+ 'delete from public.ew_estoques_locais','delete from public.esquadrias',
+ 'delete from public.obras']){
+ assert.ok(worksMigration.includes(t),'Excluir somente dados da obra: '+t);
+}
+for(const master of ['public.tipologias','public.fabricantes','public.ew_perfis',
+ 'public.ew_acessorios','public.tipologias_abreviacoes']){
+ assert.ok(!worksMigration.includes('delete from '+master+' '),
+  'Não excluir cadastros gerais ao remover uma obra: '+master);
+}
+assert.ok(worksMigration.includes('pg_catalog.pg_advisory_xact_lock')&&
+ worksMigration.includes('for update')&&
+ worksMigration.includes('v_ver:=public.ew_verificar_exclusao_obra(p_obra_id)'),
+ 'Conferir bloqueios dentro da mesma transação antes de excluir');
+assert.ok(worksMigration.includes('public.ew_obras_exclusoes_historico')&&
+ worksMigration.includes('excluido_por'),
+ 'Registrar autoria da exclusão em auditoria fora da obra');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
 
