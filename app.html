@@ -1925,7 +1925,7 @@ async function loadPanel(){
       typologyOrigins=[];typologyOriginReady=false;
     }
   }
-  releaseHistory=somenteRomaneios?[]:await apiGet('liberacoes_corte',{select:'esquadria_id,quantidade,data_liberacao,fabrica',order:'data_liberacao.desc'});
+  releaseHistory=somenteRomaneios?[]:await apiGet('liberacoes_corte',{select:'esquadria_id,quantidade,data_liberacao,fabrica',cancelado_em:'is.null',order:'data_liberacao.desc'});
   try{
     const [config,history]=await Promise.all([
       apiGet('esquadrias_saida_config',{select:'esquadria_id,folhas_por_unidade'}),
