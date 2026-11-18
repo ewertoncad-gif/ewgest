@@ -591,7 +591,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v43.0</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v43.1</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="login" class="panel login">
@@ -607,7 +607,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • interface renovada v43.0</div>
+        <div class="build">EWGEST • interface renovada v43.1</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -629,13 +629,13 @@
       <div class="head"><div>
         <button id="manageWorksBack" type="button" class="btn secondary">← Tela inicial</button>
         <h1 style="margin-top:17px">Gerenciar obras cadastradas</h1>
-        <p class="muted">Consulte todas as obras, inclusive as que têm somente estoque. Para corrigir o arquivo CEM e importar novamente, a exclusão só é permitida antes de qualquer operação.</p>
+        <p class="muted">Cancele romaneios, liberações e estorne o estoque para retirar uma obra do acompanhamento e reimportar um CEM corrigido. O histórico permanece salvo.</p>
       </div></div>
       <div class="section panel">
         <div class="rowHead"><h2>Obras da empresa</h2>
           <button type="button" class="btn secondary" id="manageWorksRefresh">Atualizar lista</button>
         </div>
-        <p class="hint">Obras com liberação, produção, romaneios ou qualquer movimentação de estoque não podem ser excluídas — nem pelo ADM. Cancele a exclusão e ajuste os registros de maneira controlada.</p>
+        <p class="hint">A obra só pode ser retirada após cancelar todas as operações ativas e zerar seu saldo de estoque por material e galpão. Nenhum histórico será apagado.</p>
         <div id="manageWorksList"></div>
         <p id="manageWorksFeedback" class="feedback" role="status"></p>
       </div>
@@ -643,15 +643,27 @@
         <h2 id="manageWorksReviewTitle">Verificação da obra</h2>
         <div id="manageWorksReviewDetails"></div>
         <div id="manageWorksReviewReasons" class="feedback" role="status"></div>
+        <div id="manageWorksActions" class="hidden">
+          <p class="hint">Reverta as etapas na ordem indicada. Os lançamentos originais permanecerão no histórico de operações em Usuários.</p>
+          <label>Motivo do cancelamento ou estorno
+            <textarea id="manageWorksUndoReason" rows="2" maxlength="400" placeholder="Explique o motivo da revisão do arquivo CEM"></textarea>
+          </label>
+          <div class="topactions" style="margin-top:12px">
+            <button type="button" id="manageWorksGoRomaneios" class="btn secondary hidden">1. Cancelar romaneios</button>
+            <button type="button" id="manageWorksCancelReleases" class="btn secondary hidden">2. Cancelar liberações</button>
+            <button type="button" id="manageWorksReverseStock" class="btn secondary hidden">3. Estornar movimentações do estoque</button>
+          </div>
+          <p id="manageWorksUndoStatus" class="hint" role="status"></p>
+        </div>
         <div id="manageWorksDeleteForm" class="hidden">
-          <p class="hint">Esta operação remove somente a obra, suas esquadrias e os vínculos/importações exclusivos dela. Os bancos de tipologias, fabricantes, materiais, cores e abreviações continuam cadastrados.</p>
+          <p class="hint">Ao concluir todas as reversões, a obra será retirada das listas ativas. As operações antigas, os cadastros gerais, as esquadrias originais e a auditoria permanecerão preservados para consulta.</p>
           <label>Por que deseja excluir esta obra?
             <textarea id="manageWorksReason" rows="2" maxlength="300" placeholder="Ex.: Corrigir esquadrias no CEM e importar a obra novamente"></textarea>
           </label>
           <label id="manageWorksConfirmationLabel">Digite exatamente o código da obra para confirmar
             <input id="manageWorksConfirmation" type="text" autocomplete="off" spellcheck="false">
           </label>
-          <button type="button" id="manageWorksDelete" class="btn secondary" disabled style="border-color:#bd6b61;color:#c66b62">Excluir obra e permitir nova importação</button>
+          <button type="button" id="manageWorksDelete" class="btn secondary" disabled style="border-color:#bd6b61;color:#c66b62">Remover obra do acompanhamento e reimportar</button>
         </div>
       </div>
     </section>
@@ -1840,12 +1852,12 @@ async function loadPanel(){
   node('openUsers').classList.toggle('hidden',!canAdministrate());
   node('openManageWorks').classList.toggle('hidden',!canAdministrate());
   const [w,e,tips]=await Promise.all([
-    apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'}),
+    apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,arquivada_em:'is.null',order:'nome.asc'}),
     apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id,rotulo_tipologia_relatorio,quantidade_modulos,modulacao_id',empresa_id:'eq.'+currentCompany.id}),
     somenteRomaneios?Promise.resolve([]):
       apiGet('tipologias',{select:'id,codigo,descricao,provisoria,fabricante,tipologia_principal_id,quantidade_modulos',empresa_id:'eq.'+currentCompany.id})
   ]);
-  works=w||[];elements=e||[];typologyCatalog=tips||[];
+  works=w||[];elements=(e||[]).filter(item=>works.some(w=>w.id===item.obra_id));typologyCatalog=tips||[];
   try{
     typologyAbbreviations=await apiGet('tipologias_abreviacoes',{
       select:'tipologia_id,descricao_base,atualizado_em',
@@ -5675,7 +5687,7 @@ async function matVerificarZip(){
     if(!currentCompany?.id)throw new Error('Não foi possível identificar a empresa do usuário.');
     const empresa='eq.'+currentCompany.id;
     const [obrasBanco,perfisBanco,acessoriosBanco,aliasesBanco]=await Promise.all([
-      apiGet('obras',{select:'id,codigo,nome',empresa_id:empresa,limit:'1000'}),
+      apiGet('obras',{select:'id,codigo,nome',empresa_id:empresa,arquivada_em:'is.null',limit:'1000'}),
       apiGet('ew_perfis',{select:'id,codigo,fabricante,descricao,linha',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_acessorios',{select:'id,codigo,fabricante,descricao,linha',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_materiais_alias',{select:'tipo,codigo_alternativo,fabricante,perfil_id,acessorio_id',empresa_id:empresa,limit:'5000'})
@@ -7054,14 +7066,17 @@ function workDeleteResumo(r){
  const v=r.resumo||{};
  const defs=[
   ['Esquadrias',v.esquadrias],
-  ['Liberações',v.liberacoes],
+  ['Liberações ativas',v.liberacoes],
+  ['Liberações canceladas',v.liberacoes_canceladas],
   ['Unidades liberadas',v.unidades_liberadas],
   ['Fabricadas',v.fabricadas],
   ['Lotes CEM liberados',v.lotes_cem],
-  ['Romaneios',v.romaneios],
+  ['Romaneios ativos',v.romaneios],
+  ['Romaneios cancelados',v.romaneios_cancelados],
   ['Saídas de produção',v.saidas_producao],
-  ['Movimentos de estoque',v.movimentos_estoque],
-  ['Materiais vinculados ao espelho CEM',v.materiais_espelho_cem]
+  ['Movimentos históricos',v.movimentos_estoque],
+  ['Movimentos sem estorno',v.movimentos_pendentes],
+  ['Saldos não zerados',v.saldos_nao_zerados]
  ];
  return '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0">'+
   defs.map(([title,n])=>'<div class="stat" style="flex:1;min-width:140px">'+
@@ -7084,7 +7099,7 @@ async function inspecionarExclusaoObra(id){
  node('manageWorksFeedback').textContent='Verificando registros operacionais da obra…';
  try{
   await ensureSession();
-  const check=await request('/rest/v1/rpc/ew_verificar_exclusao_obra',{
+  const check=await request('/rest/v1/rpc/ew_inspecionar_reversao_obra',{
    method:'POST',token:session.access_token,body:{p_obra_id:id},timeoutMs:30000
   });
   if(seq!==workDeleteRequestId)return;
@@ -7094,10 +7109,21 @@ async function inspecionarExclusaoObra(id){
   node('manageWorksReviewDetails').innerHTML=workDeleteResumo(check);
   const motivos=Array.isArray(check.motivos)?check.motivos:[];
   node('manageWorksReviewReasons').textContent=check.permitido?
-   'A obra ainda não tem registros operacionais. A exclusão pode ser solicitada com confirmação.':
+   'Todas as etapas foram revertidas. A obra pode sair do acompanhamento ativo.':
    'EXCLUSÃO BLOQUEADA: '+(motivos.join(' ')||'Existem dependências operacionais.');
   node('manageWorksReviewReasons').style.color=check.permitido?'#4f9672':'#cb665e';
   node('manageWorksDeleteForm').classList.toggle('hidden',!check.permitido);
+  const v=check.resumo||{};
+  const hasRoms=Number(v.romaneios)>0||Number(v.saidas_producao)>0;
+  const hasReleases=Number(v.liberacoes)>0||Number(v.lotes_cem)>0||
+    Number(v.planos_liberados)>0||Number(v.unidades_liberadas)>0;
+  const hasStock=Number(v.movimentos_pendentes)>0||Number(v.saldos_nao_zerados)>0;
+  node('manageWorksActions').classList.toggle('hidden',check.permitido||!(hasRoms||hasReleases||hasStock));
+  node('manageWorksGoRomaneios').classList.toggle('hidden',!hasRoms);
+  node('manageWorksCancelReleases').classList.toggle('hidden',!hasReleases||hasRoms);
+  node('manageWorksReverseStock').classList.toggle('hidden',!hasStock||hasReleases||hasRoms||Number(v.fabricadas)>0);
+  node('manageWorksUndoStatus').textContent='';
+  node('manageWorksUndoReason').value='Revisão do arquivo CEM para reimportação corrigida';
   node('manageWorksReason').value='Reimportar obra após corrigir o arquivo CEM';
   node('manageWorksConfirmation').value='';
   node('manageWorksConfirmationLabel').firstChild.textContent=
@@ -7128,15 +7154,15 @@ node('manageWorksDelete').addEventListener('click',async()=>{
  const check=workDeleteInspection,operation=workDeleteOperationId,
   confirmacao=node('manageWorksConfirmation').value.trim(),
   motivo=node('manageWorksReason').value.trim();
- const aviso='ATENÇÃO: EXCLUSÃO DEFINITIVA DA OBRA\n\n'+check.nome+
-  '\n\nEsta ação removerá suas esquadrias e importações exclusivas, permitindo importar um novo CEM.'+
-  '\nOs cadastros gerais continuarão no EWGEST.\n\nDeseja confirmar a exclusão?';
+ const aviso='ATENÇÃO: RETIRAR OBRA DO ACOMPANHAMENTO\n\n'+check.nome+
+  '\n\nA obra desaparecerá das listas ativas e poderá ser cadastrada novamente pelo CEM.'+
+  '\nTodos os históricos e cadastros gerais continuarão preservados.\n\nDeseja confirmar?';
  if(!window.confirm(aviso))return;
  btn.disabled=true;
  node('manageWorksFeedback').textContent='Conferindo novamente e excluindo a obra…';
  try{
   await ensureSession();
-  const result=await request('/rest/v1/rpc/ew_excluir_obra_sem_operacoes',{
+  const result=await request('/rest/v1/rpc/ew_arquivar_obra_reconciliada',{
     method:'POST',token:session.access_token,timeoutMs:30000,
     body:{p_obra_id:check.obra_id,p_confirmacao:confirmacao,
       p_motivo:motivo,p_operacao_id:operation}
@@ -7148,7 +7174,7 @@ node('manageWorksDelete').addEventListener('click',async()=>{
   await loadPanel();abrirGerenciamentoObras();
   node('manageWorksFeedback').textContent=result.repetida?
    'Esta obra já havia sido removida; não houve duplicação.':
-   'Obra '+result.nome+' excluída. Agora é possível importar novamente o CEM. Cadastros gerais preservados.';
+   'Obra '+result.nome+' retirada do acompanhamento. O CEM pode ser importado novamente; todo o histórico foi preservado.';
  }catch(err){
   node('manageWorksFeedback').textContent=
    'Não foi possível concluir a exclusão: '+err.message+
@@ -7171,7 +7197,7 @@ async function restaurarSessaoSalva(){
  const retry=node('restoreSessionBtn');
  if(!raw){
   retry.classList.add('hidden');
-  setStatus('Aplicativo v43.0 pronto. Digite seu login e senha para entrar.');
+  setStatus('Aplicativo v43.1 pronto. Digite seu login e senha para entrar.');
   return;
  }
  restauracaoEmAndamento=true;retry.disabled=true;retry.classList.add('hidden');
