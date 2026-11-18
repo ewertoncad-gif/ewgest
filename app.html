@@ -603,6 +603,7 @@
         <label for="password">Senha</label>
         <div class="passwordField"><input id="password" type="password" required autocomplete="current-password" placeholder="Senha de acesso à EWGEST"><button type="button" class="passwordToggle" data-show-password="password" aria-controls="password" aria-pressed="false">Mostrar</button></div>
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
+        <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
         <div class="build">EWGEST • interface renovada v42.8</div>
@@ -1582,8 +1583,9 @@
     </div>
     <div class="userActions" style="margin-top:24px;border-top:1px solid #38516a;padding-top:18px">
       <button id="userToggleActive" type="button" class="btn secondary">Desativar acesso</button>
+      <button id="userDeleteButton" type="button" class="btn secondary" style="border-color:#ce776a;color:#db796a">Excluir usuário</button>
     </div>
-    <p class="userExplanation">Desativar retira o acesso, sem apagar o histórico. O usuário poderá ser reativado pelo administrador.</p>
+    <p class="userExplanation">Desativar permite reativação. Excluir remove o usuário da lista, bloqueia seu acesso e preserva seu histórico operacional. A conta ADM não pode ser excluída.</p>
     <p id="userEditMessage" class="feedback" role="status" aria-live="polite"></p>
   </div>
 </div>
@@ -3369,7 +3371,7 @@ async function reloadManagedUsers(){
   // Leitura direta protegida por RLS: mostra inclusive a conta do próprio ADM.
   managedAccounts=await apiGet('usuarios_login',{
     select:'usuario_id,empresa_id,login,nome,perfil,ativo,criado_em',
-    empresa_id:'eq.'+currentCompany.id,order:'login.asc'
+    empresa_id:'eq.'+currentCompany.id,excluido_em:'is.null',order:'login.asc'
   });
   renderManagedAccounts();
 }
@@ -3487,6 +3489,7 @@ function openManagedUserEdit(id){
   node('userResetPassword').value='';maskPassword('userResetPassword');
   node('userEditMessage').textContent='';
   node('userToggleActive').classList.toggle('hidden',self);
+  node('userDeleteButton').classList.toggle('hidden',self||account.perfil==='administrador');
   node('userToggleActive').textContent=account.ativo?'Desativar acesso':'Reativar acesso';
   node('userEditOverlay').classList.remove('hidden');
   node('userEditLogin').focus();
@@ -3655,6 +3658,30 @@ node('userToggleActive').addEventListener('click',async()=>{
     node('usersMessage').textContent='Acesso de '+target.login+(target.ativo?' desativado.':' reativado.');
   }catch(e){node('userEditMessage').textContent='Erro: '+e.message;}
   finally{button.disabled=false;}
+});
+node('userDeleteButton').addEventListener('click',async()=>{
+  if(!canManageUsers()||!editingManagedAccount)return;
+  const target=editingManagedAccount;
+  if(target.usuario_id===currentUser?.id||target.perfil==='administrador'){
+    node('userEditMessage').textContent='Contas ADM e a própria conta não podem ser excluídas.';return;
+  }
+  const confirmar=window.confirm('EXCLUIR USUÁRIO\n\nO usuário '+target.login+
+    ' deixará de aparecer na lista e não poderá mais entrar no EWGEST.\n\n'+
+    'O histórico de liberações, romaneios e acessos será preservado.\n\nDeseja continuar?');
+  if(!confirmar)return;
+  const digitado=window.prompt('Para confirmar, digite exatamente o login do usuário:', '');
+  if(digitado===null)return;
+  if(digitado.trim().toLocaleLowerCase('pt-BR')!==target.login.toLocaleLowerCase('pt-BR')){
+    node('userEditMessage').textContent='Login informado não corresponde ao usuário. Nenhuma alteração foi feita.';return;
+  }
+  const btn=node('userDeleteButton');btn.disabled=true;btn.textContent='Excluindo…';
+  try{
+    await userApi({acao:'excluir',usuario_id:target.usuario_id});
+    closeManagedUserEdit();
+    await reloadManagedUsers();
+    node('usersMessage').textContent='Usuário '+target.login+' excluído do cadastro ativo. Histórico preservado.';
+  }catch(e){node('userEditMessage').textContent='Não foi possível concluir a exclusão: '+e.message;}
+  finally{btn.disabled=false;btn.textContent='Excluir usuário';}
 });
 node('myPasswordHeader').addEventListener('click',()=>{
   node('myPasswordForm').reset();
