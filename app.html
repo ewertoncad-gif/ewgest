@@ -2776,142 +2776,6 @@ async function emitirRomaneio(event){
 }
 
 
-/* Remoção de obra somente antes de qualquer operação. A validação definitiva
-   ocorre em transação no Supabase, nunca em uma regra do navegador. */
-let workDeleteInspection=null,workDeleteOperationId=null,workDeleteRequestId=0;
-function renderGerenciamentoObras(){
- const out=node('manageWorksList');
- if(!works.length){
-  out.innerHTML='<div class="empty">Nenhuma obra cadastrada nesta empresa.</div>';
-  return;
- }
- out.innerHTML=works.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(w=>{
-  const qtd=elements.filter(e=>e.obra_id===w.id).length;
-  return '<div class="manufacturerLine" style="gap:14px">'+
-    '<div><strong>'+escapeHTML(w.nome)+'</strong><div class="hint">'+
-     escapeHTML(w.codigo||'Sem código')+' · '+qtd+' esquadria(s)'+
-     (!qtd?' · pode ser estoque sem esquadrias':'')+'</div></div>'+
-    '<button type="button" class="btn secondary" data-work-review="'+escapeHTML(w.id)+
-     '">Verificar exclusão</button></div>';
- }).join('');
- out.querySelectorAll('[data-work-review]').forEach(b=>
-  b.addEventListener('click',()=>inspecionarExclusaoObra(b.dataset.workReview)));
-}
-function abrirGerenciamentoObras(){
- if(!canAdministrate()||!currentCompany)return;
- workDeleteInspection=null;workDeleteOperationId=null;
- node('manageWorksReview').classList.add('hidden');
- node('manageWorksFeedback').textContent='';
- renderGerenciamentoObras();
- setView('manageWorks');
-}
-function workDeleteResumo(r){
- const v=r.resumo||{};
- const defs=[
-  ['Esquadrias',v.esquadrias],
-  ['Liberações',v.liberacoes],
-  ['Unidades liberadas',v.unidades_liberadas],
-  ['Fabricadas',v.fabricadas],
-  ['Lotes CEM liberados',v.lotes_cem],
-  ['Romaneios',v.romaneios],
-  ['Saídas de produção',v.saidas_producao],
-  ['Movimentos de estoque',v.movimentos_estoque],
-  ['Materiais vinculados ao espelho CEM',v.materiais_espelho_cem]
- ];
- return '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0">'+
-  defs.map(([title,n])=>'<div class="stat" style="flex:1;min-width:140px">'+
-   '<div class="label">'+escapeHTML(title)+'</div>'+
-   '<strong>'+Number(n||0).toLocaleString('pt-BR')+'</strong></div>').join('')+'</div>';
-}
-function atualizarEstadoExclusaoObra(){
- const info=workDeleteInspection;
- const valor=node('manageWorksConfirmation').value.trim().toUpperCase();
- const esperado=String(info?.codigo||info?.nome||'').trim().toUpperCase();
- const motivo=node('manageWorksReason').value.trim();
- node('manageWorksDelete').disabled=!(
-  info?.permitido&&valor===esperado&&motivo.length>=8&&motivo.length<=300);
-}
-async function inspecionarExclusaoObra(id){
- if(!canAdministrate()||!works.some(w=>w.id===id))return;
- const seq=++workDeleteRequestId;
- workDeleteInspection=null;workDeleteOperationId=null;
- node('manageWorksReview').classList.add('hidden');
- node('manageWorksFeedback').textContent='Verificando registros operacionais da obra…';
- try{
-  await ensureSession();
-  const check=await request('/rest/v1/rpc/ew_verificar_exclusao_obra',{
-   method:'POST',token:session.access_token,body:{p_obra_id:id},timeoutMs:30000
-  });
-  if(seq!==workDeleteRequestId)return;
-  if(!check||check.obra_id!==id)throw new Error('Verificação não corresponde à obra.');
-  workDeleteInspection=check;workDeleteOperationId=crypto.randomUUID();
-  node('manageWorksReviewTitle').textContent='Obra: '+check.nome+' · '+(check.codigo||'sem código');
-  node('manageWorksReviewDetails').innerHTML=workDeleteResumo(check);
-  const motivos=Array.isArray(check.motivos)?check.motivos:[];
-  node('manageWorksReviewReasons').textContent=check.permitido?
-   'A obra ainda não tem registros operacionais. A exclusão pode ser solicitada com confirmação.':
-   'EXCLUSÃO BLOQUEADA: '+(motivos.join(' ')||'Existem dependências operacionais.');
-  node('manageWorksReviewReasons').style.color=check.permitido?'#4f9672':'#cb665e';
-  node('manageWorksDeleteForm').classList.toggle('hidden',!check.permitido);
-  node('manageWorksReason').value='Reimportar obra após corrigir o arquivo CEM';
-  node('manageWorksConfirmation').value='';
-  node('manageWorksConfirmationLabel').firstChild.textContent=
-   'Digite exatamente "'+(check.codigo||check.nome)+'" para confirmar';
-  atualizarEstadoExclusaoObra();
-  node('manageWorksReview').classList.remove('hidden');
-  node('manageWorksFeedback').textContent='Verificação concluída.';
- }catch(err){
-  if(seq===workDeleteRequestId)node('manageWorksFeedback').textContent=
-    'Não foi possível conferir a obra: '+err.message;
- }
-}
-node('manageWorksReason').addEventListener('input',atualizarEstadoExclusaoObra);
-node('manageWorksConfirmation').addEventListener('input',atualizarEstadoExclusaoObra);
-node('manageWorksRefresh').addEventListener('click',async()=>{
- if(!canAdministrate())return;
- node('manageWorksFeedback').textContent='Atualizando obras…';
- try{
-  await loadPanel();abrirGerenciamentoObras();
-  node('manageWorksFeedback').textContent='Obras atualizadas.';
- }catch(err){node('manageWorksFeedback').textContent='Falha ao atualizar: '+err.message;}
-});
-node('manageWorksDelete').addEventListener('click',async()=>{
- if(!canAdministrate()||!workDeleteInspection?.permitido||!workDeleteOperationId)return;
- atualizarEstadoExclusaoObra();
- const btn=node('manageWorksDelete');
- if(btn.disabled)return;
- const check=workDeleteInspection,operation=workDeleteOperationId,
-  confirmacao=node('manageWorksConfirmation').value.trim(),
-  motivo=node('manageWorksReason').value.trim();
- const aviso='ATENÇÃO: EXCLUSÃO DEFINITIVA DA OBRA\n\n'+check.nome+
-  '\n\nEsta ação removerá suas esquadrias e importações exclusivas, permitindo importar um novo CEM.'+
-  '\nOs cadastros gerais continuarão no EWGEST.\n\nDeseja confirmar a exclusão?';
- if(!window.confirm(aviso))return;
- btn.disabled=true;
- node('manageWorksFeedback').textContent='Conferindo novamente e excluindo a obra…';
- try{
-  await ensureSession();
-  const result=await request('/rest/v1/rpc/ew_excluir_obra_sem_operacoes',{
-    method:'POST',token:session.access_token,timeoutMs:30000,
-    body:{p_obra_id:check.obra_id,p_confirmacao:confirmacao,
-      p_motivo:motivo,p_operacao_id:operation}
-  });
-  if(!result?.excluida)throw new Error('O banco não confirmou a exclusão.');
-  workDeleteInspection=null;workDeleteOperationId=null;
-  selectedWork=null;selectedItem=null;hubObraId='';
-  node('manageWorksReview').classList.add('hidden');
-  await loadPanel();abrirGerenciamentoObras();
-  node('manageWorksFeedback').textContent=result.repetida?
-   'Esta obra já havia sido removida; não houve duplicação.':
-   'Obra '+result.nome+' excluída. Agora é possível importar novamente o CEM. Cadastros gerais preservados.';
- }catch(err){
-  node('manageWorksFeedback').textContent=
-   'Não foi possível concluir a exclusão: '+err.message+
-   '. Confira a lista antes de tentar novamente.';
-  atualizarEstadoExclusaoObra();
- }
-});
-
 let hubObraId='';
 function renderRomaneioHub(){
   const select=node('hubWorkSelect');
@@ -7156,6 +7020,143 @@ node('releaseBatchConfirm').addEventListener('click',async()=>{
    '. Antes de tentar novamente, confira as liberações. A tentativa preserva o mesmo identificador.';}
  finally{btn.disabled=false;}
 });
+
+/* Remoção de obra somente antes de qualquer operação. A validação definitiva
+   ocorre em transação no Supabase, nunca em uma regra do navegador. */
+let workDeleteInspection=null,workDeleteOperationId=null,workDeleteRequestId=0;
+function renderGerenciamentoObras(){
+ const out=node('manageWorksList');
+ if(!works.length){
+  out.innerHTML='<div class="empty">Nenhuma obra cadastrada nesta empresa.</div>';
+  return;
+ }
+ out.innerHTML=works.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(w=>{
+  const qtd=elements.filter(e=>e.obra_id===w.id).length;
+  return '<div class="manufacturerLine" style="gap:14px">'+
+    '<div><strong>'+escapeHTML(w.nome)+'</strong><div class="hint">'+
+     escapeHTML(w.codigo||'Sem código')+' · '+qtd+' esquadria(s)'+
+     (!qtd?' · pode ser estoque sem esquadrias':'')+'</div></div>'+
+    '<button type="button" class="btn secondary" data-work-review="'+escapeHTML(w.id)+
+     '">Verificar exclusão</button></div>';
+ }).join('');
+ out.querySelectorAll('[data-work-review]').forEach(b=>
+  b.addEventListener('click',()=>inspecionarExclusaoObra(b.dataset.workReview)));
+}
+function abrirGerenciamentoObras(){
+ if(!canAdministrate()||!currentCompany)return;
+ workDeleteInspection=null;workDeleteOperationId=null;
+ node('manageWorksReview').classList.add('hidden');
+ node('manageWorksFeedback').textContent='';
+ renderGerenciamentoObras();
+ setView('manageWorks');
+}
+function workDeleteResumo(r){
+ const v=r.resumo||{};
+ const defs=[
+  ['Esquadrias',v.esquadrias],
+  ['Liberações',v.liberacoes],
+  ['Unidades liberadas',v.unidades_liberadas],
+  ['Fabricadas',v.fabricadas],
+  ['Lotes CEM liberados',v.lotes_cem],
+  ['Romaneios',v.romaneios],
+  ['Saídas de produção',v.saidas_producao],
+  ['Movimentos de estoque',v.movimentos_estoque],
+  ['Materiais vinculados ao espelho CEM',v.materiais_espelho_cem]
+ ];
+ return '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0">'+
+  defs.map(([title,n])=>'<div class="stat" style="flex:1;min-width:140px">'+
+   '<div class="label">'+escapeHTML(title)+'</div>'+
+   '<strong>'+Number(n||0).toLocaleString('pt-BR')+'</strong></div>').join('')+'</div>';
+}
+function atualizarEstadoExclusaoObra(){
+ const info=workDeleteInspection;
+ const valor=node('manageWorksConfirmation').value.trim().toUpperCase();
+ const esperado=String(info?.codigo||info?.nome||'').trim().toUpperCase();
+ const motivo=node('manageWorksReason').value.trim();
+ node('manageWorksDelete').disabled=!(
+  info?.permitido&&valor===esperado&&motivo.length>=8&&motivo.length<=300);
+}
+async function inspecionarExclusaoObra(id){
+ if(!canAdministrate()||!works.some(w=>w.id===id))return;
+ const seq=++workDeleteRequestId;
+ workDeleteInspection=null;workDeleteOperationId=null;
+ node('manageWorksReview').classList.add('hidden');
+ node('manageWorksFeedback').textContent='Verificando registros operacionais da obra…';
+ try{
+  await ensureSession();
+  const check=await request('/rest/v1/rpc/ew_verificar_exclusao_obra',{
+   method:'POST',token:session.access_token,body:{p_obra_id:id},timeoutMs:30000
+  });
+  if(seq!==workDeleteRequestId)return;
+  if(!check||check.obra_id!==id)throw new Error('Verificação não corresponde à obra.');
+  workDeleteInspection=check;workDeleteOperationId=crypto.randomUUID();
+  node('manageWorksReviewTitle').textContent='Obra: '+check.nome+' · '+(check.codigo||'sem código');
+  node('manageWorksReviewDetails').innerHTML=workDeleteResumo(check);
+  const motivos=Array.isArray(check.motivos)?check.motivos:[];
+  node('manageWorksReviewReasons').textContent=check.permitido?
+   'A obra ainda não tem registros operacionais. A exclusão pode ser solicitada com confirmação.':
+   'EXCLUSÃO BLOQUEADA: '+(motivos.join(' ')||'Existem dependências operacionais.');
+  node('manageWorksReviewReasons').style.color=check.permitido?'#4f9672':'#cb665e';
+  node('manageWorksDeleteForm').classList.toggle('hidden',!check.permitido);
+  node('manageWorksReason').value='Reimportar obra após corrigir o arquivo CEM';
+  node('manageWorksConfirmation').value='';
+  node('manageWorksConfirmationLabel').firstChild.textContent=
+   'Digite exatamente "'+(check.codigo||check.nome)+'" para confirmar';
+  atualizarEstadoExclusaoObra();
+  node('manageWorksReview').classList.remove('hidden');
+  node('manageWorksFeedback').textContent='Verificação concluída.';
+ }catch(err){
+  if(seq===workDeleteRequestId)node('manageWorksFeedback').textContent=
+    'Não foi possível conferir a obra: '+err.message;
+ }
+}
+node('manageWorksReason').addEventListener('input',atualizarEstadoExclusaoObra);
+node('manageWorksConfirmation').addEventListener('input',atualizarEstadoExclusaoObra);
+node('manageWorksRefresh').addEventListener('click',async()=>{
+ if(!canAdministrate())return;
+ node('manageWorksFeedback').textContent='Atualizando obras…';
+ try{
+  await loadPanel();abrirGerenciamentoObras();
+  node('manageWorksFeedback').textContent='Obras atualizadas.';
+ }catch(err){node('manageWorksFeedback').textContent='Falha ao atualizar: '+err.message;}
+});
+node('manageWorksDelete').addEventListener('click',async()=>{
+ if(!canAdministrate()||!workDeleteInspection?.permitido||!workDeleteOperationId)return;
+ atualizarEstadoExclusaoObra();
+ const btn=node('manageWorksDelete');
+ if(btn.disabled)return;
+ const check=workDeleteInspection,operation=workDeleteOperationId,
+  confirmacao=node('manageWorksConfirmation').value.trim(),
+  motivo=node('manageWorksReason').value.trim();
+ const aviso='ATENÇÃO: EXCLUSÃO DEFINITIVA DA OBRA\n\n'+check.nome+
+  '\n\nEsta ação removerá suas esquadrias e importações exclusivas, permitindo importar um novo CEM.'+
+  '\nOs cadastros gerais continuarão no EWGEST.\n\nDeseja confirmar a exclusão?';
+ if(!window.confirm(aviso))return;
+ btn.disabled=true;
+ node('manageWorksFeedback').textContent='Conferindo novamente e excluindo a obra…';
+ try{
+  await ensureSession();
+  const result=await request('/rest/v1/rpc/ew_excluir_obra_sem_operacoes',{
+    method:'POST',token:session.access_token,timeoutMs:30000,
+    body:{p_obra_id:check.obra_id,p_confirmacao:confirmacao,
+      p_motivo:motivo,p_operacao_id:operation}
+  });
+  if(!result?.excluida)throw new Error('O banco não confirmou a exclusão.');
+  workDeleteInspection=null;workDeleteOperationId=null;
+  selectedWork=null;selectedItem=null;hubObraId='';
+  node('manageWorksReview').classList.add('hidden');
+  await loadPanel();abrirGerenciamentoObras();
+  node('manageWorksFeedback').textContent=result.repetida?
+   'Esta obra já havia sido removida; não houve duplicação.':
+   'Obra '+result.nome+' excluída. Agora é possível importar novamente o CEM. Cadastros gerais preservados.';
+ }catch(err){
+  node('manageWorksFeedback').textContent=
+   'Não foi possível concluir a exclusão: '+err.message+
+   '. Confira a lista antes de tentar novamente.';
+  atualizarEstadoExclusaoObra();
+ }
+});
+
 
 window.addEventListener('error',e=>{if(!node('login').classList.contains('hidden'))setError('Erro no aplicativo: '+(e.message||'desconhecido'));});
 window.addEventListener('unhandledrejection',e=>{if(!node('login').classList.contains('hidden'))setError('Falha inesperada: '+(e.reason?.message||'desconhecida'));});
