@@ -722,9 +722,36 @@
       <div class="head"><div>
         <button id="usersBack" class="btn secondary" type="button">← Tela inicial</button>
         <button id="userAccessHistoryToggle" class="btn secondary" type="button" style="margin-left:8px">Histórico de acessos</button>
+        <button id="userOperationsToggle" class="btn secondary" type="button" style="margin-left:8px">Relatório de operações</button>
         <h1 style="margin-top:18px">Cadastro de usuários</h1>
         <div class="muted">ADM e Gerenciador podem administrar usuários. Somente o ADM pode alterar contas de administradores.</div>
       </div></div>
+      <div id="userOperationsPanel" class="section panel hidden">
+        <div class="row" style="justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <h2 style="margin:0">Relatório de operações e estornos</h2>
+          <div class="topactions">
+            <button id="userOperationsRefresh" type="button" class="btn secondary">Atualizar relatório</button>
+            <button id="userOperationsExport" type="button" class="btn secondary" disabled>Exportar CSV</button>
+          </div>
+        </div>
+        <p class="hint">Registros permanentes dos cancelamentos, estornos de estoque e remoções de obras. Incluem o responsável, data/hora, obra e justificativa. Horários de Recife.</p>
+        <div class="stockFilters" style="grid-template-columns:repeat(3,minmax(150px,1fr));gap:10px">
+          <label>Usuário<select id="userOperationsUser"><option value="">Todos</option></select></label>
+          <label>Período<select id="userOperationsPeriod"><option value="7">Últimos 7 dias</option><option value="30" selected>Últimos 30 dias</option><option value="90">Últimos 90 dias</option><option value="365">Últimos 365 dias</option></select></label>
+          <label>Tipo<select id="userOperationsType">
+            <option value="">Todas as operações</option>
+            <option value="CANCELAR_ROMANEIO">Cancelamentos de romaneio</option>
+            <option value="CANCELAR_LIBERACOES">Cancelamentos de liberações</option>
+            <option value="ESTORNAR_ESTOQUE">Estornos de estoque</option>
+            <option value="ARQUIVAR_OBRA">Retiradas de obras</option>
+          </select></label>
+        </div>
+        <label style="margin-top:12px">Buscar por obra
+          <input id="userOperationsWorkSearch" type="search" placeholder="Nome ou código da obra" autocomplete="off">
+        </label>
+        <p id="userOperationsStatus" class="hint" role="status"></p>
+        <div id="userOperationsResults"></div>
+      </div>
       <div id="userAccessHistoryPanel" class="section panel hidden">
         <div class="row" style="justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap">
           <h2 style="margin:0">Histórico de acessos</h2>
@@ -3442,6 +3469,114 @@ async function openManagedUsersPage(){
 }
 
 let accessHistoryRecords=[],accessHistoryQuerySequence=0;
+
+/* Auditoria independente do cadastro da obra (preservada após exclusão lógica). */
+let operationReportRecords=[],operationReportSeq=0;
+const actionLabels={
+ CANCELAR_ROMANEIO:'Romaneio cancelado',
+ CANCELAR_LIBERACOES:'Liberações canceladas',
+ ESTORNAR_ESTOQUE:'Estorno de estoque',
+ ARQUIVAR_OBRA:'Obra retirada'
+};
+function operationReportPopulateUsers(){
+ const el=node('userOperationsUser'),val=el.value;
+ el.innerHTML='<option value="">Todos</option>'+
+  managedAccounts.slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'))
+   .map(u=>'<option value="'+escapeHTML(u.usuario_id)+'">'+
+    escapeHTML(u.nome+' · '+u.login)+'</option>').join('');
+ if(managedAccounts.some(u=>u.usuario_id===val))el.value=val;
+}
+function operationReportDisplay(){
+ const filtro=node('userOperationsWorkSearch').value.trim().toLocaleLowerCase('pt-BR');
+ const records=operationReportRecords.filter(a=>
+  !filtro||[a.obra_nome,a.obra_codigo].some(v=>
+   String(v||'').toLocaleLowerCase('pt-BR').includes(filtro)));
+ const target=node('userOperationsResults');
+ node('userOperationsExport').disabled=!records.length;
+ if(!records.length){
+  target.innerHTML='<div class="materialEmpty" style="padding:18px">Nenhuma operação neste filtro.</div>';
+  return;
+ }
+ const names=new Map(managedAccounts.map(u=>[u.usuario_id,u]));
+ target.innerHTML='<div class="userAccessHistoryWrap"><table class="userAccessHistoryTable">'+
+ '<thead><tr><th>Quando</th><th>Usuário</th><th>Obra</th><th>Operação</th><th>Motivo e detalhes</th></tr></thead><tbody>'+
+ records.map(r=>{
+  const u=names.get(r.usuario_id);
+  const detalhes=JSON.stringify(r.detalhes||{},null,2);
+  return '<tr><td>'+escapeHTML(accessHistoryDate(r.criado_em))+'</td>'+
+   '<td><strong>'+escapeHTML(u?.nome||'Usuário '+String(r.usuario_id||'').slice(0,8))+
+   '</strong>'+(u?.login?'<div class="hint">'+escapeHTML(u.login)+'</div>':'')+'</td>'+
+   '<td><strong>'+escapeHTML(r.obra_nome||'—')+'</strong><div class="hint">'+
+      escapeHTML(r.obra_codigo||'—')+'</div></td>'+
+   '<td>'+escapeHTML(actionLabels[r.acao]||r.acao)+'</td>'+
+   '<td>'+escapeHTML(r.motivo||'—')+
+    '<details style="margin-top:6px"><summary>Detalhes da ação</summary><pre style="white-space:pre-wrap;max-width:520px;max-height:300px;overflow:auto;font-size:11px">'+
+     escapeHTML(detalhes.length>8000?detalhes.slice(0,8000)+'… (consulte CSV completo)':detalhes)+
+    '</pre></details></td></tr>';
+ }).join('')+'</tbody></table></div>';
+}
+async function operationReportLoad(){
+ if(!canManageUsers()||!currentCompany?.id)return;
+ const seq=++operationReportSeq,days=Number(node('userOperationsPeriod').value)||30;
+ const status=node('userOperationsStatus');
+ status.textContent='Consultando operações…';
+ node('userOperationsRefresh').disabled=true;
+ try{
+  await ensureSession();
+  const params={select:'id,usuario_id,obra_id,obra_nome,obra_codigo,acao,motivo,detalhes,criado_em',
+   empresa_id:'eq.'+currentCompany.id,
+   criado_em:'gte.'+new Date(Date.now()-days*86400000).toISOString(),
+   order:'criado_em.desc',limit:'1000'};
+  if(node('userOperationsUser').value)params.usuario_id='eq.'+node('userOperationsUser').value;
+  if(node('userOperationsType').value)params.acao='eq.'+node('userOperationsType').value;
+  const registros=await apiGet('ew_auditoria_operacoes',params);
+  if(seq!==operationReportSeq)return;
+  operationReportRecords=registros||[];
+  operationReportDisplay();
+  status.textContent=operationReportRecords.length+' operação(ões) nos últimos '+days+' dias.'+
+   (operationReportRecords.length===1000?' Limite de 1.000 registros; refine os filtros.':'');
+ }catch(e){
+  if(seq===operationReportSeq){
+   status.textContent='Erro ao consultar relatório: '+e.message;
+   operationReportRecords=[];operationReportDisplay();
+  }
+ }finally{if(seq===operationReportSeq)node('userOperationsRefresh').disabled=false;}
+}
+node('userOperationsToggle').addEventListener('click',()=>{
+ if(!canManageUsers())return;
+ const panel=node('userOperationsPanel'),opening=panel.classList.contains('hidden');
+ panel.classList.toggle('hidden',!opening);
+ node('userOperationsToggle').textContent=opening?'Ocultar relatório':'Relatório de operações';
+ if(opening){operationReportPopulateUsers();operationReportLoad();}
+});
+node('userOperationsRefresh').addEventListener('click',operationReportLoad);
+node('userOperationsUser').addEventListener('change',operationReportLoad);
+node('userOperationsPeriod').addEventListener('change',operationReportLoad);
+node('userOperationsType').addEventListener('change',operationReportLoad);
+node('userOperationsWorkSearch').addEventListener('input',operationReportDisplay);
+node('userOperationsExport').addEventListener('click',()=>{
+ const filtro=node('userOperationsWorkSearch').value.trim().toLocaleLowerCase('pt-BR');
+ const rows=operationReportRecords.filter(r=>!filtro||
+  [r.obra_nome,r.obra_codigo].some(v=>String(v||'').toLocaleLowerCase('pt-BR').includes(filtro)));
+ const csvSafe=v=>{
+  let x=String(v??'');
+  if(/^[\s]*[=+\-@]/.test(x))x="'"+x;
+  return '"'+x.replace(/"/g,'""').replace(/\r?\n/g,' ')+'"';
+ };
+ const nomes=new Map(managedAccounts.map(u=>[u.usuario_id,u.nome+' ('+u.login+')']));
+ const data=[['Data e hora (Recife)','Usuário','ID do usuário','Obra','Código da obra',
+  'Ação','Motivo','Detalhes JSON'].map(csvSafe).join(';')];
+ for(const r of rows)data.push([
+  accessHistoryDate(r.criado_em),nomes.get(r.usuario_id)||'',r.usuario_id,r.obra_nome,
+  r.obra_codigo,actionLabels[r.acao]||r.acao,r.motivo,JSON.stringify(r.detalhes||{})
+ ].map(csvSafe).join(';'));
+ const blob=new Blob(['\uFEFF'+data.join('\r\n')],{type:'text/csv;charset=utf-8'});
+ const url=URL.createObjectURL(blob),link=document.createElement('a');
+ link.href=url;link.download='EWGEST_auditoria_operacoes_'+new Date().toISOString().slice(0,10)+'.csv';
+ document.body.append(link);link.click();link.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+
 function accessHistoryDate(raw){
  if(!raw)return '—';
  const d=new Date(raw);
