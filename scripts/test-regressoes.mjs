@@ -67,7 +67,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'interface renovada v42.7.1',
+ 'interface renovada v42.8',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -883,6 +883,41 @@ assert.ok(source.includes("if(!await sessaoUnicaEntrar())")&&
 assert.ok(source.includes('const invalidAuth=/Acesse sua conta')&&
  source.includes('if(authenticated&&response.status===401&&invalidAuth)'),
  'Falha genérica da API de usuários não deve encerrar uma sessão válida');
+// Perfil Gerenciador: mesmas ações operacionais do ADM, sem delegar privilégios ADM.
+const edgeSource=readFileSync(fileURLToPath(new URL('../supabase/functions/ewgest-acesso/index.ts',import.meta.url)),'utf8');
+const roleMigration=readFileSync(fileURLToPath(new URL('../supabase/migrations/20261118_perfil_gerenciador.sql',import.meta.url)),'utf8');
+assert.ok(source.includes('function canAdministrate()')&&
+ source.includes("['administrador','gerenciador']")&&
+ source.includes("function isFullAdminUser()"),
+ 'Gerenciador deve acessar módulos ADM sem ser classificado como ADM');
+assert.ok(source.includes('data-show-password="password"')&&
+ ['createUserPassword','userResetPassword','myOldPassword','myNewPassword','myNewPasswordRepeat']
+ .every(id=>source.includes('data-show-password="'+id+'"')),
+ 'Mostrar/Ocultar disponível em todas as telas de senha');
+assert.ok(source.includes('const protectedAdm=!isFullAdminUser()')&&
+ source.includes('Gerenciador não pode alterar ou conceder perfil ADM.'),
+ 'Interface não permite Gerenciador editar ADM ou conceder promoção');
+assert.ok(edgeSource.includes('async function requireTargetEditable(caller, account)')&&
+ edgeSource.includes("member?.perfil === 'administrador'")&&
+ edgeSource.includes("!isFullAdmin(caller) && perfil === 'administrador'")&&
+ edgeSource.includes('await requireTargetEditable(caller, data);'),
+ 'Servidor impede Gerenciador editar, redefinir senha, reativar/desativar contas ADM');
+assert.ok(edgeSource.includes("'gerenciador'")&&
+ edgeSource.includes('function requireManager(caller)'),
+ 'Gerenciador deve ser perfil válido e reconhecido no servidor');
+assert.ok(roleMigration.includes('usuarios_login_perfil_check')&&
+ roleMigration.includes('usuarios_empresas_perfil_check')&&
+ roleMigration.includes('alter policy')&&roleMigration.includes('outdef'),
+ 'Banco precisa aceitar Gerenciador em RLS e em RPCs');
+const startRole=source.indexOf('function isFullAdminUser(){');
+const endRole=source.indexOf('function maskPassword(id){',startRole);
+assert.ok(startRole>0&&endRole>startRole);
+const checkRoles=new Function('membership',source.slice(startRole,endRole)+
+ 'return {manager:canAdministrate(),admin:isFullAdminUser()};');
+assert.deepEqual(checkRoles({perfil:'gerenciador'}),{manager:true,admin:false});
+assert.deepEqual(checkRoles({perfil:'administrador'}),{manager:true,admin:true});
+assert.deepEqual(checkRoles({perfil:'tecnico'}),{manager:false,admin:false});
+
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
 
 
