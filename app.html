@@ -590,7 +590,8 @@
     <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v42.9</strong><small>Gestão em movimento</small></div>
+    <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
+    <div class="workspaceNavFooter">EWGEST <strong>· v43.0</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="login" class="panel login">
@@ -606,12 +607,13 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • interface renovada v42.9</div>
+        <div class="build">EWGEST • interface renovada v43.0</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
     <section id="dashboard" class="hidden">
-      <div class="head"><div><h1 id="heading">Painel de obras</h1><div class="muted" id="userline"></div></div><div class="topactions"><button id="openTypologies" type="button" class="btn secondary hidden">Banco de tipologias</button><button id="openManufacturers" type="button" class="btn secondary hidden">Fabricantes</button><button id="openUsers" type="button" class="btn secondary hidden">Usuários</button><button id="openRomaneioHub" type="button" class="btn secondary">Romaneios</button><button id="refresh" class="btn secondary">Atualizar dados</button></div></div>
+      <div class="head"><div><h1 id="heading">Painel de obras</h1><div class="muted" id="userline"></div></div><div class="topactions"><button id="openTypologies" type="button" class="btn secondary hidden">Banco de tipologias</button><button id="openManufacturers" type="button" class="btn secondary hidden">Fabricantes</button><button id="openUsers" type="button" class="btn secondary hidden">Usuários</button>
+        <button id="openManageWorks" type="button" class="btn secondary hidden">Gerenciar obras</button><button id="openRomaneioHub" type="button" class="btn secondary">Romaneios</button><button id="refresh" class="btn secondary">Atualizar dados</button></div></div>
       <div id="panelError" class="error"></div>
       <div class="stats">
         <div class="stat"><div class="label">Obras</div><div class="number" id="count">—</div></div>
@@ -622,6 +624,36 @@
       </div>
       <div class="section"><h2>Obras cadastradas</h2><div id="works" class="works"></div></div>
       <p class="notice">Liberações para corte: selecione uma esquadria e informe quantidade e data. Os lançamentos ficam registrados no banco. Confirme medições técnicas antes de usar os totais como medição contratual.</p>
+    </section>
+    <section id="manageWorks" class="hidden">
+      <div class="head"><div>
+        <button id="manageWorksBack" type="button" class="btn secondary">← Tela inicial</button>
+        <h1 style="margin-top:17px">Gerenciar obras cadastradas</h1>
+        <p class="muted">Consulte todas as obras, inclusive as que têm somente estoque. Para corrigir o arquivo CEM e importar novamente, a exclusão só é permitida antes de qualquer operação.</p>
+      </div></div>
+      <div class="section panel">
+        <div class="rowHead"><h2>Obras da empresa</h2>
+          <button type="button" class="btn secondary" id="manageWorksRefresh">Atualizar lista</button>
+        </div>
+        <p class="hint">Obras com liberação, produção, romaneios ou qualquer movimentação de estoque não podem ser excluídas — nem pelo ADM. Cancele a exclusão e ajuste os registros de maneira controlada.</p>
+        <div id="manageWorksList"></div>
+        <p id="manageWorksFeedback" class="feedback" role="status"></p>
+      </div>
+      <div id="manageWorksReview" class="section panel hidden">
+        <h2 id="manageWorksReviewTitle">Verificação da obra</h2>
+        <div id="manageWorksReviewDetails"></div>
+        <div id="manageWorksReviewReasons" class="feedback" role="status"></div>
+        <div id="manageWorksDeleteForm" class="hidden">
+          <p class="hint">Esta operação remove somente a obra, suas esquadrias e os vínculos/importações exclusivos dela. Os bancos de tipologias, fabricantes, materiais, cores e abreviações continuam cadastrados.</p>
+          <label>Por que deseja excluir esta obra?
+            <textarea id="manageWorksReason" rows="2" maxlength="300" placeholder="Ex.: Corrigir esquadrias no CEM e importar a obra novamente"></textarea>
+          </label>
+          <label id="manageWorksConfirmationLabel">Digite exatamente o código da obra para confirmar
+            <input id="manageWorksConfirmation" type="text" autocomplete="off" spellcheck="false">
+          </label>
+          <button type="button" id="manageWorksDelete" class="btn secondary" disabled style="border-color:#bd6b61;color:#c66b62">Excluir obra e permitir nova importação</button>
+        </div>
+      </div>
     </section>
     <section id="romaneiosPage" class="hidden">
       <div class="head"><div>
@@ -1643,7 +1675,7 @@ document.querySelectorAll('[data-show-password]').forEach(button=>{
 function podeEmitirRomaneio(){return ['administrador','gerenciador','supervisor','almoxarife'].includes(String(membership?.perfil||'').toLowerCase());}
 function setView(view){
   if(isAlmoxarife()&&!['login','romaneiosPage','myPassword'].includes(view))view='romaneiosPage';
-  for(const id of ['login','dashboard','detail','romaneiosPage','typologies','manufacturers','materials','stock','cemImport','users','myPassword'])
+  for(const id of ['login','dashboard','detail','manageWorks','romaneiosPage','typologies','manufacturers','materials','stock','cemImport','users','myPassword'])
     node(id).classList.toggle('hidden',id!==view);
   node('logout').classList.toggle('hidden',view==='login');
   node('myPasswordHeader').classList.toggle('hidden',view==='login');
@@ -1652,7 +1684,7 @@ function setView(view){
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
   const ativo=view==='detail'?'dashboard':view;
   for(const [id,target] of [['navHome','dashboard'],['navRomaneios','romaneiosPage'],
-      ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navCem','cemImport'],['navUsers','users']]){
+      ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navCem','cemImport'],['navUsers','users'],['navManageWorks','manageWorks']]){
     const button=node(id);
     const selecionado=ativo===target;
     button.classList.toggle('active',selecionado);
@@ -1800,12 +1832,13 @@ async function loadPanel(){
     node('createUserRole').value='gerenciador';
   node('navHome').classList.toggle('hidden',somenteRomaneios);
   node('navRomaneios').classList.toggle('hidden',!podeEmitirRomaneio());
-  for(const id of ['navTypologies','navManufacturers','navMaterials','navStock','navCem','navUsers'])node(id).classList.toggle('hidden',!adminNav);
+  for(const id of ['navTypologies','navManufacturers','navMaterials','navStock','navCem','navUsers','navManageWorks'])node(id).classList.toggle('hidden',!adminNav);
   node('openRomaneioHub').classList.toggle('hidden',!podeEmitirRomaneio()||somenteRomaneios);
   node('topTag').textContent=somenteRomaneios?'Romaneios e expedição':'Gestão de obras · liberações e saídas';
   node('openTypologies').classList.toggle('hidden',!canAdministrate());
   node('openManufacturers').classList.toggle('hidden',!canAdministrate());
   node('openUsers').classList.toggle('hidden',!canAdministrate());
+  node('openManageWorks').classList.toggle('hidden',!canAdministrate());
   const [w,e,tips]=await Promise.all([
     apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'}),
     apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id,rotulo_tipologia_relatorio,quantidade_modulos,modulacao_id',empresa_id:'eq.'+currentCompany.id}),
@@ -3531,6 +3564,9 @@ node('romaneioSaveNumber').addEventListener('click',async()=>{
   finally{btn.disabled=false;}
 });
 node('openUsers').addEventListener('click',openManagedUsersPage);
+node('openManageWorks').addEventListener('click',abrirGerenciamentoObras);
+node('navManageWorks').addEventListener('click',abrirGerenciamentoObras);
+node('manageWorksBack').addEventListener('click',()=>setView('dashboard'));
 node('openRomaneioHub').addEventListener('click',abrirAreaRomaneios);
 node('navHome').addEventListener('click',()=>setView('dashboard'));
 node('navRomaneios').addEventListener('click',abrirAreaRomaneios);
@@ -6997,7 +7033,7 @@ async function restaurarSessaoSalva(){
  const retry=node('restoreSessionBtn');
  if(!raw){
   retry.classList.add('hidden');
-  setStatus('Aplicativo v42.9 pronto. Digite seu login e senha para entrar.');
+  setStatus('Aplicativo v43.0 pronto. Digite seu login e senha para entrar.');
   return;
  }
  restauracaoEmAndamento=true;retry.disabled=true;retry.classList.add('hidden');
