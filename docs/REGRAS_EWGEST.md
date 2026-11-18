@@ -250,3 +250,13 @@
 - Na Edge Function, distinguir erro técnico ao consultar a tabela de sessão de efetiva substituição de sessão. Em erro técnico, não emitir 401 de credencial revogada.
 - No navegador, só invalidar a sessão quando a resposta 401 identifica autenticação realmente inválida ou substituída. Demais falhas exibem erro, sem limpar o login.
 - Validar regressão ao abrir **Usuários** após assumir sessão em outro computador. Não modificar obras, estoques, romaneios ou histórico.
+
+
+## Perfil Gerenciador e visualização de senhas (v42.8 — 18/11/2026)
+- O nível \`gerenciador\` fica imediatamente abaixo de \`administrador\`; tem acesso à administração operacional, obras, cadastro técnico, importações CEM, tipologias, fabricantes, estoque e galpões, romaneios, histórico de acessos e gestão de usuários não ADM.
+- Um Gerenciador **não pode** alterar a conta de um Administrador: nome/login, senha, perfil, bloqueio, reativação ou qualquer outro dado do ADM. Também não pode criar um novo ADM nem promover alguém a ADM. Essas regras são validadas na Edge Function, independentemente dos controles visuais.
+- ADM continua autorizado a gerenciar todas as contas e conceder perfis, inclusive Gerenciador. Gerenciadores podem criar e gerenciar Gerenciadores, Técnicos, Almoxarifes e usuários de Consulta.
+- \`usuarios_login\` e \`usuarios_empresas\` aceitam o perfil novo; políticas RLS e RPCs operacionais com privilégios administrativos incluem Gerenciador, preservando os demais perfis.
+- \`usuarios_login\` e \`usuarios_empresas\` não concedem UPDATE direto a \`authenticated\`. Gerenciamento de contas passa exclusivamente pela Edge Function, que verifica o usuário autenticado e o vínculo com a empresa.
+- Adicionados botões **Mostrar/Ocultar** exclusivamente para ver a senha que está sendo digitada pelo operador em cadastro, login, redefinição e Minha senha. A senha antiga de outro usuário não pode ser visualizada nem recuperada.
+- A versão v42.8 não cria automaticamente nenhuma nova conta, e preserva sessões, esquadrias, estoques e romaneios.
