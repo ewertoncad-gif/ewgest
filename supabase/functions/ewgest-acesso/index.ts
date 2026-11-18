@@ -61,9 +61,9 @@ async function accountForToken(req) {
   const { data: { user }, error } = await admin.auth.getUser(token);
   if (error || !user) throw new Error('Sessão inválida. Entre novamente.');
   const { data: account, error: readError } = await admin.from('usuarios_login')
-    .select('usuario_id,empresa_id,login,nome,perfil,ativo,criado_em')
+    .select('usuario_id,empresa_id,login,nome,perfil,ativo,criado_em,excluido_em')
     .eq('usuario_id', user.id).maybeSingle();
-  if (readError || !account || !account.ativo) throw new Error('Usuário sem acesso ativo.');
+  if (readError || !account || !account.ativo || account.excluido_em) throw new Error('Usuário sem acesso ativo.');
   const { data: member, error: membershipError } = await admin.from('usuarios_empresas')
     .select('empresa_id,perfil').eq('usuario_id', user.id)
     .eq('empresa_id', account.empresa_id).maybeSingle();
@@ -107,9 +107,10 @@ async function targetAccount(caller, id) {
   if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/i.test(id))
     throw new Error('Usuário inválido.');
   const { data, error } = await admin.from('usuarios_login')
-    .select('usuario_id,empresa_id,login,nome,perfil,ativo,criado_em')
+    .select('usuario_id,empresa_id,login,nome,perfil,ativo,criado_em,excluido_em')
     .eq('usuario_id', id).eq('empresa_id', caller.account.empresa_id).maybeSingle();
   if (error || !data) throw new Error('Usuário não encontrado nesta empresa.');
+  if (data.excluido_em) throw new Error('Este usuário já foi excluído do cadastro.');
   await requireTargetEditable(caller, data);
   return data;
 }
@@ -120,8 +121,8 @@ async function accountLogin(payload, origin) {
   }
   const normalized = login.toLocaleLowerCase('pt-BR');
   const { data: account } = await admin.from('usuarios_login')
-    .select('usuario_id,ativo').eq('login_chave', normalized).maybeSingle();
-  if (!account || !account.ativo) return reply(401, { error: 'Usuário ou senha inválidos.' }, origin);
+    .select('usuario_id,ativo,excluido_em').eq('login_chave', normalized).maybeSingle();
+  if (!account || !account.ativo || account.excluido_em) return reply(401, { error: 'Usuário ou senha inválidos.' }, origin);
   const { data: userRecord, error: userError } = await admin.auth.admin.getUserById(account.usuario_id);
   if (userError || !userRecord?.user?.email) return reply(401, { error: 'Usuário ou senha inválidos.' }, origin);
   const publicClient = createClient(URL_BASE, ANON_KEY, {
@@ -179,8 +180,8 @@ Deno.serve(async (req) => {
     requireManager(caller);
     if (action === 'listar') {
       const { data, error } = await admin.from('usuarios_login')
-        .select('usuario_id,empresa_id,login,nome,perfil,ativo,criado_em')
-        .eq('empresa_id', caller.account.empresa_id).order('login');
+        .select('usuario_id,empresa_id,login,nome,perfil,ativo,criado_em,excluido_em')
+        .eq('empresa_id', caller.account.empresa_id).is('excluido_em',null).order('login');
       if (error) throw new Error('Falha ao consultar usuários.');
       return reply(200, { usuarios: (data || []).map(publicAccount) }, origin);
     }
@@ -267,6 +268,34 @@ Deno.serve(async (req) => {
         .eq('usuario_id', target.usuario_id);
       if (error) throw new Error('Permissões retiradas, mas não foi possível atualizar o cadastro.');
       return reply(200, { ok: true }, origin);
+    }
+    if (action === 'excluir') {
+      const target = await targetAccount(caller, payload.usuario_id);
+      if (target.usuario_id === caller.user.id)
+        throw new Error('Não é permitido excluir a própria conta.');
+      if (target.perfil === 'administrador')
+        throw new Error('Por segurança, contas ADM não podem ser excluídas.');
+      const { data: adminLink, error: linkError } = await admin.from('usuarios_empresas')
+        .select('perfil').eq('empresa_id', caller.account.empresa_id)
+        .eq('usuario_id', target.usuario_id).maybeSingle();
+      if (linkError) throw new Error('Falha ao verificar a proteção da conta.');
+      if (adminLink?.perfil === 'administrador')
+        throw new Error('Por segurança, contas ADM não podem ser excluídas.');
+      // A identidade Auth e o histórico operacional ficam preservados.
+      // Primeiro bloqueia o acesso; depois retira o vínculo e arquiva o cadastro.
+      const { error: banError } = await admin.auth.admin.updateUserById(target.usuario_id,
+        { ban_duration: '876000h' });
+      if (banError) throw new Error('Não foi possível bloquear o login para exclusão.');
+      const { error: unlinkError } = await admin.from('usuarios_empresas').delete()
+        .eq('empresa_id', caller.account.empresa_id).eq('usuario_id', target.usuario_id);
+      if (unlinkError) throw new Error('Login bloqueado, mas não foi possível desvincular o usuário.');
+      const { error: archiveError } = await admin.from('usuarios_login')
+        .update({ ativo:false,excluido_em:new Date().toISOString(),
+          excluido_por:caller.user.id, atualizado_em:new Date().toISOString() })
+        .eq('usuario_id', target.usuario_id).eq('empresa_id', caller.account.empresa_id)
+        .is('excluido_em',null);
+      if (archiveError) throw new Error('Login bloqueado e desvinculado, mas o cadastro não foi arquivado.');
+      return reply(200, { ok:true,excluido:true,historico_preservado:true }, origin);
     }
     if (action === 'reativar') {
       const target = await targetAccount(caller, payload.usuario_id);
