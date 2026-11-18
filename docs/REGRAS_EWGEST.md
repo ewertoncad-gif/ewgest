@@ -260,3 +260,13 @@
 - \`usuarios_login\` e \`usuarios_empresas\` não concedem UPDATE direto a \`authenticated\`. Gerenciamento de contas passa exclusivamente pela Edge Function, que verifica o usuário autenticado e o vínculo com a empresa.
 - Adicionados botões **Mostrar/Ocultar** exclusivamente para ver a senha que está sendo digitada pelo operador em cadastro, login, redefinição e Minha senha. A senha antiga de outro usuário não pode ser visualizada nem recuperada.
 - A versão v42.8 não cria automaticamente nenhuma nova conta, e preserva sessões, esquadrias, estoques e romaneios.
+
+
+## Exclusão de usuários e F5 (v42.9 — 18/11/2026)
+- Em **Administração → Usuários → Editar usuário**, o botão **Excluir usuário** solicita confirmação e digitação do login. Conta ADM e conta de quem realiza a operação não podem ser excluídas.
+- **Exclusão administrativa não é exclusão física de \`auth.users\`**: a conta é banida do Auth, desvinculada de \`usuarios_empresas\`, marcada como inativa e arquivada em \`usuarios_login.excluido_em\` e \`excluido_por\`. Deixa de aparecer na listagem padrão e não pode ser reativada via API comum. O histórico de acessos, estoque, liberações e romaneios continua íntegro. O gerente também não pode excluir contas ADM.
+- Não eliminar em cascata entidades vinculadas a \`auth.users\`; várias tabelas usam \`ON DELETE RESTRICT\`. Não inventar horário de saída para acesso arquivado.
+- Ao pressionar **F5 na mesma aba**, a sessão armazenada em \`sessionStorage\` será lida novamente. Se o access token estiver perto do vencimento, renovar com refresh token antes da verificação da sessão única.
+- Se houver falha transitória de rede, serviço ou consultas, manter o token armazenado e oferecer **Tentar restaurar sessão sem informar senha**. Só eliminar tokens em autenticação comprovadamente inválida, revogada ou substituída.
+- A regra de **uma sessão por usuário** continua ativa; se houver outra sessão de Auth, a confirmação explícita de substituição permanece necessária.
+- Exclusão administrativa nunca é feita automaticamente na implantação e só ocorre após confirmação dentro do EWGEST.
