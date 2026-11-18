@@ -93,6 +93,12 @@
     .userCardName{font-weight:700}.userCardLogin{font-size:13px;color:#adc8dc;margin-top:5px}
     .userStatus{font-size:12px;border-radius:7px;border:1px solid #3d6078;padding:5px 8px;color:#bfdae9}
     .userStatus.disabled{color:#ffcaad;border-color:#92574a}
+    .passwordField{position:relative;min-width:0}
+    .passwordField input{width:100%;padding-right:98px!important}
+    .passwordToggle{position:absolute;right:7px;top:50%;transform:translateY(-50%);
+      border:1px solid #b6cbe3;border-radius:7px;padding:6px 10px;cursor:pointer;
+      font-size:12px;font-weight:700;background:#e8f2ff;color:#204b76}
+    .passwordToggle:hover,.passwordToggle:focus-visible{background:#d4e6fd;outline:2px solid #8aadd7;outline-offset:1px}
     .userActions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
     .userExplanation{margin-top:14px;color:#abc2d6;font-size:13px;line-height:1.55}
     @media(max-width:650px){.userGrid{grid-template-columns:1fr}.userGrid .wide{grid-column:auto}}
@@ -595,7 +601,7 @@
         <label for="email">Nome de usuário ou e-mail</label>
         <input id="email" type="text" required autocomplete="username" placeholder="Ex.: ewerton santos">
         <label for="password">Senha</label>
-        <input id="password" type="password" required autocomplete="current-password" placeholder="Senha de acesso à EWGEST">
+        <div class="passwordField"><input id="password" type="password" required autocomplete="current-password" placeholder="Senha de acesso à EWGEST"><button type="button" class="passwordToggle" data-show-password="password" aria-controls="password" aria-pressed="false">Mostrar</button></div>
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
@@ -672,7 +678,7 @@
         <button id="usersBack" class="btn secondary" type="button">← Tela inicial</button>
         <button id="userAccessHistoryToggle" class="btn secondary" type="button" style="margin-left:8px">Histórico de acessos</button>
         <h1 style="margin-top:18px">Cadastro de usuários</h1>
-        <div class="muted">Apenas administradores podem criar usuários, redefinir senhas ou retirar acessos.</div>
+        <div class="muted">ADM e Gerenciador podem administrar usuários. Somente o ADM pode alterar contas de administradores.</div>
       </div></div>
       <div id="userAccessHistoryPanel" class="section panel hidden">
         <div class="row" style="justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap">
@@ -709,15 +715,16 @@
                 <option value="tecnico">Técnico</option>
                 <option value="almoxarife">Almoxarife — somente romaneios</option>
                 <option value="consulta">Somente consulta</option>
+                <option value="gerenciador">Gerenciador — não altera ADM</option>
                 <option value="administrador">Administrador</option>
               </select></div>
             <div><label for="createUserPassword">Senha inicial</label>
-              <input id="createUserPassword" type="password" autocomplete="new-password"
-                minlength="6" maxlength="128" required placeholder="Mínimo de 6 caracteres"></div>
+              <div class="passwordField"><input id="createUserPassword" type="password" autocomplete="new-password"
+                minlength="6" maxlength="128" required placeholder="Mínimo de 6 caracteres"><button type="button" class="passwordToggle" data-show-password="createUserPassword" aria-controls="createUserPassword" aria-pressed="false">Mostrar</button></div></div>
           </div>
           <div class="userActions"><button id="createUserSubmit" class="btn primary" type="submit">Cadastrar usuário</button></div>
           <p class="hint">A senha deve ter pelo menos 6 caracteres. O administrador pode redefinir a senha inicial ou escolher outra, sem visualizar a anterior. O usuário pode trocá-la em Minha senha.</p>
-          <p class="hint">Administrador gerencia o sistema e registra liberações e saídas. Técnico e Consulta têm acesso conforme as permissões da empresa.</p>
+          <p class="hint">Administrador possui controle completo; Gerenciador pode operar e administrar contas, exceto alterar usuários ADM. Técnico, Almoxarife e Consulta têm acesso conforme suas permissões.</p>
         </form>
         <div id="createUserMessage" class="feedback" role="status" aria-live="polite"></div>
       </div>
@@ -740,11 +747,11 @@
       <div class="panel" style="max-width:560px">
         <form id="myPasswordForm">
           <label for="myOldPassword">Senha atual</label>
-          <input id="myOldPassword" type="password" required autocomplete="current-password">
+          <div class="passwordField"><input id="myOldPassword" type="password" required autocomplete="current-password"><button type="button" class="passwordToggle" data-show-password="myOldPassword" aria-controls="myOldPassword" aria-pressed="false">Mostrar</button></div>
           <label for="myNewPassword">Nova senha</label>
-          <input id="myNewPassword" type="password" required minlength="6" maxlength="128" autocomplete="new-password">
+          <div class="passwordField"><input id="myNewPassword" type="password" required minlength="6" maxlength="128" autocomplete="new-password"><button type="button" class="passwordToggle" data-show-password="myNewPassword" aria-controls="myNewPassword" aria-pressed="false">Mostrar</button></div>
           <label for="myNewPasswordRepeat">Confirme a nova senha</label>
-          <input id="myNewPasswordRepeat" type="password" required minlength="6" maxlength="128" autocomplete="new-password">
+          <div class="passwordField"><input id="myNewPasswordRepeat" type="password" required minlength="6" maxlength="128" autocomplete="new-password"><button type="button" class="passwordToggle" data-show-password="myNewPasswordRepeat" aria-controls="myNewPasswordRepeat" aria-pressed="false">Mostrar</button></div>
           <button id="myPasswordSubmit" type="submit" class="btn primary full">Alterar minha senha</button>
           <p id="myPasswordMessage" class="feedback" role="status" aria-live="polite"></p>
         </form>
@@ -1555,7 +1562,8 @@
       <input id="userEditName" type="text" autocomplete="off" minlength="2" maxlength="100" required>
       <label for="userEditRole">Perfil</label>
       <select id="userEditRole">
-        <option value="administrador">Administrador</option>
+        <option value="gerenciador">Gerenciador — não altera ADM</option>
+                <option value="administrador">Administrador</option>
         <option value="tecnico">Técnico</option>
         <option value="almoxarife">Almoxarife — somente romaneios</option>
         <option value="consulta">Somente consulta</option>
@@ -1569,7 +1577,7 @@
       <h2>Redefinir senha</h2>
       <p class="hint">A senha antiga não pode ser visualizada. Digite uma nova senha para substituir a anterior.</p>
       <label for="userResetPassword">Nova senha</label>
-      <input id="userResetPassword" type="password" autocomplete="new-password" minlength="6" maxlength="128">
+      <div class="passwordField"><input id="userResetPassword" type="password" autocomplete="new-password" minlength="6" maxlength="128"><button type="button" class="passwordToggle" data-show-password="userResetPassword" aria-controls="userResetPassword" aria-pressed="false">Mostrar</button></div>
       <button id="userResetSubmit" type="button" class="btn secondary" style="margin-top:12px">Definir nova senha</button>
     </div>
     <div class="userActions" style="margin-top:24px;border-top:1px solid #38516a;padding-top:18px">
@@ -1611,6 +1619,25 @@ let manufacturerCatalog=[],manufacturerLoadError='',originalManufacturerForEdit=
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
 function isAlmoxarife(){return String(membership?.perfil||'').toLowerCase()==='almoxarife';}
+function isFullAdminUser(){return String(membership?.perfil||'').toLowerCase()==='administrador';}
+function canAdministrate(){return ['administrador','gerenciador'].includes(String(membership?.perfil||'').toLowerCase());}
+function maskPassword(id){
+  const input=node(id);
+  if(input)input.type='password';
+  const button=document.querySelector('[data-show-password="'+id+'"]');
+  if(button){button.textContent='Mostrar';button.setAttribute('aria-pressed','false');}
+}
+document.querySelectorAll('[data-show-password]').forEach(button=>{
+  button.addEventListener('click',()=>{
+    const input=node(button.dataset.showPassword);
+    if(!input)return;
+    const showing=input.type==='password';
+    input.type=showing?'text':'password';
+    button.textContent=showing?'Ocultar':'Mostrar';
+    button.setAttribute('aria-pressed',String(showing));
+    input.focus({preventScroll:true});
+  });
+});
 function podeEmitirRomaneio(){return ['administrador','supervisor','almoxarife'].includes(String(membership?.perfil||'').toLowerCase());}
 function setView(view){
   if(isAlmoxarife()&&!['login','romaneiosPage','myPassword'].includes(view))view='romaneiosPage';
