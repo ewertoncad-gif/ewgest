@@ -590,7 +590,7 @@
     <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v42.7.1</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v42.8</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="login" class="panel login">
@@ -605,7 +605,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • interface renovada v42.7.1</div>
+        <div class="build">EWGEST • interface renovada v42.8</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -1638,7 +1638,7 @@ document.querySelectorAll('[data-show-password]').forEach(button=>{
     input.focus({preventScroll:true});
   });
 });
-function podeEmitirRomaneio(){return ['administrador','supervisor','almoxarife'].includes(String(membership?.perfil||'').toLowerCase());}
+function podeEmitirRomaneio(){return ['administrador','gerenciador','supervisor','almoxarife'].includes(String(membership?.perfil||'').toLowerCase());}
 function setView(view){
   if(isAlmoxarife()&&!['login','romaneiosPage','myPassword'].includes(view))view='romaneiosPage';
   for(const id of ['login','dashboard','detail','romaneiosPage','typologies','manufacturers','materials','stock','cemImport','users','myPassword'])
@@ -1787,15 +1787,15 @@ async function loadPanel(){
   currentCompany=comps.find(e=>e.nome==='GVG ESQUADRIAS')||comps[0];
   membership=rel.find(r=>r.empresa_id===currentCompany.id);
   const somenteRomaneios=isAlmoxarife();
-  const adminNav=String(membership?.perfil||'').toLowerCase()==='administrador';
+  const adminNav=canAdministrate();
   node('navHome').classList.toggle('hidden',somenteRomaneios);
   node('navRomaneios').classList.toggle('hidden',!podeEmitirRomaneio());
   for(const id of ['navTypologies','navManufacturers','navMaterials','navStock','navCem','navUsers'])node(id).classList.toggle('hidden',!adminNav);
   node('openRomaneioHub').classList.toggle('hidden',!podeEmitirRomaneio()||somenteRomaneios);
   node('topTag').textContent=somenteRomaneios?'Romaneios e expedição':'Gestão de obras · liberações e saídas';
-  node('openTypologies').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
-  node('openManufacturers').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
-  node('openUsers').classList.toggle('hidden',String(membership?.perfil||'').toLowerCase()!=='administrador');
+  node('openTypologies').classList.toggle('hidden',!canAdministrate());
+  node('openManufacturers').classList.toggle('hidden',!canAdministrate());
+  node('openUsers').classList.toggle('hidden',!canAdministrate());
   const [w,e,tips]=await Promise.all([
     apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'}),
     apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id,rotulo_tipologia_relatorio,quantidade_modulos,modulacao_id',empresa_id:'eq.'+currentCompany.id}),
@@ -1813,7 +1813,7 @@ async function loadPanel(){
   typologyOrigins=[];typologyOriginReady=false;typologyCroquis=[];
   modulationCatalog=[];
   manufacturerCatalog=[];manufacturerLoadError='';
-  if(String(membership?.perfil||'').toLowerCase()==='administrador'){
+  if(canAdministrate()){
     try{
       manufacturerCatalog=await apiGet('fabricantes',{
         select:'id,empresa_id,nome',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'
@@ -1827,7 +1827,7 @@ async function loadPanel(){
       empresa_id:'eq.'+currentCompany.id,order:'numero_variacao.asc'
     });
   }catch(e){modulationCatalog=[];throw new Error('Não foi possível carregar as variações técnicas: '+e.message);}
-  if(String(membership?.perfil||'').toLowerCase()==='administrador'){
+  if(canAdministrate()){
     try{
       typologyOrigins=await apiGet('tipologias_origens',{select:'tipologia_id,codigo_origem,descricao_origem,ativo,tipo_chave_origem',empresa_id:'eq.'+currentCompany.id});
       typologyOriginReady=true;
@@ -2094,7 +2094,7 @@ function renderHistoricoRomaneios(obraId){
       const n=romaneioItens.filter(i=>i.romaneio_id===r.id).length;
       const dt=String(r.data_saida).split('-').reverse().join('/');
       const cancelado=r.status==='cancelado';
-      const adm=String(membership?.perfil||'').toLowerCase()==='administrador';
+      const adm=canAdministrate();
       return '<div class="romaneioHistoryRow"><span><strong>'+escapeHTML(r.numero)+
         '</strong> · '+escapeHTML(dt)+' · '+n+' item(ns) · '+escapeHTML(r.motorista)+
         (cancelado?' · <strong style="color:#ffb8aa">CANCELADO</strong>':'')+
@@ -2116,7 +2116,7 @@ function renderHistoricoRomaneios(obraId){
 }
 let romaneioCancelSelecionado=null;
 function cancelarRomaneio(id){
-  if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  if(!canAdministrate())return;
   const original=romaneios.find(r=>r.id===id&&r.status!=='cancelado');
   if(!original)return;
   romaneioCancelSelecionado=original;
@@ -2139,7 +2139,7 @@ function onRomaneioCancelInput(){
 async function confirmarCancelamentoRomaneio(event){
   event.preventDefault();
   const original=romaneioCancelSelecionado;
-  if(!original||String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  if(!original||!canAdministrate())return;
   const texto=node('romaneioCancelReason').value.trim();
   if(texto.length<10||texto.length>400){
     node('romaneioCancelError').textContent='Informe um motivo de 10 a 400 caracteres.';
@@ -2189,7 +2189,7 @@ function abrirEmissaoRomaneio(){
   node('romaneioModal').classList.remove('hidden');
   node('romaneioNumberEditor').classList.add('hidden');
   node('romaneioNumberMessage').textContent='';
-  node('romaneioChangeCode').classList.toggle('hidden',!['administrador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()));
+  node('romaneioChangeCode').classList.toggle('hidden',!['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()));
   atualizarCodigoRomaneio();
   if(elements.some(x=>x.obra_id===selectedWork.id&&Number(x.qtd_liberada)>0&&
       (romaneioSaldoPorTipo(x,'marco')>0||romaneioSaldoPorTipo(x,'folha',1)>0)))
@@ -2754,7 +2754,7 @@ function renderRomaneioHub(){
   if(romaneioLoadError){box.textContent='Falha ao carregar os romaneios: '+romaneioLoadError;return;}
   const docs=romaneios.filter(r=>r.obra_id===obra.id);
   if(!docs.length){box.textContent='Nenhum romaneio emitido nesta obra.';return;}
-  const adm=String(membership?.perfil||'').toLowerCase()==='administrador';
+  const adm=canAdministrate();
   box.innerHTML=docs.map(r=>{
     const count=romaneioItens.filter(x=>x.romaneio_id===r.id).length;
     const cancelled=r.status==='cancelado';
@@ -2794,7 +2794,7 @@ function renderDetail(w){
   node('detailPending').textContent=amount(t.total-t.released);
   node('detailMade').textContent=amount(t.made);
   renderUnitCounters('detail',t);
-  const canEdit=['administrador','supervisor'].includes(String(membership?.perfil||'').toLowerCase());
+  const canEdit=['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase());
   const shipping=detailMode==='shipment';
   node('tabRelease').classList.toggle('active',!shipping);
   node('tabRelease').setAttribute('aria-pressed',String(!shipping));
@@ -2947,7 +2947,7 @@ function renderShipmentHistory(id){
 }
 
 function openShipment(id){
-  if(!dispatchReady||!['administrador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
+  if(!dispatchReady||!['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
   selectedItem=elements.find(e=>e.id===id);
   if(!selectedItem||Number(selectedItem.qtd_liberada)<=0)return;
   const s=shipmentStats(selectedItem);
@@ -3193,7 +3193,7 @@ async function releaseLerCem(){
   finally{btn.disabled=false;}
 }
 function openRelease(id){
-  if(!['administrador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
+  if(!['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
   selectedItem=elements.find(e=>e.id===id);if(!selectedItem)return;
   const pending=Number(selectedItem.quantidade)-Number(selectedItem.qtd_liberada);
   if(pending<=0)return;
@@ -3331,9 +3331,9 @@ function accessLogClear(){
 }
 let managedAccounts=[];
 let editingManagedAccount=null;
-function canManageUsers(){return String(membership?.perfil||'').toLowerCase()==='administrador';}
+function canManageUsers(){return canAdministrate();}
 function roleLabel(value){
-  return ({administrador:'Administrador',supervisor:'Supervisor',tecnico:'Técnico',consulta:'Consulta'})[value]||value;
+  return ({administrador:'Administrador',gerenciador:'Gerenciador',supervisor:'Supervisor',tecnico:'Técnico',almoxarife:'Almoxarife',consulta:'Consulta'})[value]||value;
 }
 function closeManagedUserEdit(){
   node('userEditOverlay').classList.add('hidden');
@@ -3355,7 +3355,7 @@ function renderManagedAccounts(){
   });
 }
 async function reloadManagedUsers(){
-  if(!canManageUsers())throw new Error('Somente administradores podem gerenciar usuários.');
+  if(!canManageUsers())throw new Error('Somente ADM ou Gerenciador podem gerenciar usuários.');
   await ensureSession();
   // Leitura direta protegida por RLS: mostra inclusive a conta do próprio ADM.
   managedAccounts=await apiGet('usuarios_login',{
@@ -4003,7 +4003,7 @@ async function salvarConferenciaDescricao(){
   }
 }
 function abrirConferenciaTipologia(id){
-  if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  if(!canAdministrate())return;
   const item=elements.find(x=>x.id===id&&!x.modulacao_id);
   if(!item)return;
   if(item.tipologia_id){
@@ -4232,7 +4232,7 @@ function syncVariationForm(){
 }
 async function saveVariationFamily(event){
   event.preventDefault();
-  if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  if(!canAdministrate())return;
   const id=node('variationRecord').value;
   const parentId=node('variationParent').value||null;
   const raw=node('variationModules').value.trim();
@@ -4305,7 +4305,7 @@ function renderAbreviacoesCatalogo(){
   atualizarPreviaAbreviacao();
 }
 async function salvarAbreviacaoCatalogo(restaurar=false){
-  if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  if(!canAdministrate())return;
   const t=typologyCatalog.find(x=>x.id===node('typologyAbbrevSelect').value);
   if(!t)return;
   const texto=restaurar?null:node('typologyAbbrevText').value.trim();
@@ -4338,7 +4338,7 @@ async function salvarAbreviacaoCatalogo(restaurar=false){
   }
 }
 function renderTypologiesAdmin() {
-  if(String(membership?.perfil||'').toLowerCase()!=='administrador'){setView('dashboard');return;}
+  if(!canAdministrate()){setView('dashboard');return;}
   refreshVariationManager();
   renderConferenciaPendentes();
   renderModulacoesCadastradas();
@@ -4482,7 +4482,7 @@ function showTypologyEditStep(step) {
 }
 
 function openTypologyEdit(id) {
-  if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  if(!canAdministrate())return;
   if(!typologyOriginReady){
     node('typologyAdminMessage').textContent='Não foi possível consultar os vínculos de origem. Clique em Atualizar dados e tente novamente.';
     return;
@@ -4535,7 +4535,7 @@ function openTypologyEdit(id) {
 
 
 function openPendingTypologyClassification(id) {
-  if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  if(!canAdministrate())return;
   if(!typologyOriginReady){
     node('typologyAdminMessage').textContent='Os vínculos de origem ainda não foram carregados. Atualize o painel antes de classificar.';
     return;
@@ -4593,7 +4593,7 @@ function escolhaIdentificacao(){
 function abrirCorrecaoIdentificacao(){
   const origem=editingTypology;
   if(!origem||editingPendingItem||
-     String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+     !canAdministrate())return;
   const temDependentes=typologyCatalog.some(t=>t.tipologia_principal_id===origem.id);
   const temModulacoesDeOutros=modulationCatalog.some(m=>m.tipologia_principal_id===origem.id&&m.tipologia_legada_id!==origem.id);
   if(temDependentes||temModulacoesDeOutros)return;
@@ -4716,7 +4716,7 @@ function closeTypologyEdit() {
 async function saveTypologyEdit(event) {
   event.preventDefault();
   if(!editingTypology&&!editingPendingItem)return;
-  if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  if(!canAdministrate())return;
   const pendingItem=editingPendingItem;
   const code=node('typologyEditCode').value.trim();
   const description=node('typologyEditDescription').value.trim();
@@ -4791,7 +4791,7 @@ async function saveTypologyEdit(event) {
 
 
 async function salvarCroquiRemoto(tipologiaId,imagemBase64,origem,exemplo){
-  if(String(membership?.perfil||'').toLowerCase()!=='administrador'){
+  if(!canAdministrate()){
     throw new Error('Somente o administrador pode cadastrar croquis.');
   }
   await ensureSession();
@@ -4920,7 +4920,7 @@ node('typologyEditForm').addEventListener('submit',saveTypologyEdit);
 
 
 function adminCanManageManufacturers() {
-  return String(membership?.perfil||'').toLowerCase()==='administrador';
+  return canAdministrate();
 }
 function refreshManufacturerSuggestions(){
   const list=node('typologyManufacturerSuggestions');
@@ -5005,7 +5005,7 @@ node('identityDifferent').addEventListener('change',validarCorrecaoIdentificacao
 node('identityCancel').addEventListener('click',()=>fecharCorrecaoIdentificacao(true));
 node('identitySave').addEventListener('click',salvarCorrecaoIdentificacao);
 node('openTypologies').addEventListener('click',()=>{
-  if(String(membership?.perfil||'').toLowerCase()!=='administrador')return;
+  if(!canAdministrate())return;
   node('typologySearch').value='';
   renderTypologiesAdmin();
   setView('typologies');
@@ -5054,7 +5054,7 @@ node('back').addEventListener('click',()=>setView('dashboard'));
 node('goHome').addEventListener('click',()=>setView('dashboard'));
 
 /* Cadastros editáveis por ADM. Não registra saldo e não importa automaticamente materiais. */
-const matIsAdmin=()=>String(membership?.perfil||'').toLowerCase()==='administrador';
+const matIsAdmin=()=>canAdministrate();
 const matTable=()=>matTipo==='perfil'?'ew_perfis':'ew_acessorios';
 const matEntries=()=>matTipo==='perfil'?matPerfis:matAcessorios;
 const matLbl=()=>matTipo==='perfil'?'perfil':'acessório';
@@ -6657,7 +6657,7 @@ node('stockManageClose').addEventListener('click',()=>node('stockManageOverlay')
 let releaseBatchWorkId=null,releaseBatchParsed=null,releaseBatchFileName='',
     releaseBatchOperationId=null;
 function releaseBatchOpen(){
- if(!selectedWork||!['administrador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
+ if(!selectedWork||!['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
  releaseBatchWorkId=selectedWork.id;
  releaseBatchParsed=null;releaseBatchOperationId=null;releaseBatchFileName='';
  node('releaseBatchWork').textContent='Obra: '+selectedWork.nome+' · '+selectedWork.codigo;
@@ -6959,7 +6959,7 @@ try{
       setError('Sessão anterior não restaurada: '+e.message);
       setStatus('Pode tentar entrar novamente.');
     });
-  }else{setStatus('Aplicativo v42.7.1 pronto. Digite sua senha e clique em Entrar no painel.');}
+  }else{setStatus('Aplicativo v42.8 pronto. Digite sua senha e clique em Entrar no painel.');}
 }catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
