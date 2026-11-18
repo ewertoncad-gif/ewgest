@@ -67,7 +67,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'interface renovada v42.7',
+ 'interface renovada v42.7.1',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -879,6 +879,10 @@ assert.ok(source.includes("sessaoUnicaMonitorar()")&&source.includes("setInterva
 assert.ok(source.includes("if(!await sessaoUnicaEntrar())")&&
  source.includes("sessaoUnicaEntrar().then(async permitido=>"),
  'Login e restauração de sessão devem passar pelo controle de sessão única');
+// Não derrubar o usuário por falhas temporárias ou de permissão da função de contas.
+assert.ok(source.includes('const invalidAuth=/Acesse sua conta')&&
+ source.includes('if(authenticated&&response.status===401&&invalidAuth)'),
+ 'Falha genérica da API de usuários não deve encerrar uma sessão válida');
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
 
 

@@ -584,7 +584,7 @@
     <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v42.7</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v42.7.1</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="login" class="panel login">
@@ -599,7 +599,7 @@
         <button id="loginButton" class="btn primary full" type="submit">Entrar no painel</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • interface renovada v42.7</div>
+        <div class="build">EWGEST • interface renovada v42.7.1</div>
       </form>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
@@ -1675,8 +1675,11 @@ async function userApi(payload,authenticated=true) {
     const result=await response.json().catch(()=>({}));
     if(!response.ok){
       const failure=result.error||('Erro '+response.status+' ao consultar o acesso.');
-      if(authenticated&&response.status===401){
-        invalidateAppSession('Sua sessão foi encerrada. Entre novamente com sua senha atual.');
+      // Apenas credenciais/sessões realmente inválidas encerram o login.
+      // Falhas internas do servidor ou permissões mal configuradas não podem expulsar o usuário.
+      const invalidAuth=/Acesse sua conta|Sessão inválida|Sessão substituída|sem acesso ativo|não autorizado/i.test(failure);
+      if(authenticated&&response.status===401&&invalidAuth){
+        invalidateAppSession(failure);
         throw new Error('Sessão encerrada. Faça login novamente; nenhum cadastro foi realizado.');
       }
       throw new Error(failure);
@@ -6929,7 +6932,7 @@ try{
       setError('Sessão anterior não restaurada: '+e.message);
       setStatus('Pode tentar entrar novamente.');
     });
-  }else{setStatus('Aplicativo v42.7 pronto. Digite sua senha e clique em Entrar no painel.');}
+  }else{setStatus('Aplicativo v42.7.1 pronto. Digite sua senha e clique em Entrar no painel.');}
 }catch(e){setError('Falha de inicialização: '+e.message);}
 </script>
 </body>
