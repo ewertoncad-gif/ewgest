@@ -1666,6 +1666,7 @@ function invalidateAppSession(reason){
   node('userResetPassword').value='';
   node('createUserPassword').value='';
   node('myPasswordForm').reset();
+  for(const id of ['myOldPassword','myNewPassword','myNewPasswordRepeat'])maskPassword(id);
   setView('login');
   setStatus(reason);
   setError(reason);
@@ -1788,6 +1789,12 @@ async function loadPanel(){
   membership=rel.find(r=>r.empresa_id===currentCompany.id);
   const somenteRomaneios=isAlmoxarife();
   const adminNav=canAdministrate();
+  for(const id of ['createUserRole','userEditRole']){
+    const option=node(id).querySelector('[value="administrador"]');
+    if(option){option.disabled=!isFullAdminUser();option.hidden=!isFullAdminUser();}
+  }
+  if(!isFullAdminUser()&&node('createUserRole').value==='administrador')
+    node('createUserRole').value='gerenciador';
   node('navHome').classList.toggle('hidden',somenteRomaneios);
   node('navRomaneios').classList.toggle('hidden',!podeEmitirRomaneio());
   for(const id of ['navTypologies','navManufacturers','navMaterials','navStock','navCem','navUsers'])node(id).classList.toggle('hidden',!adminNav);
@@ -3343,13 +3350,15 @@ function closeManagedUserEdit(){
 function renderManagedAccounts(){
   const rows=managedAccounts.slice().sort((a,b)=>String(a.login).localeCompare(String(b.login),'pt-BR'));
   node('usersMessage').textContent=rows.length+' usuário(s) cadastrado(s). Clique para editar.';
-  node('usersList').innerHTML=rows.map(user=>
-    '<button type="button" class="userCard" data-user-id="'+escapeHTML(user.usuario_id)+'">'+
+  node('usersList').innerHTML=rows.map(user=>{
+    const protectedAdm=!isFullAdminUser()&&user.perfil==='administrador';
+    return '<button type="button" class="userCard" data-user-id="'+escapeHTML(user.usuario_id)+'"'+
+      (protectedAdm?' disabled title="Conta ADM protegida: não pode ser alterada pelo Gerenciador"':'')+'>'+
       '<div><div class="userCardName">'+escapeHTML(user.nome)+'</div>'+
       '<div class="userCardLogin">Login: '+escapeHTML(user.login)+' · '+escapeHTML(roleLabel(user.perfil))+'</div></div>'+
       '<span class="userStatus '+(user.ativo?'':'disabled')+'">'+
-        (user.ativo?'Ativo':'Desativado')+'</span></button>'
-  ).join('');
+        (protectedAdm?'ADM protegido':user.ativo?'Ativo':'Desativado')+'</span></button>';
+  }).join('');
   node('usersList').querySelectorAll('[data-user-id]').forEach(btn=>{
     btn.addEventListener('click',()=>openManagedUserEdit(btn.dataset.userId));
   });
@@ -3463,6 +3472,10 @@ function openManagedUserEdit(id){
   if(!canManageUsers())return;
   const account=managedAccounts.find(x=>x.usuario_id===id);
   if(!account)return;
+  if(!isFullAdminUser()&&account.perfil==='administrador'){
+    node('usersMessage').textContent='A conta ADM é protegida e não pode ser alterada pelo Gerenciador.';
+    return;
+  }
   editingManagedAccount=account;
   const self=account.usuario_id===currentUser.id;
   node('userEditTitle').textContent='Editar usuário · '+account.login;
@@ -3470,7 +3483,8 @@ function openManagedUserEdit(id){
   node('userEditName').value=account.nome;
   node('userEditRole').value=account.perfil;
   node('userEditRole').disabled=self;
-  node('userResetPassword').value='';
+  node('userEditRole').querySelector('[value="administrador"]').disabled=!isFullAdminUser();
+  node('userResetPassword').value='';maskPassword('userResetPassword');
   node('userEditMessage').textContent='';
   node('userToggleActive').classList.toggle('hidden',self);
   node('userToggleActive').textContent=account.ativo?'Desativar acesso':'Reativar acesso';
@@ -3553,6 +3567,9 @@ node('createUserForm').addEventListener('submit',async(event)=>{
   const perfil=node('createUserRole').value;
   const senha=node('createUserPassword').value;
   if(senha.length<6){node('createUserMessage').textContent='O Supabase exige uma senha com pelo menos 6 caracteres.';return;}
+  if(!isFullAdminUser()&&perfil==='administrador'){
+    node('createUserMessage').textContent='Somente o ADM pode criar outro Administrador.';return;
+  }
   if(perfil==='administrador' && !confirm('Criar outro administrador? Ele poderá gerenciar usuários, senhas e cadastros.'))return;
   const button=node('createUserSubmit');
   button.disabled=true;button.textContent='Cadastrando…';
@@ -3561,7 +3578,7 @@ node('createUserForm').addEventListener('submit',async(event)=>{
   try{
     await userApi({acao:'criar',login,nome,perfil,senha});
     saved=true;
-    node('createUserPassword').value='';
+    node('createUserPassword').value='';maskPassword('createUserPassword');
     node('createUserLogin').value='';
     node('createUserName').value='';
     node('createUserRole').value='tecnico';
@@ -3581,6 +3598,9 @@ node('userEditForm').addEventListener('submit',async(event)=>{
   const login=node('userEditLogin').value.trim();
   const nome=node('userEditName').value.trim();
   const perfil=node('userEditRole').value;
+  if(!isFullAdminUser()&&(target.perfil==='administrador'||perfil==='administrador')){
+    node('userEditMessage').textContent='Gerenciador não pode alterar ou conceder perfil ADM.';return;
+  }
   const button=node('userEditSubmit');
   button.disabled=true;button.textContent='Salvando…';
   try{
@@ -3606,7 +3626,7 @@ node('userResetSubmit').addEventListener('click',async()=>{
   node('userEditMessage').textContent='';
   try{
     await userApi({acao:'redefinir_senha',usuario_id:target.usuario_id,nova_senha:next});
-    node('userResetPassword').value='';
+    node('userResetPassword').value='';maskPassword('userResetPassword');
     if(target.usuario_id===currentUser.id){
       closeManagedUserEdit();
       invalidateAppSession('Senha do administrador alterada. Entre novamente usando a nova senha.');
@@ -3638,6 +3658,7 @@ node('userToggleActive').addEventListener('click',async()=>{
 });
 node('myPasswordHeader').addEventListener('click',()=>{
   node('myPasswordForm').reset();
+  for(const id of ['myOldPassword','myNewPassword','myNewPasswordRepeat'])maskPassword(id);
   node('myPasswordMessage').textContent='';
   setView('myPassword');
 });
