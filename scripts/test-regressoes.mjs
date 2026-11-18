@@ -489,9 +489,9 @@ for(const expected of [
 const funcInicio=source.indexOf('function isAlmoxarife(){');
 const funcFinal=source.indexOf('function invalidateAppSession(reason){',funcInicio);
 assert.ok(funcInicio>=0&&funcFinal>funcInicio,'Guarda de navegação presente');
-const evaluateRole=role=>new Function('membership',
+const evaluateRole=role=>new Function('membership','document',
  source.slice(funcInicio,funcFinal)+'\nreturn {isAlmoxarife,podeEmitirRomaneio};'
-)({perfil:role});
+)({perfil:role},{querySelectorAll:()=>[]});
 assert.equal(evaluateRole('almoxarife').isAlmoxarife(),true,'Reconhece perfil almoxarife');
 assert.equal(evaluateRole('almoxarife').podeEmitirRomaneio(),true,'Permite emitir');
 assert.equal(evaluateRole('consulta').podeEmitirRomaneio(),false,'Consulta não pode emitir');
