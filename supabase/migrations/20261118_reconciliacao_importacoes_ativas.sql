@@ -24,7 +24,7 @@ BEGIN
  INSERT INTO public.ew_estoques_locais(empresa_id,obra_id,criado_por)
  VALUES(p_empresa_id,v_obra,v_uid);
  RETURN jsonb_build_object('id',v_obra,'codigo',v_codigo,'nome',v_nome);
-END;$function$
+END;$function$;
 
 
 CREATE OR REPLACE FUNCTION public.ew_importar_saldo_obra_cem(p_empresa_id uuid, p_codigo_obra text, p_perfis jsonb, p_acessorios jsonb, p_nome_arquivo text, p_operacao_id uuid)
@@ -143,7 +143,7 @@ BEGIN
    (empresa_id,obra_id,operacao_id,nome_arquivo,resumo,usuario_id)
  VALUES(p_empresa_id,v_obra_id,p_operacao_id,p_nome_arquivo,v_result,v_usuario);
  RETURN v_result;
-END;$function$
+END;$function$;
 
 
 CREATE OR REPLACE FUNCTION public.importar_materiais_cem(p_empresa_id uuid, p_codigo_obra text, p_perfis jsonb, p_acessorios jsonb, p_operacao_id uuid)
