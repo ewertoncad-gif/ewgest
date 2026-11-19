@@ -1180,6 +1180,22 @@ assert.ok(source.includes("node('stockReverseApply').textContent='Estornar todos
  source.includes("node('stockReverseApply').removeAttribute('title')")&&
  source.includes("node('stockReverseMessage').classList.remove('stockReversalBlock')"),
  'Mensagem e botão precisam retornar ao estado normal quando a obra é reavaliada');
+// v43.8: Obras no espaço de trabalho, sem depender de voltar ao painel inicial.
+assert.ok(source.includes('id="navWorks"')&&
+ source.includes('id="worksPage"')&&source.includes('id="worksPageList"')&&
+ source.includes("node('navWorks').addEventListener('click',abrirObrasPelaBarra)")&&
+ source.includes("node('navWorks').classList.toggle('hidden',somenteRomaneios)")&&
+ source.includes("['navWorks','worksPage']"),
+ 'A navegação Obras precisa respeitar permissões e destacar o menu ativo');
+assert.ok(source.includes('function abrirObrasPelaBarra()')&&
+ source.includes('if(lista.length===1)')&&
+ source.includes('function mostrarListaDeObras()')&&
+ source.includes('detailBackTarget=\'worksPage\'')&&
+ source.includes("if(detailBackTarget==='worksPage')mostrarListaDeObras()"),
+ 'Uma única obra deve abrir diretamente; múltiplas obras exigem lista e volta correta');
+assert.ok(source.includes('function obrasComEsquadriasAtivas()')&&
+ source.includes('return works.filter(w=>ids.has(w.id))'),
+ 'Obras exclusivamente de estoque não devem poluir navegação de obras técnicas');
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
 
 

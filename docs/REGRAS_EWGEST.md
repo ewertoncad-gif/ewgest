@@ -348,3 +348,11 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 - Em **Estoque → Movimentações da obra**, após verificação no servidor, se houver liberações de corte ativas ou outra dependência, mostrar mensagem **⚠ ESTORNO BLOQUEADO** em caixa vermelha com pulsação suave (com `prefers-reduced-motion` para acessibilidade), informando que é necessário cancelar primeiro essas liberações.
 - O botão **Estornar todos** continua realmente desabilitado, mas exibe **Bloqueado: cancele as liberações** quando esse for o impedimento, e o cursor **não deve girar como se estivesse carregando** (usar `not-allowed`). Explicar o motivo com `aria-describedby` e manter o atalho para Gerenciar obras.
 - Ao reabrir/reverificar uma obra sem impedimentos, remover o alerta e restaurar o texto/estado normais do botão. A regra de bloqueio permanece no Supabase; nenhuma alteração de saldo é feita por esse aviso.
+
+
+### Acesso direto a Obras pelo menu lateral (v43.8 — 19/11/2026)
+- Em **Espaço de trabalho**, o menu lateral passa a apresentar **Obras** abaixo de **Tela inicial**, antes de **Romaneios e expedição**.
+- Ao clicar em **Obras**, se houver uma única obra técnica ativa com esquadrias, abre diretamente a tela detalhada da obra. Se houver várias, abre uma listagem de obras com nome, código, área total, liberada, a liberar e progresso para escolha; sem obras, informa a ausência.
+- Obras cadastradas apenas para controle manual de estoque continuam exclusivamente na tela **Estoque**, não na listagem técnica de obras.
+- Na tela detalhada, o botão **Voltar** retorna à listagem Obras se a entrada tiver ocorrido pelo menu lateral; as entradas feitas pela Tela inicial continuam voltando ao painel. O botão **Tela inicial** sempre permanece disponível.
+- O atalho não é exibido para o usuário restrito de almoxarifado e não altera permissões de obra, liberações ou expedição.
