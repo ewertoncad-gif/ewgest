@@ -364,3 +364,10 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 - Se houver romaneios ativos, saídas de produção ou fabricação registrada, o banco impedirá o cancelamento e a tela indicará qual dependência conciliar primeiro.
 - O botão usa a RPC existente `ew_cancelar_liberacoes_obra`, preserva registros e auditoria, atualiza os totais da obra e informa que o estoque deve ser estornado **separadamente**. A interface nunca exclui a obra nem realiza estornos de estoque como efeito colateral.
 - Supervisores continuam aptos a fazer liberações, mas não recebem o botão administrativo de cancelamento em massa.
+
+
+### Local correto do cancelamento de liberações (v44.0 — 19/11/2026)
+- **Cancelar liberações** fica em **Gerenciar obras → Verificar exclusão**, ao lado de **Excluir obra**, mesmo quando a exclusão da obra ainda estiver bloqueada.
+- O botão de cancelamento sai da tela **Obras → detalhe**. Não duplicar a ação nem confundi-la com a exclusão definitiva da obra.
+- Cancelar liberações exige motivo (5–400 caracteres), consulta das operações dependentes, confirmação e uso da RPC auditada `ew_cancelar_liberacoes_obra`. Liberações canceladas não alteram automaticamente o estoque; a obra permanece ativa.
+- O botão Excluir obra só é habilitado depois de resolver as pendências e informar seu próprio motivo de exclusão.

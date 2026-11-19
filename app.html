@@ -637,7 +637,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v43.9</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v44.0</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="login" class="panel login">
@@ -706,17 +706,22 @@
           <div class="topactions" style="margin-top:12px">
             <button type="button" id="manageWorksGoRomaneios" class="btn secondary hidden">1. Cancelar romaneios</button>
             <button type="button" id="manageWorksCancelShipments" class="btn secondary hidden">2. Cancelar saídas avulsas</button>
-            <button type="button" id="manageWorksCancelReleases" class="btn secondary hidden">3. Cancelar liberações</button>
             <button type="button" id="manageWorksReverseStock" class="btn secondary hidden">4. Estornar movimentações do estoque</button>
           </div>
           <p id="manageWorksUndoStatus" class="hint" role="status"></p>
         </div>
         <div id="manageWorksDeleteForm" class="hidden">
-          <p class="hint">Após a exclusão, esta obra deixará de aparecer nas telas operacionais do EWGEST. Seus históricos, movimentações, cadastros gerais e registros de auditoria permanecerão preservados.</p>
-          <label>Por que deseja excluir esta obra?
-            <textarea id="manageWorksReason" rows="4" minlength="5" maxlength="300" placeholder="Informe o motivo da exclusão (mínimo de 5 caracteres)"></textarea>
-          </label>
-          <button type="button" id="manageWorksDelete" class="btn secondary" disabled style="border-color:#bd6b61;color:#c66b62">Excluir obra</button>
+          <div id="manageWorksDeleteReasonBox" class="hidden">
+            <p class="hint">Após a exclusão, esta obra deixará de aparecer nas telas operacionais do EWGEST. Seus históricos, movimentações, cadastros gerais e registros de auditoria permanecerão preservados.</p>
+            <label>Por que deseja excluir esta obra?
+              <textarea id="manageWorksReason" rows="4" minlength="5" maxlength="300" placeholder="Informe o motivo da exclusão (mínimo de 5 caracteres)"></textarea>
+            </label>
+          </div>
+          <div class="topactions" style="margin-top:16px">
+            <button type="button" id="manageWorksCancelReleasesDirect" class="btn secondary releaseCancellationButton" disabled>Cancelar liberações</button>
+            <button type="button" id="manageWorksDelete" class="btn secondary" disabled style="border-color:#bd6b61;color:#c66b62">Excluir obra</button>
+          </div>
+          <p id="manageWorksDeleteBlockedMessage" class="hint" role="status"></p>
         </div>
       </div>
     </section>
@@ -756,9 +761,7 @@
         </div>
         <div id="releaseBatchActions" class="romaneioActions">
           <button type="button" class="btn primary" id="releaseBatchOpen">+ Liberar a partir do arquivo CEM</button>
-          <button type="button" class="btn secondary releaseCancellationButton hidden" id="releaseCancelAllOpen">Cancelar liberações</button>
         </div>
-        <p id="releaseCancelAllFeedback" class="hint" role="status" aria-live="polite"></p>
         <h2 id="itemListTitle">Itens da obra</h2>
         
 <div class="itemfilter"><label for="itemSearch">Buscar na lista</label><div class="filterrow"><select id="itemSearchMode" aria-label="Buscar por"><option value="esquadria">Código da esquadria</option><option value="tipologia">Código da tipologia</option></select><input id="itemSearch" type="search" placeholder="Ex.: EA2 ou 2" autocomplete="off" spellcheck="false"><button id="clearItemSearch" type="button" class="btn secondary">Limpar</button></div><div class="displayoptions"><label><input id="showItemDescription" type="checkbox"> Mostrar descrição</label><label><input id="showItemLocation" type="checkbox"> Mostrar localização</label></div><p id="itemFilterCount" class="hint filtercount" role="status" aria-live="polite"></p></div>
@@ -3038,8 +3041,6 @@ function renderDetail(w){
   node('shipmentOverview').classList.toggle('hidden',!shipping);
   node('romaneioActions').classList.toggle('hidden',!shipping);
   node('releaseBatchActions').classList.toggle('hidden',shipping||!canEdit);
-  const liberacoesAtivasNaObra=releaseHistory.filter(h=>list.some(item=>item.id===h.esquadria_id)).length;
-  node('releaseCancelAllOpen').classList.toggle('hidden',shipping||!canAdministrate()||liberacoesAtivasNaObra===0);
   node('openRomaneio').disabled=!canEdit||!dispatchReady||Boolean(romaneioLoadError);
   node('romaneioOverview').classList.toggle('hidden',!shipping);
   node('romaneioHistoryPanel').classList.add('hidden');
@@ -3440,13 +3441,11 @@ function closeReleaseCancelAll(){
  node('releaseCancelAllStatus').textContent='';
 }
 async function openReleaseCancelAll(){
- if(!canAdministrate()||!selectedWork)return;
- const obra=selectedWork,obraId=obra.id;
- const ativas=releaseHistory.filter(h=>elements.some(item=>item.obra_id===obraId&&item.id===h.esquadria_id));
- if(!ativas.length){
-  node('releaseCancelAllFeedback').textContent='Esta obra não possui liberações ativas para cancelar.';
-  return;
- }
+ const obraId=workDeleteInspection?.obra_id;
+ const obra=works.find(w=>w.id===obraId);
+ if(!canAdministrate()||!obra||node('manageWorksCancelReleasesDirect').disabled)return;
+ const ids=new Set(elements.filter(e=>e.obra_id===obraId).map(e=>e.id));
+ const ativas=releaseHistory.filter(h=>ids.has(h.esquadria_id));
  const seq=++releaseCancelAllRequestId;
  releaseCancelAllWorkId=obraId;
  releaseCancelAllInspection=null;
@@ -3525,11 +3524,10 @@ async function confirmReleaseCancelAll(){
    body:{p_obra_id:obraId,p_motivo:motivo}});
   closeReleaseCancelAll();
   await loadPanel();
-  const atual=works.find(w=>w.id===obraId);
-  if(atual){
-   detailMode='release';
-   renderDetail(atual);
-   node('releaseCancelAllFeedback').textContent=
+  abrirGerenciamentoObras();
+  if(works.some(w=>w.id===obraId)){
+   await inspecionarExclusaoObra(obraId);
+   node('manageWorksFeedback').textContent=
     'Cancelamento realizado: '+Number(result?.canceladas||0)+' liberação(ões), '+
     Number(result?.unidades||0)+' unidade(s) revertida(s). '+
     'Confira separadamente as movimentações de estoque. O histórico foi preservado.';
@@ -3542,7 +3540,7 @@ async function confirmReleaseCancelAll(){
   }
  }
 }
-node('releaseCancelAllOpen').addEventListener('click',openReleaseCancelAll);
+node('manageWorksCancelReleasesDirect').addEventListener('click',openReleaseCancelAll);
 node('releaseCancelAllClose').addEventListener('click',closeReleaseCancelAll);
 node('releaseCancelAllConfirm').addEventListener('click',confirmReleaseCancelAll);
 function openRelease(id){
@@ -7815,18 +7813,24 @@ async function inspecionarExclusaoObra(id){
    'Todas as etapas foram revertidas. A obra pode ser excluída das telas operacionais.':
    'EXCLUSÃO BLOQUEADA: '+(motivos.join(' ')||'Existem dependências operacionais.');
   node('manageWorksReviewReasons').style.color=check.permitido?'#4f9672':'#cb665e';
-  node('manageWorksDeleteForm').classList.toggle('hidden',!check.permitido);
+  node('manageWorksDeleteForm').classList.remove('hidden');
+  node('manageWorksDeleteReasonBox').classList.toggle('hidden',!check.permitido);
+  node('manageWorksDeleteBlockedMessage').textContent=check.permitido?''
+   :'Excluir obra ficará disponível depois que todas as etapas forem revertidas.';
   const v=check.resumo||{};
   const hasRoms=Number(v.romaneios)>0;
   const hasLooseShipments=Number(v.saidas_producao)>0&&!hasRoms;
   const hasReleases=Number(v.liberacoes)>0||Number(v.lotes_cem)>0||
     Number(v.planos_liberados)>0||Number(v.unidades_liberadas)>0;
   const hasStock=Number(v.movimentos_pendentes)>0||Number(v.saldos_nao_zerados)>0;
-  node('manageWorksActions').classList.toggle('hidden',check.permitido||!(hasRoms||hasLooseShipments||hasReleases||hasStock));
+  const podeEstornarEstoque=hasStock&&!hasReleases&&!hasRoms&&!hasLooseShipments&&Number(v.fabricadas)===0;
+  node('manageWorksActions').classList.toggle('hidden',!hasRoms&&!hasLooseShipments&&!podeEstornarEstoque);
   node('manageWorksGoRomaneios').classList.toggle('hidden',!hasRoms);
   node('manageWorksCancelShipments').classList.toggle('hidden',!hasLooseShipments);
-  node('manageWorksCancelReleases').classList.toggle('hidden',!hasReleases||hasRoms||hasLooseShipments);
-  node('manageWorksReverseStock').classList.toggle('hidden',!hasStock||hasReleases||hasRoms||hasLooseShipments||Number(v.fabricadas)>0);
+  node('manageWorksReverseStock').classList.toggle('hidden',!podeEstornarEstoque);
+  node('manageWorksCancelReleasesDirect').disabled=!hasReleases;
+  node('manageWorksCancelReleasesDirect').title=hasReleases?
+   'Cancelar as liberações ativas sem excluir a obra.':'Não há liberações ativas nesta obra.';
   node('manageWorksUndoStatus').textContent='';
   node('manageWorksUndoReason').value='';
   node('manageWorksReason').value='';
@@ -7857,13 +7861,11 @@ function motivoDeReversao(){
 async function executarReversaoObra(tipo){
  const obra=workDeleteInspection;
  if(!obra?.obra_id||!works.some(w=>w.id===obra.obra_id)||!canAdministrate())return;
- const btn=node(tipo==='liberacoes'?'manageWorksCancelReleases':
-  tipo==='saidas'?'manageWorksCancelShipments':'manageWorksReverseStock');
+ const btn=node(tipo==='saidas'?'manageWorksCancelShipments':'manageWorksReverseStock');
  const estado=node('manageWorksUndoStatus');
  let motivo;
  try{motivo=motivoDeReversao();}catch(e){estado.textContent=e.message;return;}
- const acao=tipo==='liberacoes'?'CANCELAR TODAS AS LIBERAÇÕES':
-  tipo==='saidas'?'CANCELAR SAÍDAS AVULSAS':'ESTORNAR TODOS OS MOVIMENTOS DE ESTOQUE';
+ const acao=tipo==='saidas'?'CANCELAR SAÍDAS AVULSAS':'ESTORNAR TODOS OS MOVIMENTOS DE ESTOQUE';
  const aviso=tipo==='estoque'?
   'Tem certeza que deseja estornar todas as movimentações de estoque de '+obra.nome+'?\n\n'+
   'O sistema registrará lançamentos inversos e zerará o saldo por material e galpão. '+
@@ -7878,8 +7880,7 @@ async function executarReversaoObra(tipo){
  btn.disabled=true;estado.textContent='Processando a reversão e salvando auditoria…';
  try{
   await ensureSession();
-  const path=tipo==='liberacoes'?'ew_cancelar_liberacoes_obra':
-   tipo==='saidas'?'ew_cancelar_saidas_avulsas_obra':'ew_estornar_estoque_obra';
+  const path=tipo==='saidas'?'ew_cancelar_saidas_avulsas_obra':'ew_estornar_estoque_obra';
   const body=tipo==='estoque'?
    {p_obra_id:obra.obra_id,p_motivo:motivo,p_operacao_id:crypto.randomUUID()}:
    {p_obra_id:obra.obra_id,p_motivo:motivo};
@@ -7888,10 +7889,7 @@ async function executarReversaoObra(tipo){
   await loadPanel();
   abrirGerenciamentoObras();
   await inspecionarExclusaoObra(obra.obra_id);
-  node('manageWorksFeedback').textContent=tipo==='liberacoes'?
-   'Liberações canceladas: '+(result?.canceladas||0)+'. Unidades revertidas: '+(result?.unidades||0)+
-   '. Agora confira as baixas de estoque.':
-   tipo==='saidas'?'Saídas avulsas canceladas: '+(result?.canceladas||0)+
+  node('manageWorksFeedback').textContent=tipo==='saidas'?'Saídas avulsas canceladas: '+(result?.canceladas||0)+
    '. A devolução ficou registrada no relatório de operações.':
    'Movimentos estornados: '+(result?.estornados||0)+
    '. Saldo reconciliado e registro de auditoria disponível em Usuários.';
@@ -7909,7 +7907,6 @@ node('manageWorksGoRomaneios').addEventListener('click',()=>{
   'Cancele os romaneios emitidos desta obra, depois retorne a Gerenciar obras e clique Verificar exclusão.';
 });
 node('manageWorksCancelShipments').addEventListener('click',()=>executarReversaoObra('saidas'));
-node('manageWorksCancelReleases').addEventListener('click',()=>executarReversaoObra('liberacoes'));
 node('manageWorksReverseStock').addEventListener('click',()=>executarReversaoObra('estoque'));
 
 node('manageWorksDelete').addEventListener('click',async()=>{

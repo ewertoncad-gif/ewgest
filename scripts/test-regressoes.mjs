@@ -1196,24 +1196,33 @@ assert.ok(source.includes('function abrirObrasPelaBarra()')&&
 assert.ok(source.includes('function obrasComEsquadriasAtivas()')&&
  source.includes('return works.filter(w=>ids.has(w.id))'),
  'Obras exclusivamente de estoque não devem poluir navegação de obras técnicas');
-// v43.9: cancelamento acessível da própria tela da obra, sem cancelar o estoque automaticamente.
-for(const id of ['releaseCancelAllOpen','releaseCancelAllOverlay','releaseCancelAllSummary',
+// v44.0: cancelar liberações pertence à tela Gerenciar obras, ao lado de Excluir obra.
+for(const id of ['manageWorksCancelReleasesDirect','manageWorksDeleteReasonBox',
+ 'manageWorksDeleteBlockedMessage','releaseCancelAllOverlay','releaseCancelAllSummary',
  'releaseCancelAllItems','releaseCancelAllReason','releaseCancelAllConfirm',
- 'releaseCancelAllClose','releaseCancelAllStatus','releaseCancelAllFeedback']){
- assert.ok(source.includes('id="'+id+'"'),'Cancelamento de liberações exige '+id);
+ 'releaseCancelAllClose','releaseCancelAllStatus']){
+ assert.ok(source.includes('id="'+id+'"'),'Gerenciar obras exige '+id);
 }
-assert.ok(source.includes('function openReleaseCancelAll()')&&
+assert.ok(!source.includes('id="releaseCancelAllOpen"')&&
+ !source.includes('id="releaseCancelAllFeedback"')&&
+ !source.includes('id="manageWorksCancelReleases"')&&
+ source.includes("node('manageWorksCancelReleasesDirect').addEventListener('click',openReleaseCancelAll)")&&
+ source.includes("node('manageWorksDeleteForm').classList.remove('hidden')")&&
+ source.includes("node('manageWorksDeleteReasonBox').classList.toggle('hidden',!check.permitido)")&&
+ source.includes("node('manageWorksCancelReleasesDirect').disabled=!hasReleases"),
+ 'Cancelamento permanece ao lado de Excluir obra, inclusive com exclusão bloqueada');
+assert.ok(source.includes('async function openReleaseCancelAll()')&&
  source.includes('async function confirmReleaseCancelAll()')&&
- source.includes("request('/rest/v1/rpc/ew_inspecionar_reversao_obra'")&&
+ source.includes("const obraId=workDeleteInspection?.obra_id")&&
  source.includes("request('/rest/v1/rpc/ew_cancelar_liberacoes_obra'")&&
- source.includes("node('releaseCancelAllOpen').classList.toggle('hidden',shipping||!canAdministrate()")&&
- source.includes('O estoque NÃO será estornado automaticamente.'),
- 'Cancelamento direto deve validar permissão e dependências, informar saldo e preservar estoque');
+ source.includes('O estoque NÃO será estornado automaticamente.')&&
+ source.includes('await inspecionarExclusaoObra(obraId)'),
+ 'Cancelamento não deve excluir a obra e deve atualizar o gerenciamento');
 assert.ok(source.includes('CANCELAMENTO BLOQUEADO:')&&
  source.includes("node('releaseCancelAllConfirm').disabled=true")&&
  source.includes('motivo.length<5||motivo.length>400')&&
  source.includes('closeReleaseCancelAll();'),
- 'Cancelar liberações requer motivo, bloqueio, confirmação e fechamento seguro');
+ 'Cancelamento exige motivo, conferência, confirmação e auditoria');
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
 
 
