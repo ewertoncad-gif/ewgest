@@ -3532,9 +3532,15 @@ async function operationReportLoad(){
    order:'criado_em.desc',limit:'1000'};
   if(node('userOperationsUser').value)params.usuario_id='eq.'+node('userOperationsUser').value;
   if(node('userOperationsType').value)params.acao='eq.'+node('userOperationsType').value;
-  const registros=await apiGet('ew_auditoria_operacoes',params);
+  const [registros,usuarios]=await Promise.all([
+    apiGet('ew_auditoria_operacoes',params),
+    apiGet('usuarios_login',{select:'usuario_id,nome,login,perfil,ativo,excluido_em',
+      empresa_id:'eq.'+currentCompany.id,limit:'1000'})
+  ]);
   if(seq!==operationReportSeq)return;
   operationReportRecords=registros||[];
+  operationReportUsers=usuarios||managedAccounts;
+  operationReportPopulateUsers();
   operationReportDisplay();
   status.textContent=operationReportRecords.length+' operação(ões) nos últimos '+days+' dias.'+
    (operationReportRecords.length===1000?' Limite de 1.000 registros; refine os filtros.':'');
