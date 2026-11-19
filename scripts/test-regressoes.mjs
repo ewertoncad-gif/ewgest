@@ -1011,6 +1011,7 @@ assert.ok(source.includes('id="userOperationsToggle"')&&
  'Relatório de auditoria por usuários, períodos e obras precisa estar ativo');
 assert.ok(source.includes('id="manageWorksCancelReleases"')&&
  source.includes('id="manageWorksReverseStock"')&&
+ source.includes('id="manageWorksCancelShipments"')&&
  source.includes('id="manageWorksGoRomaneios"'),
  'Gerenciar obras deve mostrar ações de cancelamento e estorno');
 assert.ok(source.includes("'ew_cancelar_liberacoes_obra'")&&
@@ -1048,6 +1049,24 @@ assert.ok(migrationCompat.includes('select public.ew_arquivar_obra_reconciliada(
  'Não permitir exclusão física pela RPC antiga');
 assert.ok(source.includes("cancelado_em:'is.null'"),
  'Painel não deve tratar liberação cancelada como ativa');
+
+
+const miscReversal=readFileSync(fileURLToPath(new URL(
+ '../supabase/migrations/20261118_reconciliacao_saidas_avulsas.sql',import.meta.url)),'utf8');
+const retroAudit=readFileSync(fileURLToPath(new URL(
+ '../supabase/migrations/20261118_reconciliacao_historico_antigo.sql',import.meta.url)),'utf8');
+assert.ok(source.includes('CANCELAR_SAIDAS_AVULSAS')&&
+ source.includes("'ew_cancelar_saidas_avulsas_obra'")&&
+ source.includes('DEVOLVIDO'),
+ 'Saídas avulsas exigem devolução física confirmada e registro auditável');
+assert.ok(miscReversal.includes('ew_cancelar_saidas_avulsas_obra')&&
+ miscReversal.includes("ri.saida_producao_id=s.id")&&
+ miscReversal.includes('CANCELAR_SAIDAS_AVULSAS'),
+ 'Não pode estornar uma saída vinculada a romaneio como se fosse avulsa');
+assert.ok(retroAudit.includes("origem','cancelamento_anterior_a_v43_1")&&
+ retroAudit.includes("r.cancelado_por is not null")&&
+ retroAudit.includes('not exists'),
+ 'Migração de histórico deve preservar autor/data originais e evitar duplicidade');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
 
