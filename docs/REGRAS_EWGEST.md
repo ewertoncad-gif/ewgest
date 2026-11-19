@@ -377,3 +377,10 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 - Em **Gerenciar obras → Obras da empresa**, mostrar **Cancelar liberações** na própria linha de cada obra, imediatamente ao lado de **Verificar exclusão**, sem depender de abrir a inspeção de exclusão.
 - Clicar em Cancelar liberações abre o diálogo para aquela obra, verifica no banco as liberações e dependências, exige motivo (5–400 caracteres) e confirmação. Sem liberações ativas, exibe aviso e não permite confirmar.
 - O cancelamento não exclui a obra nem estorna o estoque. Remover os botões duplicados do painel interno e da tela de detalhe; Excluir obra continua após Verificar exclusão e segue bloqueado enquanto houver pendências.
+
+
+### Limpar prévia de importação ao sair (v44.2 — 19/11/2026)
+- **Analisar arquivo** apenas lê o ZIP em memória e consulta a existência da obra; não cadastra nem persiste obras ou esquadrias. O formulário informa explicitamente que o cadastro de novas obras/esquadrias está indisponível nessa tela; apenas os materiais de obras já cadastradas podem ser gravados, mediante confirmação.
+- **Sair**, expiração/substituição de sessão e cancelamento de nova sessão descartam o ZIP selecionado, a análise da obra, as decisões de conciliação, o identificador de operação e os resultados temporários da prévia. O próximo acesso começa com campos vazios e opções padrão, mesmo sem recarregar a página.
+- O botão **Limpar análise** permite iniciar outro ZIP sem sair. A limpeza jamais remove, altera ou arquiva obras e materiais já confirmados no banco. Importações que chegaram a ser confirmadas no servidor não são revertidas ao sair.
+- A leitura assíncrona do arquivo é invalidada por contador de geração ao sair ou escolher outro arquivo, evitando que uma análise antiga volte a preencher a tela após logout/troca de ZIP. Isso não cancela uma gravação já enviada ao servidor.

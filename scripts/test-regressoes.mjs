@@ -1219,4 +1219,27 @@ assert.ok(source.includes('async function confirmReleaseCancelAll()')&&
  source.includes("node('releaseCancelAllConfirm').disabled=true")&&
  source.includes('motivo.length<5||motivo.length>400'),
  'Motivo, conferência, confirmação e histórico obrigatórios; sem exclusão de obra');
+// v44.2: uma prévia de ZIP não pode reaparecer depois de Sair/reautenticar.
+assert.ok(source.includes('id="matCemLimpar"')&&
+ source.includes("node('matCemLimpar').addEventListener('click',cemDescartarRascunho)")&&
+ source.includes('function cemDescartarRascunho()')&&
+ source.includes("node('matCemArquivo').value=''")&&
+ source.includes("node('cemPreview').replaceChildren()")&&
+ source.includes("node('cemExistingNotice').replaceChildren()")&&
+ source.includes("node('cemImportResult').textContent=''"),
+ 'A análise temporária do arquivo deve ser completamente descartável');
+const sair=source.slice(source.indexOf("node('logout').addEventListener"),source.indexOf("node('refresh').addEventListener"));
+const sessao=source.slice(source.indexOf("function invalidateAppSession(reason)"),source.indexOf("function throwFriendly(error)"));
+const cancelamento=source.slice(source.indexOf("async function sessaoUnicaCancelarNova()"),source.indexOf("function saveSession(data)"));
+assert.ok(sair.includes('cemDescartarRascunho()')&&sessao.includes('cemDescartarRascunho()')&&
+ cancelamento.includes('cemDescartarRascunho()'),
+ 'Todos os caminhos de logout ou invalidação precisam descartar a prévia');
+assert.ok(source.includes('let cemOperacaoId=null,cemAnaliseGeracao=0')&&
+ source.includes('if(analise!==cemAnaliseGeracao||!session)return;')&&
+ source.includes('currentCompany?.id!==empresaId')&&
+ source.includes('if(analise===cemAnaliseGeracao)botao.disabled=false;'),
+ 'Análises assíncronas antigas não podem ressuscitar uma obra na interface após sair');
+assert.ok(source.includes('A análise do ZIP é apenas uma prévia e não grava uma obra.')&&
+ source.includes('Esquadrias (somente conferência)'),
+ 'A interface não pode sugerir que a prévia cadastra esquadrias no banco');
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');

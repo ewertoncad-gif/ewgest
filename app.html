@@ -639,7 +639,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v44.1</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v44.2</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="login" class="panel login">
@@ -997,8 +997,8 @@
     <section id="cemImport" class="hidden">
       <div class="head"><div>
         <button type="button" class="btn secondary" id="cemBack">← Tela inicial</button>
-        <h1 style="margin-top:20px">Importar obra de arquivo técnico</h1>
-        <p class="muted">Escolha o arquivo ZIP de exportação, selecione os dados e confira tudo antes de gravar.</p>
+        <h1 style="margin-top:20px">Importar dados de arquivo técnico</h1>
+        <p class="muted">A análise do ZIP é apenas uma prévia e não grava uma obra. Nesta etapa, a gravação é limitada a materiais vinculados a uma obra já cadastrada.</p>
       </div></div>
       <div class="section panel">
         <h2>1. Arquivo de exportação</h2>
@@ -1006,12 +1006,13 @@
         <div class="matImportBox">
           <input id="matCemArquivo" type="file" accept=".zip,application/zip">
           <button id="matCemConferir" class="btn primary" type="button">Analisar arquivo</button>
+          <button id="matCemLimpar" class="btn secondary" type="button">Limpar análise</button>
         </div>
         <div class="cemImportSteps">
           <h2>2. Escolha os dados</h2>
           <p class="hint">Marque as categorias desejadas. Para obras já cadastradas, desmarque <strong>Esquadrias</strong> e importe apenas os materiais. Itens fora do cálculo são ignorados.</p>
           <div class="cemFlags">
-            <label class="cemFlag"><input id="cemFlagEsquadrias" type="checkbox" checked><span><strong>Esquadrias</strong><small>Códigos, dimensões, quantidades e descrições dos itens calculados</small></span></label>
+            <label class="cemFlag"><input id="cemFlagEsquadrias" type="checkbox" checked><span><strong>Esquadrias (somente conferência)</strong><small>Códigos e dimensões para prévia; esta tela ainda não cadastra esquadrias de novas obras</small></span></label>
             <label class="cemFlag"><input id="cemFlagPerfis" type="checkbox" checked><span><strong>Perfis</strong><small>Materiais usados na obra, fabricante, peso e acabamento</small></span></label>
             <label class="cemFlag"><input id="cemFlagAcessorios" type="checkbox" checked><span><strong>Acessórios</strong><small>Componentes utilizados, unidades, cores e referências</small></span></label>
           </div>
@@ -1839,6 +1840,7 @@ function setView(view){
   }
 }
 function invalidateAppSession(reason){
+  cemDescartarRascunho();
   sessaoUnicaParar();
   accessLogClear();
   session=null;
@@ -1941,6 +1943,7 @@ function sessaoUnicaMonitorar(){
  sessaoUnicaTimer=setInterval(()=>{if(session)sessaoUnicaValidar(true).catch(()=>{});},15000);
 }
 async function sessaoUnicaCancelarNova(){
+ cemDescartarRascunho();
  const token=session?.access_token;sessaoUnicaParar();accessLogClear();
  session=null;currentUser=null;currentCompany=null;membership=null;
  sessionStorage.removeItem('ewgest_session_v3');setView('login');
@@ -4169,6 +4172,7 @@ node('myPasswordForm').addEventListener('submit',async(event)=>{
 
 node('logout').addEventListener('click',async()=>{
   const old=session;
+  cemDescartarRascunho();
   accessLogStopHeartbeat();
   sessaoUnicaParar();
   let saidaRegistrada=!old;
@@ -6078,8 +6082,23 @@ function cemRenderPreview(){
   cemAtualizarBotao();
 }
 
-let cemOperacaoId=null;
+let cemOperacaoId=null,cemAnaliseGeracao=0;
+function cemDescartarRascunho(){
+  // O ZIP analisado é temporário. Nunca apagar obras ou materiais já gravados no banco.
+  cemAnaliseGeracao++;
+  cemParsed=null;cemOperacaoId=null;
+  node('matCemArquivo').value='';
+  node('matCemConferir').disabled=false;
+  for(const id of ['cemFlagEsquadrias','cemFlagPerfis','cemFlagAcessorios'])
+    node(id).checked=true;
+  node('matCemResposta').textContent='Selecione o ZIP e clique em “Analisar arquivo”. A análise não altera o banco.';
+  node('cemImportResult').textContent='';
+  node('cemPreview').replaceChildren();
+  node('cemExistingNotice').replaceChildren();
+  cemRenderPreview();
+}
 async function matVerificarZip(){
+  const analise=++cemAnaliseGeracao;
   const arq=node('matCemArquivo').files?.[0],out=node('matCemResposta');
   cemParsed=null;cemOperacaoId=null;node('cemImportResult').textContent='';cemRenderPreview();
   if(!arq){out.textContent='Escolha o arquivo ZIP de exportação técnica.';return;}
@@ -6088,6 +6107,7 @@ async function matVerificarZip(){
   out.textContent='Lendo o ZIP no navegador e separando os itens calculados…';
   try{
     const xml=await cemExtrairXML(arq);
+    if(analise!==cemAnaliseGeracao||!session)return;
     const r=cemLerObra(xml);
     r.materiaisPayload=cemMontarPayload(r);
     cemParsed=r;
@@ -6097,14 +6117,17 @@ async function matVerificarZip(){
       throw new Error('Há códigos de materiais sem ficha técnica no XML. Corrija a exportação antes de importar.');
     }
     await ensureSession();
+    if(analise!==cemAnaliseGeracao||!session)return;
     if(!currentCompany?.id)throw new Error('Não foi possível identificar a empresa do usuário.');
-    const empresa='eq.'+currentCompany.id;
+    const empresaId=currentCompany.id;
+    const empresa='eq.'+empresaId;
     const [obrasBanco,perfisBanco,acessoriosBanco,aliasesBanco]=await Promise.all([
       apiGet('obras',{select:'id,codigo,nome',empresa_id:empresa,arquivada_em:'is.null',limit:'1000'}),
       apiGet('ew_perfis',{select:'id,codigo,fabricante,descricao,linha',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_acessorios',{select:'id,codigo,fabricante,descricao,linha',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_materiais_alias',{select:'tipo,codigo_alternativo,fabricante,perfil_id,acessorio_id',empresa_id:empresa,limit:'5000'})
     ]);
+    if(analise!==cemAnaliseGeracao||!session||currentCompany?.id!==empresaId)return;
     const matching=(obrasBanco||[]).filter(x=>cemNome(x.codigo)===cemNome(r.codigo));
     r.obraExistente=matching.length===1?matching[0]:null;
     r.obraDuplicada=matching.length>1;
@@ -6123,12 +6146,16 @@ async function matVerificarZip(){
     out.textContent='Análise concluída. O arquivo permanece no navegador. Confira as listas completas e escolha o que deseja importar.';
     cemRenderPreview();
   }catch(e){
+    if(analise!==cemAnaliseGeracao||!session)return;
     out.textContent='Análise incompleta: '+e.message;
     if(cemParsed)cemParsed.comparacaoConcluida=false;
     cemRenderPreview();
-  }finally{botao.disabled=false;}
+  }finally{
+    if(analise===cemAnaliseGeracao)botao.disabled=false;
+  }
 }
 async function cemImportarSelecionados(){
+  const analise=cemAnaliseGeracao;
   const r=cemParsed;
   const p=node('cemFlagPerfis').checked,a=node('cemFlagAcessorios').checked;
   const save=node('cemCommit'),result=node('cemImportResult');
@@ -6154,6 +6181,7 @@ async function cemImportarSelecionados(){
       body:{p_empresa_id:currentCompany.id,p_codigo_obra:r.codigo,
         p_perfis:perf,p_acessorios:aces,p_operacao_id:cemOperacaoId,p_decisoes:decisoes}
     });
+    if(analise!==cemAnaliseGeracao||!session)return;
     if(!answer||answer.esquadrias_alteradas!==0||answer.estoque_fisico_alterado!==false)
       throw new Error('Resposta de importação não confirmada. Confira o banco antes de repetir.');
     r.jaImportado=true;
@@ -6166,6 +6194,7 @@ async function cemImportarSelecionados(){
     cemAtualizarBotao();
     try{await carregarMateriais();}catch(e){/* A gravação já foi confirmada pelo servidor. */}
   }catch(e){
+    if(analise!==cemAnaliseGeracao||!session)return;
     result.textContent='Não foi possível confirmar a importação: '+e.message+
       '. Os materiais não serão cadastrados pelo navegador. Se houve falha de conexão, tente novamente com a mesma operação; o servidor impede duplicações.';
     cemAtualizarBotao();
@@ -6187,9 +6216,13 @@ node('matEditForm').addEventListener('submit',salvarMaterial);
 node('matVarCancel').addEventListener('click',matVarClose);
 node('matVarForm').addEventListener('submit',salvarVariacao);
 node('matCemConferir').addEventListener('click',matVerificarZip);
+node('matCemLimpar').addEventListener('click',cemDescartarRascunho);
 node('cemCommit').addEventListener('click',cemImportarSelecionados);
 node('matCemArquivo').addEventListener('change',()=>{
- cemParsed=null;cemOperacaoId=null;cemRenderPreview();
+ cemAnaliseGeracao++;
+ cemParsed=null;cemOperacaoId=null;
+ node('matCemConferir').disabled=false;
+ cemRenderPreview();
  node('cemImportResult').textContent='';
  node('matCemResposta').textContent='Arquivo selecionado. Clique em “Analisar arquivo”.';
 });
