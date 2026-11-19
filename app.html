@@ -551,7 +551,20 @@
   #stockReversePanel label[for="stockReverseReason"]{display:block;margin-top:14px}
   #manageWorksDeleteForm label,#manageWorksActions label{display:block;margin:12px 0 6px}
   #manageWorksDeleteForm textarea,#manageWorksActions textarea{display:block;width:min(100%,760px);min-height:110px;margin-top:9px;resize:vertical;line-height:1.5}
-  .stockReversalBlock{color:#bd433b!important;font-weight:700;background:#fff1ed;border:1px solid #f1beb5;padding:12px;border-radius:8px}
+  .stockReversalBlock{
+    color:#a8211b!important;font-weight:750;background:#fff1ed;
+    border:2px solid #cf4237;padding:13px 15px;border-radius:9px;
+    animation:ewStockBlockedPulse 2s ease-in-out infinite
+  }
+  @keyframes ewStockBlockedPulse{
+    0%,100%{background:#fff1ed;border-color:#e2a9a0;box-shadow:0 0 0 0 rgba(202,48,39,0)}
+    50%{background:#ffddd7;border-color:#c52e27;box-shadow:0 0 0 3px rgba(202,48,39,.12)}
+  }
+  @media(prefers-reduced-motion:reduce){
+    .stockReversalBlock{animation:none;background:#ffe5e0;border-color:#bb2921}
+  }
+  #stockReverseApply:disabled{cursor:not-allowed;opacity:.65}
+  #stockReverseApply:disabled[aria-describedby="stockReverseMessage"]{cursor:not-allowed}
   .stockReverseMore{margin:6px 0 16px}
   .stockReverseMore.hidden{display:none}
   .stockReverseLine{display:flex;gap:12px;justify-content:space-between;align-items:start;border-bottom:1px solid #dce9f1;padding:8px 0;font-size:12px}
@@ -614,7 +627,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v43.6</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v43.7</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="login" class="panel login">
@@ -1172,7 +1185,7 @@
       <label for="stockReverseReason">Motivo do estorno
         <textarea id="stockReverseReason" rows="4" minlength="5" maxlength="400" placeholder="Ex.: Ajuste de estoque"></textarea>
       </label>
-      <p class="hint" id="stockReverseMessage" role="status" aria-live="polite"></p>
+      <p class="hint" id="stockReverseMessage" role="status" aria-live="polite" aria-atomic="true"></p>
       <button type="button" class="btn secondary hidden" id="stockReverseOpenWorks">Ir para Gerenciar obras e cancelar liberações</button>
       <div class="modalbuttons">
         <button type="button" class="btn secondary" id="stockReverseBack">Voltar à lista</button>
@@ -6909,6 +6922,9 @@ function stockReverseFechar(){
  node('stockReverseMessage').classList.remove('stockReversalBlock');
  node('stockReverseMessage').textContent='';
  node('stockReverseApply').disabled=true;
+ node('stockReverseApply').textContent='Estornar todos os lançamentos sem estorno';
+ node('stockReverseApply').removeAttribute('title');
+ node('stockReverseApply').removeAttribute('aria-describedby');
 }
 function stockManageOpen(){
  if(!matIsAdmin())return;
@@ -7056,6 +7072,9 @@ async function stockReverseRevisar(id){
  stockReverseBalancesLimit=70;
  node('stockReverseOpenWorks').classList.add('hidden');
  node('stockReverseMessage').classList.remove('stockReversalBlock');
+ node('stockReverseApply').textContent='Estornar todos os lançamentos sem estorno';
+ node('stockReverseApply').removeAttribute('title');
+ node('stockReverseApply').removeAttribute('aria-describedby');
  node('stockReverseHistoryFilter').value='pendentes';
  const resumo=stockReversalBalances(id);
  node('stockReversePanel').classList.remove('hidden');
@@ -7091,11 +7110,18 @@ async function stockReverseRevisar(id){
    !String(m).includes('Estorne as movimentações do estoque'));
   if(impedimentos.length){
    const ativas=Number(ver?.resumo?.liberacoes||0);
-   node('stockReverseMessage').textContent='ESTORNO BLOQUEADO. '+
-    (ativas>0?'A obra possui '+ativas+' liberação(ões) para corte ativa(s). ':'')+
-    'Cancele as operações vinculadas em Gerenciar obras antes de estornar o estoque. '+
+   node('stockReverseMessage').textContent='⚠ ESTORNO BLOQUEADO — '+ 
+    (ativas>0?'Esta obra possui '+ativas+' liberação(ões) para corte ativa(s). ':'')+
+    'O botão Estornar todos só será liberado após cancelar as liberações e outras operações vinculadas em Gerenciar obras. '+
     impedimentos.join(' ');
    node('stockReverseMessage').classList.add('stockReversalBlock');
+   node('stockReverseApply').disabled=true;
+   node('stockReverseApply').textContent=ativas>0?
+    'Bloqueado: cancele as liberações':'Estorno bloqueado';
+   node('stockReverseApply').title=ativas>0?
+    'Cancele primeiro as liberações para corte em Gerenciar obras.':
+    'Cancele as operações vinculadas em Gerenciar obras.';
+   node('stockReverseApply').setAttribute('aria-describedby','stockReverseMessage');
    node('stockReverseOpenWorks').classList.remove('hidden');
    return;
   }

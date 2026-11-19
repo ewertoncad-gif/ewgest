@@ -1168,6 +1168,18 @@ for(const name of ['ew_estornar_movimento_obra','ew_estornar_estoque_obra',
 }
 assert.ok(!motivoCincoMigration.includes('not between 10 and 400'),
  'Validação antiga de 10 caracteres permanece na migração');
+// v43.7: mensagem pulsante indica bloqueio real, sem cursor de espera em botão desabilitado.
+assert.ok(source.includes('@keyframes ewStockBlockedPulse')&&
+ source.includes('@media(prefers-reduced-motion:reduce)')&&
+ source.includes('#stockReverseApply:disabled{cursor:not-allowed')&&
+ source.includes('⚠ ESTORNO BLOQUEADO')&&
+ source.includes("'Bloqueado: cancele as liberações'")&&
+ source.includes("setAttribute('aria-describedby','stockReverseMessage')"),
+ 'Estorno bloqueado deve ficar evidente e acessível, sem parecer processamento em andamento');
+assert.ok(source.includes("node('stockReverseApply').textContent='Estornar todos os lançamentos sem estorno'")&&
+ source.includes("node('stockReverseApply').removeAttribute('title')")&&
+ source.includes("node('stockReverseMessage').classList.remove('stockReversalBlock')"),
+ 'Mensagem e botão precisam retornar ao estado normal quando a obra é reavaliada');
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
 
 

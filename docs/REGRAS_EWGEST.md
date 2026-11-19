@@ -342,3 +342,9 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 - Ampliação do modal de estoque, caixas de motivo de exclusão e estorno. Motivo mínimo reduzido para **5 caracteres** nas rotinas de estorno individual/total, exclusão/arquivamento auditado, cancelamento de liberações e saídas avulsas (backend e frontend correspondentes).
 - Paginação visual de saldos e movimentações na consulta (70 saldos, 60 lançamentos iniciais; botão mostrar mais). O banco preserva e valida integralmente os dados; só a renderização inicial é limitada.
 - **Estorno não liberado** enquanto houver liberações ou outras operações ativas. Mostrar motivo claro com a quantidade de liberações ativas e oferecer acesso direto a Gerenciar obras; não interpretar botão desabilitado como processamento lento, nem remover proteção.
+
+
+### Alerta visual de estorno bloqueado (v43.7 — 18/11/2026)
+- Em **Estoque → Movimentações da obra**, após verificação no servidor, se houver liberações de corte ativas ou outra dependência, mostrar mensagem **⚠ ESTORNO BLOQUEADO** em caixa vermelha com pulsação suave (com `prefers-reduced-motion` para acessibilidade), informando que é necessário cancelar primeiro essas liberações.
+- O botão **Estornar todos** continua realmente desabilitado, mas exibe **Bloqueado: cancele as liberações** quando esse for o impedimento, e o cursor **não deve girar como se estivesse carregando** (usar `not-allowed`). Explicar o motivo com `aria-describedby` e manter o atalho para Gerenciar obras.
+- Ao reabrir/reverificar uma obra sem impedimentos, remover o alerta e restaurar o texto/estado normais do botão. A regra de bloqueio permanece no Supabase; nenhuma alteração de saldo é feita por esse aviso.
