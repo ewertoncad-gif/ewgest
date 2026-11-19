@@ -371,3 +371,9 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 - O botão de cancelamento sai da tela **Obras → detalhe**. Não duplicar a ação nem confundi-la com a exclusão definitiva da obra.
 - Cancelar liberações exige motivo (5–400 caracteres), consulta das operações dependentes, confirmação e uso da RPC auditada `ew_cancelar_liberacoes_obra`. Liberações canceladas não alteram automaticamente o estoque; a obra permanece ativa.
 - O botão Excluir obra só é habilitado depois de resolver as pendências e informar seu próprio motivo de exclusão.
+
+
+### Botão Cancelar liberações na linha da obra (v44.1 — 19/11/2026)
+- Em **Gerenciar obras → Obras da empresa**, mostrar **Cancelar liberações** na própria linha de cada obra, imediatamente ao lado de **Verificar exclusão**, sem depender de abrir a inspeção de exclusão.
+- Clicar em Cancelar liberações abre o diálogo para aquela obra, verifica no banco as liberações e dependências, exige motivo (5–400 caracteres) e confirmação. Sem liberações ativas, exibe aviso e não permite confirmar.
+- O cancelamento não exclui a obra nem estorna o estoque. Remover os botões duplicados do painel interno e da tela de detalhe; Excluir obra continua após Verificar exclusão e segue bloqueado enquanto houver pendências.

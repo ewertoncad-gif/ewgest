@@ -545,6 +545,8 @@
   .stockManageDeleted{background:#fff7f1;border-radius:8px;padding:12px}
   .stockManageRowActions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
   .releaseCancellationButton{border-color:#d47a6a!important;color:#ba4b3c!important}
+  .manageWorksRowActions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px}
+  @media(max-width:700px){.manageWorksRowActions{justify-content:flex-start;width:100%}}
   .releaseCancellationButton:disabled{cursor:not-allowed;opacity:.55}
   .releaseCancelAllDialog{width:min(96vw,710px);max-height:90vh;overflow:auto}
   .releaseCancelAllDialog label{display:block;margin-top:14px;font-weight:600}
@@ -637,7 +639,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v44.0</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v44.1</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="login" class="panel login">
@@ -718,7 +720,6 @@
             </label>
           </div>
           <div class="topactions" style="margin-top:16px">
-            <button type="button" id="manageWorksCancelReleasesDirect" class="btn secondary releaseCancellationButton" disabled>Cancelar liberações</button>
             <button type="button" id="manageWorksDelete" class="btn secondary" disabled style="border-color:#bd6b61;color:#c66b62">Excluir obra</button>
           </div>
           <p id="manageWorksDeleteBlockedMessage" class="hint" role="status"></p>
@@ -3440,10 +3441,9 @@ function closeReleaseCancelAll(){
  node('releaseCancelAllConfirm').disabled=true;
  node('releaseCancelAllStatus').textContent='';
 }
-async function openReleaseCancelAll(){
- const obraId=workDeleteInspection?.obra_id;
+async function openReleaseCancelAll(obraId){
  const obra=works.find(w=>w.id===obraId);
- if(!canAdministrate()||!obra||node('manageWorksCancelReleasesDirect').disabled)return;
+ if(!canAdministrate()||!obra)return;
  const ids=new Set(elements.filter(e=>e.obra_id===obraId).map(e=>e.id));
  const ativas=releaseHistory.filter(h=>ids.has(h.esquadria_id));
  const seq=++releaseCancelAllRequestId;
@@ -3540,7 +3540,6 @@ async function confirmReleaseCancelAll(){
   }
  }
 }
-node('manageWorksCancelReleasesDirect').addEventListener('click',openReleaseCancelAll);
 node('releaseCancelAllClose').addEventListener('click',closeReleaseCancelAll);
 node('releaseCancelAllConfirm').addEventListener('click',confirmReleaseCancelAll);
 function openRelease(id){
@@ -7747,15 +7746,22 @@ function renderGerenciamentoObras(){
  }
  out.innerHTML=works.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(w=>{
   const qtd=elements.filter(e=>e.obra_id===w.id).length;
+  const ids=new Set(elements.filter(e=>e.obra_id===w.id).map(e=>e.id));
+  const liberacoesAtivas=releaseHistory.filter(h=>ids.has(h.esquadria_id)).length;
   return '<div class="manufacturerLine" style="gap:14px">'+
     '<div><strong>'+escapeHTML(w.nome)+'</strong><div class="hint">'+
      escapeHTML(w.codigo||'Sem código')+' · '+qtd+' esquadria(s)'+
-     (!qtd?' · pode ser estoque sem esquadrias':'')+'</div></div>'+
-    '<button type="button" class="btn secondary" data-work-review="'+escapeHTML(w.id)+
-     '">Verificar exclusão</button></div>';
+     (!qtd?' · pode ser estoque sem esquadrias':'')+
+     (liberacoesAtivas?' · '+liberacoesAtivas+' liberação(ões) ativa(s)':'')+'</div></div>'+
+    '<div class="manageWorksRowActions">'+
+      '<button type="button" class="btn secondary releaseCancellationButton" data-work-cancel-releases="'+escapeHTML(w.id)+'">Cancelar liberações</button>'+
+      '<button type="button" class="btn secondary" data-work-review="'+escapeHTML(w.id)+'">Verificar exclusão</button>'+
+    '</div></div>';
  }).join('');
  out.querySelectorAll('[data-work-review]').forEach(b=>
   b.addEventListener('click',()=>inspecionarExclusaoObra(b.dataset.workReview)));
+ out.querySelectorAll('[data-work-cancel-releases]').forEach(b=>
+  b.addEventListener('click',()=>openReleaseCancelAll(b.dataset.workCancelReleases)));
 }
 function abrirGerenciamentoObras(){
  if(!canAdministrate()||!currentCompany)return;
@@ -7828,9 +7834,6 @@ async function inspecionarExclusaoObra(id){
   node('manageWorksGoRomaneios').classList.toggle('hidden',!hasRoms);
   node('manageWorksCancelShipments').classList.toggle('hidden',!hasLooseShipments);
   node('manageWorksReverseStock').classList.toggle('hidden',!podeEstornarEstoque);
-  node('manageWorksCancelReleasesDirect').disabled=!hasReleases;
-  node('manageWorksCancelReleasesDirect').title=hasReleases?
-   'Cancelar as liberações ativas sem excluir a obra.':'Não há liberações ativas nesta obra.';
   node('manageWorksUndoStatus').textContent='';
   node('manageWorksUndoReason').value='';
   node('manageWorksReason').value='';
