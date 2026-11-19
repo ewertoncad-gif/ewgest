@@ -1156,7 +1156,7 @@ assert.ok(source.includes('stockReverseHistoryLimit=60')&&
  'As listagens extensas precisam ser exibidas progressivamente sem cortar histórico');
 assert.ok(source.includes("estornados.has(m.id)?'Estornado':'Não estornado'")&&
  source.includes('Estornar todos os lançamentos sem estorno')&&
- source.includes('ESTORNO BLOQUEADO.')&&
+ source.includes('⚠ ESTORNO BLOQUEADO')&&
  source.includes("node('stockReverseOpenWorks').classList.remove('hidden')"),
  'Estorno não pode parecer pendente de processamento quando está bloqueado por liberações');
 const motivoCincoMigration=readFileSync(fileURLToPath(new URL(
