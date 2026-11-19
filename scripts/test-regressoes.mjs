@@ -67,7 +67,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'interface renovada v43.0',
+ 'interface renovada v43.1',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -963,8 +963,8 @@ for(const id of ['manageWorks','openManageWorks','navManageWorks','manageWorksLi
  'manageWorksRefresh','manageWorksFeedback'])
  assert.ok(source.includes('id="'+id+'"'), 'Gestão de obras incompleta: '+id);
 assert.ok(source.includes("abrirGerenciamentoObras")&&
- source.includes("request('/rest/v1/rpc/ew_verificar_exclusao_obra'")&&
- source.includes("request('/rest/v1/rpc/ew_excluir_obra_sem_operacoes'"),
+ source.includes("request('/rest/v1/rpc/ew_inspecionar_reversao_obra'")&&
+ source.includes("request('/rest/v1/rpc/ew_arquivar_obra_reconciliada'"),
  'Exclusão deve passar por consulta e revalidação no servidor');
 assert.ok(source.includes('workDeleteOperationId=crypto.randomUUID()')&&
  source.includes("p_operacao_id:operation")&&source.includes('window.confirm(aviso)'),
@@ -992,6 +992,81 @@ assert.ok(worksMigration.includes('pg_catalog.pg_advisory_xact_lock')&&
 assert.ok(worksMigration.includes('public.ew_obras_exclusoes_historico')&&
  worksMigration.includes('excluido_por'),
  'Registrar autoria da exclusão em auditoria fora da obra');
+
+
+const migrationBase=readFileSync(fileURLToPath(new URL(
+ '../supabase/migrations/20261118_reconciliacao_base.sql',import.meta.url)),'utf8');
+const migrationRelease=readFileSync(fileURLToPath(new URL(
+ '../supabase/migrations/20261118_reconciliacao_liberacoes.sql',import.meta.url)),'utf8');
+const migrationStock=readFileSync(fileURLToPath(new URL(
+ '../supabase/migrations/20261118_reconciliacao_estoque_arquivamento.sql',import.meta.url)),'utf8');
+const migrationReimport=readFileSync(fileURLToPath(new URL(
+ '../supabase/migrations/20261118_reconciliacao_importacoes_ativas.sql',import.meta.url)),'utf8');
+const migrationCompat=readFileSync(fileURLToPath(new URL(
+ '../supabase/migrations/20261118_reconciliacao_compatibilidade.sql',import.meta.url)),'utf8');
+assert.ok(source.includes('id="userOperationsToggle"')&&
+ source.includes("apiGet('ew_auditoria_operacoes'")&&
+ source.includes('id="userOperationsExport"')&&
+ source.includes('function operationReportDisplay()'),
+ 'Relatório de auditoria por usuários, períodos e obras precisa estar ativo');
+assert.ok(source.includes('id="manageWorksCancelReleases"')&&
+ source.includes('id="manageWorksReverseStock"')&&
+ source.includes('id="manageWorksCancelShipments"')&&
+ source.includes('id="manageWorksGoRomaneios"'),
+ 'Gerenciar obras deve mostrar ações de cancelamento e estorno');
+assert.ok(source.includes("'ew_cancelar_liberacoes_obra'")&&
+ source.includes("'ew_estornar_estoque_obra'")&&
+ source.includes('function executarReversaoObra(tipo)'),
+ 'UI deve chamar as duas RPCs de reversão com confirmação');
+for(const term of ['public.ew_auditoria_operacoes','public.obras add column if not exists arquivada_em',
+ 'public.liberacoes_corte add column if not exists cancelado_em',
+ 'public.ew_liberacoes_lotes add column if not exists cancelado_em',
+ 'estorno_de_id uuid unique','create trigger ew_auditar_cancelamento_romaneio',
+ 'ew_bloquear_insercao_obra_arquivada']){
+ assert.ok(migrationBase.includes(term),'Auditoria/proteção incompleta: '+term);
+}
+assert.ok(migrationRelease.includes('ew_cancelar_liberacoes_obra')&&
+ migrationRelease.includes('ew_inspecionar_reversao_obra')&&
+ migrationRelease.includes('CANCELAR_LIBERACOES')&&
+ migrationRelease.includes('s.cancelado_em is null'),
+ 'Cancelamento deve bloquear saídas ativas e deixar auditoria');
+assert.ok(migrationStock.includes('ew_estornar_estoque_obra')&&
+ migrationStock.includes('-m.quantidade_delta')&&
+ migrationStock.includes(",'ESTORNO',")&&
+ migrationStock.includes('estorno_de_id')&&
+ migrationStock.includes('ew_arquivar_obra_reconciliada')&&
+ migrationStock.includes('ARQUIVAR_OBRA'),
+ 'Estorno e arquivamento devem preservar os movimentos e auditar atos');
+const archiveSource=migrationStock.slice(migrationStock.indexOf('create or replace function public.ew_arquivar_obra_reconciliada'));
+assert.ok(!archiveSource.includes('delete from public.')&&
+ archiveSource.includes('update public.obras set arquivada_em=now()'),
+ 'Obra com histórico reconciliado só pode ser arquivada, não apagada');
+assert.ok(migrationReimport.includes('arquivada_em IS NULL')&&
+ source.includes("arquivada_em:'is.null'"),
+ 'Reimportar o CEM com mesmo código deve ignorar obras arquivadas');
+assert.ok(migrationCompat.includes('select public.ew_arquivar_obra_reconciliada(')&&
+ migrationCompat.includes('select public.ew_inspecionar_reversao_obra('),
+ 'Não permitir exclusão física pela RPC antiga');
+assert.ok(source.includes("cancelado_em:'is.null'"),
+ 'Painel não deve tratar liberação cancelada como ativa');
+
+
+const miscReversal=readFileSync(fileURLToPath(new URL(
+ '../supabase/migrations/20261118_reconciliacao_saidas_avulsas.sql',import.meta.url)),'utf8');
+const retroAudit=readFileSync(fileURLToPath(new URL(
+ '../supabase/migrations/20261118_reconciliacao_historico_antigo.sql',import.meta.url)),'utf8');
+assert.ok(source.includes('CANCELAR_SAIDAS_AVULSAS')&&
+ source.includes("'ew_cancelar_saidas_avulsas_obra'")&&
+ source.includes('DEVOLVIDO'),
+ 'Saídas avulsas exigem devolução física confirmada e registro auditável');
+assert.ok(miscReversal.includes('ew_cancelar_saidas_avulsas_obra')&&
+ miscReversal.includes("ri.saida_producao_id=s.id")&&
+ miscReversal.includes('CANCELAR_SAIDAS_AVULSAS'),
+ 'Não pode estornar uma saída vinculada a romaneio como se fosse avulsa');
+assert.ok(retroAudit.includes("origem','cancelamento_anterior_a_v43_1")&&
+ retroAudit.includes("r.cancelado_por is not null")&&
+ retroAudit.includes('not exists'),
+ 'Migração de histórico deve preservar autor/data originais e evitar duplicidade');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
 
