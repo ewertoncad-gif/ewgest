@@ -328,3 +328,10 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 - Para estorno individual e estorno total de estoque, usar **uma única confirmação** (Tem certeza?) com descrição explícita do efeito na quantidade/saldo, identificação da obra e preservação da auditoria. Eliminar a segunda caixa que exige digitar `ESTORNAR`.
 - Essa regra vale tanto para **Estoque → Movimentações da obra** quanto para o estorno de estoque em **Gerenciar obras**. Motivo, validações, autor, data, histórico e bloqueios transacionais permanecem obrigatórios.
 - A confirmação adicional de devolução física de **saídas avulsas** é procedimento independente e não é alterada nesta versão.
+
+
+### Exclusão de obra sem obrigar reimportação (v43.5 — 18/11/2026)
+- O botão final em **Gerenciar obras** é **Excluir obra**, sem mencionar reimportação, que poderá ou não ocorrer de forma independente no futuro.
+- Quando todas as operações ativas estiverem conciliadas, o gestor registra um **motivo de 10 a 300 caracteres** e recebe **uma única confirmação descritiva** ("Tem certeza que deseja excluir esta obra?"). Não existe mais campo para digitar o código da obra.
+- A RPC `ew_arquivar_obra_reconciliada` mantém sua validação de código e controles transacionais; o código é fornecido automaticamente pela obra selecionada, sem pedir digitação ao operador. Permanecem bloqueios de dependências, autenticação, autorização, idempotência e auditoria.
+- **Excluir obra** a remove das telas operacionais; o registro permanece arquivado no banco para auditoria, sem eliminação física de históricos. A ação não reimporta, recria ou altera outra obra.

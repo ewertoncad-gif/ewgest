@@ -959,7 +959,7 @@ assert.ok(restoreFn.includes('if(!session||erroDeSessaoIrrecuperavel(error))')&&
 const worksMigration=readFileSync(fileURLToPath(new URL(
  '../supabase/migrations/20261118_exclusao_segura_obras_pre_operacao.sql',import.meta.url)),'utf8');
 for(const id of ['manageWorks','openManageWorks','navManageWorks','manageWorksList',
- 'manageWorksReview','manageWorksConfirmation','manageWorksReason','manageWorksDelete',
+ 'manageWorksReview','manageWorksReason','manageWorksDelete',
  'manageWorksRefresh','manageWorksFeedback'])
  assert.ok(source.includes('id="'+id+'"'), 'Gestão de obras incompleta: '+id);
 assert.ok(source.includes("abrirGerenciamentoObras")&&
@@ -968,7 +968,7 @@ assert.ok(source.includes("abrirGerenciamentoObras")&&
  'Exclusão deve passar por consulta e revalidação no servidor');
 assert.ok(source.includes('workDeleteOperationId=crypto.randomUUID()')&&
  source.includes("p_operacao_id:operation")&&source.includes('window.confirm(aviso)'),
- 'Exclusão exige chave idempotente, código e confirmação reforçada');
+ 'Exclusão exige chave idempotente e uma confirmação expressa');
 for(const t of ['public.liberacoes_corte','public.saidas_producao','public.romaneios',
  'public.ew_estoque_obras_movimentos','public.ew_liberacoes_lotes',
  'public.ew_planos_liberados','v_qtd_liberada>0','v_qtd_fabricada>0']){
@@ -1121,6 +1121,24 @@ const revGerenciar=source.slice(source.indexOf('async function executarReversaoO
 assert.ok(revGerenciar.includes("const aviso=tipo==='estoque'?")&&
  !revGerenciar.includes("tipo==='estoque'?'ESTORNAR'"),
  'Gerenciar obras também não pode exigir palavra digitada para estornar estoque');
+// A exclusão da obra requer motivo e uma confirmação: não pede código digitado nem pressupõe nova importação.
+const formExcluir=source.slice(source.indexOf('<div id="manageWorksDeleteForm"'),
+ source.indexOf('<section id="romaneiosPage"'));
+const fluxoExcluir=source.slice(source.indexOf("node('manageWorksDelete').addEventListener"),
+ source.indexOf("window.addEventListener('error'"));
+assert.ok(formExcluir.includes('>Excluir obra</button>')&&
+ !formExcluir.includes('manageWorksConfirmation')&&
+ !formExcluir.toLowerCase().includes('reimportar'),
+ 'Excluir obra deve ter botão simples, sem código ou reimportação');
+assert.ok(fluxoExcluir.includes('Tem certeza que deseja excluir esta obra?')&&
+ fluxoExcluir.includes('window.confirm(aviso)')&&
+ fluxoExcluir.includes("confirmacao=String(workDeleteInspection.codigo||workDeleteInspection.nome||'').trim()")&&
+ fluxoExcluir.includes("p_confirmacao:confirmacao")&&
+ !fluxoExcluir.includes("node('manageWorksConfirmation')"),
+ 'Confirmar exclusão uma única vez e validar código automaticamente para compatibilidade com RPC');
+assert.ok(source.includes('info?.permitido&&motivo.length>=10&&motivo.length<=300')&&
+ !source.includes('Digite exatamente o código da obra para confirmar'),
+ 'Motivo obrigatório e sem frase digitada');
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
 
 
