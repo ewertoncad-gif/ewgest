@@ -543,6 +543,14 @@
   .stockManageRow .hint{font-size:12px;margin-top:4px}
   .stockManageRow .btn{min-height:34px;white-space:nowrap}
   .stockManageDeleted{background:#fff7f1;border-radius:8px;padding:12px}
+  .stockManageRowActions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .stockReversePanel{margin-top:14px;padding:16px;border:1px solid #cddfeb;background:#f7fbff;border-radius:12px}
+  .stockReversePanel h3{font-size:16px;margin:0 0 10px}
+  .stockReversePanel .stockReverseList{max-height:260px;overflow:auto;margin:12px 0}
+  .stockReverseLine{display:flex;gap:12px;justify-content:space-between;align-items:start;border-bottom:1px solid #dce9f1;padding:8px 0;font-size:12px}
+  .stockReverseLine strong{white-space:nowrap}
+  .stockReversePanel textarea{width:100%;margin-top:6px}
+  @media(max-width:720px){.stockManageRowActions{justify-content:flex-start}.stockReverseLine{flex-direction:column;gap:3px}}
   .stockImportStats{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
   .stockImportStats span{background:#f0f7fc;border:1px solid #dceaf6;border-radius:9px;padding:10px 14px;font-size:13px}
   .stockImportStats strong{font-size:17px;color:#184b7e}
@@ -591,7 +599,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v43.1</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v43.2</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="login" class="panel login">
@@ -896,6 +904,7 @@
       <div class="stockTopActions">
           <button type="button" class="btn primary" id="stockCreateAnother">+ Criar estoque de outra obra</button>
           <button type="button" class="btn secondary" id="stockManageLocations">Gerenciar estoques</button>
+          <button type="button" class="btn secondary" id="stockArchivedReview">Saldos e estornos</button>
           <button type="button" class="btn secondary" id="stockRefresh">Atualizar</button>
         </div></div>
       <div class="materialsSummary">
@@ -1124,10 +1133,24 @@
 </div>
 <div id="stockManageOverlay" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockManageTitle" style="max-width:840px">
-    <h2 id="stockManageTitle">Gerenciar estoques das obras</h2>
-    <p class="hint">Excluir um estoque o oculta do controle sem apagar a obra nem os movimentos. O ADM pode restaurá-lo por <strong>48 horas</strong>, mantendo os saldos e o histórico.</p>
+    <h2 id="stockManageTitle">Gerenciar estoques e estornos</h2>
+    <p class="hint">Estoques arquivados ficam fora do seletor de movimentações, mas permanecem aqui para consulta e conferência dos saldos. É possível estornar lançamentos de uma obra somente após cancelar as operações dependentes. O estorno é total, auditado e não apaga o histórico. A restauração de um estoque é permitida por até 48 horas após seu arquivamento.</p>
     <p id="stockManageStatus" class="hint" role="status"></p>
     <div id="stockManageRecords"></div>
+    <div id="stockReversePanel" class="stockReversePanel hidden">
+      <h3 id="stockReverseTitle">Conferência do saldo</h3>
+      <p class="hint" id="stockReverseSummary"></p>
+      <div id="stockReverseDetails" class="stockReverseList"></div>
+      <p class="hint" id="stockReverseNotice">Confronte os saldos com o estoque físico antes de estornar.</p>
+      <label for="stockReverseReason">Motivo do estorno
+        <textarea id="stockReverseReason" rows="2" minlength="10" maxlength="400" placeholder="Ex.: Correção da importação para reabrir a obra"></textarea>
+      </label>
+      <p class="hint" id="stockReverseMessage" role="status" aria-live="polite"></p>
+      <div class="modalbuttons">
+        <button type="button" class="btn secondary" id="stockReverseBack">Voltar à lista</button>
+        <button type="button" class="btn primary" id="stockReverseApply" disabled>Estornar todos os lançamentos pendentes</button>
+      </div>
+    </div>
     <div class="modalbuttons"><button type="button" class="btn secondary" id="stockManageClose">Fechar</button></div>
   </div>
 </div>
@@ -5948,7 +5971,7 @@ async function abrirEstoque(){
       apiGet('ew_cem_obras_materiais',{select:'*',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_estoque_movimentacoes',{select:'variacao_id,quantidade_delta,unidade,tipo,criado_em',
         empresa_id:empresa,limit:'20000'}),
-      apiGet('ew_estoque_obras_movimentos',{select:'id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,origem,criado_em,local_estoque',
+      apiGet('ew_estoque_obras_movimentos',{select:'id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,origem,criado_em,local_estoque,estorno_de_id',
         empresa_id:empresa,limit:'30000'}),
       apiGet('ew_estoques_locais',{select:'id,obra_id,excluido_em,restauravel_ate,criado_em',
         empresa_id:empresa,limit:'2000'}),
@@ -6822,10 +6845,32 @@ node('stockCemFile').addEventListener('change',()=>{
  node('stockCemStatus').textContent='Arquivo selecionado. Clique em Conferir arquivo.';
 });
 
-/* Excluir significa arquivar o estoque da obra por 48h, preservando históricos. */
+/* Estoque arquivado não some da auditoria: consultar e estornar sem reativar operações. */
+let stockReverseSelectedWorkId=null;
+function stockReversalBalances(obraId){
+ const movimentos=estoqueObraMovimentos.filter(m=>m.obra_id===obraId);
+ const estornados=new Set(movimentos.filter(m=>m.estorno_de_id).map(m=>m.estorno_de_id));
+ const pendentes=movimentos.filter(m=>!m.estorno_de_id&&!estornados.has(m.id)).length;
+ const grupos=new Map();
+ for(const m of movimentos){
+  const chave=JSON.stringify([m.variacao_id,m.comprimento_mm??null,m.unidade,m.local_estoque||'IMBIRIBEIRA']);
+  if(!grupos.has(chave))grupos.set(chave,{variacao_id:m.variacao_id,comprimento_mm:m.comprimento_mm,
+   unidade:m.unidade,local_estoque:m.local_estoque||'IMBIRIBEIRA',quantidade:0});
+  grupos.get(chave).quantidade+=Number(m.quantidade_delta);
+ }
+ return {movimentos:movimentos.length,pendentes,saldos:[...grupos.values()].filter(g=>Math.abs(g.quantidade)>0.000000001)};
+}
+function stockReverseFechar(){
+ stockReverseSelectedWorkId=null;
+ node('stockReversePanel').classList.add('hidden');
+ node('stockReverseMessage').textContent='';
+ node('stockReverseApply').disabled=true;
+}
 function stockManageOpen(){
+ if(!matIsAdmin())return;
  node('stockManageOverlay').classList.remove('hidden');
  node('stockManageStatus').textContent='';
+ stockReverseFechar();
  stockManageRender();
 }
 function stockManageRender(){
@@ -6837,26 +6882,128 @@ function stockManageRender(){
  root.innerHTML=stockLocais.map(loc=>{
   const obra=works.find(x=>x.id===loc.obra_id);
   if(!obra)return '';
-  const rows=estoqueObraMovimentos.filter(x=>x.obra_id===loc.obra_id);
-  const materiais=new Set(rows.map(x=>x.variacao_id)).size;
+  const resumo=stockReversalBalances(loc.obra_id);
   const excluido=Boolean(loc.excluido_em);
   const valido=excluido&&loc.restauravel_ate&&new Date(loc.restauravel_ate).getTime()>Date.now();
-  const status=excluido?'Excluído temporariamente'+
-   (valido?' · recuperável até '+new Date(loc.restauravel_ate).toLocaleString('pt-BR'):' · prazo de recuperação encerrado'):
-   'Ativo';
+  const status=excluido?'Estoque arquivado'+
+   (valido?' · recuperável até '+new Date(loc.restauravel_ate).toLocaleString('pt-BR'):' · restauração indisponível'):
+   'Estoque ativo';
   const button=excluido?
     (valido?'<button type="button" class="btn secondary" data-stock-restore="'+escapeHTML(loc.obra_id)+'">Restaurar estoque</button>':''):
-    '<button type="button" class="btn secondary" data-stock-delete="'+escapeHTML(loc.obra_id)+'">Excluir estoque</button>';
+    '<button type="button" class="btn secondary" data-stock-delete="'+escapeHTML(loc.obra_id)+'">Arquivar estoque</button>';
+  const revisar=resumo.movimentos?
+    '<button type="button" class="btn secondary" data-stock-reverse="'+escapeHTML(loc.obra_id)+'">'+
+    (resumo.pendentes?'Conferir / estornar':'Consultar histórico')+'</button>':'';
   return '<div class="stockManageRow'+(excluido?' stockManageDeleted':'')+'"><div>'+
    '<strong>'+escapeHTML(obra.nome)+'</strong><div class="hint">'+escapeHTML(obra.codigo||'')+
-   ' · '+status+' · '+materiais+' material(is) com histórico</div></div>'+
-   '<div>'+button+'</div></div>';
+   ' · '+status+' · '+resumo.movimentos+' movimento(s) no histórico'+
+   ' · '+resumo.pendentes+' sem estorno · '+resumo.saldos.length+' saldo(s) pendente(s)</div></div>'+
+   '<div class="stockManageRowActions">'+revisar+button+'</div></div>';
  }).join('');
  root.querySelectorAll('[data-stock-delete]').forEach(btn=>btn.addEventListener('click',
   ()=>stockManageDelete(btn.dataset.stockDelete)));
  root.querySelectorAll('[data-stock-restore]').forEach(btn=>btn.addEventListener('click',
   ()=>stockManageRestore(btn.dataset.stockRestore)));
+ root.querySelectorAll('[data-stock-reverse]').forEach(btn=>btn.addEventListener('click',
+  ()=>stockReverseRevisar(btn.dataset.stockReverse)));
 }
+function stockReverseDescricaoMaterial(g){
+ const variacao=matVariacoes.find(v=>v.id===g.variacao_id);
+ const mat=variacao?(variacao.tipo==='perfil'?
+  matPerfis.find(p=>p.id===variacao.perfil_id):
+  matAcessorios.find(a=>a.id===variacao.acessorio_id)):null;
+ const cabecalho=mat?mat.codigo+' · '+mat.descricao:'Material cadastrado no histórico';
+ const detalhes=[variacao?.cor,variacao?.acabamento,
+  g.comprimento_mm?matFormat(g.comprimento_mm,0)+' mm':null,
+  g.local_estoque,g.unidade].filter(Boolean).join(' · ');
+ return {cabecalho,detalhes};
+}
+async function stockReverseRevisar(id){
+ if(!matIsAdmin()||!stockLocais.some(l=>l.obra_id===id))return;
+ const obra=works.find(w=>w.id===id);
+ if(!obra)return;
+ stockReverseSelectedWorkId=id;
+ const resumo=stockReversalBalances(id);
+ node('stockReversePanel').classList.remove('hidden');
+ node('stockReverseTitle').textContent='Conferência · '+obra.nome+' · '+(obra.codigo||'');
+ node('stockReverseSummary').textContent=resumo.movimentos+' lançamento(s) históricos · '+
+  resumo.pendentes+' sem estorno · '+resumo.saldos.length+' saldo(s) diferente(s) de zero.';
+ const linhas=resumo.saldos.map(g=>{
+  const d=stockReverseDescricaoMaterial(g);
+  return '<div class="stockReverseLine"><div><strong>'+escapeHTML(d.cabecalho)+'</strong>'+
+   '<div class="hint">'+escapeHTML(d.detalhes)+'</div></div>'+
+   '<strong>'+escapeHTML(matFormat(g.quantidade,3)+' '+g.unidade)+'</strong></div>';
+ });
+ node('stockReverseDetails').innerHTML=linhas.join('')||
+  '<div class="materialEmpty">Saldo zero em todos os materiais e galpões.</div>';
+ node('stockReverseReason').value='';
+ node('stockReverseApply').disabled=true;
+ node('stockReverseMessage').textContent='Conferindo pendências operacionais no servidor…';
+ node('stockReversePanel').scrollIntoView({block:'nearest',behavior:'smooth'});
+ if(!resumo.pendentes){
+  node('stockReverseMessage').textContent='Não há movimentos pendentes de estorno.';
+  return;
+ }
+ try{
+  await ensureSession();
+  const ver=await request('/rest/v1/rpc/ew_inspecionar_reversao_obra',{
+   method:'POST',token:session.access_token,body:{p_obra_id:id},timeoutMs:30000});
+  if(stockReverseSelectedWorkId!==id)return;
+  const impedimentos=(ver?.motivos||[]).filter(m=>
+   !String(m).includes('Estorne as movimentações do estoque'));
+  if(impedimentos.length){
+   node('stockReverseMessage').textContent='Antes de estornar, resolva em Gerenciar obras: '+impedimentos.join(' ');
+   return;
+  }
+  node('stockReverseMessage').textContent='Confira o saldo e a localização física dos materiais. '+
+   'O estorno de todos os lançamentos pendentes exige motivo e confirmação.';
+  node('stockReverseApply').disabled=false;
+ }catch(e){
+  if(stockReverseSelectedWorkId===id)node('stockReverseMessage').textContent=
+   'Não foi possível verificar as pendências: '+e.message;
+ }
+}
+async function stockReverseExecutar(){
+ const id=stockReverseSelectedWorkId;
+ const obra=works.find(w=>w.id===id);
+ if(!matIsAdmin()||!obra||!stockLocais.some(l=>l.obra_id===id))return;
+ const motivo=node('stockReverseReason').value.trim();
+ const mensagem=node('stockReverseMessage'),botao=node('stockReverseApply');
+ if(motivo.length<10||motivo.length>400){
+  mensagem.textContent='Informe o motivo do estorno com 10 a 400 caracteres.';return;
+ }
+ const saldos=stockReversalBalances(id);
+ if(!saldos.pendentes){mensagem.textContent='Esta obra já não possui movimentos pendentes.';return;}
+ if(!window.confirm('Estornar TODOS os movimentos pendentes do estoque de '+obra.nome+
+  '?\\n\\nConfira primeiro os materiais e os galpões. A ação zerará o saldo da obra e '+
+  'registrará cada contrapartida sem apagar os lançamentos originais.'))return;
+ if(window.prompt('Confirme a conferência física e digite ESTORNAR para continuar:','')!=='ESTORNAR'){
+  mensagem.textContent='Operação cancelada. Nenhum lançamento foi alterado.';return;
+ }
+ botao.disabled=true;mensagem.textContent='Conferindo e estornando no banco…';
+ try{
+  await ensureSession();
+  const ver=await request('/rest/v1/rpc/ew_inspecionar_reversao_obra',{
+   method:'POST',token:session.access_token,body:{p_obra_id:id},timeoutMs:30000});
+  const impedimentos=(ver?.motivos||[]).filter(m=>
+   !String(m).includes('Estorne as movimentações do estoque'));
+  if(impedimentos.length)throw new Error('Existem outras pendências: '+impedimentos.join(' '));
+  const result=await request('/rest/v1/rpc/ew_estornar_estoque_obra',{
+   method:'POST',token:session.access_token,timeoutMs:60000,
+   body:{p_obra_id:id,p_motivo:motivo,p_operacao_id:crypto.randomUUID()}});
+  if(stockReverseSelectedWorkId!==id)return;
+  await abrirEstoque();
+  stockReverseFechar();stockManageRender();
+  node('stockManageStatus').textContent='Estorno concluído: '+Number(result?.estornados||0)+
+   ' movimento(s) revertido(s) em '+obra.nome+
+   '. Os saldos devem estar zerados; histórico disponível em Usuários → Relatório de operações.';
+ }catch(e){
+  if(stockReverseSelectedWorkId===id)mensagem.textContent='Estorno não concluído: '+e.message;
+ }finally{botao.disabled=false;}
+}
+node('stockArchivedReview').addEventListener('click',stockManageOpen);
+node('stockReverseBack').addEventListener('click',stockReverseFechar);
+node('stockReverseApply').addEventListener('click',stockReverseExecutar);
 async function stockManageDelete(id){
  if(!matIsAdmin())return;
  const obra=works.find(x=>x.id===id);

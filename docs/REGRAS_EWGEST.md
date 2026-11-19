@@ -307,3 +307,10 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 - Se a saída foi registrada manualmente, sem estar vinculada a um romaneio, uma ação separada **Cancelar saídas avulsas** só aparece depois dos romaneios. Requer confirmação explícita de devolução física, motivo e validação no servidor.
 - Saídas vinculadas a romaneio **nunca** podem ser canceladas por essa ação; devem ser estornadas usando o próprio romaneio para manter a correspondência.
 - A auditoria também importa romaneios cancelados anteriormente, apenas quando os campos reais de data, motivo e responsável estão preenchidos. Não cria horários fictícios e impede importações duplicadas.
+
+
+### Consulta e estorno na aba Estoque (v43.2 — 18/11/2026)
+- Em **Estoque → Saldos e estornos** ou **Gerenciar estoques**, listar também estoques arquivados, inclusive com prazo de restauração vencido; eles seguem fora do seletor operacional de movimentações normais.
+- Mostrar totais de movimentos históricos, movimentos ainda sem contrapartida e saldos diferentes de zero. A conferência detalha código/descrição do material, cor, acabamento, comprimento, galpão, unidade e saldo por combinação.
+- Permitir estorno **total dos movimentos ainda pendentes** por ADM/Gerenciador, mesmo quando o estoque local estiver arquivado, desde que a obra não esteja arquivada e romaneios, saídas e liberações já tenham sido conciliados. Usar exclusivamente as RPCs transacionais `ew_inspecionar_reversao_obra` e `ew_estornar_estoque_obra` com motivo e confirmação dupla; nunca apagar lançamentos, editar saldos diretamente ou reativar estoque.
+- Ao concluir, atualizar o resumo e informar o histórico em **Usuários → Relatório de operações**. A saída do controle de obras continua independente em **Gerenciar obras**.

@@ -1068,6 +1068,24 @@ assert.ok(retroAudit.includes("origem','cancelamento_anterior_a_v43_1")&&
  retroAudit.includes('not exists'),
  'Migração de histórico deve preservar autor/data originais e evitar duplicidade');
 
+// Estornos via Estoque não alteram cadastros gerais nem disponibilizam movimentação normal de estoque arquivado.
+for(const id of ['stockArchivedReview','stockReversePanel','stockReverseTitle',
+ 'stockReverseSummary','stockReverseDetails','stockReverseReason',
+ 'stockReverseMessage','stockReverseApply','stockReverseBack']){
+ assert.ok(source.includes('id="'+id+'"'),'Conferência de estornos em Estoque sem '+id);
+}
+assert.ok(source.includes('function stockReversalBalances(obraId)')&&
+ source.includes('function stockReverseRevisar(id)')&&
+ source.includes('function stockReverseExecutar()')&&
+ source.includes(",'estorno_de_id'")===false&&
+ source.includes('local_estoque,estorno_de_id')&&
+ source.includes("request('/rest/v1/rpc/ew_estornar_estoque_obra'")&&
+ source.includes("request('/rest/v1/rpc/ew_inspecionar_reversao_obra'"),
+ 'Estornos do estoque requerem saldo, conferência de pendências e RPC auditada');
+assert.ok(source.includes('const ativas=new Set(stockLocais.filter(x=>!x.excluido_em)')&&
+ source.includes('stockLocais.map(loc=>')&&
+ source.includes('stockReverseSelectedWorkId'),
+ 'Estoques arquivados ficam só em consulta e reversão, não nas movimentações comuns');
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
 
 
