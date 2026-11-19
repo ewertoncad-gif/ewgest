@@ -335,3 +335,10 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 - Quando todas as operações ativas estiverem conciliadas, o gestor registra um **motivo de 10 a 300 caracteres** e recebe **uma única confirmação descritiva** ("Tem certeza que deseja excluir esta obra?"). Não existe mais campo para digitar o código da obra.
 - A RPC `ew_arquivar_obra_reconciliada` mantém sua validação de código e controles transacionais; o código é fornecido automaticamente pela obra selecionada, sem pedir digitação ao operador. Permanecem bloqueios de dependências, autenticação, autorização, idempotência e auditoria.
 - **Excluir obra** a remove das telas operacionais; o registro permanece arquivado no banco para auditoria, sem eliminação física de históricos. A ação não reimporta, recria ou altera outra obra.
+
+
+### Saldos, nomenclatura e motivos (v43.6 — 18/11/2026)
+- O histórico de estoque mostra **Não estornado** para lançamento original já realizado que ainda não recebeu contrapartida. Filtragem por **Não estornadas** / Todo o histórico; remover a palavra "pendente" das etiquetas dos lançamentos e do botão de estorno total.
+- Ampliação do modal de estoque, caixas de motivo de exclusão e estorno. Motivo mínimo reduzido para **5 caracteres** nas rotinas de estorno individual/total, exclusão/arquivamento auditado, cancelamento de liberações e saídas avulsas (backend e frontend correspondentes).
+- Paginação visual de saldos e movimentações na consulta (70 saldos, 60 lançamentos iniciais; botão mostrar mais). O banco preserva e valida integralmente os dados; só a renderização inicial é limitada.
+- **Estorno não liberado** enquanto houver liberações ou outras operações ativas. Mostrar motivo claro com a quantidade de liberações ativas e oferecer acesso direto a Gerenciar obras; não interpretar botão desabilitado como processamento lento, nem remover proteção.
