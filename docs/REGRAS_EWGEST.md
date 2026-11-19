@@ -312,7 +312,7 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 ### Consulta e estorno na aba Estoque (v43.2 — 18/11/2026)
 - Em **Estoque → Saldos e estornos** ou **Gerenciar estoques**, listar também estoques arquivados, inclusive com prazo de restauração vencido; eles seguem fora do seletor operacional de movimentações normais.
 - Mostrar totais de movimentos históricos, movimentos ainda sem contrapartida e saldos diferentes de zero. A conferência detalha código/descrição do material, cor, acabamento, comprimento, galpão, unidade e saldo por combinação.
-- Permitir estorno **total dos movimentos ainda pendentes** por ADM/Gerenciador, mesmo quando o estoque local estiver arquivado, desde que a obra não esteja arquivada e romaneios, saídas e liberações já tenham sido conciliados. Usar exclusivamente as RPCs transacionais `ew_inspecionar_reversao_obra` e `ew_estornar_estoque_obra` com motivo e confirmação dupla; nunca apagar lançamentos, editar saldos diretamente ou reativar estoque.
+- Permitir estorno **total dos movimentos ainda pendentes** por ADM/Gerenciador, mesmo quando o estoque local estiver arquivado, desde que a obra não esteja arquivada e romaneios, saídas e liberações já tenham sido conciliados. Usar exclusivamente as RPCs transacionais `ew_inspecionar_reversao_obra` e `ew_estornar_estoque_obra` com motivo e uma confirmação descritiva, sem digitação de palavra-chave; nunca apagar lançamentos, editar saldos diretamente ou reativar estoque.
 - Ao concluir, atualizar o resumo e informar o histórico em **Usuários → Relatório de operações**. A saída do controle de obras continua independente em **Gerenciar obras**.
 
 
@@ -322,3 +322,9 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 - Cada lançamento original pendente pode receber **Estornar lançamento** com motivo e confirmação; **Estornar todos os lançamentos pendentes** continua disponível e usa a função transacional anterior.
 - O estorno individual é uma nova contrapartida, nunca deleção/edição do lançamento anterior; lançamento já estornado é imutável. Transferências entre galpões devem ser revertidas pelas duas pernas na mesma transação. Proibir saldo negativo e exigir cancelamento das operações dependentes antes de estornar.
 - Autor, momento, motivo e movimento original ficam preservados em `ew_auditoria_operacoes`, com RLS e sem permissão de escrita direta para o cliente. O estoque arquivado pode ser consultado sem reativação do prazo de restauração.
+
+
+### Confirmação simplificada de estornos (v43.4 — 18/11/2026)
+- Para estorno individual e estorno total de estoque, usar **uma única confirmação** (Tem certeza?) com descrição explícita do efeito na quantidade/saldo, identificação da obra e preservação da auditoria. Eliminar a segunda caixa que exige digitar `ESTORNAR`.
+- Essa regra vale tanto para **Estoque → Movimentações da obra** quanto para o estorno de estoque em **Gerenciar obras**. Motivo, validações, autor, data, histórico e bloqueios transacionais permanecem obrigatórios.
+- A confirmação adicional de devolução física de **saídas avulsas** é procedimento independente e não é alterada nesta versão.

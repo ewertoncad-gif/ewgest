@@ -607,7 +607,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v43.3</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v43.4</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="login" class="panel login">
@@ -6993,13 +6993,16 @@ async function stockReverseIndividual(movimentoId){
   estado.textContent='Informe um motivo de 10 a 400 caracteres para o lançamento.';return;
  }
  const detalhe=stockReverseDescricaoMaterial(mov);
- const transferencia=mov.transferencia_id?' As duas pernas da transferência serão revertidas juntas.':'';
- if(!window.confirm('Estornar o lançamento de '+detalhe.cabecalho+
-  ' ('+matFormat(mov.quantidade_delta,3)+' '+mov.unidade+') da obra '+obra.nome+'?\\n\\n'+
-  detalhe.detalhes+transferencia+'\\nO lançamento original permanecerá no histórico.'))return;
- if(window.prompt('Confira a movimentação física e digite ESTORNAR para confirmar:','')!=='ESTORNAR'){
-  estado.textContent='Estorno cancelado.';return;
- }
+ const transferencia=mov.transferencia_id?
+  '\\nAs duas partes da transferência entre galpões serão estornadas juntas.':'';
+ const efeito=Number(mov.quantidade_delta)>0?'diminuirá':'aumentará';
+ if(!window.confirm('Tem certeza que deseja estornar esta movimentação?\\n\\n'+
+  detalhe.cabecalho+' · '+detalhe.detalhes+'\\nObra: '+obra.nome+
+  '\\nQuantidade original: '+(Number(mov.quantidade_delta)>0?'+':'')+
+  matFormat(mov.quantidade_delta,3)+' '+mov.unidade+
+  '\\nO estorno '+efeito+' o saldo deste material em '+
+  matFormat(Math.abs(Number(mov.quantidade_delta)),3)+' '+mov.unidade+'.'+
+  transferencia+'\\n\\nO lançamento original continuará no histórico, com registro do estorno, usuário e motivo.'))return;
  stockReverseReady=false;
  node('stockReverseApply').disabled=true;
  stockReverseHistoryRender(id);
@@ -7082,12 +7085,10 @@ async function stockReverseExecutar(){
  }
  const saldos=stockReversalBalances(id);
  if(!saldos.pendentes){mensagem.textContent='Esta obra já não possui movimentos pendentes.';return;}
- if(!window.confirm('Estornar TODOS os movimentos pendentes do estoque de '+obra.nome+
-  '?\\n\\nConfira primeiro os materiais e os galpões. A ação zerará o saldo da obra e '+
-  'registrará cada contrapartida sem apagar os lançamentos originais.'))return;
- if(window.prompt('Confirme a conferência física e digite ESTORNAR para continuar:','')!=='ESTORNAR'){
-  mensagem.textContent='Operação cancelada. Nenhum lançamento foi alterado.';return;
- }
+ if(!window.confirm('Tem certeza que deseja estornar todas as movimentações pendentes?\\n\\n'+
+  'Obra: '+obra.nome+'\\nMovimentações a estornar: '+saldos.pendentes+
+  '\\n\\nO sistema registrará lançamentos inversos para zerar o saldo da obra por material e galpão. '+
+  'As movimentações originais serão preservadas, assim como usuário, data e motivo do estorno.'))return;
  botao.disabled=true;mensagem.textContent='Conferindo e estornando no banco…';
  try{
   await ensureSession();
@@ -7572,13 +7573,16 @@ async function executarReversaoObra(tipo){
  try{motivo=motivoDeReversao();}catch(e){estado.textContent=e.message;return;}
  const acao=tipo==='liberacoes'?'CANCELAR TODAS AS LIBERAÇÕES':
   tipo==='saidas'?'CANCELAR SAÍDAS AVULSAS':'ESTORNAR TODOS OS MOVIMENTOS DE ESTOQUE';
- if(!window.confirm(acao+' de '+obra.nome+'?\n\nA ação será registrada com sua conta, data e motivo. O histórico antigo não será apagado.'))return;
- if(tipo==='estoque'||tipo==='saidas'){
-  const frase=tipo==='estoque'?'ESTORNAR':'DEVOLVIDO';
-  const confirmar=window.prompt(tipo==='estoque'?
-   'Antes de prosseguir, confira a movimentação física dos materiais e a localização por galpão.\n\nDigite ESTORNAR para confirmar:':
+ const aviso=tipo==='estoque'?
+  'Tem certeza que deseja estornar todas as movimentações de estoque de '+obra.nome+'?\n\n'+
+  'O sistema registrará lançamentos inversos e zerará o saldo por material e galpão. '+
+  'Todos os movimentos originais e o registro de auditoria serão preservados.':
+  acao+' de '+obra.nome+'?\n\nA ação será registrada com sua conta, data e motivo. O histórico antigo não será apagado.';
+ if(!window.confirm(aviso))return;
+ if(tipo==='saidas'){
+  const confirmar=window.prompt(
    'Confirme que as esquadrias enviadas sem romaneio foram efetivamente devolvidas/conciliadas.\n\nDigite DEVOLVIDO para confirmar:','');
-  if(confirmar!==frase){estado.textContent='Reversão cancelada. Nenhum movimento foi alterado.';return;}
+  if(confirmar!=='DEVOLVIDO'){estado.textContent='Reversão cancelada. Nenhum movimento foi alterado.';return;}
  }
  btn.disabled=true;estado.textContent='Processando a reversão e salvando auditoria…';
  try{

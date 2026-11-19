@@ -1107,6 +1107,20 @@ for(const parte of ['ew_estornar_movimento_obra','estorno_de_id',
  'count(distinct m.local_estoque)']){
  assert.ok(estornoUnitMigration.includes(parte),'RPC estorno individual incompleta: '+parte);
 }
+// A confirmação de estorno de estoque é única e explica o efeito da operação.
+const confirmacaoUnica=source.slice(source.indexOf('async function stockReverseIndividual(movimentoId)'),
+ source.indexOf('async function stockManageDelete(id)'));
+assert.ok(confirmacaoUnica.includes('Tem certeza que deseja estornar esta movimentação?')&&
+ confirmacaoUnica.includes('Tem certeza que deseja estornar todas as movimentações pendentes?')&&
+ !confirmacaoUnica.includes('Digite ESTORNAR')&&
+ !confirmacaoUnica.includes('digite ESTORNAR')&&
+ !confirmacaoUnica.includes('window.prompt('),
+ 'Estorno no Estoque deve exigir somente confirmação descritiva, sem digitar ESTORNAR');
+const revGerenciar=source.slice(source.indexOf('async function executarReversaoObra(tipo)'),
+ source.indexOf("node('manageWorksGoRomaneios').addEventListener"));
+assert.ok(revGerenciar.includes("const aviso=tipo==='estoque'?")&&
+ !revGerenciar.includes("tipo==='estoque'?'ESTORNAR'"),
+ 'Gerenciar obras também não pode exigir palavra digitada para estornar estoque');
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
 
 
