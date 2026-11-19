@@ -3473,7 +3473,7 @@ async function openManagedUsersPage(){
 let accessHistoryRecords=[],accessHistoryQuerySequence=0;
 
 /* Auditoria independente do cadastro da obra (preservada após exclusão lógica). */
-let operationReportRecords=[],operationReportSeq=0;
+let operationReportRecords=[],operationReportSeq=0,operationReportUsers=[];
 const actionLabels={
  CANCELAR_ROMANEIO:'Romaneio cancelado',
  CANCELAR_SAIDAS_AVULSAS:'Saídas avulsas canceladas',
@@ -3484,10 +3484,10 @@ const actionLabels={
 function operationReportPopulateUsers(){
  const el=node('userOperationsUser'),val=el.value;
  el.innerHTML='<option value="">Todos</option>'+
-  managedAccounts.slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'))
+  operationReportUsers.slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'))
    .map(u=>'<option value="'+escapeHTML(u.usuario_id)+'">'+
     escapeHTML(u.nome+' · '+u.login)+'</option>').join('');
- if(managedAccounts.some(u=>u.usuario_id===val))el.value=val;
+ if(operationReportUsers.some(u=>u.usuario_id===val))el.value=val;
 }
 function operationReportDisplay(){
  const filtro=node('userOperationsWorkSearch').value.trim().toLocaleLowerCase('pt-BR');
@@ -3500,7 +3500,7 @@ function operationReportDisplay(){
   target.innerHTML='<div class="materialEmpty" style="padding:18px">Nenhuma operação neste filtro.</div>';
   return;
  }
- const names=new Map(managedAccounts.map(u=>[u.usuario_id,u]));
+ const names=new Map(operationReportUsers.map(u=>[u.usuario_id,u]));
  target.innerHTML='<div class="userAccessHistoryWrap"><table class="userAccessHistoryTable">'+
  '<thead><tr><th>Quando</th><th>Usuário</th><th>Obra</th><th>Operação</th><th>Motivo e detalhes</th></tr></thead><tbody>'+
  records.map(r=>{
@@ -3566,7 +3566,7 @@ node('userOperationsExport').addEventListener('click',()=>{
   if(/^[\s]*[=+\-@]/.test(x))x="'"+x;
   return '"'+x.replace(/"/g,'""').replace(/\r?\n/g,' ')+'"';
  };
- const nomes=new Map(managedAccounts.map(u=>[u.usuario_id,u.nome+' ('+u.login+')']));
+ const nomes=new Map(operationReportUsers.map(u=>[u.usuario_id,u.nome+' ('+u.login+')']));
  const data=[['Data e hora (Recife)','Usuário','ID do usuário','Obra','Código da obra',
   'Ação','Motivo','Detalhes JSON'].map(csvSafe).join(';')];
  for(const r of rows)data.push([
