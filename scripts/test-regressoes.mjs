@@ -1111,7 +1111,7 @@ for(const parte of ['ew_estornar_movimento_obra','estorno_de_id',
 const confirmacaoUnica=source.slice(source.indexOf('async function stockReverseIndividual(movimentoId)'),
  source.indexOf('async function stockManageDelete(id)'));
 assert.ok(confirmacaoUnica.includes('Tem certeza que deseja estornar esta movimentação?')&&
- confirmacaoUnica.includes('Tem certeza que deseja estornar todas as movimentações pendentes?')&&
+ confirmacaoUnica.includes('Tem certeza que deseja estornar todas as movimentações ainda não estornadas?')&&
  !confirmacaoUnica.includes('Digite ESTORNAR')&&
  !confirmacaoUnica.includes('digite ESTORNAR')&&
  !confirmacaoUnica.includes('window.prompt('),
@@ -1136,9 +1136,38 @@ assert.ok(fluxoExcluir.includes('Tem certeza que deseja excluir esta obra?')&&
  fluxoExcluir.includes("p_confirmacao:confirmacao")&&
  !fluxoExcluir.includes("node('manageWorksConfirmation')"),
  'Confirmar exclusão uma única vez e validar código automaticamente para compatibilidade com RPC');
-assert.ok(source.includes('info?.permitido&&motivo.length>=10&&motivo.length<=300')&&
+assert.ok(source.includes('info?.permitido&&motivo.length>=5&&motivo.length<=300')&&
  !source.includes('Digite exatamente o código da obra para confirmar'),
  'Motivo obrigatório e sem frase digitada');
+// v43.6: motivo de 5 caracteres, estados claros e listas paginadas para obras grandes.
+for(const id of ['stockReverseBalancesCount','stockReverseBalancesMore','stockReverseHistoryCount',
+ 'stockReverseHistoryMore','stockReverseOpenWorks']){
+ assert.ok(source.includes('id="'+id+'"'),'Interface de estornos precisa de '+id);
+}
+assert.ok(source.includes('minlength="5" maxlength="400"')&&
+ source.includes('motivo.length<5||motivo.length>400')&&
+ source.includes('motivo.length>=5&&motivo.length<=300')&&
+ source.includes("new Map(matVariacoes.map(v=>[v.id,v]))"),
+ 'Motivos de estorno e exclusão com mínimo de 5; índice de materiais evita buscas repetidas');
+assert.ok(source.includes('stockReverseHistoryLimit=60')&&
+ source.includes('stockReverseBalancesLimit=70')&&
+ source.includes("filtrados.slice(0,stockReverseHistoryLimit)")&&
+ source.includes("resumo.saldos.slice(0,stockReverseBalancesLimit)"),
+ 'As listagens extensas precisam ser exibidas progressivamente sem cortar histórico');
+assert.ok(source.includes("estornados.has(m.id)?'Estornado':'Não estornado'")&&
+ source.includes('Estornar todos os lançamentos sem estorno')&&
+ source.includes('ESTORNO BLOQUEADO.')&&
+ source.includes("node('stockReverseOpenWorks').classList.remove('hidden')"),
+ 'Estorno não pode parecer pendente de processamento quando está bloqueado por liberações');
+const motivoCincoMigration=readFileSync(fileURLToPath(new URL(
+ '../supabase/migrations/20261118_motivos_cinco_caracteres.sql',import.meta.url)),'utf8');
+for(const name of ['ew_estornar_movimento_obra','ew_estornar_estoque_obra',
+ 'ew_arquivar_obra_reconciliada','ew_cancelar_liberacoes_obra','ew_cancelar_saidas_avulsas_obra']){
+ assert.ok(motivoCincoMigration.includes('FUNCTION public.'+name),
+ 'A rotina deve validar mínimo de cinco caracteres: '+name);
+}
+assert.ok(!motivoCincoMigration.includes('not between 10 and 400'),
+ 'Validação antiga de 10 caracteres permanece na migração');
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
 
 
