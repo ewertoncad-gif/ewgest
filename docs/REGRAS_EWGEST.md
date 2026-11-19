@@ -301,3 +301,9 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 - A tabela de auditoria \`ew_auditoria_operacoes\` registra operador, empresa, obra/código, data/hora, ação, motivo, dados originais e detalhes do estorno/cancelamento/remoção. O cancelamento de romaneio é capturado por trigger. A tabela tem RLS, sem INSERT/UPDATE/DELETE direto para usuários.
 - Em **Usuários → Relatório de operações**, ADM e Gerenciador podem filtrar período (7/30/90/365 dias), usuário, tipo de evento, nome/código da obra, visualizar detalhes e exportar CSV. **Histórico de acessos** continua separado.
 - Não existe exclusão automática, nem restauração física implícita, nem anulação de movimentação por apagar linhas. Testes transacionais são feitos com ROLLBACK.
+
+
+### Reversão de saídas sem romaneio e histórico legado
+- Se a saída foi registrada manualmente, sem estar vinculada a um romaneio, uma ação separada **Cancelar saídas avulsas** só aparece depois dos romaneios. Requer confirmação explícita de devolução física, motivo e validação no servidor.
+- Saídas vinculadas a romaneio **nunca** podem ser canceladas por essa ação; devem ser estornadas usando o próprio romaneio para manter a correspondência.
+- A auditoria também importa romaneios cancelados anteriormente, apenas quando os campos reais de data, motivo e responsável estão preenchidos. Não cria horários fictícios e impede importações duplicadas.
