@@ -356,3 +356,11 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 - Obras cadastradas apenas para controle manual de estoque continuam exclusivamente na tela **Estoque**, não na listagem técnica de obras.
 - Na tela detalhada, o botão **Voltar** retorna à listagem Obras se a entrada tiver ocorrido pelo menu lateral; as entradas feitas pela Tela inicial continuam voltando ao painel. O botão **Tela inicial** sempre permanece disponível.
 - O atalho não é exibido para o usuário restrito de almoxarifado e não altera permissões de obra, liberações ou expedição.
+
+
+### Cancelar liberações na tela da obra (v43.9 — 19/11/2026)
+- Dentro de **Obras → obra → Liberações para corte**, mostrar **Cancelar liberações** ao lado de **Liberar a partir do arquivo CEM**, somente a ADM e Gerenciador quando a obra tiver registros ativos de liberação.
+- Abre diálogo com a obra, lista dos registros e totais conferidos em `ew_inspecionar_reversao_obra`. Exige motivo entre 5 e 400 caracteres e uma confirmação explícita de que **todas** as liberações da obra serão canceladas. Não é cancelamento individual.
+- Se houver romaneios ativos, saídas de produção ou fabricação registrada, o banco impedirá o cancelamento e a tela indicará qual dependência conciliar primeiro.
+- O botão usa a RPC existente `ew_cancelar_liberacoes_obra`, preserva registros e auditoria, atualiza os totais da obra e informa que o estoque deve ser estornado **separadamente**. A interface nunca exclui a obra nem realiza estornos de estoque como efeito colateral.
+- Supervisores continuam aptos a fazer liberações, mas não recebem o botão administrativo de cancelamento em massa.

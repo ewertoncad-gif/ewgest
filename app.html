@@ -544,6 +544,15 @@
   .stockManageRow .btn{min-height:34px;white-space:nowrap}
   .stockManageDeleted{background:#fff7f1;border-radius:8px;padding:12px}
   .stockManageRowActions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .releaseCancellationButton{border-color:#d47a6a!important;color:#ba4b3c!important}
+  .releaseCancellationButton:disabled{cursor:not-allowed;opacity:.55}
+  .releaseCancelAllDialog{width:min(96vw,710px);max-height:90vh;overflow:auto}
+  .releaseCancelAllDialog label{display:block;margin-top:14px;font-weight:600}
+  .releaseCancelAllDialog textarea{display:block;width:100%;min-height:100px;resize:vertical;margin-top:8px}
+  .releaseCancelAllItems{max-height:220px;overflow:auto;border:1px solid #dce6f0;border-radius:9px;margin:12px 0}
+  .releaseCancelAllItem{padding:10px 12px;border-bottom:1px solid #dce6f0;font-size:13px;display:flex;justify-content:space-between;gap:10px}
+  .releaseCancelAllItem:last-child{border-bottom:0}
+  .releaseCancelAllWarning{background:#fff0ed;color:#aa3027!important;border:1px solid #e2a39d;border-radius:8px;padding:10px;font-weight:650}
   .stockReversePanel{margin-top:14px;padding:16px;border:1px solid #cddfeb;background:#f7fbff;border-radius:12px}
   .stockReversePanel h3{font-size:16px;margin:0 0 10px}
   .stockReversePanel .stockReverseList{max-height:360px;overflow:auto;margin:12px 0}
@@ -628,7 +637,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v43.8</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v43.9</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="login" class="panel login">
@@ -747,7 +756,9 @@
         </div>
         <div id="releaseBatchActions" class="romaneioActions">
           <button type="button" class="btn primary" id="releaseBatchOpen">+ Liberar a partir do arquivo CEM</button>
+          <button type="button" class="btn secondary releaseCancellationButton hidden" id="releaseCancelAllOpen">Cancelar liberações</button>
         </div>
+        <p id="releaseCancelAllFeedback" class="hint" role="status" aria-live="polite"></p>
         <h2 id="itemListTitle">Itens da obra</h2>
         
 <div class="itemfilter"><label for="itemSearch">Buscar na lista</label><div class="filterrow"><select id="itemSearchMode" aria-label="Buscar por"><option value="esquadria">Código da esquadria</option><option value="tipologia">Código da tipologia</option></select><input id="itemSearch" type="search" placeholder="Ex.: EA2 ou 2" autocomplete="off" spellcheck="false"><button id="clearItemSearch" type="button" class="btn secondary">Limpar</button></div><div class="displayoptions"><label><input id="showItemDescription" type="checkbox"> Mostrar descrição</label><label><input id="showItemLocation" type="checkbox"> Mostrar localização</label></div><p id="itemFilterCount" class="hint filtercount" role="status" aria-live="polite"></p></div>
@@ -1386,6 +1397,22 @@
         <button type="submit" class="btn primary" id="romaneioCancelConfirm">Confirmar cancelamento e estorno</button>
       </div>
     </form>
+  </div>
+</div>
+<div id="releaseCancelAllOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox releaseCancelAllDialog" role="dialog" aria-modal="true" aria-labelledby="releaseCancelAllTitle">
+    <h2 id="releaseCancelAllTitle">Cancelar liberações da obra</h2>
+    <p id="releaseCancelAllSummary" class="hint" role="status">Conferindo as liberações...</p>
+    <div id="releaseCancelAllItems" class="releaseCancelAllItems"></div>
+    <p class="hint">O cancelamento preserva o histórico e não estorna automaticamente o estoque. Se houver romaneios ou saídas vinculados, será necessário cancelá-los primeiro.</p>
+    <label for="releaseCancelAllReason">Motivo do cancelamento
+      <textarea id="releaseCancelAllReason" rows="3" minlength="5" maxlength="400" placeholder="Informe o motivo (mínimo de 5 caracteres)"></textarea>
+    </label>
+    <p id="releaseCancelAllStatus" class="hint" role="status" aria-live="polite"></p>
+    <div class="modalbuttons">
+      <button type="button" class="btn secondary" id="releaseCancelAllClose">Fechar</button>
+      <button type="button" class="btn secondary releaseCancellationButton" id="releaseCancelAllConfirm" disabled>Cancelar todas as liberações</button>
+    </div>
   </div>
 </div>
 <div id="releaseModal" class="modaloverlay hidden" role="presentation">
@@ -3011,6 +3038,8 @@ function renderDetail(w){
   node('shipmentOverview').classList.toggle('hidden',!shipping);
   node('romaneioActions').classList.toggle('hidden',!shipping);
   node('releaseBatchActions').classList.toggle('hidden',shipping||!canEdit);
+  const liberacoesAtivasNaObra=releaseHistory.filter(h=>list.some(item=>item.id===h.esquadria_id)).length;
+  node('releaseCancelAllOpen').classList.toggle('hidden',shipping||!canAdministrate()||liberacoesAtivasNaObra===0);
   node('openRomaneio').disabled=!canEdit||!dispatchReady||Boolean(romaneioLoadError);
   node('romaneioOverview').classList.toggle('hidden',!shipping);
   node('romaneioHistoryPanel').classList.add('hidden');
@@ -3400,6 +3429,122 @@ async function releaseLerCem(){
     node('releaseCemPreview').classList.add('hidden');}
   finally{btn.disabled=false;}
 }
+/* Cancelamento de liberações na própria obra: apenas ADM e Gerenciador, sob verificação do banco. */
+let releaseCancelAllWorkId=null,releaseCancelAllInspection=null,releaseCancelAllRequestId=0;
+function closeReleaseCancelAll(){
+ releaseCancelAllRequestId++;
+ releaseCancelAllWorkId=null;
+ releaseCancelAllInspection=null;
+ node('releaseCancelAllOverlay').classList.add('hidden');
+ node('releaseCancelAllConfirm').disabled=true;
+ node('releaseCancelAllStatus').textContent='';
+}
+async function openReleaseCancelAll(){
+ if(!canAdministrate()||!selectedWork)return;
+ const obra=selectedWork,obraId=obra.id;
+ const ativas=releaseHistory.filter(h=>elements.some(item=>item.obra_id===obraId&&item.id===h.esquadria_id));
+ if(!ativas.length){
+  node('releaseCancelAllFeedback').textContent='Esta obra não possui liberações ativas para cancelar.';
+  return;
+ }
+ const seq=++releaseCancelAllRequestId;
+ releaseCancelAllWorkId=obraId;
+ releaseCancelAllInspection=null;
+ node('releaseCancelAllOverlay').classList.remove('hidden');
+ node('releaseCancelAllSummary').textContent='Conferindo liberações de '+obra.nome+'…';
+ node('releaseCancelAllStatus').textContent='Verificando dependências operacionais no banco…';
+ node('releaseCancelAllStatus').classList.remove('releaseCancelAllWarning');
+ node('releaseCancelAllReason').value='';
+ node('releaseCancelAllConfirm').disabled=true;
+ const porId=new Map(elements.filter(e=>e.obra_id===obraId).map(e=>[e.id,e]));
+ node('releaseCancelAllItems').innerHTML=ativas.map(h=>{
+  const item=porId.get(h.esquadria_id);
+  return '<div class="releaseCancelAllItem"><span>'+escapeHTML(item?.codigo||'Esquadria')+
+   ' · '+escapeHTML(String(h.data_liberacao||'Data não informada'))+
+   '</span><strong>'+escapeHTML(String(h.quantidade||0))+' unidade(s)</strong></div>';
+ }).join('');
+ try{
+  await ensureSession();
+  const check=await request('/rest/v1/rpc/ew_inspecionar_reversao_obra',{
+   method:'POST',token:session.access_token,body:{p_obra_id:obraId},timeoutMs:30000});
+  if(seq!==releaseCancelAllRequestId||releaseCancelAllWorkId!==obraId)return;
+  if(!check||check.obra_id!==obraId)throw new Error('A verificação não corresponde à obra.');
+  releaseCancelAllInspection=check;
+  const resumo=check.resumo||{},numero=Number(resumo.liberacoes||0),
+    unidades=Number(resumo.unidades_liberadas||0),
+    lotes=Number(resumo.lotes_cem||0);
+  node('releaseCancelAllSummary').textContent=obra.nome+' · '+
+   numero+' liberação(ões) ativa(s) · '+unidades+' unidade(s) liberada(s)'+
+   (lotes?' · '+lotes+' lote(s) CEM ativo(s)':'');
+  const romaneios=Number(resumo.romaneios||0),saidas=Number(resumo.saidas_producao||0),
+    fabricadas=Number(resumo.fabricadas||0);
+  if(romaneios||saidas||fabricadas){
+   node('releaseCancelAllStatus').textContent='CANCELAMENTO BLOQUEADO: '+
+    (romaneios?romaneios+' romaneio(s) ativo(s). ':'')+
+    (saidas?saidas+' saída(s) de produção ativa(s). ':'')+
+    (fabricadas?fabricadas+' unidade(s) fabricada(s). ':'')+
+    'Concilie essas operações em Gerenciar obras antes de cancelar as liberações.';
+   node('releaseCancelAllStatus').classList.add('releaseCancelAllWarning');
+   return;
+  }
+  if(!numero&&!lotes){
+   node('releaseCancelAllStatus').textContent='Não há liberações ou lotes ativos para cancelar.';
+   return;
+  }
+  node('releaseCancelAllStatus').textContent='Informe o motivo. O botão cancela TODAS as liberações ativas da obra, não apenas uma esquadria.';
+  node('releaseCancelAllConfirm').disabled=false;
+ }catch(err){
+  if(seq===releaseCancelAllRequestId&&releaseCancelAllWorkId===obraId){
+   node('releaseCancelAllStatus').textContent='Não foi possível conferir as liberações: '+err.message;
+   node('releaseCancelAllStatus').classList.add('releaseCancelAllWarning');
+  }
+ }
+}
+async function confirmReleaseCancelAll(){
+ const obraId=releaseCancelAllWorkId;
+ const obra=works.find(w=>w.id===obraId),check=releaseCancelAllInspection;
+ if(!canAdministrate()||!obra||!check||check.obra_id!==obraId||node('releaseCancelAllConfirm').disabled)return;
+ const motivo=node('releaseCancelAllReason').value.trim();
+ if(motivo.length<5||motivo.length>400){
+  node('releaseCancelAllStatus').textContent='Informe um motivo com 5 a 400 caracteres.';
+  return;
+ }
+ const resumo=check.resumo||{};
+ if(!window.confirm('Tem certeza que deseja cancelar TODAS as liberações para corte da obra '+obra.nome+
+  '?\\n\\nLiberações ativas: '+Number(resumo.liberacoes||0)+
+  '\\nUnidades liberadas: '+Number(resumo.unidades_liberadas||0)+
+  '\\n\\nO histórico será preservado. O estoque NÃO será estornado automaticamente.'))return;
+ const botao=node('releaseCancelAllConfirm');
+ const status=node('releaseCancelAllStatus');
+ botao.disabled=true;
+ status.textContent='Cancelando liberações e registrando o motivo…';
+ try{
+  await ensureSession();
+  const result=await request('/rest/v1/rpc/ew_cancelar_liberacoes_obra',{
+   method:'POST',token:session.access_token,timeoutMs:60000,
+   body:{p_obra_id:obraId,p_motivo:motivo}});
+  closeReleaseCancelAll();
+  await loadPanel();
+  const atual=works.find(w=>w.id===obraId);
+  if(atual){
+   detailMode='release';
+   renderDetail(atual);
+   node('releaseCancelAllFeedback').textContent=
+    'Cancelamento realizado: '+Number(result?.canceladas||0)+' liberação(ões), '+
+    Number(result?.unidades||0)+' unidade(s) revertida(s). '+
+    'Confira separadamente as movimentações de estoque. O histórico foi preservado.';
+  }
+ }catch(err){
+  if(releaseCancelAllWorkId===obraId){
+   status.textContent='Cancelamento não concluído: '+err.message;
+   status.classList.add('releaseCancelAllWarning');
+   botao.disabled=false;
+  }
+ }
+}
+node('releaseCancelAllOpen').addEventListener('click',openReleaseCancelAll);
+node('releaseCancelAllClose').addEventListener('click',closeReleaseCancelAll);
+node('releaseCancelAllConfirm').addEventListener('click',confirmReleaseCancelAll);
 function openRelease(id){
   if(!['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
   selectedItem=elements.find(e=>e.id===id);if(!selectedItem)return;
