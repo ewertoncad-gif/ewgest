@@ -5990,7 +5990,7 @@ async function abrirEstoque(){
       apiGet('ew_cem_obras_materiais',{select:'*',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_estoque_movimentacoes',{select:'variacao_id,quantidade_delta,unidade,tipo,criado_em',
         empresa_id:empresa,limit:'20000'}),
-      apiGet('ew_estoque_obras_movimentos',{select:'id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,origem,criado_em,local_estoque,estorno_de_id',
+      apiGet('ew_estoque_obras_movimentos',{select:'id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,origem,criado_em,local_estoque,estorno_de_id,transferencia_id,observacao,usuario_id',
         empresa_id:empresa,limit:'30000'}),
       apiGet('ew_estoques_locais',{select:'id,obra_id,excluido_em,restauravel_ate,criado_em',
         empresa_id:empresa,limit:'2000'}),
@@ -6473,7 +6473,7 @@ function stockReportRender(){
 }
 node('stockReportIncludeEmpty').addEventListener('change',stockReportRender);
 function stockManualOpen(variationId=''){
- if(!matIsAdmin()||stockLocais.some(l=>l.obra_id===node('stockWork').value&&l.excluido_em))return;
+ if(!matIsAdmin()||(variationId&&stockLocais.some(l=>l.obra_id===node('stockWork').value&&l.excluido_em)))return;
  node('stockManualTitle').textContent=variationId?'Ajustar material do estoque':'Adicionar material ao estoque da obra';
  stockManualOperationId=crypto.randomUUID();
  node('stockManualForm').reset();
