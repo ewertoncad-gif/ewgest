@@ -314,3 +314,11 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 - Mostrar totais de movimentos históricos, movimentos ainda sem contrapartida e saldos diferentes de zero. A conferência detalha código/descrição do material, cor, acabamento, comprimento, galpão, unidade e saldo por combinação.
 - Permitir estorno **total dos movimentos ainda pendentes** por ADM/Gerenciador, mesmo quando o estoque local estiver arquivado, desde que a obra não esteja arquivada e romaneios, saídas e liberações já tenham sido conciliados. Usar exclusivamente as RPCs transacionais `ew_inspecionar_reversao_obra` e `ew_estornar_estoque_obra` com motivo e confirmação dupla; nunca apagar lançamentos, editar saldos diretamente ou reativar estoque.
 - Ao concluir, atualizar o resumo e informar o histórico em **Usuários → Relatório de operações**. A saída do controle de obras continua independente em **Gerenciar obras**.
+
+
+### Estoque arquivado selecionável e estorno por lançamento (v43.3 — 18/11/2026)
+- Exibir no seletor **Estoque → Obra** também as obras com estoque arquivado, marcadas **ESTOQUE ARQUIVADO**. Nessa situação, a listagem de materiais é exclusivamente de consulta: não permitir novos lançamentos, ajustes comuns ou transferências pelo painel operacional.
+- Com uma obra selecionada, **Movimentações da obra** abre consulta aos saldos por galpão e histórico de lançamentos, com filtros para pendentes ou todos, indicando origem, data, material, local, quantidade e estado do estorno.
+- Cada lançamento original pendente pode receber **Estornar lançamento** com motivo e confirmação; **Estornar todos os lançamentos pendentes** continua disponível e usa a função transacional anterior.
+- O estorno individual é uma nova contrapartida, nunca deleção/edição do lançamento anterior; lançamento já estornado é imutável. Transferências entre galpões devem ser revertidas pelas duas pernas na mesma transação. Proibir saldo negativo e exigir cancelamento das operações dependentes antes de estornar.
+- Autor, momento, motivo e movimento original ficam preservados em `ew_auditoria_operacoes`, com RLS e sem permissão de escrita direta para o cliente. O estoque arquivado pode ser consultado sem reativação do prazo de restauração.

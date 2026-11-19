@@ -1086,6 +1086,27 @@ assert.ok(source.includes('const ativas=new Set(stockLocais.filter(x=>!x.excluid
  source.includes('stockLocais.map(loc=>')&&
  source.includes('stockReverseSelectedWorkId'),
  'Estoques arquivados ficam só em consulta e reversão, não nas movimentações comuns');
+// Obra com estoque arquivado permanece selecionável exclusivamente para consulta.
+for(const id of ['stockWorkHistory','stockArchivedHint','stockReverseHistoryList','stockReverseHistoryFilter']){
+ assert.ok(source.includes('id="'+id+'"'),'Histórico de estoque por obra precisa de '+id);
+}
+assert.ok(source.includes("locaisPorObra.get(w.id)?.excluido_em")&&
+ source.includes("ESTOQUE ARQUIVADO")&&
+ source.includes('Somente consulta')&&
+ source.includes("node('stockNewManual').disabled=arquivado"),
+ 'Estoque arquivado deve aparecer no seletor sem permitir movimentação operacional');
+assert.ok(source.includes('function stockReverseHistoryRender(id)')&&
+ source.includes('async function stockReverseIndividual(movimentoId)')&&
+ source.includes("request('/rest/v1/rpc/ew_estornar_movimento_obra'")&&
+ source.includes('data-stock-reverse-item'),
+ 'Histórico deve oferecer estorno individual pela RPC auditada');
+const estornoUnitMigration=readFileSync(fileURLToPath(new URL(
+ '../supabase/migrations/20261118_estorno_individual_movimentos_estoque.sql',import.meta.url)),'utf8');
+for(const parte of ['ew_estornar_movimento_obra','estorno_de_id',
+ 'pg_catalog.pg_advisory_xact_lock','ew_inspecionar_reversao_obra','ESTORNAR_ESTOQUE',
+ 'count(distinct m.local_estoque)']){
+ assert.ok(estornoUnitMigration.includes(parte),'RPC estorno individual incompleta: '+parte);
+}
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
 
 
