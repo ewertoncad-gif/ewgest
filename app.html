@@ -3535,7 +3535,7 @@ async function operationReportLoad(){
   const [registros,usuarios]=await Promise.all([
     apiGet('ew_auditoria_operacoes',params),
     apiGet('usuarios_login',{select:'usuario_id,nome,login,perfil,ativo,excluido_em',
-      empresa_id:'eq.'+currentCompany.id,limit:'1000'})
+      empresa_id:'eq.'+currentCompany.id,limit:'1000'}).catch(()=>managedAccounts)
   ]);
   if(seq!==operationReportSeq)return;
   operationReportRecords=registros||[];
