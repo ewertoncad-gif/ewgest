@@ -856,7 +856,7 @@
       </div>
     </section>
     <section id="detail" class="hidden">
-      <div class="head"><div><div class="detailnav"><button id="back" class="btn secondary" type="button">← Voltar</button><button id="goHome" class="btn secondary" type="button">⌂ Tela inicial</button></div><h1 id="workName"></h1><div id="workMeta" class="muted"></div></div></div>
+      <div class="head"><div><div class="detailnav"><button id="back" class="btn secondary" type="button">← Voltar</button><button id="goHome" class="btn secondary" type="button">⌂ Tela inicial</button><button id="detailFinanceiro" class="btn secondary hidden" type="button">Financeiro da obra</button></div><h1 id="workName"></h1><div id="workMeta" class="muted"></div></div></div>
       <div class="stats">
         <div class="stat"><div class="label">Área total</div><div class="number" id="detailTotal">—</div></div>
         <div class="stat"><div class="label">Liberada</div><div class="number" id="detailReleased">—</div></div>
@@ -3157,6 +3157,7 @@ function renderDetail(w){
   const list=elements.filter(x=>x.obra_id===w.id).sort(sortWorkItems);
   const t=totals(list);
   node('workName').textContent=w.nome;
+  node('detailFinanceiro').classList.toggle('hidden',!canAdministrate());
   node('workMeta').textContent=[w.codigo,w.cliente,w.situacao,w.prazo_previsto?'Prazo: '+w.prazo_previsto:''].filter(Boolean).join(' · ');
   node('detailTotal').textContent=amount(t.total);
   node('detailReleased').textContent=amount(t.released);
@@ -5637,6 +5638,7 @@ node('back').addEventListener('click',()=>{
  else setView('dashboard');
 });
 node('goHome').addEventListener('click',()=>setView('dashboard'));
+node('detailFinanceiro').addEventListener('click',()=>selectedWork&&abrirFinanceiro(selectedWork.id));
 
 /* Cadastros editáveis por ADM. Não registra saldo e não importa automaticamente materiais. */
 const matIsAdmin=()=>canAdministrate();
@@ -6623,8 +6625,11 @@ async function cemImportarSelecionados(){
      ' · vínculos de materiais: '+Number(answer.vinculos_por_obra)+'.</p>'+
      '<p>Estoque físico, liberações e romaneios não foram modificados.</p></div>';
    cemAtualizarBotao();
-   try{await loadPanel();setView('cemImport');await carregarMateriais();}
-   catch(e){/* Operação concluída; não repetir gravação por falha de atualização da tela. */}
+   try{
+     await loadPanel();
+     if(nova)await abrirFinanceiro(answer.obra_id);
+     else {setView('cemImport');await carregarMateriais();}
+   }catch(e){/* Operação concluída; não repetir gravação por falha de atualização da tela. */}
  }catch(e){
    if(analise!==cemAnaliseGeracao||!session)return;
    result.textContent='Não foi possível confirmar a importação: '+e.message+
@@ -6657,6 +6662,8 @@ async function finLoad(){
  if(!canAdministrate()||!currentCompany)return;
  const obraId=node('finWork').value,box=node('finContent');
  box.classList.add('hidden');finState=null;finXmlDoc=null;node('finXmlPreview').classList.add('hidden');
+ node('finExpenseForm').reset();node('finCostTotal').readOnly=false;
+ node('finBillingForm').reset();node('finInstalledConfirm').checked=false;
  node('finMessage').textContent='';
  if(!obraId)return;
  const empresa='eq.'+currentCompany.id,obra='eq.'+obraId;
