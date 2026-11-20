@@ -76,6 +76,7 @@
  function formatQty(n){
   return Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:3});
  }
+ function barLabel(n){return formatQty(n)+(Number(n)===1?' barra':' barras');}
  function autoBarLength(row){
   if(category!=='aluminio'||!row.material||!row.variacao)return null;
   const selecionado=selectOptions().find(x=>x.value===row.selectionKey);
@@ -106,9 +107,9 @@
    const received=registered.filter(x=>x.unidade==='BARRA'&&Number(x.comprimento_mm)===length)
     .reduce((sum,x)=>sum+Number(x.quantidade||0),0);
    return {
-    needed:hasPlan?formatQty(expected)+' barras':'Não importado',
-    received:formatQty(received)+' barras',
-    pending:hasPlan?formatQty(Math.max(0,expected-received))+' barras':'—',
+    needed:hasPlan?barLabel(expected):'Não importado',
+    received:barLabel(received),
+    pending:hasPlan?barLabel(Math.max(0,expected-received)):'—',
     note:hasPlan?'Quantidade de barras planejada no CEM, sem confundir com saldo físico.':
      'Barras necessárias não importadas para esta obra/medida. Consulte a importação de estoque do CEM.'
    };
