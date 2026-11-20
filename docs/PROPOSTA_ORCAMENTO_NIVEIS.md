@@ -11,9 +11,9 @@
 
 ## Regras previstas no protótipo
 
-1. Soma de todos os valores dos níveis deve igualar **100% do valor total da obra**, inclusive os níveis assinalados somente para controle de gastos. Esta interpretação precisa de aceite do responsável.
-2. Valor por nível = dinheiro positivo ou zero, com centavos; total da obra deve ser positivo.
-3. Cada nível possui nome, grupo financeiro de compatibilidade (alumínio, acessórios, vidros, outros, fabricação, instalação), empresa comercial, valor e `faturar`.
+1. **Níveis 100% opcionais e escolhidos pelo usuário:** nenhuma categoria é obrigatória. Uma obra pode ter somente ACM, somente Manutenção, ou qualquer combinação de níveis novos e já cadastrados. A soma **apenas das linhas selecionadas** deve igualar **100% do valor total da obra**, inclusive níveis marcados somente para controle de gastos. Regra confirmada pelo responsável.
+2. Valor por nível = dinheiro positivo ou zero, com centavos; total da obra deve ser positivo. **Não pré-criar linhas** de alumínio, componentes ou vidros na obra; iniciar com uma única linha vazia para escolha e permitir adicionar/remover livremente.
+3. Cada nível possui nome livre, grupo financeiro **interno de compatibilidade** (alumínio, acessórios, vidros, outros, fabricação, instalação), empresa comercial, valor e `faturar`. Exemplos novos: **ACM, Manutenção, Limpeza**. O grupo interno é uma limitação dos relatórios legados; um novo nível personalizado ficará vinculado por padrão a **Outros**, sem renomear sua identificação comercial. **Não apresentar Outros como se fosse o nível escolhido pelo usuário.** A futura contabilização individual por nível requer evolução do módulo financeiro.
 4. A empresa comercial da linha **não é** a organização autenticada na plataforma (tabela `empresas`).
 5. A importação grava orçamento resumido legado e linhas detalhadas em uma **única transação**. O formato legado de seis valores ainda é aceito na RPC.
 6. Novos registros de catálogos são realizados junto com a importação final; apenas clicar em “Adicionar” na conferência não grava nada.
@@ -35,7 +35,7 @@
 
 ## Ordem obrigatória para implantação após aprovação
 
-1. Confirmar a interpretação da soma de 100% com níveis apenas de gastos e discutir o futuro faturamento por nível.
+1. **Regra confirmada:** usuário define livremente quantos e quais níveis compõem a obra; somente as linhas presentes entram nos 100%. Revisar a distinção entre o nível comercial personalizado e os grupos financeiros internos legados, e discutir faturamento por nível.
 2. Preparar backup verificável e ambiente de teste (incluindo permissões).
 3. Revisar e testar o SQL proposto em ambiente isolado. Analisar grants/RLS e impacto da RPC atual.
 4. Validar EWGEST no ambiente de testes: importação de nova obra, lançamentos, catálogos, estorno em falha, acesso de outros perfis e reimportação de obra existente.
