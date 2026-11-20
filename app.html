@@ -3519,7 +3519,7 @@ function releaseUnidadeAcessorio(value){
   const v=cemNome(value);
   return ({PÇ:'PC',PÇS:'PC',PECA:'PC',PEÇA:'PC',M:'MT',METRO:'MT',
     PAR:'PR',PARES:'PR',CONJUNTO:'CJ',UNIDADE:'UN'})[v]||
-    (['PC','PR','CJ','MT','KG','UN'].includes(v)?v:'PC');
+    (['PC','PR','CJ','MT','KG','UN'].includes(v)?v:(/^[A-Z0-9._/-]{1,15}$/.test(v)?v:'PC'));
 }
 function releaseColetarMateriais(){
   const arr=[];const seen=new Set();
