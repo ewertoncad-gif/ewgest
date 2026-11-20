@@ -1468,4 +1468,46 @@ assert.ok(budgetMigration.includes('ENABLE ROW LEVEL SECURITY')&&
  budgetMigration.includes('v_result:=public.ew_importar_obra_cem('),
  'Migração precisa garantir isolamento por empresa, soma e importação transacional');
 
+
+// Recebimento manual: nota e itens físicos devem ser vinculados na mesma transação.
+const receiveScript=readFileSync(fileURLToPath(new URL('../assets/recebimento-manual.js',import.meta.url)),'utf8');
+const receiveCSS=readFileSync(fileURLToPath(new URL('../assets/recebimento-manual.css',import.meta.url)),'utf8');
+const receiveSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261120_recebimento_manual_estoque.sql',import.meta.url)),'utf8');
+assert.doesNotThrow(()=>new Function(receiveScript),'Recebimento manual deve ter JavaScript sintaticamente válido');
+assert.ok(source.includes('Entrada manual de materiais e notas')&&
+ source.includes('id="finManualRows"')&&source.includes('id="finManualLocal"')&&
+ source.includes('id="finManualAdd"')&&source.includes('id="finManualSum"')&&
+ source.includes('id="finCostTotal" type="text" inputmode="decimal"'),
+ 'Formulário de nota manual deve ter galpão, materiais, quantidades e total monetário');
+assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
+ !source.includes('<label>XML da nota fiscal (NF-e)')&&
+ source.includes('id="finCostCategory" required'),
+ 'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
+assert.ok(source.includes('recebimento-manual.js?v=20261120a')&&
+ source.includes('recebimento-manual.css?v=20261120a')&&receiveCSS.includes('.finManualTable'),
+ 'HTML deve carregar arquivos de recebimento manual');
+assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
+ receiveScript.includes('p_itens:items')&&receiveScript.includes('finCostOpId ||= crypto.randomUUID()')&&
+ receiveScript.includes('ew_registrar_despesa_financeira')&&
+ receiveScript.includes('const sum=items.reduce')&&
+ receiveScript.includes('if(sum!==note)'),
+ 'Entrada física exige itens com subtotal correto; despesas sem catálogo permanecem separadas');
+assert.ok(receiveScript.includes('A faturar (todos os níveis)')&&
+ receiveScript.includes("levels.filter(n=>n.faturar)")&&
+ receiveScript.includes('Outros níveis faturáveis (sem emissão aqui)'),
+ 'O resumo deve considerar outros insumos faturáveis e identificar limites da emissão atual');
+assert.ok(receiveSQL.includes("SECURITY INVOKER SET search_path TO ''")&&
+ receiveSQL.includes('PERFORM public.ew_exigir_sessao_atual();')&&
+ receiveSQL.includes("ue.perfil='administrador'")&&
+ receiveSQL.includes("v_soma<>p_valor")&&
+ receiveSQL.includes("v_mov:=public.ew_movimentar_estoque_obra_local")&&
+ receiveSQL.includes("INSERT INTO public.ew_nfe_recebimentos")&&
+ receiveSQL.includes('ja_registrado')&&
+ receiveSQL.includes('pg_advisory_xact_lock'),
+ 'Operação SQL precisa de ADM, conferência, idempotência, compra de estoque e comprovante vinculados');
+assert.ok(receiveSQL.includes('Estorne as entradas de estoque antes de cancelar')&&
+ receiveSQL.includes('REVOKE ALL ON FUNCTION public.ew_registrar_recebimento_manual_financeiro')&&
+ receiveSQL.includes('GRANT EXECUTE ON FUNCTION public.ew_registrar_recebimento_manual_financeiro'),
+ 'Cancelamento de despesa não pode deixar estoque físico sem estorno; função restrita a autenticados');
+
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
