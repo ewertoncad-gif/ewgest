@@ -1492,10 +1492,11 @@ assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
  receiveScript.includes('const sum=items.reduce')&&
  receiveScript.includes('if(sum!==note)'),
  'Entrada física exige itens com subtotal correto; despesas sem catálogo permanecem separadas');
-assert.ok(receiveScript.includes('A faturar (todos os níveis)')&&
+assert.ok(receiveScript.includes('A faturar: ')&&
  receiveScript.includes("levels.filter(n=>n.faturar)")&&
- receiveScript.includes('Outros níveis faturáveis (sem emissão aqui)'),
- 'O resumo deve considerar outros insumos faturáveis e identificar limites da emissão atual');
+ receiveScript.includes('Orçamento por níveis e acompanhamento financeiro')&&
+ !receiveScript.includes('Disponível no módulo por esquadria'),
+ 'O resumo deve incluir todos os níveis faturáveis e dispensar indicadores técnicos redundantes');
 assert.ok(receiveSQL.includes("SECURITY INVOKER SET search_path TO ''")&&
  receiveSQL.includes('PERFORM public.ew_exigir_sessao_atual();')&&
  receiveSQL.includes("ue.perfil='administrador'")&&
@@ -1559,6 +1560,8 @@ assert.ok(htmlResumo.includes('Orçamento por níveis e acompanhamento financeir
  'Tabela inclui empresa, previsto, custos realizados, faturamento especial e restante');
 assert.ok(unificado.nodes.finTotals.innerHTML.includes('R$ 64.000,00'),
  'Faturamento previsto considera outros insumos com flag de faturamento');
+assert.equal((unificado.nodes.finTotals.innerHTML.match(/<span>/g)||[]).length,4,
+ 'Resumo superior exibe quatro indicadores essenciais sem subtotais duplicados');
 const duplicados=exemplo();
 duplicados.orcamentoNiveis.push({
  nivel_nome:'ALUMÍNIO ADICIONAL',categoria_base:'aluminio',valor:1000,
