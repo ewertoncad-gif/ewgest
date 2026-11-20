@@ -1,6 +1,6 @@
 # EWGEST — Recebimento manual com nota e estoque
 
-**Situação:** branch de implementação `feature/recebimento-manual-nota-estoque`. Qualquer outro desenvolvedor deve conferir os commits e o PR antes de modificar `app.html`, o financeiro ou o estoque.
+**Situação (20/11/2026):** a migração `nota_manual_entrada_estoque_20261120` foi aplicada no Supabase de **produção** após ensaios isolados; dados e saldos anteriores foram preservados. A interface ainda depende do merge do PR #17 e da publicação automática no Cloudflare Pages. Qualquer outro desenvolvedor deve conferir o PR e os commits antes de modificar `app.html`, financeiro ou estoque.
 
 ## Escopo solicitado
 
@@ -55,3 +55,11 @@ O banco `ewgest-restauracao-teste` possui estruturas simuladas criadas exclusiva
 - [ ] Confirmar que a integração com outras IAs não alterou essas mesmas funções em paralelo.
 
 **Não publicar apenas o frontend antes de aplicar e conferir a migração, pois o botão de recebimento depende da nova RPC.**
+
+## Verificação de implantação do banco de produção
+
+- Nova RPC disponível e concedida ao papel `authenticated`; papel `anon` **não** possui permissão de execução.
+- A RPC exige, internamente, sessão válida e vínculo `administrador` com a empresa informada.
+- Contagens antes/depois da migração: **4 obras**, **0 despesas**, **0 recebimentos** e **634 movimentos** de estoque. A migração não inseriu materiais nem alterou saldos.
+- A função anterior de cancelamento foi salva em `database/rollback/20261120_cancelamento_despesa_antes_entrada_manual.sql`. Não representa backup físico completo.
+- Ainda é necessária validação visual da Cloudflare e teste controlado com nota real conferida pelo operador; não foi feito lançamento de NF em produção durante a implantação.
