@@ -59,7 +59,7 @@
  }
  function adicionarLinha(nivel='',empresa=''){
   if(linhas.length>=100){node('cemQuoteError').textContent='Limite de 100 níveis por obra.';return;}
-  linhas.push({nivel,empresa:empresa||'',valor:'',faturar:true});
+  linhas.push({nivel,empresa:empresa||'',valor:'',faturar:false});
   render();
  }
  function validar(){
