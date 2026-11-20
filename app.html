@@ -7052,6 +7052,72 @@ async function finRegistrarFaturamento(event){
  }catch(e){node('finBillingMessage').textContent='Erro ao faturar: '+e.message;}
  finally{btn.disabled=false;}
 }
+
+/* Almoxarifado: envio de notas sem acesso ao orçamento e sem baixa automática. */
+let almoxXMLDoc=null,almoxNotaOperacao=null;
+function abrirAlmoxNotas(){
+ if(!isAlmoxarife())return;
+ node('almoxNotaWork').innerHTML='<option value="">Escolha a obra</option>'+
+  works.map(w=>'<option value="'+escapeHTML(w.id)+'">'+escapeHTML(w.codigo+' · '+w.nome)+'</option>').join('');
+ node('almoxNotaMensagem').textContent='';
+ node('almoxNotaPreview').classList.add('hidden');
+ node('almoxNotaForm').reset();
+ almoxXMLDoc=null;almoxNotaOperacao=null;
+ setView('almoxNotas');
+}
+async function almoxNotaLer(){
+ const file=node('almoxNotaArquivo').files?.[0],preview=node('almoxNotaPreview');
+ almoxXMLDoc=null;preview.innerHTML='';preview.classList.add('hidden');
+ if(!file)return;
+ try{
+  if(!/\.xml$/i.test(file.name)||file.size>6*1024*1024)
+   throw new Error('Selecione um XML de NF-e de até 6 MB.');
+  almoxXMLDoc=finLerNfe(await file.text());
+  const d=almoxXMLDoc;
+  preview.classList.remove('hidden');
+  preview.innerHTML='<h2>Conferência da nota fiscal</h2>'+
+    '<p><strong>Fornecedor:</strong> '+escapeHTML(d.fornecedor)+
+    ' · <strong>NF:</strong> '+escapeHTML(d.numero)+
+    ' · <strong>Emissão:</strong> '+escapeHTML(d.data)+
+    ' · <strong>Total:</strong> '+finMoney(d.valor)+'</p>'+
+    '<p class="hint">Itens encontrados: '+d.itens.length+'. A nota só será descontada após aprovação do ADM.</p>'+
+    (d.itens.length?'<div class="finTableWrap"><table class="finTable"><thead><tr>'+
+    '<th>Código da NF</th><th>Descrição</th><th>Quantidade</th><th>Valor</th></tr></thead><tbody>'+
+    d.itens.map(x=>'<tr><td>'+escapeHTML(x.codigo)+'</td><td>'+escapeHTML(x.descricao)+
+    '</td><td>'+x.quantidade+' '+escapeHTML(x.unidade)+'</td><td>'+finMoney(x.valor_total)+'</td></tr>').join('')+
+    '</tbody></table></div>':'');
+  node('almoxNotaMensagem').textContent='XML analisado. Confira a obra e a categoria antes de enviar.';
+ }catch(e){
+  node('almoxNotaMensagem').textContent='XML não aceito: '+e.message;
+  node('almoxNotaArquivo').value='';
+ }
+}
+async function almoxNotaEnviar(event){
+ event.preventDefault();if(!isAlmoxarife())return;
+ const d=almoxXMLDoc,obra=node('almoxNotaWork').value,categoria=node('almoxNotaCategoria').value;
+ if(!d||!obra||!categoria){node('almoxNotaMensagem').textContent='Informe a obra, a categoria e um XML válido.';return;}
+ if(!window.confirm('Enviar NF '+d.numero+' de '+d.fornecedor+
+  ', total '+finMoney(d.valor)+'? O gasto ficará PENDENTE de aprovação administrativa.'))return;
+ const btn=node('almoxNotaEnviar');btn.disabled=true;almoxNotaOperacao ||= crypto.randomUUID();
+ try{
+  await ensureSession();
+  const ans=await request('/rest/v1/rpc/ew_submeter_nfe_almox',{
+   method:'POST',token:session.access_token,timeoutMs:90000,
+   body:{p_empresa_id:currentCompany.id,p_obra_id:obra,p_categoria:categoria,p_valor:d.valor,
+    p_fornecedor:d.fornecedor,p_numero_documento:d.numero,p_data_documento:d.data,
+    p_chave_nfe:d.chave,p_itens:d.itens,p_observacoes:node('almoxNotaObservacoes').value.trim(),
+    p_operacao_id:almoxNotaOperacao}
+  });
+  almoxNotaOperacao=null;almoxXMLDoc=null;node('almoxNotaForm').reset();
+  node('almoxNotaPreview').classList.add('hidden');node('almoxNotaPreview').innerHTML='';
+  node('almoxNotaMensagem').textContent='NF-e '+d.numero+' enviada para aprovação do ADM. Nenhum gasto foi debitado automaticamente.';
+ }catch(e){node('almoxNotaMensagem').textContent='Não foi possível enviar a nota: '+e.message;}
+ finally{btn.disabled=false;}
+}
+node('navEnviarNotas').addEventListener('click',abrirAlmoxNotas);
+node('almoxNotaArquivo').addEventListener('change',almoxNotaLer);
+node('almoxNotaForm').addEventListener('submit',almoxNotaEnviar);
+
 node('navFinanceiro').addEventListener('click',()=>abrirFinanceiro());
 node('finWork').addEventListener('change',()=>{finCostOpId=null;finBillingOpId=null;finLoad();});
 node('finRefresh').addEventListener('click',finLoad);
