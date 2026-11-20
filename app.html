@@ -1099,7 +1099,7 @@
       </div>
       <div class="section panel">
         <h2>Materiais da obra selecionada</h2>
-        <p class="hint">Os materiais podem vir de um arquivo de exportação técnica ou do cadastro manual. Os perfis são controlados por barras inteiras e comprimento comercial. Ajuste os saldos diretamente na tabela.</p>
+        <p class="hint">O cadastro da obra contém os materiais previstos do CEM e seus saldos físicos separados. Entrada física apenas após recebimento confirmado; perfis são controlados por barras inteiras e comprimento comercial.</p>
         <div class="stockFilters">
           <label>Obra <select id="stockWork"><option value="">Todas as obras</option></select></label>
           <label>Local do estoque <select id="stockFactoryFilter"><option value="">Todos os galpões</option></select></label>
@@ -1111,7 +1111,7 @@
           <button type="button" class="btn secondary" id="stockWorkHistory" disabled>Movimentações da obra</button>
         </div>
         <div class="stockLegend">
-          <span><strong>Quantidade:</strong> barras inteiras do perfil ou unidades do acessório.</span>
+          <span><strong>Necessária:</strong> consumo previsto no cálculo. <strong>Em estoque:</strong> saldo físico registrado, considerando entradas e saídas.</span>
           <span><strong>Comprimento:</strong> tamanho comercial da barra em milímetros, independente da quantidade de peças cortadas.</span>
         </div>
         <p id="stockArchivedHint" class="hint hidden" role="status"></p>
@@ -1124,7 +1124,7 @@
           <div class="rowHead"><h3>Resumo para relatórios de estoque</h3>
             <label><input id="stockReportIncludeEmpty" type="checkbox"> Incluir estoques de obras sem esquadrias</label>
           </div>
-          <p class="hint">Soma dos saldos controlados por obra, não confirmação de materiais fisicamente no almoxarifado.</p>
+          <p class="hint">Soma dos saldos físicos registrados por obra. Quantidades previstas e pedidos não são recebimento de material.</p>
           <p id="stockReportSummary" class="hint" role="status"></p>
         </div>
       </div>
@@ -6434,8 +6434,8 @@ function cemRenderPreview(){
     r.other+' itens fora do cálculo serão ignorados. '+
     (r.obraExistente?'As esquadrias existentes serão preservadas.':
       'As esquadrias selecionadas serão cadastradas após confirmação.')+'</p>'+
-    '<p class="hint">O ZIP também possui '+r.barrasAproveitamento.length+' registros de barras e '+
-    r.acessoriosObra.length+' de acessórios para estoque. Para cadastrar esses saldos, abra <strong>Estoque → Importar quantidades do arquivo</strong>.</p></div>';
+    '<p class="hint">O arquivo contém '+r.barrasAproveitamento.length+' registros de barras e '+
+    r.acessoriosObra.length+' registros de acessórios. Os materiais previstos serão vinculados ao estoque da obra; a entrada física dependerá do recebimento confirmado. Nunca importe solicitações como saldos recebidos.</p></div>';
   const cardsHTML=cards.length?'<div class="cemPreviewSummary">'+cards.map(x=>
     '<div class="stat"><div class="label">'+escapeHTML(x[0])+'</div><div class="number">'+escapeHTML(x[1])+'</div></div>').join('')+'</div>':
     '<div class="materialEmpty">Marque pelo menos uma categoria.</div>';
@@ -6641,7 +6641,7 @@ async function cemImportarSelecionados(){
    '\nCliente: '+(r.clienteObra||'Não informado')+
    '\n\nEsquadrias: '+r.esquadriasPayload.length+' itens ('+r.count+' unidades)'+
    '\nPerfis: '+perf.length+' códigos\nAcessórios: '+aces.length+' códigos\n\n'+
-   'As esquadrias entrarão aguardando liberação. Não serão criados estoques físicos, liberações ou romaneios.'+extras:
+   'As esquadrias entrarão aguardando liberação. O estoque da obra e seus materiais necessários serão registrados, mas os saldos físicos começam zerados e só mudam após recebimento real. Não serão gerados liberações ou romaneios.'+extras:
    'Confirmar importação de '+perf.length+' perfis e '+aces.length+
    ' acessórios para '+r.obraExistente.nome+' ('+r.codigo+')?\n\n'+
    'Os dados técnicos, as esquadrias existentes e o estoque físico serão preservados.'+extras;
