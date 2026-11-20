@@ -1018,8 +1018,8 @@
     </section>
     <section id="cemImport" class="hidden">
       <div class="head"><div>
-        <h1>Importar dados de arquivo técnico</h1>
-        <p class="muted">A análise do ZIP é apenas uma prévia e não grava uma obra. Nesta etapa, a gravação é limitada a materiais vinculados a uma obra já cadastrada.</p>
+        <h1>Importar obra do CEM</h1>
+        <p class="muted">Analise e confira os dados da obra. Esquadrias e materiais serão cadastrados somente após sua confirmação.</p>
       </div></div>
       <div class="section panel">
         <h2>1. Arquivo de exportação</h2>
@@ -1032,9 +1032,9 @@
         </div>
         <div class="cemImportSteps">
           <h2>2. Escolha os dados</h2>
-          <p class="hint">Marque as categorias desejadas. Para obras já cadastradas, desmarque <strong>Esquadrias</strong> e importe apenas os materiais. Itens fora do cálculo são ignorados.</p>
+          <p class="hint">Para uma obra nova, importe Esquadrias e escolha os materiais. Para uma obra existente, atualize apenas os vínculos de materiais, sem duplicar esquadrias. Itens fora do cálculo são ignorados.</p>
           <div class="cemFlags">
-            <label class="cemFlag"><input id="cemFlagEsquadrias" type="checkbox" checked><span><strong>Esquadrias (somente conferência)</strong><small>Códigos e dimensões para prévia; esta tela ainda não cadastra esquadrias de novas obras</small></span></label>
+            <label class="cemFlag"><input id="cemFlagEsquadrias" type="checkbox" checked><span><strong>Esquadrias</strong><small>Obras novas: importar itens calculados, medidas, quantidades, descrições e localização</small></span></label>
             <label class="cemFlag"><input id="cemFlagPerfis" type="checkbox" checked><span><strong>Perfis</strong><small>Materiais usados na obra, fabricante, peso e acabamento</small></span></label>
             <label class="cemFlag"><input id="cemFlagAcessorios" type="checkbox" checked><span><strong>Acessórios</strong><small>Componentes utilizados, unidades, cores e referências</small></span></label>
           </div>
@@ -1047,7 +1047,7 @@
           <div id="cemPreview" class="hidden"></div>
           <div class="cemCommitArea">
             <button type="button" class="btn primary" id="cemCommit" disabled>Importar dados selecionados</button>
-            <p class="hint" id="cemCommitHint">A gravação de perfis e acessórios será habilitada após a análise e conferência da obra. A importação das esquadrias ainda não está disponível.</p>
+            <p class="hint" id="cemCommitHint">Analise o ZIP para habilitar a confirmação da importação da obra e dos materiais selecionados.</p>
           </div>
           <p id="cemImportResult" class="hint" role="status" aria-live="polite"></p>
         </div>
@@ -5883,6 +5883,25 @@ function cemLerObra(xmlText){
   };
 }
 function cemNome(v){return String(v||'').trim().toLocaleUpperCase('pt-BR');}
+function cemMontarEsquadrias(r){
+ return r.valid.map(row=>{
+   const codigo=String(row.TIPO||row.CODESQD||'').trim();
+   const quantidade=Number(row.QTDE),largura_mm=Number(row.L),altura_mm=Number(row.H);
+   const descricao=String(row.DESCRICAO||'').trim(),localizacao=String(row.LOCALIZ||'').trim();
+   const referencia_tipologia=String(row.CODESQD||'').trim();
+   const match=String(row.VARDEFS||'').match(/(?:^|÷ø)MODULOS=([0-9]+)(?=÷ø|$)/);
+   const modulos=match?Number(match[1]):null;
+   if(!codigo||codigo.length>100||!Number.isSafeInteger(quantidade)||quantidade<1||
+      quantidade>100000||!Number.isFinite(largura_mm)||!Number.isFinite(altura_mm)||
+      largura_mm<=0||altura_mm<=0||largura_mm>100000||altura_mm>100000||
+      descricao.length>1000||localizacao.length>500||referencia_tipologia.length>150)
+     throw new Error('Esquadria inválida na exportação: '+(codigo||'sem código')+
+       '. Confira código, dimensões e quantidade.');
+   return {codigo,quantidade,largura_mm,altura_mm,descricao,localizacao,
+     referencia_tipologia,quantidade_modulos:Number.isSafeInteger(modulos)&&
+       modulos>=1&&modulos<=100?modulos:null};
+ });
+}
 function cemVarPerfil(v){
   const raw=cemNome(v.CODTRATEXT||v.CODTRAT)||'NÃO INFORMADO';
   if(raw==='NATURAL')return {acabamento:'NATURAL',cor:'NATURAL',codigo_cor:''};
@@ -5992,24 +6011,30 @@ function cemQuadroConciliacao(){
    '</select></label></div>').join('')+'</div>';
 }
 function cemAtualizarBotao(){
-  const r=cemParsed,esk=node('cemFlagEsquadrias').checked;
-  const perf=node('cemFlagPerfis').checked,ace=node('cemFlagAcessorios').checked;
-  const pendente=cemDecisoesAtivas().some(x=>!x.decisao);
-  const pode=Boolean(r&&r.comparacaoConcluida&&r.obraExistente&&!esk&&(perf||ace)&&!r.jaImportado
-    &&(!perf||r.perfMissing===0)&&(!ace||r.aceMissing===0)&&!pendente);
-  node('cemCommit').disabled=!pode;
-  let info='';
-  if(!r)info='Analise o ZIP para habilitar a importação segura de materiais.';
-  else if(r.jaImportado)info='Importação concluída. Para uma nova operação, analise novamente o arquivo.';
-  else if(!r.comparacaoConcluida)info='Conferindo a existência da obra e dos cadastros…';
-  else if(r.obraDuplicada)info='Há mais de um cadastro com este código. Corrija a duplicidade antes de importar.';
-  else if(!r.obraExistente)info='Análise disponível, mas a gravação está bloqueada: cadastre primeiro esta obra no EWGEST e analise o ZIP novamente.';
-  else if(esk)info='A importação de esquadrias ainda não está liberada. Desmarque Esquadrias para importar somente os materiais.';
-  else if(!perf&&!ace)info='Marque Perfis e/ou Acessórios.';
-  else if((perf&&r.perfMissing)||(ace&&r.aceMissing))info='Há materiais sem ficha técnica no ZIP. Corrija o arquivo ou desmarque a categoria incompleta.';
-  else if(pendente)info='Revise as possíveis equivalências e decida qual código será utilizado.';
-  else info='Pronto para importar materiais sem modificar esquadrias, liberações, romaneios ou estoque físico.';
-  node('cemCommitHint').textContent=info;
+ const r=cemParsed,esk=node('cemFlagEsquadrias').checked;
+ const perf=node('cemFlagPerfis').checked,ace=node('cemFlagAcessorios').checked;
+ const pendente=cemDecisoesAtivas().some(x=>!x.decisao);
+ const nova=Boolean(r&&!r.obraExistente);
+ const pode=Boolean(r&&r.comparacaoConcluida&&!r.obraDuplicada&&!r.jaImportado
+   &&(!perf||r.perfMissing===0)&&(!ace||r.aceMissing===0)&&!pendente&&
+   (nova?(esk&&r.esquadriasPayload?.length>0&&r.nomeObra?.trim()&&r.codigo?.trim()):
+     (!esk&&(perf||ace))));
+ node('cemCommit').disabled=!pode;
+ node('cemCommit').textContent=nova?'Confirmar importação da obra':'Importar materiais selecionados';
+ let info='';
+ if(!r)info='Analise o ZIP para conferir os dados antes de importar.';
+ else if(r.jaImportado)info='Importação concluída. Para outra operação, analise novamente o arquivo.';
+ else if(!r.comparacaoConcluida)info='Conferindo a existência da obra e dos cadastros…';
+ else if(r.obraDuplicada)info='Há mais de uma obra com este código. Corrija a duplicidade antes de importar.';
+ else if((perf&&r.perfMissing)||(ace&&r.aceMissing))info='Há materiais selecionados sem ficha técnica no ZIP. Confira o arquivo ou desmarque a categoria.';
+ else if(pendente)info='Revise as possíveis equivalências de materiais.';
+ else if(nova&&!r.nomeObra?.trim())info='O nome da obra não foi identificado no ZIP. Corrija o arquivo antes de importar.';
+ else if(nova&&!esk)info='Marque Esquadrias para cadastrar a nova obra. Materiais são opcionais.';
+ else if(!nova&&esk)info='Esta obra já existe. Desmarque Esquadrias para não duplicar seus itens.';
+ else if(!nova&&!perf&&!ace)info='Marque Perfis e/ou Acessórios para a obra existente.';
+ else if(nova)info='Pronto para cadastrar a obra, esquadrias e materiais selecionados após confirmação.';
+ else info='Pronto para vincular materiais à obra existente, preservando esquadrias e estoque físico.';
+ node('cemCommitHint').textContent=info;
 }
 function cemBarrasConferencia(r){
   // OBAPROV informa barras comerciais calculadas: NUMBARRAS e BARRA (milímetros).
@@ -6203,13 +6228,15 @@ function cemRenderPreview(){
       ' Os cadastros existentes serão preservados.';
   }else{
     notice.classList.remove('noticeSafe');
-    notice.innerHTML='<strong>Obra ainda não cadastrada no EWGEST: '+escapeHTML(r.codigo)+
-      '</strong>Você pode conferir o conteúdo deste ZIP normalmente. Para gravar os materiais, primeiro cadastre a obra no EWGEST e analise o arquivo novamente.'+
-      ' Nenhuma obra, esquadria ou material foi gravado nesta análise.';
+    notice.classList.add('noticeSafe');
+    notice.innerHTML='<strong>Nova obra identificada no CEM: '+escapeHTML(r.nomeObra||r.codigo)+
+      '</strong>Ao confirmar, a obra, suas esquadrias e os materiais selecionados serão cadastrados no EWGEST. Esta análise não grava dados.';
   }
   const summary='<div class="cemPreviewSection"><h3>Resumo do arquivo técnico</h3>'+
     '<p class="hint">'+r.valid.length+' itens calculados ('+r.count+' unidades). '+
-    r.other+' itens fora do cálculo serão ignorados. Cadastro de esquadrias não será modificado.</p>'+
+    r.other+' itens fora do cálculo serão ignorados. '+
+    (r.obraExistente?'As esquadrias existentes serão preservadas.':
+      'As esquadrias selecionadas serão cadastradas após confirmação.')+'</p>'+
     '<p class="hint">O ZIP também possui '+r.barrasAproveitamento.length+' registros de barras e '+
     r.acessoriosObra.length+' de acessórios para estoque. Para cadastrar esses saldos, abra <strong>Estoque → Importar quantidades do arquivo</strong>.</p></div>';
   const cardsHTML=cards.length?'<div class="cemPreviewSummary">'+cards.map(x=>
@@ -6222,7 +6249,8 @@ function cemRenderPreview(){
     '</tbody></table></div>';
   el.innerHTML=summary+cardsHTML+
     (esk?'<div class="cemPreviewSection"><h3>Esquadrias calculadas — '+r.valid.length+' itens</h3>'+
-      '<p class="hint">Visualização somente. A importação de esquadrias está desabilitada por segurança.</p>'+
+      '<p class="hint">'+(r.obraExistente?'Somente conferência: a obra já está cadastrada.':
+      'Esses itens serão cadastrados na nova obra após confirmação, aguardando liberação.')+'</p>'+
       preview(r.valid,['Código','Quantidade','Largura (mm)','Altura (mm)'])+'</div>':'')+
     (perf?cemTabelaHTML('perfil'):'')+(ace?cemTabelaHTML('acessorio'):'')+cemQuadroConciliacao();
   for(const [id,prop] of [['cemSearchPerf','pesquisaPerf'],['cemSearchAces','pesquisaAces']]){
@@ -6281,6 +6309,7 @@ async function matVerificarZip(){
     if(analise!==cemAnaliseGeracao||!session)return;
     const r=cemLerObra(xml);
     r.materiaisPayload=cemMontarPayload(r);
+    r.esquadriasPayload=cemMontarEsquadrias(r);
     cemParsed=r;
     cemRenderPreview();
     if(r.materiaisPayload.perfis.length!==r.perfCodes.size ||
@@ -6317,10 +6346,7 @@ async function matVerificarZip(){
     }
     r.unidadesNovas=[...new Set(r.materiaisPayload.acessorios.flatMap(x=>
       [x.unidade,x.embalagem].filter(u=>u&&!unidadesConhecidas.has(u))))].sort();
-    if(r.obraExistente){
-      // Uma obra existente não pode receber esquadrias duplicadas.
-      node('cemFlagEsquadrias').checked=false;
-    }
+    node('cemFlagEsquadrias').checked=!r.obraExistente;
     r.comparacaoConcluida=true;
     out.textContent='Análise concluída. O arquivo permanece no navegador. Confira as listas completas e escolha o que deseja importar.';
     cemRenderPreview();
@@ -6334,53 +6360,67 @@ async function matVerificarZip(){
   }
 }
 async function cemImportarSelecionados(){
-  const analise=cemAnaliseGeracao;
-  const r=cemParsed;
-  const p=node('cemFlagPerfis').checked,a=node('cemFlagAcessorios').checked;
-  const save=node('cemCommit'),result=node('cemImportResult');
-  cemAtualizarBotao();
-  if(save.disabled||!r||!r.obraExistente||node('cemFlagEsquadrias').checked)return;
-  const perf=p?r.materiaisPayload.perfis:[];
-  const aces=a?r.materiaisPayload.acessorios:[];
-  const decisions=cemDecisoesAtivas();
-  if(decisions.some(x=>!x.decisao)){result.textContent='Resolva primeiro os cadastros equivalentes.';return;}
-  const decisoes=decisions.filter(x=>x.decisao!=='separar').map(x=>({
-    tipo:x.tipo,codigo_cem:x.imp.codigo,fabricante:x.imp.fabricante,
-    material_id:x.materialId,usar_codigo_cem:x.decisao==='cem'}));
-  const message='Confirmar a importação de '+perf.length+' perfis e '+aces.length+
-    ' acessórios para '+r.obraExistente.nome+' ('+r.codigo+')?\n\n'+
-    'Os dados técnicos dos cadastros existentes serão preservados. Materiais inativos presentes neste CEM serão reativados. Nenhuma esquadria, romaneio, liberação ou saldo físico será modificado.'+
-    (a&&r.unidadesNovas?.length?'\n\nUnidades ainda não cadastradas: '+r.unidadesNovas.join(', ')+
-      '. Confirme que são unidades válidas do CEM antes de importar.':'');
-  if(!window.confirm(message))return;
-  cemOperacaoId ||= crypto.randomUUID();
-  save.disabled=true;result.textContent='Gravando perfis, acessórios e variações no Supabase…';
-  try{
-    await ensureSession();
-    const answer=await request('/rest/v1/rpc/ew_importar_cem_conciliado',{
-      method:'POST',token:session.access_token,timeoutMs:120000,
-      body:{p_empresa_id:currentCompany.id,p_codigo_obra:r.codigo,
-        p_perfis:perf,p_acessorios:aces,p_operacao_id:cemOperacaoId,p_decisoes:decisoes}
-    });
-    if(analise!==cemAnaliseGeracao||!session)return;
-    if(!answer||answer.esquadrias_alteradas!==0||answer.estoque_fisico_alterado!==false)
-      throw new Error('Resposta de importação não confirmada. Confira o banco antes de repetir.');
-    r.jaImportado=true;
-    result.innerHTML='<div class="cemImportReceipt"><strong>Materiais importados para '+escapeHTML(r.codigo)+'.</strong>'+
-      '<p>Perfis novos: '+Number(answer.perfis_novos)+' · já existentes: '+Number(answer.perfis_existentes)+
-      '<p>Acessórios novos: '+Number(answer.acessorios_novos)+' · já existentes: '+Number(answer.acessorios_existentes)+
-      '</p><p>Reativados por constarem nesta obra: '+Number(answer.perfis_reativados||0)+' perfis e '+Number(answer.acessorios_reativados||0)+' acessórios.'+
-      '</p><p>Novas variações: '+Number(answer.variacoes_novas)+' · vínculos de material/obra: '+
-      Number(answer.vinculos_por_obra)+'.</p>'+
-      '<p>Esquadrias, liberações, romaneios e estoque físico não foram alterados.</p></div>';
-    cemAtualizarBotao();
-    try{await carregarMateriais();}catch(e){/* A gravação já foi confirmada pelo servidor. */}
-  }catch(e){
-    if(analise!==cemAnaliseGeracao||!session)return;
-    result.textContent='Não foi possível confirmar a importação: '+e.message+
-      '. Os materiais não serão cadastrados pelo navegador. Se houve falha de conexão, tente novamente com a mesma operação; o servidor impede duplicações.';
-    cemAtualizarBotao();
-  }
+ const analise=cemAnaliseGeracao,r=cemParsed;
+ const p=node('cemFlagPerfis').checked,a=node('cemFlagAcessorios').checked;
+ const save=node('cemCommit'),result=node('cemImportResult');
+ cemAtualizarBotao();
+ if(save.disabled||!r||r.obraDuplicada)return;
+ const nova=!r.obraExistente,perf=p?r.materiaisPayload.perfis:[],aces=a?r.materiaisPayload.acessorios:[];
+ const decisions=cemDecisoesAtivas();
+ if(decisions.some(x=>!x.decisao)){result.textContent='Resolva primeiro os cadastros equivalentes.';return;}
+ const decisoes=decisions.filter(x=>x.decisao!=='separar').map(x=>({
+   tipo:x.tipo,codigo_cem:x.imp.codigo,fabricante:x.imp.fabricante,
+   material_id:x.materialId,usar_codigo_cem:x.decisao==='cem'}));
+ const extras=a&&r.unidadesNovas?.length?'\n\nUnidades novas do CEM: '+r.unidadesNovas.join(', ')+'. Confirme essas unidades.':'';
+ const confirmacao=nova?
+   'Confirmar importação da NOVA OBRA?\n\nNome: '+r.nomeObra+'\nCódigo: '+r.codigo+
+   '\nCliente: '+(r.clienteObra||'Não informado')+
+   '\n\nEsquadrias: '+r.esquadriasPayload.length+' itens ('+r.count+' unidades)'+
+   '\nPerfis: '+perf.length+' códigos\nAcessórios: '+aces.length+' códigos\n\n'+
+   'As esquadrias entrarão aguardando liberação. Não serão criados estoques físicos, liberações ou romaneios.'+extras:
+   'Confirmar importação de '+perf.length+' perfis e '+aces.length+
+   ' acessórios para '+r.obraExistente.nome+' ('+r.codigo+')?\n\n'+
+   'Os dados técnicos, as esquadrias existentes e o estoque físico serão preservados.'+extras;
+ if(!window.confirm(confirmacao))return;
+ cemOperacaoId ||= crypto.randomUUID();save.disabled=true;
+ result.textContent=nova?'Cadastrando obra, esquadrias e materiais…':'Gravando materiais…';
+ try{
+   await ensureSession();
+   const payload=nova?{
+     p_empresa_id:currentCompany.id,p_codigo_obra:r.codigo,p_nome_obra:r.nomeObra,
+     p_cliente:r.clienteObra,p_esquadrias:r.esquadriasPayload,
+     p_perfis:perf,p_acessorios:aces,p_operacao_id:cemOperacaoId,p_decisoes:decisoes
+   }:{
+     p_empresa_id:currentCompany.id,p_codigo_obra:r.codigo,
+     p_perfis:perf,p_acessorios:aces,p_operacao_id:cemOperacaoId,p_decisoes:decisoes
+   };
+   const answer=await request('/rest/v1/rpc/'+(nova?'ew_importar_obra_cem':'ew_importar_cem_conciliado'),{
+     method:'POST',token:session.access_token,timeoutMs:120000,body:payload});
+   if(analise!==cemAnaliseGeracao||!session)return;
+   if(!answer||answer.estoque_fisico_alterado!==false||
+      (nova?(answer.obra_criada!==true||Number(answer.esquadrias_novas)!==r.esquadriasPayload.length):
+        answer.esquadrias_alteradas!==0))
+     throw new Error('A resposta da operação não foi confirmada. Consulte Obras antes de repetir.');
+   r.jaImportado=true;
+   if(nova)r.obraExistente={id:answer.obra_id,codigo:r.codigo,nome:r.nomeObra,cliente:r.clienteObra};
+   result.innerHTML='<div class="cemImportReceipt"><strong>'+
+     (nova?'Obra cadastrada: '+escapeHTML(r.nomeObra)+' ('+escapeHTML(r.codigo)+')':
+       'Materiais importados para '+escapeHTML(r.codigo))+'</strong>'+
+     (nova?'<p>Esquadrias: '+Number(answer.esquadrias_novas)+' itens, aguardando liberação e classificação.</p>':'')+
+     '<p>Perfis novos: '+Number(answer.perfis_novos)+' · já existentes: '+Number(answer.perfis_existentes)+
+     '</p><p>Acessórios novos: '+Number(answer.acessorios_novos)+' · já existentes: '+Number(answer.acessorios_existentes)+
+     '</p><p>Novas variações: '+Number(answer.variacoes_novas)+
+     ' · vínculos de materiais: '+Number(answer.vinculos_por_obra)+'.</p>'+
+     '<p>Estoque físico, liberações e romaneios não foram modificados.</p></div>';
+   cemAtualizarBotao();
+   try{await loadPanel();setView('cemImport');await carregarMateriais();}
+   catch(e){/* Operação concluída; não repetir gravação por falha de atualização da tela. */}
+ }catch(e){
+   if(analise!==cemAnaliseGeracao||!session)return;
+   result.textContent='Não foi possível confirmar a importação: '+e.message+
+     '. Se houve falha de conexão, consulte Obras antes de repetir. O servidor impede códigos duplicados.';
+   cemAtualizarBotao();
+ }
 }
 node('matNovoHeader').addEventListener('click',()=>abrirEdicaoMaterial());
 node('matNovo').addEventListener('click',()=>abrirEdicaoMaterial());
