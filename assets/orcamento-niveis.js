@@ -74,7 +74,15 @@
   }
   return result;
  };
+ function normalizarValorTotalPreenchido(){
+  const campo=node('cemQuoteTotal');
+  // Formulários restaurados pelo navegador nem sempre disparam o evento input.
+  // Só formatar automaticamente se o usuário não estiver editando o campo.
+  if(campo.value.trim()&&document.activeElement!==campo)
+   campo.value=moedaExibir(campo.value,true);
+ }
  function somaAtualizar(){
+  normalizarValorTotalPreenchido();
   const totalCentavos=moedaCentavos(node('cemQuoteTotal').value)??0;
   let cents=0;
   for(let i=0;i<linhas.length;i++){
@@ -197,6 +205,10 @@
    await cemImportarSelecionados();
   }catch(e){node('cemQuoteError').textContent=e.message;}
  };
+ node('cemQuoteTotal').addEventListener('focus',event=>{
+  // Quando o browser preenche o campo sem input/change, corrige ao receber foco.
+  if(event.target.value.trim())event.target.value=moedaExibir(event.target.value,true);
+ });
  node('cemQuoteTotal').addEventListener('input',event=>{
   moedaMascaraAoDigitar(event.target);
   somaAtualizar();
