@@ -416,8 +416,6 @@
     .materialFuture{font-size:10px;font-weight:750;letter-spacing:.02em;color:#8b6b29;background:#fff5df;border-radius:6px;padding:5px 7px;margin-left:5px;white-space:nowrap}
     .materialsToolbar{display:flex;align-items:end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:8px 0 16px}
     .matSearchBox{flex:1 1 280px;max-width:500px}.matSearchBox label{margin:0 0 7px}
-    .matInactive,.matSwitch{display:flex;gap:10px;align-items:center;font-size:12px;margin:0;cursor:pointer}
-    .matInactive input,.matSwitch input{width:auto;accent-color:#257bd4}
     .materialList{display:grid;gap:12px;margin-top:18px}
     .materialRow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;padding:17px;border:1px solid #dfe8f1;border-radius:13px;background:#fbfdff}
     .materialRow h3{font-size:16px;color:#174876;margin:0 0 5px}
@@ -439,7 +437,6 @@
     .matFormGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
     .matFormGrid label{margin-top:11px}.matFormGrid label input,.matFormGrid textarea{display:block;margin-top:7px;width:100%}
     .matFormGrid .matWide{grid-column:1/-1}
-    .matSwitch{margin-top:20px}
     @media(max-width:850px){.materialsSummary{grid-template-columns:repeat(2,minmax(0,1fr))}.materialRow{grid-template-columns:1fr}.materialRowActions{justify-content:flex-start}}
     @media(max-width:580px){.matFormGrid{grid-template-columns:1fr}.materialsSummary{grid-template-columns:1fr}.matImportBox{align-items:stretch}.matImportBox button{width:100%}}
 
@@ -956,7 +953,6 @@
           <div class="materialsToolbar">
             <div class="matSearchBox"><label for="matPesquisa">Buscar por código, descrição, fabricante ou linha</label>
               <input type="search" id="matPesquisa" placeholder="Ex.: IN024, HYDRO, MONTANTE..."></div>
-            <label class="matInactive"><input type="checkbox" id="matMostrarInativos"> Mostrar inativos</label>
             <button id="matNovo" type="button" class="btn primary">+ Novo perfil</button>
           </div>
           <p class="hint" id="matListHint">Os materiais cadastrados são compartilhados entre obras. Cor e acabamento são variações, não novos códigos técnicos.</p>
@@ -1376,7 +1372,6 @@
         <div class="matOnlyAcessorio matWide hidden"><datalist id="matUnidadesDisponiveis"></datalist><p class="hint" id="matEquivPreview" aria-live="polite">Informe as unidades para visualizar a equivalência da embalagem.</p></div>
         <label class="matWide matOnlyPerfil">Observações <textarea id="matObservacoes" rows="2" maxlength="1000"></textarea></label>
       </div>
-      <label class="matSwitch"><input id="matAtivo" type="checkbox" checked> Cadastro ativo</label>
       <div id="matEditError" class="feedback" role="alert"></div>
       <div class="modalbuttons">
         <button type="button" class="btn secondary" id="matEditCancel">Cancelar</button>
@@ -1396,7 +1391,6 @@
         <label>Código / referência da cor <input id="matVarCodigoCor" maxlength="150" placeholder="Ex.: RAL 9005, A13"></label>
         <label class="matWide">Observações <textarea id="matVarObservacoes" rows="2" maxlength="1000"></textarea></label>
       </div>
-      <label class="matSwitch"><input id="matVarAtiva" type="checkbox" checked> Variação ativa</label>
       <p class="hint">Cada variação será controlada separadamente no futuro estoque. Este cadastro não cria quantidade física.</p>
       <div id="matVarError" class="feedback" role="alert"></div>
       <div class="modalbuttons">
@@ -3311,7 +3305,7 @@ async function releaseCarregarCatalogo(obraId=selectedItem?.obra_id){
     const key=[row.variacao_id,row.comprimento_mm??'',row.unidade,row.local_estoque||'IMBIRIBEIRA'].join('|');
     releaseMirrorSaldo.set(key,(releaseMirrorSaldo.get(key)||0)+Number(row.quantidade_delta));
   }
-  releaseMirrorData=matVariacoes.filter(x=>x.ativo&&releaseVariacaoLabel(x))
+  releaseMirrorData=matVariacoes.filter(x=>releaseVariacaoLabel(x))
     .sort((a,b)=>releaseVariacaoLabel(a).localeCompare(releaseVariacaoLabel(b),'pt-BR'));
   releaseCatalogReady=true;
   node('releaseMirrorMessage').textContent='Materiais carregados. Informe as barras ou acessórios que serão consumidos nesta liberação.';
@@ -5603,8 +5597,7 @@ function renderMateriais(){
   node('matCountAcessorios').textContent=matAcessorios.length.toLocaleString('pt-BR');
   node('matCountVariacoes').textContent=matVariacoes.length.toLocaleString('pt-BR');
   const search=node('matPesquisa').value.trim().toLocaleUpperCase('pt-BR');
-  const inativos=node('matMostrarInativos').checked;
-  const itens=matEntries().filter(x=>(inativos||x.ativo)&&
+  const itens=matEntries().filter(x=>
     [x.codigo,x.descricao,x.fabricante,x.linha,x.prenativo].some(v=>String(v||'').toLocaleUpperCase('pt-BR').includes(search)));
   const container=node('matLista');
   if(!itens.length){
@@ -5622,7 +5615,7 @@ function renderMateriais(){
         '1 '+escapeHTML(x.unidade_embalagem)+(x.quantidade_por_embalagem?
          ' = '+matFormat(x.quantidade_por_embalagem)+' '+escapeHTML(x.unidade_item||'PC'):
          ' (quantidade não informada)'):'não informada');
-    return '<div class="materialRow"><div><h3>'+escapeHTML(x.codigo)+(x.ativo?'':' · INATIVO')+'</h3>'+
+    return '<div class="materialRow"><div><h3>'+escapeHTML(x.codigo)+'</h3>'+
       '<p><strong>'+escapeHTML(x.descricao)+'</strong></p>'+
       '<div class="materialDetails">'+(matTipo==='perfil'?'Fabricante: ':'Referência: ')+escapeHTML(x.fabricante)+
       ' · Linha: '+escapeHTML(x.linha||'—')+
@@ -5631,7 +5624,7 @@ function renderMateriais(){
       '<div class="materialVariants">'+(vars.length?vars.map(v=>
         '<button class="materialVariant" type="button" data-mat-var-edit="'+escapeHTML(v.id)+'">'+
         escapeHTML(v.acabamento)+' / '+escapeHTML(v.cor)+(v.codigo_cor?' ('+escapeHTML(v.codigo_cor)+')':'')+
-        (v.ativo?'':' · inativa')+'</button>').join(''):'<span class="hint">Nenhuma cor/acabamento cadastrada</span>')+
+        '</button>').join(''):'<span class="hint">Nenhuma cor/acabamento cadastrada</span>')+
       '</div></div><div class="materialRowActions">'+
       '<button type="button" class="btn secondary" data-mat-edit="'+escapeHTML(x.id)+'">Editar</button>'+
       '<button type="button" class="btn secondary" data-mat-new-var="'+escapeHTML(x.id)+'">+ Cor / acabamento</button>'+
@@ -5658,7 +5651,6 @@ function abrirEdicaoMaterial(id=null){
     matUnidadePerfil:x.unidade_referencia||'BARRA',matUnidadeAcessorio:x.unidade_item||'PC',
     matUnidadeEmbalagem:x.unidade_embalagem||'',matQuantidadeEmbalagem:x.quantidade_por_embalagem??''};
   for(const [id,value] of Object.entries(data))node(id).value=String(value);
-  node('matAtivo').checked=x.ativo!==false;
   document.querySelectorAll('.matOnlyPerfil').forEach(e=>e.classList.toggle('hidden',matTipo!=='perfil'));
   document.querySelectorAll('.matOnlyAcessorio').forEach(e=>e.classList.toggle('hidden',matTipo!=='acessorio'));
   matAtualizarOpcoesUnidade();
@@ -5678,7 +5670,7 @@ async function salvarMaterial(event){
   }
   const payload={empresa_id:currentCompany.id,codigo,fabricante,descricao,
     linha:node('matLinha').value.trim().toUpperCase(),
-    ativo:node('matAtivo').checked,atualizado_em:new Date().toISOString(),atualizado_por:currentUser.id};
+    atualizado_em:new Date().toISOString(),atualizado_por:currentUser.id};
   if(matTipo==='perfil'){
     // Campos exclusivos dos perfis. Não enviar campos ocultos ao editar acessórios.
     payload.prenativo=node('matPrenativo').value.trim();
@@ -5730,7 +5722,6 @@ function abrirVariacaoMaterial(id){
   if(!matVarSelected)return;
   node('matVarForm').reset();node('matVarAcabamento').value='';
   node('matVarCor').value='';node('matVarCodigoCor').value='';node('matVarObservacoes').value='';
-  node('matVarAtiva').checked=true;
   node('matVarTitle').textContent='Nova variação de cor / acabamento';
   node('matVarSubtitle').textContent=matVarSelected.codigo+' · '+matVarSelected.descricao;
   node('matVarError').textContent='';node('matVarOverlay').classList.remove('hidden');node('matVarAcabamento').focus();
@@ -5749,7 +5740,6 @@ function editarVariacaoMaterial(id){
   node('matVarCor').value=v.cor||'';
   node('matVarCodigoCor').value=v.codigo_cor||'';
   node('matVarObservacoes').value=v.observacoes||'';
-  node('matVarAtiva').checked=v.ativo;
   node('matVarError').textContent='';node('matVarOverlay').classList.remove('hidden');
 }
 function matVarClose(){node('matVarOverlay').classList.add('hidden');matVarSelected=null;matVarOriginal=null;}
@@ -5758,7 +5748,7 @@ async function salvarVariacao(event){
   const dados={acabamento:node('matVarAcabamento').value.trim().toUpperCase()||'NÃO INFORMADO',
     cor:node('matVarCor').value.trim().toUpperCase()||'NÃO INFORMADA',
     codigo_cor:node('matVarCodigoCor').value.trim().toUpperCase(),
-    observacoes:node('matVarObservacoes').value.trim(),ativo:node('matVarAtiva').checked,
+    observacoes:node('matVarObservacoes').value.trim(),
     atualizado_em:new Date().toISOString(),atualizado_por:currentUser.id};
   const btn=node('matVarSave');btn.disabled=true;node('matVarError').textContent='';
   try{
@@ -6371,7 +6361,6 @@ node('matTabAcessorio').addEventListener('click',()=>matSelecionarTipo('acessori
 node('stockRefresh').addEventListener('click',abrirEstoque);
 
 node('matPesquisa').addEventListener('input',renderMateriais);
-node('matMostrarInativos').addEventListener('change',renderMateriais);
 node('matEditCancel').addEventListener('click',matClose);
 node('matEditForm').addEventListener('submit',salvarMaterial);
 document.querySelectorAll('[data-mat-new-unit]').forEach(b=>
@@ -6492,7 +6481,7 @@ function estoqueDados(){
     const perWork=estoqueObraMovimentos.filter(m=>m.variacao_id===v.id&&
       (!node('stockWork').value||m.obra_id===node('stockWork').value));
     return {v,mat,link,physical,perWork};
-  }).filter(x=>x.mat&&x.v.ativo&&(!node('stockType').value||x.v.tipo===node('stockType').value)&&
+  }).filter(x=>x.mat&&(!node('stockType').value||x.v.tipo===node('stockType').value)&&
     (!node('stockWork').value||x.link||x.perWork.length)&&
     [x.mat.codigo,x.mat.descricao,x.mat.fabricante,x.v.cor,x.v.acabamento,x.v.codigo_cor].some(v=>cemNome(v).includes(seek)))
     .sort((a,b)=>a.mat.codigo.localeCompare(b.mat.codigo,'pt-BR'));
@@ -6807,8 +6796,8 @@ function stockManualPopulate(){
  const type=node('stockManualType').value;
  node('stockManualQty').min='1';
  node('stockManualQty').step=type==='perfil'?'1':'0.001';
- const list=(type==='perfil'?matPerfis:matAcessorios).filter(m=>m.ativo!==false&&
-    matVariacoes.some(v=>v.ativo&&v.tipo===type&&(type==='perfil'?v.perfil_id===m.id:v.acessorio_id===m.id)))
+ const list=(type==='perfil'?matPerfis:matAcessorios).filter(m=>
+    matVariacoes.some(v=>v.tipo===type&&(type==='perfil'?v.perfil_id===m.id:v.acessorio_id===m.id)))
    .sort((a,b)=>String(a.codigo).localeCompare(String(b.codigo),'pt-BR'));
  const code=node('stockManualCode'),old=code.value;
  code.innerHTML='<option value="">Selecione o código</option>'+list.map(m=>
@@ -6823,7 +6812,7 @@ function stockManualPopulate(){
 }
 function stockManualColorPopulate(){
  const type=node('stockManualType').value,code=node('stockManualCode').value;
- const list=matVariacoes.filter(v=>v.tipo===type&&v.ativo&&
+ const list=matVariacoes.filter(v=>v.tipo===type&&
    (type==='perfil'?v.perfil_id===code:v.acessorio_id===code))
    .sort((a,b)=>String(a.cor).localeCompare(String(b.cor),'pt-BR'));
  const select=node('stockManualMaterial'),old=select.value;
