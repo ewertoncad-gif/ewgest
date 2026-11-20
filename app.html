@@ -542,11 +542,18 @@
     @media(max-width:800px){.releaseMirrorLineTop{grid-template-columns:1fr 1fr}.releaseMirrorLineTop label:first-child{grid-column:1/-1}}
 
 
-    .cemCandidate{background:#f7faff;padding:13px;border:1px solid #dbe7f5;border-radius:10px;display:grid;grid-template-columns:1fr 1fr;gap:9px 14px;margin-top:12px}
-    .cemCandidate p{grid-column:1/-1;margin:0;color:#415f7a;font-size:12px}
-    .cemCandidate label{font-size:12px}
-    .cemCandidate select{margin-top:6px;width:100%}
-    @media(max-width:740px){.cemCandidate{grid-template-columns:1fr}}
+    .cemCandidate{background:#f7faff;padding:14px;border:1px solid #dbe7f5;border-radius:10px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(205px,.85fr);gap:12px;margin-top:12px;align-items:start}
+    .cemCandidateCol{min-width:0;display:flex;flex-direction:column;gap:6px}
+    .cemCandidateHeading{font-weight:700;font-size:12px;color:#365778;margin-bottom:5px}
+    .cemCandidateCode{font-size:15px;font-weight:750;color:#143e68;overflow-wrap:anywhere}
+    .cemCandidateDesc{font-size:12px;color:#375874;line-height:1.45;overflow-wrap:anywhere}
+    .cemCandidateMeta{font-size:11px;color:#68809c}
+    .cemCandidate select{width:100%;max-width:100%;margin-top:5px;font-size:12px}
+    .cemCandidateAction select{min-height:42px}
+    .cemCandidateTip{font-size:11px;line-height:1.5;color:#607b96;margin:6px 0 0}
+    .cemCandidatePick{font-size:11px;font-weight:650;color:#56728e;display:block;margin-top:8px}
+    @media(max-width:1080px){.cemCandidate{grid-template-columns:repeat(2,minmax(0,1fr))}.cemCandidateAction{grid-column:1/-1}}
+    @media(max-width:640px){.cemCandidate{grid-template-columns:1fr}.cemCandidateAction{grid-column:auto}}
 
 
     #stockQuantityForm label{display:block;margin:12px 0 0}
@@ -6166,20 +6173,39 @@ function cemDecisoesAtivas(){
 function cemQuadroConciliacao(){
  const list=cemDecisoesAtivas();
  if(!list.length)return '';
- return '<div class="cemPreviewSection"><h3>Possíveis materiais equivalentes ('+list.length+')</h3>'+
-  '<p class="hint">Descrições semelhantes não garantem equivalência técnica. Se os perfis ou acessórios forem diferentes, escolha Criar novo cadastro para manter o item já existente e cadastrar o código importado sem vincular os dois.</p>'+
-  list.map((x,i)=>'<div class="cemCandidate" data-cem-candidate="'+i+'">'+
-   '<p><strong>CEM: '+escapeHTML(x.imp.codigo)+'</strong> · '+escapeHTML(x.imp.descricao)+
-   ' · '+escapeHTML(x.imp.fabricante)+'</p>'+
-   '<label>Cadastro existente<select class="cemCandidateMaterial">'+
-    x.candidatos.map(c=>'<option value="'+escapeHTML(c.id)+'"'+
-     (x.materialId===c.id?' selected':'')+'>'+escapeHTML(c.codigo+' — '+c.descricao)+'</option>').join('')+
-   '</select></label><label>Decisão do ADM<select class="cemCandidateDecision">'+
-   '<option value="">Escolha uma ação</option>'+
-   '<option value="manual"'+(x.decisao==='manual'?' selected':'')+'>Unificar e manter o código manual</option>'+
-   '<option value="cem"'+(x.decisao==='cem'?' selected':'')+'>Unificar e utilizar o código importado</option>'+
-   '<option value="separar"'+(x.decisao==='separar'?' selected':'')+'>Criar novo cadastro</option>'+
-   '</select></label></div>').join('')+'</div>';
+ const tipoLabel=tipo=>tipo==='perfil'?'Perfil':'Acessório';
+ return '<div class="cemPreviewSection"><h3>Conferir materiais parecidos ('+list.length+')</h3>'+
+   '<p class="hint">O sistema encontrou descrições semelhantes, mas isso não significa que os materiais sejam iguais. '+
+   'Compare os dois códigos e escolha uma ação para cada caso. Nenhum vínculo é criado automaticamente.</p>'+
+   list.map((x,i)=>{
+     const tipo=tipoLabel(x.tipo);
+     const existente=x.candidatos.find(c=>c.id===x.materialId)||x.candidatos[0];
+     const maisDeUm=x.candidatos.length>1;
+     return '<div class="cemCandidate" data-cem-candidate="'+i+'">'+
+       '<div class="cemCandidateCol"><div class="cemCandidateHeading">'+tipo+' novo do CEM</div>'+
+       '<strong class="cemCandidateCode">'+escapeHTML(x.imp.codigo)+'</strong>'+
+       '<span class="cemCandidateDesc">'+escapeHTML(x.imp.descricao||'Descrição não informada')+'</span>'+
+       '<span class="cemCandidateMeta">Referência: '+escapeHTML(x.imp.fabricante||'Não informada')+
+       (x.imp.linha?' · Linha: '+escapeHTML(x.imp.linha):'')+'</span></div>'+
+       '<div class="cemCandidateCol"><div class="cemCandidateHeading">'+tipo+' existente no EWGEST</div>'+
+       '<strong class="cemCandidateCode cemExistingCode">'+escapeHTML(existente.codigo)+'</strong>'+
+       '<span class="cemCandidateDesc cemExistingDesc">'+escapeHTML(existente.descricao||'Descrição não informada')+'</span>'+
+       '<span class="cemCandidateMeta cemExistingMeta">Referência: '+escapeHTML(existente.fabricante||'Não informada')+
+       (existente.linha?' · Linha: '+escapeHTML(existente.linha):'')+'</span>'+
+       (maisDeUm?'<label class="cemCandidatePick">Outros cadastros semelhantes'+
+          '<select class="cemCandidateMaterial" aria-label="Selecionar material existente para comparar">'+
+          x.candidatos.map(c=>'<option value="'+escapeHTML(c.id)+'"'+
+          (x.materialId===c.id?' selected':'')+'>'+escapeHTML(c.codigo+' — '+c.descricao)+'</option>').join('')+
+          '</select></label>':'')+'</div>'+
+       '<div class="cemCandidateCol cemCandidateAction"><label class="cemCandidateHeading">Ação do ADM'+
+       '<select class="cemCandidateDecision" aria-label="Decisão sobre '+escapeHTML(x.imp.codigo)+'">'+
+       '<option value="">Escolha uma ação</option>'+
+       '<option value="manual"'+(x.decisao==='manual'?' selected':'')+'>Vincular '+tipo.toLowerCase()+' novo ao existente</option>'+
+       '<option value="separar"'+(x.decisao==='separar'?' selected':'')+'>Cadastrar '+tipo.toLowerCase()+' novo, ignorando equivalência</option>'+
+       '</select></label><p class="cemCandidateTip">Vincular: o código do CEM será uma referência do cadastro existente. '+
+       'Cadastrar novo: os dois materiais continuarão independentes.</p></div>'+
+       '</div>';
+   }).join('')+'</div>';
 }
 function cemAtualizarBotao(){
  const r=cemParsed,esk=node('cemFlagEsquadrias').checked;
@@ -6436,8 +6462,17 @@ function cemRenderPreview(){
   }
   el.querySelectorAll('[data-cem-candidate]').forEach((row,i)=>{
     const match=cemDecisoesAtivas()[i];
-    row.querySelector('.cemCandidateMaterial').addEventListener('change',event=>{
-      match.materialId=event.target.value;cemAtualizarBotao();
+    const candidato=row.querySelector('.cemCandidateMaterial');
+    if(candidato)candidato.addEventListener('change',event=>{
+      match.materialId=event.target.value;
+      const selecionado=match.candidatos.find(c=>c.id===match.materialId);
+      if(selecionado){
+        row.querySelector('.cemExistingCode').textContent=selecionado.codigo;
+        row.querySelector('.cemExistingDesc').textContent=selecionado.descricao||'Descrição não informada';
+        row.querySelector('.cemExistingMeta').textContent='Referência: '+(selecionado.fabricante||'Não informada')+
+          (selecionado.linha?' · Linha: '+selecionado.linha:'');
+      }
+      cemAtualizarBotao();
     });
     row.querySelector('.cemCandidateDecision').addEventListener('change',event=>{
       match.decisao=event.target.value;cemAtualizarBotao();
