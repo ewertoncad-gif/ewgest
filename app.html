@@ -6740,7 +6740,7 @@ async function finLoad(){
    apiGet('ew_obra_despesas',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
    apiGet('ew_obra_faturamentos',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
    apiGet('ew_perfis',{select:'id,codigo,descricao,fabricante',empresa_id:empresa,limit:'5000'}),
-   apiGet('ew_acessorios',{select:'id,codigo,descricao,fabricante,unidade_item,quantidade_por_embalagem',empresa_id:empresa,limit:'5000'}),
+   apiGet('ew_acessorios',{select:'id,codigo,descricao,fabricante,unidade_item,unidade_embalagem,quantidade_por_embalagem',empresa_id:empresa,limit:'5000'}),
    apiGet('romaneios',{select:'id,status,cancelado_em',empresa_id:empresa,obra_id:obra,limit:'3000'}),
    apiGet('ew_materiais_variacoes',{select:'id,perfil_id,acessorio_id,tipo,cor,acabamento',empresa_id:empresa,limit:'10000'}),
    apiGet('ew_locais_fisicos',{select:'nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'300'})
@@ -6878,6 +6878,144 @@ async function finRevisarNota(id,acao){
   node('finMessage').textContent=acao==='aprovar'?'Nota aprovada e gasto contabilizado.':'Nota rejeitada sem contabilizar gasto.';
  }catch(e){node('finMessage').textContent='Não foi possível revisar a NF-e: '+e.message;}
  finally{btn.disabled=false;}
+}
+
+
+function finRenderRecebimentos(){
+ const el=node('finReceivePanel'),x=finState;
+ if(!isFullAdminUser()||!x){el.classList.add('hidden');return;}
+ const recebidos=new Map(x.stockReceipts.map(r=>[r.despesa_item_id,r]));
+ const rows=x.approvedItems.filter(i=>x.aprovadas.some(d=>d.id===i.despesa_id));
+ if(!rows.length){el.classList.add('hidden');return;}
+ el.classList.remove('hidden');
+ const optsGalpoes='<option value="">Escolha o galpão</option>'+
+   x.galpoes.map(g=>'<option value="'+escapeHTML(g)+'">'+escapeHTML(g)+'</option>').join('');
+ el.innerHTML='<h2>Recebimento físico das notas aprovadas</h2>'+
+   '<p class="hint">A aprovação da nota registra o gasto, mas não significa que os materiais estejam fisicamente disponíveis. '+
+   'Confirme cada item realmente recebido, a cor, o comprimento comercial e o galpão. '+
+   'Cada entrada é vinculada à nota fiscal e não pode ser repetida para o mesmo item sem conferência de estorno.</p>'+
+   rows.map((i,index)=>{
+    const invoice=x.aprovadas.find(d=>d.id===i.despesa_id);
+    const tipo=invoice.categoria==='aluminio'?'perfil':'acessorio';
+    const materials=tipo==='perfil'?x.perfis:x.acessorios;
+    const existingId=i.perfil_id||i.acessorio_id||'';
+    const suggested=existingId||(materials.filter(m=>
+      cemNome(m.codigo)===cemNome(i.codigo_fornecedor)).length===1?
+      materials.find(m=>cemNome(m.codigo)===cemNome(i.codigo_fornecedor)).id:'');
+    const received=recebidos.get(i.id);
+    if(received)return '<div class="finReceiveRow" data-receive-item="'+escapeHTML(i.id)+'">'+
+       '<strong>'+escapeHTML(i.codigo_fornecedor)+' — '+escapeHTML(i.descricao)+'</strong>'+
+       '<p class="hint">NF '+escapeHTML(invoice.numero_documento)+' · Recebido: '+
+       Number(received.quantidade).toLocaleString('pt-BR',{maximumFractionDigits:3})+
+       ' '+escapeHTML(received.unidade)+' · '+escapeHTML(received.local_estoque)+
+       (received.comprimento_mm?' · '+received.comprimento_mm+' mm':'')+'</p></div>';
+    return '<div class="finReceiveRow" data-receive-item="'+escapeHTML(i.id)+
+      '" data-receive-type="'+tipo+'" data-invoice-unit="'+escapeHTML(i.unidade||'')+
+      '" data-invoice-qty="'+Number(i.quantidade)+'">'+
+      '<strong>'+escapeHTML(i.codigo_fornecedor)+' — '+escapeHTML(i.descricao)+'</strong>'+
+      '<p class="hint">NF '+escapeHTML(invoice.numero_documento)+' · '+escapeHTML(invoice.fornecedor)+
+      ' · '+Number(i.quantidade).toLocaleString('pt-BR',{maximumFractionDigits:3})+
+      ' '+escapeHTML(i.unidade||'')+' · Preço real unitário: '+finMoney(i.valor_unitario)+'</p>'+
+      '<div class="finFormRows">'+
+      '<label>Material do catálogo<select class="finReceiveMaterial"><option value="">Selecione o material</option>'+
+      materials.map(m=>'<option value="'+escapeHTML(m.id)+'"'+(suggested===m.id?' selected':'')+'>'+
+        escapeHTML(m.codigo+' — '+m.descricao)+'</option>').join('')+'</select></label>'+
+      '<label>Cor / variação<select class="finReceiveVariation"><option value="">Selecione o material primeiro</option></select></label>'+
+      '<label>Quantidade recebida (física) <input class="finReceiveQty" type="number" min="0.001" step="0.001" placeholder="Confirme a quantidade"></label>'+
+      '<label>Unidade de estoque <input class="finReceiveUnit" readonly placeholder="Unidade do item"></label>'+
+      '<label class="finReceiveBar">Comprimento da barra (mm) <input class="finReceiveLength" type="number" min="100" max="20000" step="1" placeholder="Ex.: 6000"></label>'+
+      '<label>Galpão / local<select class="finReceiveLocal">'+optsGalpoes+'</select></label></div>'+
+      '<p class="hint finReceiveHint">Confira a embalagem e a unidade da NF. Nenhum material será registrado automaticamente.</p>'+
+      '<button type="button" class="btn secondary finReceiveSubmit">Confirmar entrada física deste item</button>'+
+      '<p class="feedback finReceiveError" role="status"></p></div>';
+   }).join('');
+ el.querySelectorAll('.finReceiveRow[data-receive-type]').forEach(row=>{
+   const mat=row.querySelector('.finReceiveMaterial');
+   const qty=row.querySelector('.finReceiveQty');
+   const variant=row.querySelector('.finReceiveVariation');
+   const unit=row.querySelector('.finReceiveUnit');
+   const lengthField=row.querySelector('.finReceiveBar');
+   const tipo=row.dataset.receiveType;
+   const update=()=>{
+    const selected=mat.value,arr=x.variacoes.filter(v=>tipo==='perfil'?
+      v.tipo==='perfil'&&v.perfil_id===selected:
+      v.tipo==='acessorio'&&v.acessorio_id===selected);
+    variant.innerHTML='<option value="">Escolha a cor / variação</option>'+
+      arr.map(v=>'<option value="'+escapeHTML(v.id)+'">'+
+        escapeHTML(v.cor+(tipo==='perfil'?' / '+v.acabamento:''))+'</option>').join('');
+    if(arr.length===1)variant.value=arr[0].id;
+    lengthField.classList.toggle('hidden',tipo!=='perfil');
+    if(tipo==='perfil'){
+      unit.value='BARRA';qty.value='';
+      row.querySelector('.finReceiveHint').textContent=
+        'Para perfil, informe o número REAL de barras recebidas e o comprimento comercial. A NF pode usar metros, kg ou outras unidades.';
+    }else{
+      const material=x.acessorios.find(a=>a.id===selected);
+      const base=cemNome(material?.unidade_item||'');
+      const pack=cemNome(material?.unidade_embalagem||'');
+      const src=cemNome(row.dataset.invoiceUnit);
+      const quantidade=Number(row.dataset.invoiceQty);
+      const fator=Number(material?.quantidade_por_embalagem);
+      unit.value=releaseUnidadeAcessorio(base||'');
+      let proposed=null;
+      if(base&&src===base)proposed=quantidade;
+      else if(pack&&src===pack&&fator>0)proposed=quantidade*fator;
+      qty.value=proposed!==null&&Number.isFinite(proposed)?Number(proposed.toFixed(3)):'';
+      row.querySelector('.finReceiveHint').textContent=proposed!==null?
+        'Sugestão convertida da NF: '+quantidade+' '+src+' → '+qty.value+' '+unit.value+
+          '. Confira a quantidade física recebida antes de confirmar.':
+        'Não foi possível converter automaticamente a unidade da NF. Informe a quantidade física na unidade do item.';
+    }
+   };
+   mat.addEventListener('change',update);
+   update();
+   row.querySelector('.finReceiveSubmit').addEventListener('click',()=>finConfirmarRecebimento(row));
+ });
+}
+async function finConfirmarRecebimento(row){
+ if(!finState||!isFullAdminUser())return;
+ const itemId=row.dataset.receiveItem,tipo=row.dataset.receiveType;
+ const materialId=row.querySelector('.finReceiveMaterial').value;
+ const variationId=row.querySelector('.finReceiveVariation').value;
+ const qty=Number(row.querySelector('.finReceiveQty').value);
+ const unit=row.querySelector('.finReceiveUnit').value.trim();
+ const lengthText=row.querySelector('.finReceiveLength').value.trim();
+ const length=tipo==='perfil'?Number(lengthText):null;
+ const local=row.querySelector('.finReceiveLocal').value;
+ const info=row.querySelector('.finReceiveError');
+ if(!materialId||!variationId||!local||!row.querySelector('.finReceiveQty').value.trim()||
+   !Number.isFinite(qty)||qty<=0||qty>1000000||Math.abs(qty*1000-Math.round(qty*1000))>0.00001||
+   tipo==='perfil'&&(!lengthText||!Number.isSafeInteger(length)||length<100||length>20000||
+     !Number.isSafeInteger(qty))){
+  info.textContent='Selecione o material e sua cor, informe a quantidade recebida, o galpão e o comprimento da barra quando necessário.';return;
+ }
+ const item=finState.approvedItems.find(i=>i.id===itemId),original=item?.perfil_id||item?.acessorio_id||'';
+ if(!item){info.textContent='Item da NF-e não encontrado na consulta.';return;}
+ if(!window.confirm('Confirmar RECEBIMENTO FÍSICO de '+qty+' '+unit+
+   (length?' com '+length+' mm':'')+' no galpão '+local+
+   '?\n\nEste registro AUMENTA o estoque da obra. Confirme apenas material realmente recebido e conferido.'))return;
+ const button=row.querySelector('.finReceiveSubmit');button.disabled=true;
+ info.textContent='Registrando entrada e vínculo à NF-e…';
+ try{
+  await ensureSession();
+  if(materialId!==original){
+   await request('/rest/v1/rpc/ew_vincular_item_nfe',{
+     method:'POST',token:session.access_token,body:{
+       p_empresa_id:currentCompany.id,p_item_id:itemId,p_tipo:tipo,p_material_id:materialId}
+   });
+  }
+  const result=await request('/rest/v1/rpc/ew_receber_item_nfe',{
+   method:'POST',token:session.access_token,body:{
+    p_empresa_id:currentCompany.id,p_despesa_item_id:itemId,p_variacao_id:variationId,
+    p_quantidade:qty,p_unidade:unit,p_comprimento_mm:length,p_local_estoque:local,
+    p_operacao_id:crypto.randomUUID()}
+  });
+  await finLoad();
+  node('finMessage').textContent=result.ja_recebido?
+    'Este item já constava como recebido: não foi criado saldo em duplicidade.':
+    'Recebimento físico confirmado e registrado no estoque. Os saldos da obra foram atualizados.';
+ }catch(e){info.textContent='Não foi possível confirmar: '+e.message+'. Verifique as entradas antes de repetir.';}
+ finally{button.disabled=false;}
 }
 
 function finRenderHistorico(){
