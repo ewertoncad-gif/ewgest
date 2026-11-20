@@ -1010,11 +1010,11 @@ assert.ok(source.includes('id="userOperationsToggle"')&&
  source.includes('id="userOperationsExport"')&&
  source.includes('function operationReportDisplay()'),
  'Relatório de auditoria por usuários, períodos e obras precisa estar ativo');
-assert.ok(source.includes('id="manageWorksCancelReleases"')&&
+assert.ok(source.includes('data-work-cancel-releases=')&&
  source.includes('id="manageWorksReverseStock"')&&
  source.includes('id="manageWorksCancelShipments"')&&
  source.includes('id="manageWorksGoRomaneios"'),
- 'Gerenciar obras deve mostrar ações de cancelamento e estorno');
+ 'Gerenciar obras oferece cancelamento de liberações por obra, saídas e estorno de estoque');
 assert.ok(source.includes("'ew_cancelar_liberacoes_obra'")&&
  source.includes("'ew_estornar_estoque_obra'")&&
  source.includes('function executarReversaoObra(tipo)'),
