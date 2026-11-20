@@ -1276,4 +1276,21 @@ assert.ok(source.includes('id="navHome"')&&
   source.includes('id="navManufacturers"')&&
   source.includes("node('navManufacturers').addEventListener('click'"),
   'A navegação lateral deve continuar disponível');
+// v44.6: recarregar página com sessão salva nunca mostra o formulário antes da restauração.
+const initialMarkup=source.slice(source.indexOf('<main>'),source.indexOf('<section id="dashboard"'));
+assert.ok(initialMarkup.includes('id="startup"')&&
+ initialMarkup.includes('Carregando EWGEST')&&
+ initialMarkup.includes('id="login" class="panel login hidden"')&&
+ source.includes("node('startup').classList.add('hidden');"),
+ 'Inicialização exibe carregamento e mantém login oculto até a sessão ser conferida');
+const restored=source.slice(source.indexOf('async function restaurarSessaoSalva()'),source.indexOf("node('restoreSessionBtn').addEventListener"));
+assert.ok(restored.includes("const raw=sessionStorage.getItem('ewgest_session_v3')")&&
+ restored.includes("if(!raw){\\n  retry.classList.add('hidden');\\n  setView('login');".replaceAll('\\n','\n'))&&
+ restored.includes('await loadPanel();')&&
+ restored.includes("setView('login');")&&
+ source.includes("restaurarSessaoSalva().catch(e=>{\\n  // Não manter".replaceAll('\\n','\n')),
+ 'Sessão ausente ou inválida mostra login; sessão válida abre painel sem flash, erros não travam o carregamento');
+assert.ok(source.includes('EWGEST <strong>· v44.6</strong>')&&
+ source.includes('@media(prefers-reduced-motion:reduce){.startupSpinner'),
+ 'Indicador de carregamento acessível e versão atualizada');
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');

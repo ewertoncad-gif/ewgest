@@ -401,3 +401,10 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 - Na tela **Cadastro de fabricantes**, remover os dois botões redundantes do cabeçalho: **← Tela inicial** e **Banco de tipologias**.
 - Preservar o título, os campos e a listagem de fabricantes, as permissões e os acessos equivalentes pela barra lateral (**Tela inicial**, **Banco de tipologias**, **Fabricantes**).
 - Não alterar os cadastros nem a navegação das demais páginas neste ajuste.
+
+
+### Recarregamento sem piscar a tela de login (v44.6 — 20/11/2026)
+- Ao abrir/recarregar `/app`, mostrar primeiro uma tela neutra **Carregando EWGEST…**. O HTML do login inicia oculto para evitar a exibição do formulário de senha enquanto a sessão do navegador é validada.
+- Se há sessão válida em `sessionStorage`, manter a interface na tela de carregamento até restaurar a sessão, consultar permissões e carregar o painel; então exibir o painel/área autorizada diretamente, sem mostrar o login no meio do caminho.
+- Se não há sessão ou ela foi revogada/expirada irrecuperavelmente, apresentar o login normalmente. Em falhas de rede recuperáveis, preservar as credenciais e apresentar o controle de recuperação de sessão já existente.
+- Em caso de exceção inesperada de inicialização, revelar o login com o erro para evitar carregamento infinito. O indicador de carregamento respeita a preferência do sistema por movimento reduzido. Não guardar credenciais novas, burlar a validação de sessão única, modificar permissões ou alterar o backend.

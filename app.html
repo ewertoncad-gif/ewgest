@@ -33,6 +33,13 @@
     .error{margin-top:9px;color:#ffb6a9;font-size:13px;white-space:pre-wrap;line-height:1.55}
     .build{margin-top:18px;color:#8faac2;font-size:12px;border-top:1px solid #2a435b;padding-top:12px}
     .hidden{display:none!important}
+  /* A autenticação é conferida antes de mostrar o formulário de login. */
+  .startup{max-width:480px;margin:clamp(60px,13vh,140px) auto;text-align:center;padding:35px 28px}
+  .startup h1{font-size:23px;margin:14px 0 6px}
+  .startup p{color:#647a93;margin:0}
+  .startupSpinner{display:inline-block;width:34px;height:34px;border:3px solid #d5e6f4;border-top-color:#1684d8;border-radius:50%;animation:ewgestStartupSpin .8s linear infinite}
+  @keyframes ewgestStartupSpin{to{transform:rotate(360deg)}}
+  @media(prefers-reduced-motion:reduce){.startupSpinner{animation:none;border-top-color:#1684d8}}
     .head{display:flex;align-items:end;justify-content:space-between;flex-wrap:wrap;gap:15px;margin:50px 0 25px}
     .detailnav{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px}
     .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
@@ -638,10 +645,16 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v44.5</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v44.6</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
-    <section id="login" class="panel login">
+    <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
+      <span class="startupSpinner" aria-hidden="true"></span>
+      <h1>Carregando EWGEST…</h1>
+      <p>Conferindo sua sessão e preparando o painel.</p>
+      <noscript>Ative o JavaScript para acessar o EWGEST.</noscript>
+    </section>
+    <section id="login" class="panel login hidden">
       <a href="/" class="btn secondary loginBackHome">← Voltar à tela inicial</a>
       <h1>Bem-vindo à EWGEST</h1>
       <p class="muted">Entre para acompanhar as obras e registrar liberações para corte.</p>
@@ -1813,6 +1826,7 @@ document.querySelectorAll('[data-show-password]').forEach(button=>{
 });
 function podeEmitirRomaneio(){return ['administrador','gerenciador','supervisor','almoxarife'].includes(String(membership?.perfil||'').toLowerCase());}
 function setView(view){
+  node('startup').classList.add('hidden');
   if(isAlmoxarife()&&!['login','romaneiosPage','myPassword'].includes(view))view='romaneiosPage';
   for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','typologies','manufacturers','materials','stock','cemImport','users','myPassword'])
     node(id).classList.toggle('hidden',id!==view);
@@ -7933,7 +7947,8 @@ async function restaurarSessaoSalva(){
  const retry=node('restoreSessionBtn');
  if(!raw){
   retry.classList.add('hidden');
-  setStatus('Aplicativo v43.1 pronto. Digite seu login e senha para entrar.');
+  setView('login');
+  setStatus('Digite seu login e senha para entrar.');
   return;
  }
  restauracaoEmAndamento=true;retry.disabled=true;retry.classList.add('hidden');
@@ -7990,7 +8005,11 @@ async function restaurarSessaoSalva(){
  }
 }
 node('restoreSessionBtn').addEventListener('click',restaurarSessaoSalva);
-restaurarSessaoSalva().catch(e=>setError('Erro inesperado na restauração: '+(e.message||e)));
+restaurarSessaoSalva().catch(e=>{
+  // Não manter uma tela de carregamento eterna se ocorrer um erro inesperado.
+  setView('login');
+  setError('Erro inesperado na restauração: '+(e.message||e));
+});
 
 </script>
 </body>
