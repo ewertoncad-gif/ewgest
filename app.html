@@ -6595,6 +6595,139 @@ async function cemImportarSelecionados(){
    cemAtualizarBotao();
  }
 }
+
+/* Financeiro: separar limites de custo de receitas, com vinculação explícita a documentos. */
+let finState=null,finXmlDoc=null,finCostOpId=null,finBillingOpId=null;
+const finCategories=[
+ ['aluminio','Alumínio','custo'],['acessorios','Acessórios','custo'],
+ ['vidros','Vidros','custo'],['outros','Outros insumos','custo'],
+ ['fabricacao','Fabricação','receita'],['instalacao','Instalação','receita']
+];
+const finMoney=n=>Number(n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+function finOptionsObras(prefer){
+ const select=node('finWork'),before=prefer||select.value||selectedWork?.id||'';
+ select.innerHTML='<option value="">Escolha a obra</option>'+works.map(w=>
+ '<option value="'+escapeHTML(w.id)+'">'+escapeHTML(w.codigo+' · '+w.nome)+'</option>').join('');
+ if(works.some(w=>w.id===before))select.value=before;
+}
+async function abrirFinanceiro(prefer=null){
+ if(!canAdministrate())return;
+ finOptionsObras(prefer);
+ setView('financeiro');
+ await finLoad();
+}
+async function finLoad(){
+ if(!canAdministrate()||!currentCompany)return;
+ const obraId=node('finWork').value,box=node('finContent');
+ box.classList.add('hidden');finState=null;finXmlDoc=null;node('finXmlPreview').classList.add('hidden');
+ node('finMessage').textContent='';
+ if(!obraId)return;
+ const empresa='eq.'+currentCompany.id,obra='eq.'+obraId;
+ node('finMessage').textContent='Consultando orçamento, despesas e faturamentos…';
+ try{
+  await ensureSession();
+  const [b,c,fat,perfis,aces,roms]=await Promise.all([
+   apiGet('ew_obra_orcamento',{select:'*',empresa_id:empresa,obra_id:obra,limit:'1'}),
+   apiGet('ew_obra_despesas',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
+   apiGet('ew_obra_faturamentos',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
+   apiGet('ew_perfis',{select:'id,codigo,descricao,fabricante',empresa_id:empresa,limit:'5000'}),
+   apiGet('ew_acessorios',{select:'id,codigo,descricao,fabricante,unidade_item,quantidade_por_embalagem',empresa_id:empresa,limit:'5000'}),
+   apiGet('romaneios',{select:'id,status,cancelado_em',empresa_id:empresa,obra_id:obra,limit:'3000'})
+  ]);
+  if(!b?.length){node('finMessage').textContent='Esta obra ainda não possui orçamento cadastrado. As novas importações agora exigem essa etapa.';return;}
+  const invoiceIds=(fat||[]).map(x=>x.id),romaneioIds=(roms||[]).filter(x=>x.status==='emitido'&&!x.cancelado_em).map(x=>x.id);
+  const [linhas,romLinhas]=await Promise.all([
+   invoiceIds.length?apiGet('ew_obra_faturamentos_itens',{select:'faturamento_id,esquadria_id,quantidade,valor_total',empresa_id:empresa,faturamento_id:'in.('+invoiceIds.join(',')+')',limit:'5000'}):[],
+   romaneioIds.length?apiGet('romaneios_itens',{select:'romaneio_id,esquadria_id,quantidade,natureza,tipo_saida',romaneio_id:'in.('+romaneioIds.join(',')+')',limit:'10000'}):[]
+  ]);
+  const shipped=new Map();
+  for(const x of romLinhas||[])if(x.esquadria_id&&x.natureza==='esquadria'&&x.tipo_saida==='completo')
+    shipped.set(x.esquadria_id,(shipped.get(x.esquadria_id)||0)+Number(x.quantidade||0));
+  const billed={fabricacao:new Map(),instalacao:new Map()};
+  const header=new Map((fat||[]).filter(x=>x.status==='emitido').map(x=>[x.id,x]));
+  for(const x of linhas||[]){
+   const tipo=header.get(x.faturamento_id)?.categoria;
+   if(tipo)billed[tipo].set(x.esquadria_id,(billed[tipo].get(x.esquadria_id)||0)+Number(x.quantidade||0));
+  }
+  finState={obraId,orcamento:b[0],despesas:c||[],faturas:fat||[],linhas:linhas||[],perfis:perfis||[],
+   acessorios:aces||[],shipped,billed};
+  box.classList.remove('hidden');node('finMessage').textContent='';
+  node('finExpensePanel').classList.toggle('hidden',!isFullAdminUser());
+  node('finBillingPanel').classList.toggle('hidden',!isFullAdminUser());
+  finRenderResumo();finRenderFaturaveis();finRenderHistorico();
+ }catch(e){node('finMessage').textContent='Não foi possível carregar o financeiro: '+e.message;}
+}
+function finRenderResumo(){
+ const x=finState,o=x.orcamento;
+ const gastos=new Map(),faturado=new Map();
+ for(const d of x.despesas)if(d.status==='aprovada')gastos.set(d.categoria,(gastos.get(d.categoria)||0)+Number(d.valor));
+ for(const f of x.faturas)if(f.status==='emitido')faturado.set(f.categoria,(faturado.get(f.categoria)||0)+Number(f.valor_total));
+ const gastoTotal=[...gastos.values()].reduce((a,b)=>a+b,0),recebTotal=[...faturado.values()].reduce((a,b)=>a+b,0);
+ const totalReceita=Number(o.fabricacao)+Number(o.instalacao);
+ node('finTotals').innerHTML='<span><strong>Valor da obra: '+finMoney(o.valor_total)+'</strong></span>'+
+  '<span><strong>Faturado: '+finMoney(recebTotal)+'</strong></span>'+
+  '<span><strong>A faturar: '+finMoney(totalReceita-recebTotal)+'</strong></span>'+
+  '<span><strong>Gastos registrados: '+finMoney(gastoTotal)+'</strong></span>';
+ node('finSummary').innerHTML='<div class="finTableWrap"><table class="finTable"><thead><tr>'+
+   '<th>Categoria</th><th>Controle</th><th align="right">Previsto / teto</th><th align="right">Realizado</th><th align="right">Restante</th></tr></thead><tbody>'+
+ finCategories.map(([k,label,tipo])=>{
+   const total=Number(o[k]),real=tipo==='custo'?(gastos.get(k)||0):(faturado.get(k)||0);
+   const resto=Math.round((total-real)*100)/100;
+   return '<tr><td>'+label+'</td><td>'+(tipo==='custo'?'Gasto':'Faturamento')+
+   '</td><td align="right">'+finMoney(total)+'</td><td align="right">'+finMoney(real)+
+   '</td><td align="right"'+(resto<0?' class="finNegative"':'')+'>'+finMoney(resto)+'</td></tr>';
+ }).join('')+'</tbody></table></div>'+
+ '<p class="hint">O valor de fabricação e instalação representa receita prevista, não lucro. Os gastos reais vêm de despesas registradas. Romaneios não contabilizam faturamento.</p>';
+}
+function finRenderHistorico(){
+ const x=finState;
+ const rows=[
+ ...x.despesas.map(d=>({date:d.data_documento||d.criado_em?.slice(0,10)||'',grupo:'Despesa',tipo:d.categoria,
+ doc:d.numero_documento||'—',valor:d.valor,status:d.status,desc:d.fornecedor||''})),
+ ...x.faturas.map(f=>({date:f.data_faturamento||'',grupo:'Faturamento',tipo:f.categoria,
+ doc:f.numero_documento||'—',valor:f.valor_total,status:f.status,desc:''}))
+ ].sort((a,b)=>b.date.localeCompare(a.date));
+ node('finHistory').innerHTML=rows.length?'<div class="finTableWrap"><table class="finTable"><thead><tr>'+
+ '<th>Data</th><th>Movimento</th><th>Categoria</th><th>Documento</th><th align="right">Valor</th><th>Status</th></tr></thead><tbody>'+
+ rows.map(r=>'<tr><td>'+escapeHTML(r.date)+'</td><td>'+r.grupo+'</td><td>'+
+ escapeHTML(finCategories.find(x=>x[0]===r.tipo)?.[1]||r.tipo)+'</td><td>'+escapeHTML(r.doc)+
+ (r.desc?' · '+escapeHTML(r.desc):'')+'</td><td align="right">'+finMoney(r.valor)+
+ '</td><td>'+escapeHTML(r.status)+'</td></tr>').join('')+'</tbody></table></div>':
+ '<p class="hint">Ainda não há notas de despesas nem documentos de faturamento registrados.</p>';
+}
+function finRenderFaturaveis(){
+ if(!finState)return;
+ const tipo=node('finBillingCategory').value,items=elements.filter(e=>e.obra_id===finState.obraId);
+ node('finInstalledLabel').classList.toggle('hidden',tipo!=='instalacao');
+ const rows=items.map(e=>{
+  const enviados=Math.min(Number(e.quantidade),finState.shipped.get(e.id)||0);
+  const ja=finState.billed[tipo].get(e.id)||0;
+  const disponivel=Math.max(0,enviados-ja);
+  return {e,enviados,ja,disponivel};
+ }).filter(r=>r.enviados>0);
+ node('finBillingRows').innerHTML=rows.length?'<div class="finTableWrap"><table class="finTable"><thead><tr>'+
+  '<th>Faturar</th><th>Esquadria</th><th>Romaneios completos</th><th>Já faturado ('+
+  (tipo==='fabricacao'?'fab.':'inst.')+')</th><th>Disponível</th><th>Qtd.</th><th>Valor/un. (R$)</th></tr></thead><tbody>'+
+ rows.map(r=>'<tr class="finInvoiceRow" data-esq="'+escapeHTML(r.e.id)+'" data-max="'+r.disponivel+'">'+
+  '<td class="finRowCheck"><input class="finSelected" type="checkbox"'+(r.disponivel===0?' disabled':'')+'></td>'+
+  '<td><strong>'+escapeHTML(r.e.codigo)+'</strong><div class="hint">'+escapeHTML(r.e.descricao||'')+'</div></td>'+
+  '<td>'+r.enviados+'</td><td>'+r.ja+'</td><td>'+r.disponivel+'</td>'+
+  '<td><input class="finQty finSmallInput" type="number" min="1" max="'+r.disponivel+'" step="1" value="'+(r.disponivel||'')+'"'+(r.disponivel===0?' disabled':'')+'></td>'+
+  '<td><input class="finPrice finSmallInput" type="number" min="0.0001" step="0.0001" placeholder="Valor"'+(r.disponivel===0?' disabled':'')+'></td></tr>').join('')+
+  '</tbody></table></div>':'<p class="hint">Nenhuma esquadria com saída completa em romaneio ativo está disponível nesta obra.</p>';
+ node('finBillingRows').querySelectorAll('input').forEach(x=>x.addEventListener('input',finAtualizarSomaFatura));
+ finAtualizarSomaFatura();
+}
+function finAtualizarSomaFatura(){
+ let sum=0,count=0;
+ for(const row of node('finBillingRows').querySelectorAll('.finInvoiceRow')){
+  if(!row.querySelector('.finSelected').checked)continue;
+  count++;
+  sum+=Number(row.querySelector('.finQty').value||0)*Number(row.querySelector('.finPrice').value||0);
+ }
+ node('finBillingSum').textContent='Selecionados: '+count+' · Valor calculado: '+finMoney(sum);
+}
+
 node('matNovoHeader').addEventListener('click',()=>abrirEdicaoMaterial());
 node('matNovo').addEventListener('click',()=>abrirEdicaoMaterial());
 node('matTabPerfil').addEventListener('click',()=>matSelecionarTipo('perfil'));
