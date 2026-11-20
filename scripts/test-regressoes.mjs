@@ -603,9 +603,10 @@ for(const token of ['ew_perfis','ew_acessorios','ew_materiais_variacoes',
  'async function salvarVariacao(event)']){
   assert.ok(source.includes(token),'Cadastro de materiais deve conter '+token);
 }
-assert.ok(source.includes('Quantidade na obra')&&source.includes('Comprimento da barra')&&
- source.includes('Ajustar quantidade')&&source.includes('Não cadastrada'),
- 'Estoque simplificado mostra barras, comprimento e ajuste de saldo');
+assert.ok(source.includes('Quantidade necessária')&&source.includes('Em estoque')&&
+ source.includes('Comprimento da barra')&&source.includes('Ajustar quantidade')&&
+ source.includes('Quantidade ainda não cadastrada'),
+ 'Estoque atual mostra necessidade, saldo físico, barras e ajuste de quantidade');
 assert.ok(source.includes('async function abrirEstoque()')&&source.includes('async function registrarMovimentoEstoque(e)'),
  'Estoque possui consulta real e movimentação auditável');
 for(const id of ['navMaterials','navStock','navCem','materials','stock','cemImport',
