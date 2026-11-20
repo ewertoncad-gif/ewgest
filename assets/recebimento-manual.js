@@ -26,15 +26,70 @@
   if(cents(value)!==null)el.value=value;
  }
  function stockCategory(){return category==='aluminio'||category==='acessorios'}
- function getMaterials(){
+ function plannedRows(matId='',variationId=''){
   if(!finState)return [];
-  return category==='aluminio'?finState.perfis:finState.acessorios;
+  const isPerfil=category==='aluminio',type=isPerfil?'perfil':'acessorio';
+  const field=isPerfil?'perfil_id':'acessorio_id';
+  return (finState.materiaisObra||[]).filter(m=>m.tipo===type&&
+   (!matId||m[field]===matId)&&(!variationId||m.variacao_id===variationId));
+ }
+ function getMaterials(){
+  if(!finState||!stockCategory())return [];
+  const isPerfil=category==='aluminio',field=isPerfil?'perfil_id':'acessorio_id';
+  const ids=new Set(plannedRows().map(m=>m[field]).filter(Boolean));
+  return (isPerfil?finState.perfis:finState.acessorios).filter(m=>ids.has(m.id))
+   .sort((a,b)=>String(a.codigo).localeCompare(String(b.codigo),'pt-BR',{numeric:true}));
  }
  function getVariations(matId){
   if(!finState||!matId)return [];
-  return finState.variacoes.filter(v=>v.ativo!==false&&(
+  const ids=new Set(plannedRows(matId).map(m=>m.variacao_id).filter(Boolean));
+  return finState.variacoes.filter(v=>v.ativo!==false&&ids.has(v.id)&&(
    category==='aluminio'?v.tipo==='perfil'&&v.perfil_id===matId:
    v.tipo==='acessorio'&&v.acessorio_id===matId));
+ }
+ function formatQty(number){
+  return Number(number||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:3});
+ }
+ // Quantitativos da obra: CEM contabiliza perfis por cortes e metros,
+ // enquanto NF física recebe barras. Jamais comparar cortes com barras.
+ function quantityInfo(row){
+  if(!row.material)return 'Selecione um material desta obra para consultar os quantitativos.';
+  const all=plannedRows(row.material,row.variacao||'');
+  if(!all.length)return 'Este material não possui necessidade cadastrada nesta obra.';
+  const variationIds=new Set(all.map(x=>x.variacao_id));
+  const received=(finState.stockReceipts||[]).filter(x=>variationIds.has(x.variacao_id));
+  const scope=row.variacao?'na cor/variação escolhida':'em todas as cores/variações';
+  if(category==='aluminio'){
+   const corte=all.reduce((s,r)=>s+Number(r.quantidade_prevista||0),0);
+   const metros=all.reduce((s,r)=>s+Number(r.comprimento_total_m||0),0);
+   const bars=received.filter(r=>r.unidade==='BARRA');
+   const qBars=bars.reduce((s,r)=>s+Number(r.quantidade||0),0);
+   const mBars=bars.reduce((s,r)=>s+Number(r.quantidade||0)*Number(r.comprimento_mm||0)/1000,0);
+   return '<strong>Necessário:</strong> '+formatQty(corte)+' cortes · '+formatQty(metros)+' m'+
+    ' <span class="finManualInfoDivider">|</span> <strong>Já recebido em NF:</strong> '+
+    formatQty(qBars)+' barras · '+formatQty(mBars)+' m'+
+    ' <span class="finManualInfoScope">('+scope+')</span>';
+  }
+  const required=new Map(),recd=new Map();
+  for(const r of all){
+   const unit=String(r.unidade_prevista||'').trim().toUpperCase()||'N/I';
+   required.set(unit,(required.get(unit)||0)+Number(r.quantidade_prevista||0));
+  }
+  for(const r of received){
+   const unit=String(r.unidade||'').trim().toUpperCase()||'N/I';
+   recd.set(unit,(recd.get(unit)||0)+Number(r.quantidade||0));
+  }
+  const parts=map=>[...map.entries()].map(([u,q])=>formatQty(q)+' '+u).join(' + ')||'0';
+  let pending='';
+  if(required.size===1){
+   const [u,qty]=required.entries().next().value;
+   if([...recd.keys()].every(key=>key===u))
+    pending=' <span class="finManualInfoDivider">|</span> <strong>Falta receber:</strong> '+
+     formatQty(Math.max(0,qty-(recd.get(u)||0)))+' '+u;
+  }
+  return '<strong>Necessário:</strong> '+parts(required)+
+   ' <span class="finManualInfoDivider">|</span> <strong>Já recebido em NF:</strong> '+parts(recd)+
+   pending+' <span class="finManualInfoScope">('+scope+')</span>';
  }
  function unitFor(matId){
   if(category==='aluminio')return 'BARRA';
@@ -50,7 +105,7 @@
   if(!finState){body.innerHTML='';return;}
   const mats=getMaterials();
   body.innerHTML=rows.map((row,i)=>{
-   const materialOptions='<option value="">Selecione material</option>'+mats.map(m=>
+   const materialOptions='<option value="">'+(mats.length?'Selecione material da obra':'Nenhum material vinculado à obra')+'</option>'+mats.map(m=>
     '<option value="'+escapeHTML(m.id)+'"'+(row.material===m.id?' selected':'')+'>'+
       escapeHTML(m.codigo+' — '+m.descricao)+'</option>').join('');
    const variations=getVariations(row.material);
@@ -67,7 +122,9 @@
      '" required placeholder="Qtd." value="'+escapeHTML(row.quantidade)+'" aria-label="Quantidade física '+(i+1)+'"></td>'+
     '<td class="hint">'+escapeHTML(unit||'—')+'</td>'+
     '<td><input class="finManualSubtotal" type="text" inputmode="decimal" required placeholder="R$ 0,00" value="'+escapeHTML(row.valor)+'" aria-label="Subtotal do material '+(i+1)+'"></td>'+
-    '<td><button class="btn secondary" type="button" data-manual-remove="'+i+'">Remover</button></td></tr>';
+    '<td><button class="btn secondary" type="button" data-manual-remove="'+i+'">Remover</button></td></tr>'+
+    '<tr class="finManualInfoRow"><td colspan="7" class="finManualInfoCell">'+
+      quantityInfo(row)+'</td></tr>';
   }).join('');
   updateSum();
  }
@@ -95,8 +152,13 @@
   byId('finManualLocalLabel').classList.toggle('hidden',!hasStock);
   byId('finManualLocal').required=hasStock;
   byId('finCostSubmit').textContent=hasStock?'Registrar nota e entrada no estoque':'Registrar despesa sem movimentar estoque';
+  const list=hasStock?getMaterials():[];
+  byId('finManualAdd').disabled=hasStock&&!list.length;
+  byId('finCostSubmit').disabled=hasStock&&!list.length;
   byId('finManualHint').textContent=hasStock?
-   'A confirmação aumenta imediatamente o estoque físico da obra no galpão escolhido. Verifique cada quantidade recebida antes de gravar.':
+   (list.length?
+    'Somente materiais cadastrados nesta obra aparecem na lista. Necessidade: quantitativos do CEM. Já recebido: entradas físicas registradas por nota. Confirme quantidade e galpão antes de gravar.':
+    'Esta obra não possui materiais desta categoria vinculados à sua lista técnica. Não é possível dar entrada por este formulário.'):
    'Esta categoria será registrada somente como despesa. Não haverá movimentação física de estoque: o catálogo atual permite recebimento automático de perfis e acessórios.';
   resetRows();
  }
