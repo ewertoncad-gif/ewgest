@@ -458,6 +458,11 @@
     @media(max-width:800px){.cemFlags{grid-template-columns:1fr}.cemFlag{min-height:auto}}
 
 
+    .cemWorkIdentity{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:14px 0}
+    .cemWorkIdentityItem{padding:12px 14px;background:#f8fbff;border:1px solid #dbe7f3;border-radius:10px;min-width:0}
+    .cemWorkIdentityLabel{display:block;color:#647f9c;font-size:11px;font-weight:600;margin-bottom:6px}
+    .cemWorkIdentityValue{display:block;color:#193b5d;font-size:14px;font-weight:700;overflow-wrap:anywhere}
+    @media(max-width:680px){.cemWorkIdentity{grid-template-columns:1fr}}
     .cemExistingNotice{margin:13px 0;padding:15px 17px;border:1px solid #efc875;border-left:4px solid #d59a22;border-radius:11px;background:#fffaf0;color:#725116;font-size:13px;line-height:1.6}
     .cemExistingNotice strong{display:block;font-size:15px;margin-bottom:4px}
     .cemExistingNotice.noticeSafe{background:#edf9f7;border-color:#a3d9cf;border-left-color:#16a38c;color:#225e59}
@@ -1037,6 +1042,7 @@
         <div class="cemImportSteps">
           <h2>3. Conferência antes de importar</h2>
           <p id="matCemResposta" class="hint" role="status" aria-live="polite">Selecione o ZIP e clique em “Analisar arquivo”. A análise não altera o banco.</p>
+          <div id="cemWorkIdentity" class="cemWorkIdentity hidden" aria-label="Identificação da obra analisada"></div>
           <div id="cemExistingNotice" class="cemExistingNotice hidden" role="status"></div>
           <div id="cemPreview" class="hidden"></div>
           <div class="cemCommitArea">
@@ -5836,7 +5842,7 @@ function cemLerObra(xmlText){
     throw new Error('XML de exportação inválido ou não reconhecido.');
   const obra=documentXML.querySelector('ExportObras > Obra');
   if(!obra)throw new Error('Cabeçalho da obra ausente no XML.');
-  const tables={OBITENS:[],OBESQD:[],OBCALCP:[],OBCALCA:[],PERF:[],ACES:[],OBAPROV:[],OBACES:[]};
+  const tables={OBITENS:[],OBESQD:[],OBCALCP:[],OBCALCA:[],PERF:[],ACES:[],OBAPROV:[],OBACES:[],OBRA:[],CLIENTE:[]};
   for(const elem of documentXML.getElementsByTagName('SQL')){
     const table=elem.getAttribute('Table');
     if(!Object.hasOwn(tables,table))continue;
@@ -5858,8 +5864,15 @@ function cemLerObra(xmlText){
   const acesCodes=new Set(acest.map(x=>x.CODACES).filter(Boolean));
   const perfCatalog=tables.PERF.filter(x=>perfCodes.has(x.CODPERF));
   const acesCatalog=tables.ACES.filter(x=>acesCodes.has(x.CODACES));
+  // Referenciar o identificador da obra exportada; não adivinhar cliente pelo primeiro registro.
+  const idObra=String(obra.getAttribute('ID')||'').trim();
+  const registroObra=tables.OBRA.find(x=>idObra&&String(x.ID_OBRA||'').trim()===idObra)||
+    (tables.OBRA.length===1?tables.OBRA[0]:null);
+  const idCliente=String(registroObra?.ID_CLIENTE_OBRA||'').trim();
+  const registroCliente=tables.CLIENTE.find(x=>idCliente&&String(x.ID_CLIENTE||'').trim()===idCliente);
   return {
-    codigo:obra.getAttribute('Codigo')||'',valid,other,count,
+    codigo:obra.getAttribute('Codigo')||'',nomeObra:String(registroObra?.OBR_NOME||'').trim(),
+    clienteObra:String(registroCliente?.CLI_NOME||'').trim(),valid,other,count,
     perfCodes,acesCodes,profRows:proft.length,aceRows:acest.length,
     perfCatalog,acesCatalog,profMovs:proft,aceMovs:acest,
     barrasAproveitamento:tables.OBAPROV,acessoriosObra:tables.OBACES,
@@ -5988,10 +6001,11 @@ function cemAtualizarBotao(){
   let info='';
   if(!r)info='Analise o ZIP para habilitar a importação segura de materiais.';
   else if(r.jaImportado)info='Importação concluída. Para uma nova operação, analise novamente o arquivo.';
+  else if(!r.comparacaoConcluida)info='Conferindo a existência da obra e dos cadastros…';
+  else if(r.obraDuplicada)info='Há mais de um cadastro com este código. Corrija a duplicidade antes de importar.';
+  else if(!r.obraExistente)info='Análise disponível, mas a gravação está bloqueada: cadastre primeiro esta obra no EWGEST e analise o ZIP novamente.';
   else if(esk)info='A importação de esquadrias ainda não está liberada. Desmarque Esquadrias para importar somente os materiais.';
   else if(!perf&&!ace)info='Marque Perfis e/ou Acessórios.';
-  else if(!r.comparacaoConcluida)info='Conferindo a existência da obra e dos cadastros…';
-  else if(!r.obraExistente)info='A obra não existe no EWGEST. O cadastro automático de obras novas ainda não está disponível.';
   else if((perf&&r.perfMissing)||(ace&&r.aceMissing))info='Há materiais sem ficha técnica no ZIP. Corrija o arquivo ou desmarque a categoria incompleta.';
   else if(pendente)info='Revise as possíveis equivalências e decida qual código será utilizado.';
   else info='Pronto para importar materiais sem modificar esquadrias, liberações, romaneios ou estoque físico.';
@@ -6154,8 +6168,17 @@ function cemTabelaHTML(tipo){
       'Dados ausentes serão indicados como “Não informado no ZIP”.')+'</p></div>';
 }
 function cemRenderPreview(){
-  const r=cemParsed,el=node('cemPreview'),notice=node('cemExistingNotice');
-  if(!r){el.classList.add('hidden');notice.classList.add('hidden');cemAtualizarBotao();return;}
+  const r=cemParsed,el=node('cemPreview'),notice=node('cemExistingNotice'),identificacao=node('cemWorkIdentity');
+  if(!r){
+    el.classList.add('hidden');notice.classList.add('hidden');
+    identificacao.classList.add('hidden');identificacao.replaceChildren();
+    cemAtualizarBotao();return;
+  }
+  identificacao.classList.remove('hidden');
+  const campo=(rotulo,valor)=>'<div class="cemWorkIdentityItem"><span class="cemWorkIdentityLabel">'+rotulo+
+    '</span><strong class="cemWorkIdentityValue">'+escapeHTML(valor||'Não informado no ZIP')+'</strong></div>';
+  identificacao.innerHTML=campo('Código da obra',r.codigo)+
+    campo('Nome da obra',r.nomeObra)+campo('Cliente',r.clienteObra);
   el.classList.remove('hidden');
   const esk=node('cemFlagEsquadrias').checked;
   const perf=node('cemFlagPerfis').checked;
@@ -6169,17 +6192,22 @@ function cemRenderPreview(){
   if(!r.comparacaoConcluida){
     notice.classList.remove('noticeSafe');
     notice.innerHTML='<strong>Conferindo obra no EWGEST…</strong>O sistema está comparando o código com o banco de produção.';
+  }else if(r.obraDuplicada){
+    notice.classList.remove('noticeSafe');
+    notice.innerHTML='<strong>Código de obra duplicado no EWGEST: '+escapeHTML(r.codigo)+
+      '</strong>Há mais de uma obra com este código. Confira os cadastros antes de importar. Nenhum dado será gravado.';
   }else if(r.obraExistente){
     notice.classList.add('noticeSafe');
-    notice.innerHTML='<strong>Obra já cadastrada no EWGEST: '+escapeHTML(r.obraExistente.nome)+
-      ' ('+escapeHTML(r.codigo)+')</strong>Para preservar as esquadrias, as liberações e os romaneios, importe apenas perfis e acessórios.'+
-      ' Materiais cadastrados serão preservados. Se algum deles estiver inativo, será reativado para atender à obra.';
+    notice.innerHTML='<strong>Obra encontrada no EWGEST: '+escapeHTML(r.obraExistente.nome)+
+      ' ('+escapeHTML(r.codigo)+')</strong>O ZIP pode ser conferido. Para gravar somente perfis e acessórios, desmarque Esquadrias e confirme a importação.'+
+      ' Os cadastros existentes serão preservados.';
   }else{
     notice.classList.remove('noticeSafe');
-    notice.innerHTML='<strong>Obra não encontrada no EWGEST: '+escapeHTML(r.codigo)+
-      '</strong>A importação de materiais nesta etapa exige uma obra previamente cadastrada. Nenhum dado será gravado.';
+    notice.innerHTML='<strong>Obra ainda não cadastrada no EWGEST: '+escapeHTML(r.codigo)+
+      '</strong>Você pode conferir o conteúdo deste ZIP normalmente. Para gravar os materiais, primeiro cadastre a obra no EWGEST e analise o arquivo novamente.'+
+      ' Nenhuma obra, esquadria ou material foi gravado nesta análise.';
   }
-  const summary='<div class="cemPreviewSection"><h3>Obra identificada: '+escapeHTML(r.codigo)+'</h3>'+
+  const summary='<div class="cemPreviewSection"><h3>Resumo do arquivo técnico</h3>'+
     '<p class="hint">'+r.valid.length+' itens calculados ('+r.count+' unidades). '+
     r.other+' itens fora do cálculo serão ignorados. Cadastro de esquadrias não será modificado.</p>'+
     '<p class="hint">O ZIP também possui '+r.barrasAproveitamento.length+' registros de barras e '+
@@ -6265,7 +6293,7 @@ async function matVerificarZip(){
     const empresaId=currentCompany.id;
     const empresa='eq.'+empresaId;
     const [obrasBanco,perfisBanco,acessoriosBanco,aliasesBanco]=await Promise.all([
-      apiGet('obras',{select:'id,codigo,nome',empresa_id:empresa,arquivada_em:'is.null',limit:'1000'}),
+      apiGet('obras',{select:'id,codigo,nome,cliente',empresa_id:empresa,arquivada_em:'is.null',limit:'1000'}),
       apiGet('ew_perfis',{select:'id,codigo,fabricante,descricao,linha',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_acessorios',{select:'id,codigo,fabricante,descricao,linha,unidade_item,unidade_embalagem',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_materiais_alias',{select:'tipo,codigo_alternativo,fabricante,perfil_id,acessorio_id',empresa_id:empresa,limit:'5000'})
