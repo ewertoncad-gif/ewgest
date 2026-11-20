@@ -5,7 +5,7 @@
 .cemBudgetTable{width:100%;border-collapse:collapse;min-width:780px}
 .cemBudgetTable th,.cemBudgetTable td{padding:9px 8px;border-bottom:1px solid #e2e9f1;text-align:left;vertical-align:middle}
 .cemBudgetTable th{font-size:12px;background:#e9eff6;color:#25445f;white-space:nowrap}
-.cemBudgetTable td select,.cemBudgetTable td input[type=number],.cemBudgetTable td input[readonly]{width:100%;min-width:0}
+.cemBudgetTable td select,.cemBudgetTable td input[data-budget-field="valor"],.cemBudgetTable td input[readonly]{width:100%;min-width:0}
 .cemBudgetTable td input[readonly]{background:#f0f4f8;color:#365373}
 .cemBudgetTable td:nth-child(2),.cemBudgetTable td:nth-child(3){min-width:105px}
 .cemBudgetTable td:nth-child(1),.cemBudgetTable td:nth-child(4){min-width:185px}
@@ -19,3 +19,16 @@
 .cemBudgetTool input,.cemBudgetTool select{min-width:0;flex:1}
 .cemBudgetTool .btn{white-space:nowrap}
 @media(max-width:760px){.cemBudgetTools{grid-template-columns:1fr}.cemBudgetTool .topactions{flex-wrap:wrap}.cemBudgetTable{min-width:760px}}
+
+/* Campos monetários: valores alinhados como em sistemas financeiros brasileiros. */
+#cemQuoteTotal,
+.cemBudgetTable input[data-budget-field="valor"]{
+ text-align:right;
+ font-variant-numeric:tabular-nums;
+ font-weight:650;
+ letter-spacing:.01em;
+ font-feature-settings:"tnum";
+}
+#cemQuoteTotal{font-size:16px}
+.cemBudgetTable input[data-budget-field="valor"]{min-width:135px}
+.cemBudgetTable td:nth-child(2){min-width:145px}
