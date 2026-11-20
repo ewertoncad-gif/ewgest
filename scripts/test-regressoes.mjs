@@ -1380,10 +1380,18 @@ assert.ok(source.includes('id="cemQuoteRows"')&&source.includes('id="cemQuoteAdd
  source.includes('id="cemQuoteNewLevel"')&&source.includes('id="cemQuoteNewCompany"')&&
  source.includes('id="cemQuoteSaveCompany"')&&source.includes('id="cemQuoteTotal"'),
  'Orçamento por níveis tem seleção e cadastro de níveis e empresas comerciais');
-assert.ok(source.includes('<script src="/assets/orcamento-niveis.js"></script>')&&
- source.includes('<link rel="stylesheet" href="/assets/orcamento-niveis.css">')&&
+assert.ok(source.includes('<script src="/assets/orcamento-niveis.js?v=20261120b"></script>')&&
+ source.includes('<link rel="stylesheet" href="/assets/orcamento-niveis.css?v=20261120b">')&&
  budgetCSS.includes('.cemBudgetTable'),
- 'A interface deve carregar a tabela e os arquivos de orçamento por níveis');
+ 'A interface deve carregar os arquivos versionados de orçamento, sem cache antigo');
+const headers=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
+assert.ok(headers.includes('/assets/orcamento-niveis.js\n  Content-Type: text/javascript; charset=utf-8\n  Cache-Control: no-store')&&
+ headers.includes('/assets/orcamento-niveis.css\n  Content-Type: text/css; charset=utf-8\n  Cache-Control: no-store'),
+ 'Os assets monetários precisam evitar cache persistente');
+assert.ok(budgetScript.includes('normalizarValorTotalPreenchido()')&&
+ budgetScript.includes('document.activeElement!==campo')&&
+ budgetScript.includes("node('cemQuoteTotal').addEventListener('focus'"),
+ 'Formulário restaurado sem disparar input deve exibir a máscara monetária');
 assert.ok(!source.includes('id="cemQuoteAluminio"')&&
  !source.includes('id="cemQuoteAcessorios"')&&!source.includes('id="cemQuoteVidros"'),
  'Nenhum nível tradicional será obrigatório ou criado como campo fixo');
