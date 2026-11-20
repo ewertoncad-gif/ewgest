@@ -672,7 +672,7 @@
 
   </style>
   <link rel="stylesheet" href="/assets/orcamento-niveis.css?v=20261120c">
-  <link rel="stylesheet" href="/assets/recebimento-manual.css?v=20261120a">
+  <link rel="stylesheet" href="/assets/recebimento-manual.css?v=20261120c">
 </head>
 <body>
 <div class="wrap">
@@ -810,7 +810,7 @@
                 </div>
                 <p class="hint">Cadastre uma linha por perfil/acessório e sua variação. Perfis exigem comprimento da barra. Para notas com mais de um material, informe o subtotal de cada item: a soma deve conferir com o valor da nota.</p>
                 <div class="finTableWrap"><table class="finTable finManualTable">
-                  <thead><tr><th>Material</th><th>Cor / variação</th><th>Comprimento (mm)</th><th>Qtd. física</th><th>Unidade</th><th>Valor do item (R$)</th><th>Ação</th></tr></thead>
+                  <thead><tr><th>Material</th><th>Cor / variação</th><th>Comprimento (mm)</th><th>Recebendo agora</th><th>Unidade</th><th>Valor do item (R$)</th><th>Ação</th></tr></thead>
                   <tbody id="finManualRows"></tbody>
                 </table></div>
                 <p class="finSumStatus" id="finManualSum" aria-live="polite"></p>
@@ -6794,7 +6794,7 @@ async function finLoad(){
  node('finMessage').textContent='Consultando orçamento, despesas e faturamentos…';
  try{
   await ensureSession();
-  const [b,c,fat,perfis,aces,roms,variacoes,galpoes,niveis]=await Promise.all([
+  const [b,c,fat,perfis,aces,roms,variacoes,galpoes,niveis,materiaisObra]=await Promise.all([
    apiGet('ew_obra_orcamento',{select:'*',empresa_id:empresa,obra_id:obra,limit:'1'}),
    apiGet('ew_obra_despesas',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
    apiGet('ew_obra_faturamentos',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
@@ -6803,7 +6803,8 @@ async function finLoad(){
    apiGet('romaneios',{select:'id,status,cancelado_em',empresa_id:empresa,obra_id:obra,limit:'3000'}),
    apiGet('ew_materiais_variacoes',{select:'id,perfil_id,acessorio_id,tipo,cor,acabamento,ativo',empresa_id:empresa,limit:'10000'}),
    apiGet('ew_locais_fisicos',{select:'nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'300'}),
-   apiGet('ew_obra_orcamento_niveis',{select:'linha,nivel_nome,empresa_faturamento_nome,categoria_base,valor,percentual,faturar',empresa_id:empresa,obra_id:obra,order:'linha.asc',limit:'100'})
+   apiGet('ew_obra_orcamento_niveis',{select:'linha,nivel_nome,empresa_faturamento_nome,categoria_base,valor,percentual,faturar',empresa_id:empresa,obra_id:obra,order:'linha.asc',limit:'100'}),
+   apiGet('ew_cem_obras_materiais',{select:'tipo,perfil_id,acessorio_id,variacao_id,quantidade_prevista,unidade_prevista,comprimento_total_m',empresa_id:empresa,obra_id:obra,limit:'10000'})
   ]);
   if(!b?.length){node('finMessage').textContent='Esta obra ainda não possui orçamento cadastrado. As novas importações agora exigem essa etapa.';return;}
   const invoiceIds=(fat||[]).map(x=>x.id),romaneioIds=(roms||[]).filter(x=>x.status==='emitido'&&!x.cancelado_em).map(x=>x.id);
@@ -6834,7 +6835,8 @@ async function finLoad(){
   finState={obraId,orcamento:b[0],despesas:c||[],faturas:fat||[],linhas:linhas||[],perfis:perfis||[],
    acessorios:aces||[],shipped,billed,pendentes,pendentesItens:pendentesItens||[],
    aprovadas,approvedItems:approvedItems||[],stockReceipts:stockReceipts||[],
-   variacoes:variacoes||[],galpoes:(galpoes||[]).filter(x=>x.ativo).map(x=>x.nome),orcamentoNiveis:niveis||[]};
+   variacoes:variacoes||[],galpoes:(galpoes||[]).filter(x=>x.ativo).map(x=>x.nome),orcamentoNiveis:niveis||[],
+   materiaisObra:materiaisObra||[]};
   box.classList.remove('hidden');node('finMessage').textContent='';
   node('finExpensePanel').classList.toggle('hidden',!isFullAdminUser());
   node('finBillingPanel').classList.toggle('hidden',!isFullAdminUser());
@@ -9325,6 +9327,6 @@ restaurarSessaoSalva().catch(e=>{
 
 </script>
 <script src="/assets/orcamento-niveis.js?v=20261120c"></script>
-<script src="/assets/recebimento-manual.js?v=20261120b"></script>
+<script src="/assets/recebimento-manual.js?v=20261120c"></script>
 </body>
 </html>
