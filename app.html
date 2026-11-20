@@ -6200,7 +6200,7 @@ function cemQuadroConciliacao(){
        '<div class="cemCandidateCol cemCandidateAction"><label class="cemCandidateHeading">Ação do ADM'+
        '<select class="cemCandidateDecision" aria-label="Decisão sobre '+escapeHTML(x.imp.codigo)+'">'+
        '<option value="">Escolha uma ação</option>'+
-       '<option value="manual"'+(x.decisao==='manual'?' selected':'')+'>Vincular '+tipo.toLowerCase()+' novo ao existente</option>'+
+       '<option value="manual"'+(x.decisao==='manual'?' selected':'')+'>Vincular '+tipo.toLowerCase()+' novo a '+tipo.toLowerCase()+' existente</option>'+
        '<option value="separar"'+(x.decisao==='separar'?' selected':'')+'>Cadastrar '+tipo.toLowerCase()+' novo, ignorando equivalência</option>'+
        '</select></label><p class="cemCandidateTip">Vincular: o código do CEM será uma referência do cadastro existente. '+
        'Cadastrar novo: os dois materiais continuarão independentes.</p></div>'+
