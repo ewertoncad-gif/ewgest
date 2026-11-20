@@ -15,6 +15,7 @@ O EWGEST é uma plataforma de gestão empresarial inicialmente voltada a obras e
 - **Código atual da interface:** conferir `app.html` (aplicativo principal) e `index.html` (entrada/site), além dos outros arquivos envolvidos. Não presumir arquitetura moderna, framework, ferramentas de teste ou pipeline sem verificar.
 - **Banco de dados:** Supabase. Há ambientes identificados como `ewgest-producao` e `ewgest-restauracao-teste`; confirmar disponibilidade e configuração antes de usar. **Produção não é ambiente de experimentação.**
 - **Decisões e alterações:** issues, pull requests, commits e documentação versionada no GitHub. Conversas privadas com IAs não são uma fonte compartilhada automática.
+- **Histórico compartilhado e processo:** **ler `docs/HISTORICO_DESENVOLVIMENTO.md`** antes de cada tarefa. Abrir issues com `.github/ISSUE_TEMPLATE/tarefa.md` e registrar alterações em PRs com `.github/PULL_REQUEST_TEMPLATE.md`.
 - Antes de começar, consultar a branch de destino, `git status`, últimas alterações, issues/PRs relevantes e este documento. Não confiar apenas no contexto anterior da conversa.
 - Se encontrar conflito entre instruções, implementação atual e regra de negócio, interromper a alteração e pedir esclarecimento; não inventar decisões.
 
