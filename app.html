@@ -482,6 +482,10 @@
     .cemBarEntry strong{color:#174879}
     .cemBarEntry small{font-size:11px;color:#68839e;white-space:normal}
     .cemBarMissing{font-size:12px;color:#856221}
+    .matUnitField{display:flex;gap:6px;align-items:center;margin-top:6px}
+    .matUnitField input{flex:1;min-width:0;margin-top:0}
+    .matUnitField button{flex:none;white-space:nowrap;padding:9px;font-size:11px}
+    @media(max-width:600px){.matUnitField{align-items:stretch;flex-direction:column}.matUnitField button{align-self:flex-start}}
     .cemAccessoryQuantities{min-width:162px;line-height:1.4}
     .cemAccessoryQtyRow{display:grid;grid-template-columns:75px minmax(0,1fr);gap:7px;padding:2px 0;align-items:baseline}
     .cemAccessoryQtyRow>span:first-child{font-size:10px;color:#68839e;white-space:nowrap}
@@ -1362,9 +1366,14 @@
         <label class="matOnlyPerfil">Peso (kg/m) <input id="matPeso" inputmode="decimal" type="number" min="0" max="999999" step="0.00001" placeholder="Ex.: 0,501"></label>
         <label class="matOnlyPerfil">Comprimento comercial (mm) <input id="matComprimento" type="number" min="1" max="100000" step="1" placeholder="Ex.: 6000"></label>
         <label class="matOnlyPerfil">Unidade de referência <select id="matUnidadePerfil"><option>BARRA</option><option>METRO</option><option>KG</option></select></label>
-        <label class="matOnlyAcessorio hidden">Unidade por peça <input id="matUnidadeAcessorio" maxlength="15" placeholder="PC"></label>
-        <label class="matOnlyAcessorio hidden">Unidade da embalagem <input id="matUnidadeEmbalagem" maxlength="30" placeholder="Ex.: PT"></label>
-        <label class="matOnlyAcessorio hidden">Peças por embalagem <input id="matQuantidadeEmbalagem" type="number" min="0.001" step="0.001" placeholder="Ex.: 500"></label>
+        <label class="matOnlyAcessorio hidden">Unidade do item
+          <span class="matUnitField"><input id="matUnidadeAcessorio" list="matUnidadesDisponiveis" maxlength="15" placeholder="PC" autocomplete="off"><button class="btn secondary" type="button" data-mat-new-unit="matUnidadeAcessorio">+ Nova unidade</button></span>
+        </label>
+        <label class="matOnlyAcessorio hidden">Unidade da embalagem
+          <span class="matUnitField"><input id="matUnidadeEmbalagem" list="matUnidadesDisponiveis" maxlength="30" placeholder="Ex.: PT" autocomplete="off"><button class="btn secondary" type="button" data-mat-new-unit="matUnidadeEmbalagem">+ Nova unidade</button></span>
+        </label>
+        <label class="matOnlyAcessorio hidden">Quantidade por embalagem <input id="matQuantidadeEmbalagem" type="number" min="0.001" step="0.001" placeholder="Ex.: 500"></label>
+        <div class="matOnlyAcessorio matWide hidden"><datalist id="matUnidadesDisponiveis"></datalist><p class="hint" id="matEquivPreview" aria-live="polite">Informe as unidades para visualizar a equivalência da embalagem.</p></div>
         <label class="matWide">Observações <textarea id="matObservacoes" rows="2" maxlength="1000"></textarea></label>
       </div>
       <label class="matSwitch"><input id="matAtivo" type="checkbox" checked> Cadastro ativo</label>
@@ -5525,6 +5534,42 @@ const matIsAdmin=()=>canAdministrate();
 const matTable=()=>matTipo==='perfil'?'ew_perfis':'ew_acessorios';
 const matEntries=()=>matTipo==='perfil'?matPerfis:matAcessorios;
 const matLbl=()=>matTipo==='perfil'?'perfil':'acessório';
+// Unidades são sugeridas a partir dos acessórios da empresa; não há tela ou cadastro global extra.
+const matUnidadesPadrao=['PC','PT','PR','TB','RL','MT','MM','MM3','UD','CJ','KG'];
+const matUnidadesSessao=new Set();
+function matAtualizarOpcoesUnidade(){
+  const opcoes=new Set([...matUnidadesPadrao,...matUnidadesSessao]);
+  for(const a of matAcessorios)for(const campo of ['unidade_item','unidade_embalagem']){
+    const unidade=String(a[campo]||'').trim().toUpperCase();
+    if(unidade)opcoes.add(unidade);
+  }
+  node('matUnidadesDisponiveis').innerHTML=[...opcoes].sort((a,b)=>a.localeCompare(b,'pt-BR'))
+    .map(u=>'<option value="'+escapeHTML(u)+'"></option>').join('');
+}
+function matAtualizarEquivalencia(){
+  const item=node('matUnidadeAcessorio').value.trim().toUpperCase();
+  const embalagem=node('matUnidadeEmbalagem').value.trim().toUpperCase();
+  const quantidade=Number(node('matQuantidadeEmbalagem').value);
+  node('matEquivPreview').textContent=embalagem&&item&&quantidade>0?
+    'Equivalência: 1 '+embalagem+' = '+quantidade.toLocaleString('pt-BR',{maximumFractionDigits:3})+' '+item:
+    'Informe as unidades e a quantidade para visualizar a equivalência da embalagem.';
+}
+function matNovaUnidade(id){
+  if(!matIsAdmin())return;
+  const campo=node(id);
+  const valor=window.prompt('Código da nova unidade (ex.: PC, PT, RL):',campo.value.trim());
+  if(valor===null)return;
+  const unidade=valor.trim().toUpperCase();
+  if(!/^[A-Z0-9._/-]{1,15}$/.test(unidade)){
+    node('matEditError').textContent='Informe uma unidade de 1 a 15 caracteres (letras, números, ponto, barra, hífen ou sublinhado).';
+    return;
+  }
+  matUnidadesSessao.add(unidade);
+  matAtualizarOpcoesUnidade();
+  campo.value=unidade;campo.focus();
+  node('matEditError').textContent='';
+  matAtualizarEquivalencia();
+}
 function matFormat(n,d=3){return Number(n).toLocaleString('pt-BR',{maximumFractionDigits:d});}
 async function carregarMateriais(){
   await ensureSession();
@@ -5536,6 +5581,7 @@ async function carregarMateriais(){
     apiGet('ew_materiais_variacoes',{select:'*',empresa_id:filtro,order:'cor.asc',limit:'4000'})
   ]);
   matPerfis=p||[];matAcessorios=a||[];matVariacoes=v||[];
+  matAtualizarOpcoesUnidade();
   renderMateriais();
 }
 async function abrirMateriais(){
@@ -5571,9 +5617,11 @@ function renderMateriais(){
     const extras=matTipo==='perfil'
       ?'Peso: '+(x.peso_kg_m===null?'não informado':matFormat(x.peso_kg_m,5)+' kg/m')+
        ' · Comprimento: '+(x.comprimento_comercial_mm?matFormat(x.comprimento_comercial_mm,0)+' mm':'não informado')
-      :'Unidade: '+escapeHTML(x.unidade_item||'PC')+
-       ' · Embalagem: '+escapeHTML(x.unidade_embalagem||'não informada')+
-       (x.quantidade_por_embalagem?' ('+matFormat(x.quantidade_por_embalagem)+' peças)':'');
+      :'Unidade do item: '+escapeHTML(x.unidade_item||'PC')+
+       ' · Embalagem: '+(x.unidade_embalagem?
+        '1 '+escapeHTML(x.unidade_embalagem)+(x.quantidade_por_embalagem?
+         ' = '+matFormat(x.quantidade_por_embalagem)+' '+escapeHTML(x.unidade_item||'PC'):
+         ' (quantidade não informada)'):'não informada');
     return '<div class="materialRow"><div><h3>'+escapeHTML(x.codigo)+(x.ativo?'':' · INATIVO')+'</h3>'+
       '<p><strong>'+escapeHTML(x.descricao)+'</strong></p>'+
       '<div class="materialDetails">Fabricante: '+escapeHTML(x.fabricante)+
@@ -5608,6 +5656,8 @@ function abrirEdicaoMaterial(id=null){
   node('matAtivo').checked=x.ativo!==false;
   document.querySelectorAll('.matOnlyPerfil').forEach(e=>e.classList.toggle('hidden',matTipo!=='perfil'));
   document.querySelectorAll('.matOnlyAcessorio').forEach(e=>e.classList.toggle('hidden',matTipo!=='acessorio'));
+  matAtualizarOpcoesUnidade();
+  matAtualizarEquivalencia();
   node('matEditError').textContent='';node('matEditOverlay').classList.remove('hidden');node('matCodigo').focus();
 }
 function matClose(){node('matEditOverlay').classList.add('hidden');matSelected=null;}
@@ -5628,7 +5678,7 @@ async function salvarMaterial(event){
     payload.unidade_referencia=node('matUnidadePerfil').value;
   }else{
     const pack=node('matQuantidadeEmbalagem').value;
-    payload.unidade_item=node('matUnidadeAcessorio').value.trim().toUpperCase()||'PC';
+    payload.unidade_item=node('matUnidadeAcessorio').value.trim().toUpperCase();
     payload.unidade_embalagem=node('matUnidadeEmbalagem').value.trim().toUpperCase();
     payload.quantidade_por_embalagem=pack===''?null:Number(pack);
   }
@@ -5637,9 +5687,14 @@ async function salvarMaterial(event){
      (payload.comprimento_comercial_mm!==null&&(!Number.isSafeInteger(payload.comprimento_comercial_mm)||payload.comprimento_comercial_mm<1)))){
     node('matEditError').textContent='Peso ou comprimento inválido.';return;
   }
-  if(matTipo==='acessorio'&&payload.quantidade_por_embalagem!==null&&
-     (!Number.isFinite(payload.quantidade_por_embalagem)||payload.quantidade_por_embalagem<=0)){
-     node('matEditError').textContent='Quantidade por embalagem inválida.';return;
+  if(matTipo==='acessorio'){
+    const u=payload.unidade_item,e=payload.unidade_embalagem,q=payload.quantidade_por_embalagem;
+    if(!/^[A-Z0-9._/-]{1,15}$/.test(u)||e&&!/^[A-Z0-9._/-]{1,30}$/.test(e)){
+      node('matEditError').textContent='Informe a unidade do item e confira o código da embalagem.';return;
+    }
+    if(q!==null&&(!Number.isFinite(q)||q<=0||q>1e6||!e)){
+      node('matEditError').textContent='Informe uma embalagem válida antes da quantidade por embalagem.';return;
+    }
   }
   const btn=node('matEditSave');btn.disabled=true;node('matEditError').textContent='';
   try{
@@ -5826,6 +5881,13 @@ function cemVarAcessorio(v){
   return {acabamento:'NÃO INFORMADO',cor:raw&&raw!=='-'?raw:'NÃO INFORMADA',codigo_cor:''};
 }
 function cemMontarPayload(r){
+  const embalagensCEM=new Map();
+  for(const row of r.acessoriosObra||[]){
+    const codigo=cemNome(row.CODACES),fator=Number(row.EMBALAGEM??0);
+    if(!codigo||!Number.isFinite(fator)||fator<=1||fator>1e6)continue;
+    if(!embalagensCEM.has(codigo))embalagensCEM.set(codigo,new Set());
+    embalagensCEM.get(codigo).add(fator);
+  }
   function montar(catalogo,movimentos,tipo){
     const porCodigo=new Map();
     for(const mov of movimentos){
@@ -5860,6 +5922,10 @@ function cemMontarPayload(r){
       }else{
         base.unidade=cemNome(x.UNID)||'PC';
         base.embalagem=cemNome(x.UNID_EMB);
+        const fatores=embalagensCEM.get(codigo);
+        // Fator confirmado somente quando todas as linhas OBACES informam o mesmo valor.
+        base.quantidade_por_embalagem=base.embalagem&&fatores?.size===1?
+          [...fatores][0]:null;
       }
       return base;
     }).sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR'));
@@ -6199,7 +6265,7 @@ async function matVerificarZip(){
     const [obrasBanco,perfisBanco,acessoriosBanco,aliasesBanco]=await Promise.all([
       apiGet('obras',{select:'id,codigo,nome',empresa_id:empresa,arquivada_em:'is.null',limit:'1000'}),
       apiGet('ew_perfis',{select:'id,codigo,fabricante,descricao,linha',empresa_id:empresa,limit:'5000'}),
-      apiGet('ew_acessorios',{select:'id,codigo,fabricante,descricao,linha',empresa_id:empresa,limit:'5000'}),
+      apiGet('ew_acessorios',{select:'id,codigo,fabricante,descricao,linha,unidade_item,unidade_embalagem',empresa_id:empresa,limit:'5000'}),
       apiGet('ew_materiais_alias',{select:'tipo,codigo_alternativo,fabricante,perfil_id,acessorio_id',empresa_id:empresa,limit:'5000'})
     ]);
     if(analise!==cemAnaliseGeracao||!session||currentCompany?.id!==empresaId)return;
@@ -6213,6 +6279,14 @@ async function matVerificarZip(){
       if(al.tipo==='perfil')r.existentesPerf.add(k);else r.existentesAces.add(k);
     }
     r.conciliacoes=cemEncontrarConciliacoes(r,perfisBanco||[],acessoriosBanco||[]);
+    const unidadesConhecidas=new Set(matUnidadesPadrao);
+    for(const cad of acessoriosBanco||[]){
+      for(const unidade of [cad.unidade_item,cad.unidade_embalagem]){
+        if(cemNome(unidade))unidadesConhecidas.add(cemNome(unidade));
+      }
+    }
+    r.unidadesNovas=[...new Set(r.materiaisPayload.acessorios.flatMap(x=>
+      [x.unidade,x.embalagem].filter(u=>u&&!unidadesConhecidas.has(u))))].sort();
     if(r.obraExistente){
       // Uma obra existente não pode receber esquadrias duplicadas.
       node('cemFlagEsquadrias').checked=false;
@@ -6245,7 +6319,9 @@ async function cemImportarSelecionados(){
     material_id:x.materialId,usar_codigo_cem:x.decisao==='cem'}));
   const message='Confirmar a importação de '+perf.length+' perfis e '+aces.length+
     ' acessórios para '+r.obraExistente.nome+' ('+r.codigo+')?\n\n'+
-    'Os cadastros já existentes serão preservados. Nenhuma esquadria, romaneio, liberação ou saldo físico será modificado.';
+    'Os cadastros já existentes serão preservados. Nenhuma esquadria, romaneio, liberação ou saldo físico será modificado.'+
+    (a&&r.unidadesNovas?.length?'\n\nUnidades ainda não cadastradas: '+r.unidadesNovas.join(', ')+
+      '. Confirme que são unidades válidas do CEM antes de importar.':'');
   if(!window.confirm(message))return;
   cemOperacaoId ||= crypto.randomUUID();
   save.disabled=true;result.textContent='Gravando perfis, acessórios e variações no Supabase…';
@@ -6285,6 +6361,10 @@ node('matPesquisa').addEventListener('input',renderMateriais);
 node('matMostrarInativos').addEventListener('change',renderMateriais);
 node('matEditCancel').addEventListener('click',matClose);
 node('matEditForm').addEventListener('submit',salvarMaterial);
+document.querySelectorAll('[data-mat-new-unit]').forEach(b=>
+  b.addEventListener('click',()=>matNovaUnidade(b.dataset.matNewUnit)));
+['matUnidadeAcessorio','matUnidadeEmbalagem','matQuantidadeEmbalagem'].forEach(id=>
+  node(id).addEventListener('input',matAtualizarEquivalencia));
 node('matVarCancel').addEventListener('click',matVarClose);
 node('matVarForm').addEventListener('submit',salvarVariacao);
 node('matCemEscolher').addEventListener('click',()=>node('matCemArquivo').click());
