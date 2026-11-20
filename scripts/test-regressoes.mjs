@@ -1643,7 +1643,7 @@ const q6=perfil.quantityData({material:'p1',variacao:'v1',selectionKey:'v1|6000'
 assert.deepEqual([q6.needed,q6.received,q6.pending],['5 barras','2 barras','3 barras'],
  'CEM NUMBARRAS é 5, não os 24 cortes; recebido e faltante usam 6000 mm');
 const q65=perfil.quantityData({material:'p1',variacao:'v1',selectionKey:'v1|6500',comprimento:'6500'});
-assert.deepEqual([q65.needed,q65.received,q65.pending],['4 barras','3 barras','1 barras'],
+assert.deepEqual([q65.needed,q65.received,q65.pending],['4 barras','3 barras','1 barra'],
  'Barras de 6500 mm não contam no saldo de 6000 mm');
 assert.equal(perfil.autoBarLength({material:'p1',variacao:'v1',selectionKey:'v1|6000'}),6000,
  'O comprimento do CEM prevalece sobre o cadastro genérico do perfil');
