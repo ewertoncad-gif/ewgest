@@ -1240,9 +1240,9 @@ assert.ok(source.includes('let cemOperacaoId=null,cemAnaliseGeracao=0')&&
  source.includes('currentCompany?.id!==empresaId')&&
  source.includes('if(analise===cemAnaliseGeracao)botao.disabled=false;'),
  'Análises assíncronas antigas não podem ressuscitar uma obra na interface após sair');
-assert.ok(source.includes('A análise do ZIP é apenas uma prévia e não grava uma obra.')&&
- source.includes('Esquadrias (somente conferência)'),
- 'A interface não pode sugerir que a prévia cadastra esquadrias no banco');
+assert.ok(source.includes('Esquadrias e materiais serão cadastrados somente após sua confirmação.')&&
+ source.includes('Esses itens serão cadastrados na nova obra após confirmação, aguardando liberação.'),
+ 'A conferência não pode sugerir cadastro antecipado de esquadrias no banco');
 // v44.3: evitar duplicidade de navegação Gerenciar obras na Tela inicial.
 assert.ok(!source.includes('id="openManageWorks"')&&
  !source.includes("node('openManageWorks')")&&
@@ -1291,9 +1291,9 @@ assert.ok(restored.includes("const raw=sessionStorage.getItem('ewgest_session_v3
  restored.includes("setView('login');")&&
  source.includes("restaurarSessaoSalva().catch(e=>{\\n  // Não manter".replaceAll('\\n','\n')),
  'Sessão ausente ou inválida mostra login; sessão válida abre painel sem flash, erros não travam o carregamento');
-assert.ok(source.includes('EWGEST <strong>· v44.6</strong>')&&
+assert.ok(/EWGEST <strong>· v\d+\.\d+<\/strong>/.test(source)&&
  source.includes('@media(prefers-reduced-motion:reduce){.startupSpinner'),
- 'Indicador de carregamento acessível e versão atualizada');
+ 'Indicador de carregamento acessível e versão presente no rodapé');
 // v44.7: os sete atalhos marcados no cabeçalho devem desaparecer, sem eventos órfãos.
 const obsoleteHeaderButtons=[
  'manageWorksBack','romaneiosBack','usersBack','materialsBack','stockBack',
@@ -1340,7 +1340,7 @@ assert.ok(cemReset.includes("node('matCemArquivo').value=''")&&
 const cemBarStart=source.indexOf('function cemBarrasConferencia(r){');
 const cemBarEnd=source.indexOf('function cemTabelaHTML(tipo){',cemBarStart);
 assert.ok(cemBarStart>0&&cemBarEnd>cemBarStart&&
- source.includes("tipo==='perfil'?'Barras (qtd. × comprimento)':'Linhas de cálculo'")&&
+ source.includes("tipo==='perfil'?'Barras (qtd. × comprimento)':'Quantidades'")&&
  source.includes("cemBarrasConferenciaHTML(barras.get(cemNome(p.codigo)))"),
  'A conferência dos perfis deve mostrar barras e comprimentos, preservando os acessórios');
 const {cemBarrasConferencia,cemBarrasConferenciaHTML}=new Function('cemNome','escapeHTML',
