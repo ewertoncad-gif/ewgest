@@ -6167,7 +6167,7 @@ function cemQuadroConciliacao(){
  const list=cemDecisoesAtivas();
  if(!list.length)return '';
  return '<div class="cemPreviewSection"><h3>Possíveis materiais equivalentes ('+list.length+')</h3>'+
-  '<p class="hint">Os nomes e fabricantes coincidem. Confirme a equivalência técnica antes de unir: o sistema não faz união automática.</p>'+
+  '<p class="hint">Descrições semelhantes não garantem equivalência técnica. Se os perfis ou acessórios forem diferentes, escolha Criar novo cadastro para manter o item já existente e cadastrar o código importado sem vincular os dois.</p>'+
   list.map((x,i)=>'<div class="cemCandidate" data-cem-candidate="'+i+'">'+
    '<p><strong>CEM: '+escapeHTML(x.imp.codigo)+'</strong> · '+escapeHTML(x.imp.descricao)+
    ' · '+escapeHTML(x.imp.fabricante)+'</p>'+
@@ -6178,7 +6178,7 @@ function cemQuadroConciliacao(){
    '<option value="">Escolha uma ação</option>'+
    '<option value="manual"'+(x.decisao==='manual'?' selected':'')+'>Unificar e manter o código manual</option>'+
    '<option value="cem"'+(x.decisao==='cem'?' selected':'')+'>Unificar e utilizar o código importado</option>'+
-   '<option value="separar"'+(x.decisao==='separar'?' selected':'')+'>Manter os dois cadastros separados</option>'+
+   '<option value="separar"'+(x.decisao==='separar'?' selected':'')+'>Criar novo cadastro</option>'+
    '</select></label></div>').join('')+'</div>';
 }
 function cemAtualizarBotao(){
