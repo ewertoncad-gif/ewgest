@@ -1115,6 +1115,7 @@
         <div class="stockTopActions">
           <button type="button" class="btn secondary" id="stockFactoryCreate">+ Cadastrar galpão</button>
           <button type="button" class="btn secondary" id="stockWorkHistory" disabled>Movimentações da obra</button>
+          <button type="button" class="btn secondary" id="stockReceiveNfe" disabled>Receber material por NF-e</button>
         </div>
         <div class="stockLegend">
           <span><strong>Necessária:</strong> consumo previsto no cálculo. <strong>Em estoque:</strong> saldo físico registrado, considerando entradas e saídas.</span>
@@ -7514,6 +7515,7 @@ function renderEstoque(){
   const local=stockLocais.find(l=>l.obra_id===obra);
   const arquivado=Boolean(local?.excluido_em);
   node('stockWorkHistory').disabled=!obra||!local;
+  node('stockReceiveNfe').disabled=!obra||!local||arquivado;
   node('stockNewManual').disabled=arquivado;
   node('stockArchivedHint').classList.toggle('hidden',!arquivado);
   node('stockArchivedHint').classList.toggle('stockArchivedNotice',arquivado);
@@ -7805,6 +7807,10 @@ async function registrarMovimentoEstoque(e){
   finally{btn.disabled=false;}
 }
 node('stockWork').addEventListener('change',renderEstoque);
+node('stockReceiveNfe').addEventListener('click',()=>{
+  const obraId=node('stockWork').value;
+  if(obraId)abrirFinanceiro(obraId);
+});
 node('stockFactoryFilter').addEventListener('change',renderEstoque);
 node('stockType').addEventListener('change',renderEstoque);
 node('stockSearch').addEventListener('input',renderEstoque);
