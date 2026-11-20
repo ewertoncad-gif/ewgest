@@ -395,3 +395,9 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 - Remover do cabeçalho de **Banco de tipologias → Consultar tipologias cadastradas** o indicador `Croquis: X de Y` e o botão `Importar croquis` (pacotes JSON). Remover seu input e lógica de importação em lote para evitar referências inválidas.
 - No cadastro, o usuário administrador encontra a tipologia pela busca/filtros e clica em **Editar**. Ali, se a tipologia não tem croqui, mostrar **Adicionar croqui**; se já tem, mostrar **Trocar croqui**. O seletor aceita PNG/JPG/WebP e grava o croqui da tipologia individualmente com a rotina existente.
 - Preservar croquis existentes, a visualização/ampliação, permissões e a persistência no Supabase. Não alterar, apagar ou reinicializar croquis no banco.
+
+
+### Limpeza da navegação na tela Fabricantes (v44.5 — 20/11/2026)
+- Na tela **Cadastro de fabricantes**, remover os dois botões redundantes do cabeçalho: **← Tela inicial** e **Banco de tipologias**.
+- Preservar o título, os campos e a listagem de fabricantes, as permissões e os acessos equivalentes pela barra lateral (**Tela inicial**, **Banco de tipologias**, **Fabricantes**).
+- Não alterar os cadastros nem a navegação das demais páginas neste ajuste.

@@ -638,7 +638,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v44.4</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v44.5</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="login" class="panel login">
@@ -890,8 +890,6 @@
     </section>
     <section id="manufacturers" class="hidden">
       <div class="head"><div>
-        <button id="backManufacturers" type="button" class="btn secondary" style="margin-bottom:18px">← Tela inicial</button>
-        <button id="goManufacturersToCatalog" type="button" class="btn secondary" style="margin-bottom:18px;margin-left:10px">Banco de tipologias</button>
         <h1>Cadastro de fabricantes</h1>
         <div class="muted">Cadastro mestre disponível somente ao administrador. Os fabricantes são usados para filtrar e organizar as tipologias.</div>
       </div></div>
@@ -5407,11 +5405,6 @@ function openManufacturersPage(){
 }
 node('openManufacturers').addEventListener('click',openManufacturersPage);
 node('openManufacturersFromCatalog').addEventListener('click',openManufacturersPage);
-node('backManufacturers').addEventListener('click',()=>setView('dashboard'));
-node('goManufacturersToCatalog').addEventListener('click',()=>{
-  node('typologySearch').value='';
-  renderTypologiesAdmin();setView('typologies');
-});
 node('manufacturerForm').addEventListener('submit',async(event)=>{
   event.preventDefault();
   if(!adminCanManageManufacturers())return;

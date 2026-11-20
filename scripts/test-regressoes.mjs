@@ -1262,4 +1262,18 @@ assert.ok(source.includes('Para adicionar ou substituir um croqui, encontre a ti
  source.includes("node('croquiReplaceButton').addEventListener('click',()=>node('croquiReplaceInput').click())")&&
  source.includes('await salvarCroquiRemoto(id,base64'),
  'O cadastro individual deve permitir adicionar ou substituir imagens pelo editor');
+// v44.5: tela Fabricantes sem botões de navegação redundantes no cabeçalho.
+const manufacturersSection=source.slice(source.indexOf('<section id="manufacturers"'),
+  source.indexOf('</section>',source.indexOf('<section id="manufacturers"')));
+assert.ok(manufacturersSection.includes('<h1>Cadastro de fabricantes</h1>')&&
+  !manufacturersSection.includes('id="backManufacturers"')&&
+  !manufacturersSection.includes('id="goManufacturersToCatalog"')&&
+  !source.includes("node('backManufacturers')")&&
+  !source.includes("node('goManufacturersToCatalog')"),
+  'A tela Fabricantes não deve ter atalhos de navegação duplicados no cabeçalho');
+assert.ok(source.includes('id="navHome"')&&
+  source.includes('id="navTypologies"')&&
+  source.includes('id="navManufacturers"')&&
+  source.includes("node('navManufacturers').addEventListener('click'"),
+  'A navegação lateral deve continuar disponível');
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
