@@ -623,6 +623,12 @@
     #stockManualForm .stockManualContinue{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:500;cursor:pointer}
     #stockManualForm .stockManualContinue input{margin:0;width:17px;height:17px;flex:none}
 
+  .finValuesGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+  .finValuesGrid label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:650;color:#345575}
+  .finValuesGrid input{width:100%;min-width:0}
+  .finSumStatus{border-top:1px solid #dbe7f2;margin:15px 0 10px;padding-top:13px;color:#244d71}
+  .finQuoteDialog{width:min(690px,calc(100vw - 24px));max-height:calc(100vh - 26px);overflow-y:auto}
+  @media(max-width:600px){.finValuesGrid{grid-template-columns:1fr}}
   .stockBottomActions{display:flex;justify-content:flex-end;margin:15px 0 4px}
   .stockReportPreview{border-top:1px solid #e0e9f2;margin-top:20px;padding-top:16px}
   .stockReportPreview .rowHead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
@@ -1350,6 +1356,31 @@
       <div class="modalbuttons">
         <button type="button" class="btn secondary" id="stockEntryCancel">Cancelar</button>
         <button type="submit" class="btn primary" id="stockEntrySave">Registrar movimentação</button>
+      </div>
+    </form>
+  </div>
+</div>
+<div id="cemQuoteOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox finQuoteDialog" role="dialog" aria-modal="true" aria-labelledby="cemQuoteTitle">
+    <h2 id="cemQuoteTitle">Valores e orçamento da nova obra</h2>
+    <p class="hint">Confira os valores comerciais antes de cadastrar a obra. Nenhum dado foi gravado até aqui.</p>
+    <p id="cemQuoteWork" class="hint"></p>
+    <form id="cemQuoteForm">
+      <div class="finValuesGrid">
+        <label>Valor total da obra (R$) * <input id="cemQuoteTotal" type="number" min="0.01" step="0.01" required placeholder="183200,00"></label>
+        <label>Alumínio — teto de gastos (R$) * <input id="cemQuoteAluminio" type="number" min="0" step="0.01" required></label>
+        <label>Acessórios — teto de gastos (R$) * <input id="cemQuoteAcessorios" type="number" min="0" step="0.01" required></label>
+        <label>Vidros — teto de gastos (R$) * <input id="cemQuoteVidros" type="number" min="0" step="0.01" required></label>
+        <label>Outros insumos — teto de gastos (R$) * <input id="cemQuoteOutros" type="number" min="0" step="0.01" required></label>
+        <label>Fabricação — receita prevista (R$) * <input id="cemQuoteFabricacao" type="number" min="0" step="0.01" required></label>
+        <label>Instalação — receita prevista (R$) * <input id="cemQuoteInstalacao" type="number" min="0" step="0.01" required></label>
+      </div>
+      <p class="finSumStatus" id="cemQuoteSoma" aria-live="polite">Informe os valores para conferir a soma.</p>
+      <p class="hint">Faturamento não é gerado pelo romaneio. As notas de materiais serão registradas posteriormente e abatidas dos tetos de gastos.</p>
+      <p id="cemQuoteError" class="feedback" role="alert"></p>
+      <div class="modalbuttons">
+        <button id="cemQuoteCancel" class="btn secondary" type="button">Voltar à conferência</button>
+        <button id="cemQuoteSave" class="btn primary" type="submit">Confirmar valores e importar obra</button>
       </div>
     </form>
   </div>
@@ -6276,6 +6307,59 @@ function cemRenderPreview(){
 }
 
 let cemOperacaoId=null,cemAnaliseGeracao=0;
+function cemQuoteFormat(n){return Number(n).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});}
+const cemQuoteFields=[
+ ['valor_total','cemQuoteTotal'],['aluminio','cemQuoteAluminio'],
+ ['acessorios','cemQuoteAcessorios'],['vidros','cemQuoteVidros'],
+ ['outros','cemQuoteOutros'],['fabricacao','cemQuoteFabricacao'],
+ ['instalacao','cemQuoteInstalacao']
+];
+function cemQuoteSomaAtualizar(){
+ const total=Number(node('cemQuoteTotal').value||0);
+ const soma=cemQuoteFields.slice(1).reduce((v,[,id])=>v+Number(node(id).value||0),0);
+ const diferenca=Math.round((total-soma)*100)/100;
+ node('cemQuoteSoma').textContent='Soma das seis categorias: '+cemQuoteFormat(soma)+
+   ' · Valor total: '+cemQuoteFormat(total)+(diferenca?' · Diferença: '+cemQuoteFormat(diferenca):' · Valores conferem');
+}
+function cemQuoteAbrir(r){
+ node('cemQuoteForm').reset();
+ node('cemQuoteError').textContent='';
+ node('cemQuoteWork').textContent=r.nomeObra+' · '+r.codigo+' · '+(r.clienteObra||'Cliente não informado');
+ node('cemQuoteOverlay').classList.remove('hidden');
+ cemQuoteSomaAtualizar();node('cemQuoteTotal').focus();
+}
+function cemQuoteFechar(){
+ node('cemQuoteOverlay').classList.add('hidden');
+ if(cemParsed)cemParsed.confirmacaoInicialFeita=false;
+}
+function cemQuoteValidar(){
+ const values={};
+ for(const [key,id] of cemQuoteFields){
+   const raw=node(id).value.trim(),n=Number(raw);
+   if(!raw||!Number.isFinite(n)||n<0||n>999999999999.99||
+      Math.abs(n*100-Math.round(n*100))>0.00001)
+     throw new Error('Informe um valor válido, com até duas casas decimais, para todos os campos.');
+   values[key]=Math.round(n*100)/100;
+ }
+ const sum=Object.entries(values).reduce((v,[k,n])=>v+(k==='valor_total'?0:Math.round(n*100)),0);
+ if(values.valor_total<=0||sum!==Math.round(values.valor_total*100))
+   throw new Error('O valor total da obra precisa ser igual à soma das seis categorias.');
+ return values;
+}
+async function cemQuoteConfirmar(event){
+ event.preventDefault();
+ const r=cemParsed;
+ if(!r||r.jaImportado||r.obraExistente){cemQuoteFechar();return;}
+ try{
+   r.orcamentoDraft=cemQuoteValidar();
+   node('cemQuoteError').textContent='';
+   node('cemQuoteOverlay').classList.add('hidden');
+   await cemImportarSelecionados();
+ }catch(e){node('cemQuoteError').textContent=e.message;}
+}
+document.querySelectorAll('#cemQuoteForm input').forEach(x=>x.addEventListener('input',cemQuoteSomaAtualizar));
+node('cemQuoteCancel').addEventListener('click',cemQuoteFechar);
+node('cemQuoteForm').addEventListener('submit',cemQuoteConfirmar);
 function cemAtualizarNomeArquivo(){
   const nome=node('matCemArquivo').files?.[0]?.name||'Nenhum arquivo selecionado';
   node('matCemNomeArquivo').textContent=nome;
@@ -6285,6 +6369,7 @@ function cemDescartarRascunho(){
   // O ZIP analisado é temporário. Nunca apagar obras ou materiais já gravados no banco.
   cemAnaliseGeracao++;
   cemParsed=null;cemOperacaoId=null;
+  node('cemQuoteOverlay').classList.add('hidden');
   node('matCemArquivo').value='';
   cemAtualizarNomeArquivo();
   node('matCemConferir').disabled=false;
@@ -6385,7 +6470,11 @@ async function cemImportarSelecionados(){
    'Confirmar importação de '+perf.length+' perfis e '+aces.length+
    ' acessórios para '+r.obraExistente.nome+' ('+r.codigo+')?\n\n'+
    'Os dados técnicos, as esquadrias existentes e o estoque físico serão preservados.'+extras;
- if(!window.confirm(confirmacao))return;
+ if(!r.confirmacaoInicialFeita){
+   if(!window.confirm(confirmacao))return;
+   r.confirmacaoInicialFeita=true;
+ }
+ if(nova&&!r.orcamentoDraft){cemQuoteAbrir(r);return;}
  cemOperacaoId ||= crypto.randomUUID();save.disabled=true;
  result.textContent=nova?'Cadastrando obra, esquadrias e materiais…':'Gravando materiais…';
  try{
@@ -6393,16 +6482,18 @@ async function cemImportarSelecionados(){
    const payload=nova?{
      p_empresa_id:currentCompany.id,p_codigo_obra:r.codigo,p_nome_obra:r.nomeObra,
      p_cliente:r.clienteObra,p_esquadrias:r.esquadriasPayload,
-     p_perfis:perf,p_acessorios:aces,p_operacao_id:cemOperacaoId,p_decisoes:decisoes
+     p_perfis:perf,p_acessorios:aces,p_operacao_id:cemOperacaoId,p_decisoes:decisoes,
+     p_orcamento:r.orcamentoDraft
    }:{
      p_empresa_id:currentCompany.id,p_codigo_obra:r.codigo,
      p_perfis:perf,p_acessorios:aces,p_operacao_id:cemOperacaoId,p_decisoes:decisoes
    };
-   const answer=await request('/rest/v1/rpc/'+(nova?'ew_importar_obra_cem':'ew_importar_cem_conciliado'),{
+   const answer=await request('/rest/v1/rpc/'+(nova?'ew_importar_obra_cem_financeiro':'ew_importar_cem_conciliado'),{
      method:'POST',token:session.access_token,timeoutMs:120000,body:payload});
    if(analise!==cemAnaliseGeracao||!session)return;
    if(!answer||answer.estoque_fisico_alterado!==false||
-      (nova?(answer.obra_criada!==true||Number(answer.esquadrias_novas)!==r.esquadriasPayload.length):
+      (nova?(answer.obra_criada!==true||answer.orcamento_gravado!==true||
+        Number(answer.esquadrias_novas)!==r.esquadriasPayload.length):
         answer.esquadrias_alteradas!==0))
      throw new Error('A resposta da operação não foi confirmada. Consulte Obras antes de repetir.');
    r.jaImportado=true;
@@ -6410,7 +6501,8 @@ async function cemImportarSelecionados(){
    result.innerHTML='<div class="cemImportReceipt"><strong>'+
      (nova?'Obra cadastrada: '+escapeHTML(r.nomeObra)+' ('+escapeHTML(r.codigo)+')':
        'Materiais importados para '+escapeHTML(r.codigo))+'</strong>'+
-     (nova?'<p>Esquadrias: '+Number(answer.esquadrias_novas)+' itens, aguardando liberação e classificação.</p>':'')+
+     (nova?'<p>Esquadrias: '+Number(answer.esquadrias_novas)+' itens, aguardando liberação e classificação.</p>'+
+       '<p>Orçamento financeiro registrado: '+cemQuoteFormat(answer.valor_total)+'.</p>':'')+
      '<p>Perfis novos: '+Number(answer.perfis_novos)+' · já existentes: '+Number(answer.perfis_existentes)+
      '</p><p>Acessórios novos: '+Number(answer.acessorios_novos)+' · já existentes: '+Number(answer.acessorios_existentes)+
      '</p><p>Novas variações: '+Number(answer.variacoes_novas)+
