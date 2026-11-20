@@ -84,7 +84,7 @@
   return {valor_total:Math.round(total*100)/100,niveis};
  }
  const oldQuoteSoma=cemQuoteSomaAtualizar;
- node('cemQuoteTotal').removeEventListener('input',oldQuoteSoma);
+ node('cemQuoteForm').querySelectorAll('input').forEach(x=>x.removeEventListener('input',oldQuoteSoma));
  const oldQuoteClose=cemQuoteFechar;
  node('cemQuoteCancel').removeEventListener('click',oldQuoteClose);
  const oldQuoteSubmit=cemQuoteConfirmar;
