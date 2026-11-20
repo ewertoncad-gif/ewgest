@@ -684,8 +684,8 @@ assert.ok(source.includes('id="cemCommitHint"'),'Explica quando a importação �
 assert.ok(source.includes("node('cemFlagEsquadrias').checked=!r.obraExistente"),
   'Seleciona esquadrias somente para obra nova, desmarcando para obra já existente');
 assert.ok(source.includes('async function cemImportarSelecionados()')&&
- source.includes("'/rest/v1/rpc/ew_importar_cem_conciliado'"),
- 'Botão importa somente materiais via transação no servidor');
+ source.includes("nova?'ew_importar_obra_cem_financeiro':'ew_importar_cem_conciliado'"),
+ 'Importação usa RPC transacional diferente para nova obra e obra existente');
 assert.ok(!source.includes('rows.slice(0,6)'), 'Exibe a lista completa de materiais do CEM');
 
 
