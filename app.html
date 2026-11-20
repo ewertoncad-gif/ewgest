@@ -1359,10 +1359,10 @@
     <form id="matEditForm">
       <div class="matFormGrid">
         <label>Código * <input id="matCodigo" maxlength="90" required placeholder="Ex.: IN024"></label>
-        <label>Fabricante * <input id="matFabricante" maxlength="150" required placeholder="Ex.: HYDRO"></label>
+        <label><span id="matFabricanteTexto">Fabricante *</span> <input id="matFabricante" maxlength="150" required placeholder="Ex.: HYDRO"></label>
         <label class="matWide">Descrição * <input id="matDescricao" maxlength="500" required placeholder="Descrição técnica do material"></label>
         <label>Linha <input id="matLinha" maxlength="150" placeholder="Ex.: INOVA"></label>
-        <label>Pré-nativo <input id="matPrenativo" maxlength="150" placeholder="Ex.: L. INOVA - T"></label>
+        <label class="matOnlyPerfil">Pré-nativo <input id="matPrenativo" maxlength="150" placeholder="Ex.: L. INOVA - T"></label>
         <label class="matOnlyPerfil">Peso (kg/m) <input id="matPeso" inputmode="decimal" type="number" min="0" max="999999" step="0.00001" placeholder="Ex.: 0,501"></label>
         <label class="matOnlyPerfil">Comprimento comercial (mm) <input id="matComprimento" type="number" min="1" max="100000" step="1" placeholder="Ex.: 6000"></label>
         <label class="matOnlyPerfil">Unidade de referência <select id="matUnidadePerfil"><option>BARRA</option><option>METRO</option><option>KG</option></select></label>
@@ -1374,7 +1374,7 @@
         </label>
         <label class="matOnlyAcessorio hidden">Quantidade por embalagem <input id="matQuantidadeEmbalagem" type="number" min="0.001" step="0.001" placeholder="Ex.: 500"></label>
         <div class="matOnlyAcessorio matWide hidden"><datalist id="matUnidadesDisponiveis"></datalist><p class="hint" id="matEquivPreview" aria-live="polite">Informe as unidades para visualizar a equivalência da embalagem.</p></div>
-        <label class="matWide">Observações <textarea id="matObservacoes" rows="2" maxlength="1000"></textarea></label>
+        <label class="matWide matOnlyPerfil">Observações <textarea id="matObservacoes" rows="2" maxlength="1000"></textarea></label>
       </div>
       <label class="matSwitch"><input id="matAtivo" type="checkbox" checked> Cadastro ativo</label>
       <div id="matEditError" class="feedback" role="alert"></div>
@@ -5624,8 +5624,9 @@ function renderMateriais(){
          ' (quantidade não informada)'):'não informada');
     return '<div class="materialRow"><div><h3>'+escapeHTML(x.codigo)+(x.ativo?'':' · INATIVO')+'</h3>'+
       '<p><strong>'+escapeHTML(x.descricao)+'</strong></p>'+
-      '<div class="materialDetails">Fabricante: '+escapeHTML(x.fabricante)+
-      ' · Linha: '+escapeHTML(x.linha||'—')+' · Pré-nativo: '+escapeHTML(x.prenativo||'—')+'</div>'+
+      '<div class="materialDetails">'+(matTipo==='perfil'?'Fabricante: ':'Referência: ')+escapeHTML(x.fabricante)+
+      ' · Linha: '+escapeHTML(x.linha||'—')+
+      (matTipo==='perfil'?' · Pré-nativo: '+escapeHTML(x.prenativo||'—'):'')+'</div>'+
       '<div class="materialDetails">'+extras+'</div>'+
       '<div class="materialVariants">'+(vars.length?vars.map(v=>
         '<button class="materialVariant" type="button" data-mat-var-edit="'+escapeHTML(v.id)+'">'+
@@ -5646,6 +5647,10 @@ function abrirEdicaoMaterial(id=null){
   if(id&&!matSelected)return;
   const x=matSelected||{};
   node('matEditTitle').textContent=(matSelected?'Editar ':'Cadastrar ')+matLbl();
+  node('matFabricanteTexto').textContent=matTipo==='perfil'?'Fabricante *':'Referência *';
+  node('matEditSub').textContent=matTipo==='perfil'?
+    'O código e o fabricante identificam o material. As cores são cadastradas separadamente.':
+    'O código e a referência identificam o acessório. As cores são cadastradas separadamente.';
   node('matEditForm').reset();
   const data={matCodigo:x.codigo||'',matDescricao:x.descricao||'',matFabricante:x.fabricante||'',
     matLinha:x.linha||'',matPrenativo:x.prenativo||'',matObservacoes:x.observacoes||'',
@@ -5666,12 +5671,18 @@ async function salvarMaterial(event){
   const codigo=node('matCodigo').value.trim().toUpperCase();
   const fabricante=node('matFabricante').value.trim().toUpperCase();
   const descricao=node('matDescricao').value.trim();
-  if(!codigo||!fabricante||descricao.length<2){node('matEditError').textContent='Informe código, fabricante e descrição.';return;}
+  if(!codigo||!fabricante||descricao.length<2){
+    node('matEditError').textContent=matTipo==='perfil'?
+      'Informe código, fabricante e descrição.':'Informe código, referência e descrição.';
+    return;
+  }
   const payload={empresa_id:currentCompany.id,codigo,fabricante,descricao,
     linha:node('matLinha').value.trim().toUpperCase(),
-    prenativo:node('matPrenativo').value.trim(),observacoes:node('matObservacoes').value.trim(),
     ativo:node('matAtivo').checked,atualizado_em:new Date().toISOString(),atualizado_por:currentUser.id};
   if(matTipo==='perfil'){
+    // Campos exclusivos dos perfis. Não enviar campos ocultos ao editar acessórios.
+    payload.prenativo=node('matPrenativo').value.trim();
+    payload.observacoes=node('matObservacoes').value.trim();
     const peso=node('matPeso').value,comp=node('matComprimento').value;
     payload.peso_kg_m=peso===''?null:Number(peso);
     payload.comprimento_comercial_mm=comp===''?null:Number(comp);
@@ -6122,8 +6133,9 @@ function cemTabelaHTML(tipo){
     matching.length+' de '+entries.length+' materiais exibidos</span></div>'+
     '<label>Buscar nos '+caption.toLowerCase()+
     '<input type="search" id="'+key+'" value="'+escapeHTML(search)+
-    '" placeholder="Código, fabricante, cor ou descrição"></label></div>'+
-    '<div class="cemTableWrap"><table class="cemTable"><thead><tr><th>Código</th><th>Fabricante</th>'+
+    '" placeholder="'+(tipo==='perfil'?'Código, fabricante, cor ou descrição':'Código, referência, cor ou descrição')+'"></label></div>'+
+    '<div class="cemTableWrap"><table class="cemTable"><thead><tr><th>Código</th><th>'+
+    (tipo==='perfil'?'Fabricante':'Referência')+'</th>'+
     '<th>Descrição</th><th>Linha</th><th>'+
     (tipo==='perfil'?'Acabamento / cor CEM':'Cor CEM')+'</th><th>'+
     (tipo==='perfil'?'Barras (qtd. × comprimento)':'Quantidades')+
