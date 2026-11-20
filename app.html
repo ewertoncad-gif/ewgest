@@ -6771,7 +6771,7 @@ async function finLoad(){
  node('finMessage').textContent='Consultando orçamento, despesas e faturamentos…';
  try{
   await ensureSession();
-  const [b,c,fat,perfis,aces,roms,variacoes,galpoes]=await Promise.all([
+  const [b,c,fat,perfis,aces,roms,variacoes,galpoes,niveis]=await Promise.all([
    apiGet('ew_obra_orcamento',{select:'*',empresa_id:empresa,obra_id:obra,limit:'1'}),
    apiGet('ew_obra_despesas',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
    apiGet('ew_obra_faturamentos',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
@@ -6779,7 +6779,8 @@ async function finLoad(){
    apiGet('ew_acessorios',{select:'id,codigo,descricao,fabricante,unidade_item,unidade_embalagem,quantidade_por_embalagem',empresa_id:empresa,limit:'5000'}),
    apiGet('romaneios',{select:'id,status,cancelado_em',empresa_id:empresa,obra_id:obra,limit:'3000'}),
    apiGet('ew_materiais_variacoes',{select:'id,perfil_id,acessorio_id,tipo,cor,acabamento',empresa_id:empresa,limit:'10000'}),
-   apiGet('ew_locais_fisicos',{select:'nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'300'})
+   apiGet('ew_locais_fisicos',{select:'nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'300'}),
+   apiGet('ew_obra_orcamento_niveis',{select:'linha,nivel_nome,empresa_faturamento_nome,categoria_base,valor,percentual,faturar',empresa_id:empresa,obra_id:obra,order:'linha.asc',limit:'100'})
   ]);
   if(!b?.length){node('finMessage').textContent='Esta obra ainda não possui orçamento cadastrado. As novas importações agora exigem essa etapa.';return;}
   const invoiceIds=(fat||[]).map(x=>x.id),romaneioIds=(roms||[]).filter(x=>x.status==='emitido'&&!x.cancelado_em).map(x=>x.id);
@@ -6810,7 +6811,7 @@ async function finLoad(){
   finState={obraId,orcamento:b[0],despesas:c||[],faturas:fat||[],linhas:linhas||[],perfis:perfis||[],
    acessorios:aces||[],shipped,billed,pendentes,pendentesItens:pendentesItens||[],
    aprovadas,approvedItems:approvedItems||[],stockReceipts:stockReceipts||[],
-   variacoes:variacoes||[],galpoes:(galpoes||[]).filter(x=>x.ativo).map(x=>x.nome)};
+   variacoes:variacoes||[],galpoes:(galpoes||[]).filter(x=>x.ativo).map(x=>x.nome),orcamentoNiveis:niveis||[]};
   box.classList.remove('hidden');node('finMessage').textContent='';
   node('finExpensePanel').classList.toggle('hidden',!isFullAdminUser());
   node('finBillingPanel').classList.toggle('hidden',!isFullAdminUser());
@@ -6823,12 +6824,25 @@ function finRenderResumo(){
  for(const d of x.despesas)if(d.status==='aprovada')gastos.set(d.categoria,(gastos.get(d.categoria)||0)+Number(d.valor));
  for(const f of x.faturas)if(f.status==='emitido')faturado.set(f.categoria,(faturado.get(f.categoria)||0)+Number(f.valor_total));
  const gastoTotal=[...gastos.values()].reduce((a,b)=>a+b,0),recebTotal=[...faturado.values()].reduce((a,b)=>a+b,0);
- const totalReceita=Number(o.fabricacao)+Number(o.instalacao);
+ const totalReceita=x.orcamentoNiveis.length?
+  x.orcamentoNiveis.filter(n=>n.faturar&&['fabricacao','instalacao'].includes(n.categoria_base))
+    .reduce((sum,n)=>sum+Number(n.valor||0),0):Number(o.fabricacao)+Number(o.instalacao);
  node('finTotals').innerHTML='<span><strong>Valor da obra: '+finMoney(o.valor_total)+'</strong></span>'+
   '<span><strong>Faturado: '+finMoney(recebTotal)+'</strong></span>'+
-  '<span><strong>A faturar: '+finMoney(totalReceita-recebTotal)+'</strong></span>'+
+  '<span><strong>A faturar (fabricação/instalação): '+finMoney(totalReceita-recebTotal)+'</strong></span>'+
   '<span><strong>Gastos registrados: '+finMoney(gastoTotal)+'</strong></span>';
- node('finSummary').innerHTML='<div class="finTableWrap"><table class="finTable"><thead><tr>'+
+ const resumoNiveis=x.orcamentoNiveis.length?
+  '<h3>Níveis e empresas do orçamento</h3>'+
+  '<div class="finTableWrap"><table class="finTable"><thead><tr>'+
+  '<th>Nível</th><th>Empresa</th><th align="right">Valor</th><th align="right">% obra</th><th>Finalidade</th></tr></thead><tbody>'+
+  x.orcamentoNiveis.map(n=>'<tr><td>'+escapeHTML(n.nivel_nome)+'</td><td>'+escapeHTML(n.empresa_faturamento_nome)+
+    '</td><td align="right">'+finMoney(n.valor)+'</td><td align="right">'+
+    Number(n.percentual).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+
+    '%</td><td>'+(n.faturar?'Faturamento':'Somente controle de gastos')+'</td></tr>').join('')+
+  '</tbody></table></div>'+
+  '<p class="hint">Os níveis faturáveis identificam valores previstos. A emissão automática de outros níveis além de fabricação e instalação não está disponível nesta versão.</p>'+
+  '<h3>Grupos financeiros existentes</h3>':'';
+ node('finSummary').innerHTML=resumoNiveis+'<div class="finTableWrap"><table class="finTable"><thead><tr>'+
    '<th>Categoria</th><th>Controle</th><th align="right">Previsto / teto</th><th align="right">Realizado</th><th align="right">Restante</th></tr></thead><tbody>'+
  finCategories.map(([k,label,tipo])=>{
    const total=Number(o[k]),real=tipo==='custo'?(gastos.get(k)||0):(faturado.get(k)||0);
