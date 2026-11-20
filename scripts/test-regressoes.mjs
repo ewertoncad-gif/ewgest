@@ -1483,7 +1483,7 @@ assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
  !source.includes('<label>XML da nota fiscal (NF-e)')&&
  source.includes('id="finCostCategory" required'),
  'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
-assert.ok(source.includes('recebimento-manual.js?v=20261120d')&&
+assert.ok(source.includes('recebimento-manual.js?v=20261120e')&&
  source.includes('recebimento-manual.css?v=20261120d')&&receiveCSS.includes('.finManualTable'),
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
@@ -1576,107 +1576,103 @@ const legado=renderResumo({orcamentoNiveis:[],despesas:[],faturas:[],orcamento:{
 assert.equal(legado.legacyCalls,1,'Obras antigas permanecem com resumo legado');
 
 
-// Recebimento manual só permite materiais vinculados à obra e evidencia a
-// diferença de unidade entre cortes planejados e barras físicas recebidas.
+// Recebimento manual: perfis usam exclusivamente NUMBARRAS/BARRA da
+// importação específica da obra, nunca a contagem de cortes dos croquis.
 assert.ok(source.includes("apiGet('ew_cem_obras_materiais'")&&
  source.includes("materiaisObra:materiaisObra||[]")&&
  source.includes("obra_id:obra,limit:'10000'"),
- 'Financeiro deve carregar os quantitativos apenas da obra selecionada');
-assert.ok(receiveScript.includes('finState.materiaisObra')&&
- receiveScript.includes('finState.stockReceipts')&&
- receiveScript.includes('quantityData(row)')&&
- receiveScript.includes('selectOptions()')&&
- receiveScript.includes('finManualReadonly')&&
- receiveScript.includes('renderRows();')&&
- receiveCSS.includes('.finManualStat')&&
- source.includes('<th>Necessário</th><th>Já recebido</th><th>Falta receber</th>'),
- 'Cor preenchida e quantidades planejadas, recebidas e pendentes ficam visíveis na tabela');
+ 'O catálogo é limitado aos materiais da obra selecionada');
+assert.ok(source.includes("origem:'eq.IMPORTACAO_CEM'")&&
+ source.includes("quantidade_delta,origem'")&&
+ source.includes("barrasCem:barraCem||[]")&&
+ receiveScript.includes('function plannedBarRows(')&&
+ receiveScript.includes('Number(x.quantidade_delta)>0'),
+ 'A quantidade de barras é lida do histórico da importação CEM com comprimento e quantidade');
+assert.ok(receiveScript.includes('function quantityData(row)')&&
+ !receiveScript.includes("needed:formatQty(cuts)")&&
+ !receiveScript.includes("pendingSub:'metro linear"),
+ 'Cortes e metros não podem ser apresentados como barras necessárias ou pendentes');
 const resolverStart=receiveScript.indexOf(' function stockCategory(){');
 const resolverEnd=receiveScript.indexOf(' function unitFor(',resolverStart);
 assert.ok(resolverStart>=0&&resolverEnd>resolverStart,
- 'O filtro deve estar disponível sem a necessidade de modificar movimentos físicos');
+ 'O filtro e os quantitativos devem estar disponíveis');
 const mockResolver=new Function('state','selectedCategory',
- 'let finState=state, category=selectedCategory;\n'+
+ 'let finState=state,category=selectedCategory;\n'+
  receiveScript.slice(resolverStart,resolverEnd)+
- '\nreturn {getMaterials,getVariations,quantityInfo,quantityData,selectOptions,autoBarLength,plannedRows};');
-const mkState={
- perfis:[{id:'p1',codigo:'CG179',descricao:'Corrimão'},{id:'p2',codigo:'OUTRO',descricao:'Não pertence à obra'}],
- acessorios:[{id:'a1',codigo:'PARAFUSO',descricao:'Parafuso'},{id:'a2',codigo:'OUTRO-ACESS',descricao:'Não pertence à obra'}],
+ '\nreturn {getMaterials,getVariations,selectOptions,quantityData,autoBarLength};');
+const fixture={
+ perfis:[{id:'p1',codigo:'GN097',descricao:'Folha colada',comprimento_comercial_mm:null},
+  {id:'p2',codigo:'NAO-DA-OBRA',descricao:'Não vinculado',comprimento_comercial_mm:6000}],
+ acessorios:[{id:'a1',codigo:'PARAFUSO',descricao:'Parafuso'},
+  {id:'a2',codigo:'ACESS-EXTERNO',descricao:'Não vinculado'}],
  variacoes:[
-  {id:'v1',tipo:'perfil',perfil_id:'p1',cor:'BRANCO',ativo:true},
-  {id:'v2',tipo:'perfil',perfil_id:'p1',cor:'PRETO',ativo:true},
-  {id:'v3',tipo:'perfil',perfil_id:'p2',cor:'BRANCO',ativo:true},
+  {id:'v1',tipo:'perfil',perfil_id:'p1',cor:'ANOD-1002-A13',acabamento:'ANODIZADO',ativo:true},
+  {id:'v2',tipo:'perfil',perfil_id:'p2',cor:'BRANCO',ativo:true},
   {id:'va1',tipo:'acessorio',acessorio_id:'a1',cor:'NATURAL',ativo:true},
   {id:'va2',tipo:'acessorio',acessorio_id:'a2',cor:'NATURAL',ativo:true}
  ],
+ // A obra de exemplo tem 24 cortes. NÃO são 24 barras.
  materiaisObra:[
-  {tipo:'perfil',perfil_id:'p1',variacao_id:'v1',quantidade_prevista:24,unidade_prevista:'CORTE',comprimento_total_m:54.96},
-  {tipo:'perfil',perfil_id:'p1',variacao_id:'v2',quantidade_prevista:10,unidade_prevista:'CORTE',comprimento_total_m:30},
+  {tipo:'perfil',perfil_id:'p1',variacao_id:'v1',quantidade_prevista:24,unidade_prevista:'CORTE',comprimento_total_m:54.96,linhas_calculo:2},
   {tipo:'acessorio',acessorio_id:'a1',variacao_id:'va1',quantidade_prevista:58,unidade_prevista:'PC'}
+ ],
+ // Há duas medidas planejadas: não confundir no cálculo de saldo.
+ barrasCem:[
+  {variacao_id:'v1',comprimento_mm:6000,quantidade_delta:5,origem:'IMPORTACAO_CEM'},
+  {variacao_id:'v1',comprimento_mm:6500,quantidade_delta:4,origem:'IMPORTACAO_CEM'}
  ],
  stockReceipts:[
   {variacao_id:'v1',unidade:'BARRA',quantidade:2,comprimento_mm:6000},
-  {variacao_id:'v2',unidade:'BARRA',quantidade:3,comprimento_mm:6000},
-  {variacao_id:'v3',unidade:'BARRA',quantidade:100,comprimento_mm:6000},
+  {variacao_id:'v1',unidade:'BARRA',quantidade:3,comprimento_mm:6500},
+  {variacao_id:'v2',unidade:'BARRA',quantidade:100,comprimento_mm:6000},
   {variacao_id:'va1',unidade:'PC',quantidade:20,comprimento_mm:null},
   {variacao_id:'va2',unidade:'PC',quantidade:400,comprimento_mm:null}
  ]
 };
-const perfMock=mockResolver(mkState,'aluminio');
-assert.deepEqual(perfMock.getMaterials().map(x=>x.id),['p1'],
- 'Um perfil não previsto na obra jamais aparece no seletor');
-assert.deepEqual(perfMock.getVariations('p1').map(x=>x.id),['v1','v2'],
- 'A variação pertence ao perfil e à lista técnica da obra');
-assert.deepEqual(perfMock.getVariations('p2'),[],
- 'Outras cores cadastradas somente para materiais de outra obra não aparecem');
-assert.deepEqual(perfMock.selectOptions().map(({v})=>v.id),['v1','v2'],
- 'Variações de um mesmo perfil são opções completas do seletor, sem escolher cor novamente');
-const cor=perfMock.quantityInfo({material:'p1',variacao:'v1'});
-assert.ok(cor.includes('24 cortes')&&cor.includes('54,96 m')&&
- cor.includes('2 barras')&&cor.includes('12 m')&&!cor.includes('5 barras'),
- 'Quantidade por cor fica restrita à variação escolhida');
-const accMock=mockResolver(mkState,'acessorios');
-assert.deepEqual(accMock.getMaterials().map(x=>x.id),['a1'],
- 'Não exibir acessórios globais sem vínculo com esta obra');
-const accInfo=accMock.quantityInfo({material:'a1',variacao:'va1'});
-assert.ok(accInfo.includes('58 PC')&&accInfo.includes('20 PC')&&accInfo.includes('38 PC'),
- 'Acessório usa unidade compatível e mostra necessário, recebido e falta receber');
-const empty=mockResolver({...mkState,materiaisObra:[]},'aluminio');
-assert.deepEqual(empty.getMaterials(),[],'Obra sem quantitativos não deve listar todo o catálogo global');
-
-
-const profileInfo=perfMock.quantityData({material:'p1',variacao:'v1'});
-assert.equal(profileInfo.needed,'24 cortes');
-assert.equal(profileInfo.neededSub,'54,96 m');
-assert.equal(profileInfo.received,'2 barras');
-assert.equal(profileInfo.receivedSub,'12 m');
-assert.equal(profileInfo.pending,'42,96 m');
-assert.equal(perfMock.autoBarLength({material:'p1',variacao:'v1'}),null,
- 'Nunca inventar comprimento comercial não cadastrado ou não importado');
-const withLength=mockResolver({...mkState,
- perfis:[{...mkState.perfis[0],comprimento_comercial_mm:6000},mkState.perfis[1]]},'aluminio');
-assert.equal(withLength.autoBarLength({material:'p1',variacao:'v1'}),6000,
- 'Comprimento comercial cadastrado é preenchido automaticamente');
-const historical=mockResolver({...mkState,
- barrasCem:[{variacao_id:'v1',comprimento_mm:5500,origem:'IMPORTACAO_CEM'}]},'aluminio');
-assert.equal(historical.autoBarLength({material:'p1',variacao:'v1'}),5500,
- 'Comprimento da barra da importação técnica é recuperado se for único');
-const ambiguous=mockResolver({...mkState,
- barrasCem:[{variacao_id:'v1',comprimento_mm:5500},{variacao_id:'v1',comprimento_mm:6000}]},'aluminio');
-assert.equal(ambiguous.autoBarLength({material:'p1',variacao:'v1'}),null,
- 'Duas medidas diferentes não autorizam preenchimento arbitrário');
-const duplicated=mockResolver({...mkState,materiaisObra:[
- {...mkState.materiaisObra[0],quantidade_prevista:5,comprimento_total_m:5.75,linhas_calculo:1},
- {...mkState.materiaisObra[0],quantidade_prevista:5,comprimento_total_m:5.75,linhas_calculo:1}
-]},'aluminio');
-assert.equal(duplicated.quantityData({material:'p1',variacao:'v1'}).needed,'5 cortes',
- 'A importação repetida de linha idêntica não dobra a necessidade da obra');
-assert.equal(duplicated.quantityData({material:'p1',variacao:'v1'}).neededSub,'5,75 m',
- 'A importação repetida não dobra a metragem prevista');
+const perfil=mockResolver(fixture,'aluminio');
+assert.deepEqual(perfil.getMaterials().map(x=>x.id),['p1'],
+ 'Não mostrar perfis externos à obra');
+assert.deepEqual(perfil.getVariations('p1').map(x=>x.id),['v1'],
+ 'Somente a cor/variação existente na obra');
+const sizes=perfil.selectOptions();
+assert.deepEqual(sizes.map(x=>x.length),[6000,6500],
+ 'Mesmo perfil em duas medidas deve aparecer como duas opções distintas');
+assert.deepEqual(sizes.map(x=>x.value),['v1|6000','v1|6500'],
+ 'Chave do seletor contém variação e comprimento da barra');
+const q6=perfil.quantityData({material:'p1',variacao:'v1',selectionKey:'v1|6000',comprimento:'6000'});
+assert.deepEqual([q6.needed,q6.received,q6.pending],['5 barras','2 barras','3 barras'],
+ 'CEM NUMBARRAS é 5, não os 24 cortes; recebido e faltante usam 6000 mm');
+const q65=perfil.quantityData({material:'p1',variacao:'v1',selectionKey:'v1|6500',comprimento:'6500'});
+assert.deepEqual([q65.needed,q65.received,q65.pending],['4 barras','3 barras','1 barras'],
+ 'Barras de 6500 mm não contam no saldo de 6000 mm');
+assert.equal(perfil.autoBarLength({material:'p1',variacao:'v1',selectionKey:'v1|6000'}),6000,
+ 'O comprimento do CEM prevalece sobre o cadastro genérico do perfil');
+assert.equal(perfil.autoBarLength({material:'p1',variacao:'v1',selectionKey:'v1|6500'}),6500,
+ 'Comprimentos comerciais múltiplos permanecem distintos');
+const noImport=mockResolver({...fixture,barrasCem:[]},'aluminio');
+const unknown=noImport.quantityData({material:'p1',variacao:'v1',comprimento:'6000'});
+assert.equal(unknown.needed,'Não importado');
+assert.equal(unknown.pending,'—');
+assert.equal(unknown.received,'2 barras');
+assert.ok(unknown.note.includes('não importadas'), 'Ausência de NUMBARRAS/BARRA deve ser explícita');
+assert.equal(noImport.selectOptions()[0].length,null,'Sem barras do CEM não inventar tamanho');
+assert.equal(noImport.autoBarLength({material:'p1',variacao:'v1',selectionKey:'v1|'}),null,
+ 'Sem barra importada e sem cadastro, comprimento permanece não informado');
+const cad=mockResolver({...fixture,barrasCem:[],
+ perfis:[{...fixture.perfis[0],comprimento_comercial_mm:5500},fixture.perfis[1]]},'aluminio');
+assert.equal(cad.autoBarLength({material:'p1',variacao:'v1',selectionKey:'v1|'}),5500,
+ 'Comprimento cadastrado pode preencher a medida quando não existe no CEM');
+const accessor=mockResolver(fixture,'acessorios');
+assert.deepEqual(accessor.getMaterials().map(x=>x.id),['a1']);
+const acc=accessor.quantityData({material:'a1',variacao:'va1'});
+assert.deepEqual([acc.needed,acc.received,acc.pending],['58 PC','20 PC','38 PC'],
+ 'Acessórios continuam na unidade real e não dependem do plano de barras');
+const empty=mockResolver({...fixture,materiaisObra:[]},'aluminio');
+assert.deepEqual(empty.getMaterials(),[],'Não exibir catálogo global quando a obra não tem materiais');
 assert.ok(!receiveScript.includes('<td><select class="finManualVariation"'),
- 'A cor não deve depender de uma segunda seleção editável');
-assert.ok(receiveScript.includes('Informe a barra')&&
- receiveScript.includes('finState.comprimentosComerciais'),
- 'Comprimento desconhecido requer medida comercial real, nunca estimativa fictícia');
+ 'Cor vem automaticamente do CEM, sem segundo seletor');
+assert.ok(receiveScript.includes('finManualReadonly')&&receiveCSS.includes('.finManualStat')&&
+ source.includes('<th>Necessário</th><th>Já recebido</th><th>Falta receber</th>'),
+ 'Manter cor e barras em colunas visíveis');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
