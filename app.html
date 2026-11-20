@@ -1924,6 +1924,7 @@ let differencePendingItem=null;
 let identityEditing=null;
 let modulationCatalog=[];
 let matPerfis=[],matAcessorios=[],matVariacoes=[],matTipo='perfil',matSelected=null,matVarSelected=null,matVarOriginal=null;
+let matPrecosReais=new Map();
 let manufacturerCatalog=[],manufacturerLoadError='',originalManufacturerForEdit='',originalDescriptionForEdit='',manufacturerAutoCandidate='';
 function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
@@ -5689,6 +5690,35 @@ async function carregarMateriais(){
     apiGet('ew_materiais_variacoes',{select:'*',empresa_id:filtro,order:'cor.asc',limit:'4000'})
   ]);
   matPerfis=p||[];matAcessorios=a||[];matVariacoes=v||[];
+  // Histórico de preços reais exclusivamente de documentos aprovados e vinculados.
+  matPrecosReais=new Map();
+  try{
+    const despesas=await apiGet('ew_obra_despesas',{
+      select:'id,data_documento,criado_em,numero_documento,fornecedor,categoria',
+      empresa_id:filtro,status:'eq.aprovada',limit:'3000'
+    });
+    if(despesas?.length){
+      const ids=despesas.map(d=>d.id);
+      const itens=await apiGet('ew_obra_despesas_itens',{
+        select:'despesa_id,perfil_id,acessorio_id,valor_unitario,unidade',
+        empresa_id:filtro,despesa_id:'in.('+ids.join(',')+')',limit:'10000'
+      });
+      const hdr=new Map(despesas.map(d=>[d.id,d]));
+      for(const it of itens||[]){
+        const d=hdr.get(it.despesa_id);
+        if(!d)continue;
+        const tipo=it.perfil_id?'perfil':it.acessorio_id?'acessorio':null;
+        const id=it.perfil_id||it.acessorio_id;
+        if(!tipo||!id)continue;
+        const key=tipo+'|'+id,date=d.data_documento||d.criado_em?.slice(0,10)||'';
+        const prev=matPrecosReais.get(key);
+        if(!prev||date>prev.data)matPrecosReais.set(key,{
+          valor:it.valor_unitario,unidade:it.unidade||'UN',data:date,
+          documento:d.numero_documento,fornecedor:d.fornecedor
+        });
+      }
+    }
+  }catch(e){/* A ausência do histórico não bloqueia o cadastro técnico. */}
   matAtualizarOpcoesUnidade();
   renderMateriais();
 }
@@ -5729,12 +5759,19 @@ function renderMateriais(){
         '1 '+escapeHTML(x.unidade_embalagem)+(x.quantidade_por_embalagem?
          ' = '+matFormat(x.quantidade_por_embalagem)+' '+escapeHTML(x.unidade_item||'PC'):
          ' (quantidade não informada)'):'não informada');
+    const preco=matPrecosReais.get(matTipo+'|'+x.id);
+    const precoHTML=preco?'<div class="materialDetails"><strong>Último custo real (NF-e): '+
+      finMoney(preco.valor)+' / '+escapeHTML(preco.unidade)+'</strong>'+
+      ' · '+escapeHTML(preco.data||'sem data')+' · '+escapeHTML(preco.fornecedor||'fornecedor não informado')+
+      (preco.documento?' · NF '+escapeHTML(preco.documento):'')+'</div>':
+      '<div class="materialDetails">Custo real: nenhuma NF-e vinculada a este material.</div>';
     return '<div class="materialRow"><div><h3>'+escapeHTML(x.codigo)+'</h3>'+
       '<p><strong>'+escapeHTML(x.descricao)+'</strong></p>'+
       '<div class="materialDetails">'+(matTipo==='perfil'?'Fabricante: ':'Referência: ')+escapeHTML(x.fabricante)+
       ' · Linha: '+escapeHTML(x.linha||'—')+
       (matTipo==='perfil'?' · Pré-nativo: '+escapeHTML(x.prenativo||'—'):'')+'</div>'+
       '<div class="materialDetails">'+extras+'</div>'+
+      precoHTML+
       '<div class="materialVariants">'+(vars.length?vars.map(v=>
         '<button class="materialVariant" type="button" data-mat-var-edit="'+escapeHTML(v.id)+'">'+
         escapeHTML(v.acabamento)+' / '+escapeHTML(v.cor)+(v.codigo_cor?' ('+escapeHTML(v.codigo_cor)+')':'')+
