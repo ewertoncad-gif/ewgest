@@ -1547,7 +1547,7 @@ const exemplo=()=>({
  faturas:[{categoria:'fabricacao',status:'emitido',valor_total:2500}]
 });
 const unificado=renderResumo(exemplo());
-const htmlResumo=unificado.nodes.finSummary.innerHTML;
+const htmlResumo=unificado.nodes.finSummary.innerHTML.replace(/\u00a0/g,' ');
 assert.equal(unificado.legacyCalls,0,'Orçamento por níveis não deve renderizar tabela legada');
 assert.equal((htmlResumo.match(/<table\b/g)||[]).length,1,'Uma só tabela financeira por obra');
 assert.ok(htmlResumo.includes('Orçamento por níveis e acompanhamento financeiro')&&
@@ -1558,8 +1558,8 @@ assert.ok(htmlResumo.includes('Orçamento por níveis e acompanhamento financeir
  htmlResumo.includes('R$ 5.000,00')&&
  htmlResumo.includes('R$ 68.200,00'),
  'Tabela inclui empresa, previsto, custos realizados, faturamento especial e restante');
-assert.ok(unificado.nodes.finTotals.innerHTML.includes('R$ 64.000,00'),
- 'Faturamento previsto considera outros insumos com flag de faturamento');
+assert.ok(unificado.nodes.finTotals.innerHTML.replace(/\u00a0/g,' ').includes('A faturar: R$ 61.500,00'),
+ 'A faturar inclui outros insumos com flag faturamento e deduz apenas faturamentos emitidos');
 assert.equal((unificado.nodes.finTotals.innerHTML.match(/<span>/g)||[]).length,4,
  'Resumo superior exibe quatro indicadores essenciais sem subtotais duplicados');
 const duplicados=exemplo();
@@ -1567,7 +1567,7 @@ duplicados.orcamentoNiveis.push({
  nivel_nome:'ALUMÍNIO ADICIONAL',categoria_base:'aluminio',valor:1000,
  percentual:1,faturar:false,empresa_faturamento_nome:'GVG ESQUADRIAS'
 });
-const dupHtml=renderResumo(duplicados).nodes.finSummary.innerHTML;
+const dupHtml=renderResumo(duplicados).nodes.finSummary.innerHTML.replace(/\u00a0/g,' ');
 assert.equal((dupHtml.match(/<table\b/g)||[]).length,1);
 assert.ok(dupHtml.includes('seus valores realizados não são distribuídos automaticamente (—)')&&
  dupHtml.includes('ALUMÍNIO ADICIONAL'),
