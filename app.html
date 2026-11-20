@@ -7092,6 +7092,9 @@ async function finConfirmarRecebimento(row){
 
 function finRenderHistorico(){
  const x=finState;
+ const despesasComEstoque=new Set(
+  x.approvedItems.filter(i=>x.stockReceipts.some(r=>r.despesa_item_id===i.id))
+   .map(i=>i.despesa_id));
  const rows=[
  ...x.despesas.map(d=>({id:d.id,kind:'despesa',date:d.data_documento||d.criado_em?.slice(0,10)||'',grupo:'Despesa',tipo:d.categoria,
  doc:d.numero_documento||'—',valor:d.valor,status:d.status,desc:d.fornecedor||''})),
@@ -7105,7 +7108,9 @@ function finRenderHistorico(){
  (r.desc?' · '+escapeHTML(r.desc):'')+'</td><td align="right">'+finMoney(r.valor)+
  '</td><td>'+escapeHTML(r.status)+'</td><td>'+
  (isFullAdminUser()&&(r.kind==='faturamento'?r.status==='emitido':r.status==='aprovada')?
-   '<button class="btn secondary" type="button" data-fin-cancel="'+escapeHTML(r.id)+'" data-kind="'+r.kind+'">Cancelar com motivo</button>':'')+
+   (r.kind==='despesa'&&despesasComEstoque.has(r.id)?
+    '<span class="hint">Entrada física vinculada — exige estorno</span>':
+    '<button class="btn secondary" type="button" data-fin-cancel="'+escapeHTML(r.id)+'" data-kind="'+r.kind+'">Cancelar com motivo</button>'):'')+
  '</td></tr>').join('')+'</tbody></table></div>':
  '<p class="hint">Ainda não há notas de despesas nem documentos de faturamento registrados.</p>';
  node('finHistory').querySelectorAll('[data-fin-cancel]').forEach(b=>b.addEventListener('click',()=>finCancelarLancamento(b.dataset.kind,b.dataset.finCancel)));
