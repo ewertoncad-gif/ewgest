@@ -603,9 +603,10 @@ for(const token of ['ew_perfis','ew_acessorios','ew_materiais_variacoes',
  'async function salvarVariacao(event)']){
   assert.ok(source.includes(token),'Cadastro de materiais deve conter '+token);
 }
-assert.ok(source.includes('Quantidade na obra')&&source.includes('Comprimento da barra')&&
- source.includes('Ajustar quantidade')&&source.includes('Não cadastrada'),
- 'Estoque simplificado mostra barras, comprimento e ajuste de saldo');
+assert.ok(source.includes('Quantidade necessária')&&source.includes('Em estoque')&&
+ source.includes('Comprimento da barra')&&source.includes('Ajustar quantidade')&&
+ source.includes('Quantidade ainda não cadastrada'),
+ 'Estoque atual mostra necessidade, saldo físico, barras e ajuste de quantidade');
 assert.ok(source.includes('async function abrirEstoque()')&&source.includes('async function registrarMovimentoEstoque(e)'),
  'Estoque possui consulta real e movimentação auditável');
 for(const id of ['navMaterials','navStock','navCem','materials','stock','cemImport',
@@ -680,11 +681,11 @@ assert.equal(mapped.acessorios[0].variacoes[0].unidade_prevista,'PC',
  'Unidade de acessórios deve respeitar o CEM');
 assert.ok(source.includes('id="cemExistingNotice"'),'Mostra aviso de obra já cadastrada');
 assert.ok(source.includes('id="cemCommitHint"'),'Explica quando a importação é habilitada');
-assert.ok(source.includes("node('cemFlagEsquadrias').checked=false"),
-  'Desmarca esquadrias automaticamente para obra já existente');
+assert.ok(source.includes("node('cemFlagEsquadrias').checked=!r.obraExistente"),
+  'Seleciona esquadrias somente para obra nova, desmarcando para obra já existente');
 assert.ok(source.includes('async function cemImportarSelecionados()')&&
- source.includes("'/rest/v1/rpc/ew_importar_cem_conciliado'"),
- 'Botão importa somente materiais via transação no servidor');
+ source.includes("nova?'ew_importar_obra_cem_financeiro':'ew_importar_cem_conciliado'"),
+ 'Importação usa RPC transacional diferente para nova obra e obra existente');
 assert.ok(!source.includes('rows.slice(0,6)'), 'Exibe a lista completa de materiais do CEM');
 
 
@@ -1009,15 +1010,15 @@ assert.ok(source.includes('id="userOperationsToggle"')&&
  source.includes('id="userOperationsExport"')&&
  source.includes('function operationReportDisplay()'),
  'Relatório de auditoria por usuários, períodos e obras precisa estar ativo');
-assert.ok(source.includes('id="manageWorksCancelReleases"')&&
+assert.ok(source.includes('data-work-cancel-releases=')&&
  source.includes('id="manageWorksReverseStock"')&&
  source.includes('id="manageWorksCancelShipments"')&&
  source.includes('id="manageWorksGoRomaneios"'),
- 'Gerenciar obras deve mostrar ações de cancelamento e estorno');
-assert.ok(source.includes("'ew_cancelar_liberacoes_obra'")&&
- source.includes("'ew_estornar_estoque_obra'")&&
+ 'Gerenciar obras oferece cancelamento de liberações por obra, saídas e estorno de estoque');
+assert.ok(source.includes("'/rest/v1/rpc/ew_cancelar_liberacoes_obra'")&&
+ source.includes("'/rest/v1/rpc/ew_estornar_estoque_obra'")&&
  source.includes('function executarReversaoObra(tipo)'),
- 'UI deve chamar as duas RPCs de reversão com confirmação');
+ 'UI preserva RPCs de cancelamento de liberação e reversão do estoque');
 for(const term of ['public.ew_auditoria_operacoes','public.obras add column if not exists arquivada_em',
  'public.liberacoes_corte add column if not exists cancelado_em',
  'public.ew_liberacoes_lotes add column if not exists cancelado_em',
@@ -1082,10 +1083,10 @@ assert.ok(source.includes('function stockReversalBalances(obraId)')&&
  source.includes("request('/rest/v1/rpc/ew_estornar_estoque_obra'")&&
  source.includes("request('/rest/v1/rpc/ew_inspecionar_reversao_obra'"),
  'Estornos do estoque requerem saldo, conferência de pendências e RPC auditada');
-assert.ok(source.includes('const ativas=new Set(stockLocais.filter(x=>!x.excluido_em)')&&
- source.includes('stockLocais.map(loc=>')&&
+assert.ok(source.includes('const ativas=new Set(stockLocais.filter(l=>!l.excluido_em)')&&
+ source.includes('root.innerHTML=stockLocais.map(loc=>')&&
  source.includes('stockReverseSelectedWorkId'),
- 'Estoques arquivados ficam só em consulta e reversão, não nas movimentações comuns');
+ 'Estoques arquivados não entram nas movimentações comuns e permanecem consultáveis');
 // Obra com estoque arquivado permanece selecionável exclusivamente para consulta.
 for(const id of ['stockWorkHistory','stockArchivedHint','stockReverseHistoryList','stockReverseHistoryFilter']){
  assert.ok(source.includes('id="'+id+'"'),'Histórico de estoque por obra precisa de '+id);
@@ -1239,9 +1240,9 @@ assert.ok(source.includes('let cemOperacaoId=null,cemAnaliseGeracao=0')&&
  source.includes('currentCompany?.id!==empresaId')&&
  source.includes('if(analise===cemAnaliseGeracao)botao.disabled=false;'),
  'Análises assíncronas antigas não podem ressuscitar uma obra na interface após sair');
-assert.ok(source.includes('A análise do ZIP é apenas uma prévia e não grava uma obra.')&&
- source.includes('Esquadrias (somente conferência)'),
- 'A interface não pode sugerir que a prévia cadastra esquadrias no banco');
+assert.ok(source.includes('Esquadrias e materiais serão cadastrados somente após sua confirmação.')&&
+ source.includes('Esses itens serão cadastrados na nova obra após confirmação, aguardando liberação.'),
+ 'A conferência não pode sugerir cadastro antecipado de esquadrias no banco');
 // v44.3: evitar duplicidade de navegação Gerenciar obras na Tela inicial.
 assert.ok(!source.includes('id="openManageWorks"')&&
  !source.includes("node('openManageWorks')")&&
@@ -1290,9 +1291,9 @@ assert.ok(restored.includes("const raw=sessionStorage.getItem('ewgest_session_v3
  restored.includes("setView('login');")&&
  source.includes("restaurarSessaoSalva().catch(e=>{\\n  // Não manter".replaceAll('\\n','\n')),
  'Sessão ausente ou inválida mostra login; sessão válida abre painel sem flash, erros não travam o carregamento');
-assert.ok(source.includes('EWGEST <strong>· v44.6</strong>')&&
+assert.ok(/EWGEST <strong>· v\d+\.\d+<\/strong>/.test(source)&&
  source.includes('@media(prefers-reduced-motion:reduce){.startupSpinner'),
- 'Indicador de carregamento acessível e versão atualizada');
+ 'Indicador de carregamento acessível e versão presente no rodapé');
 // v44.7: os sete atalhos marcados no cabeçalho devem desaparecer, sem eventos órfãos.
 const obsoleteHeaderButtons=[
  'manageWorksBack','romaneiosBack','usersBack','materialsBack','stockBack',
@@ -1339,7 +1340,7 @@ assert.ok(cemReset.includes("node('matCemArquivo').value=''")&&
 const cemBarStart=source.indexOf('function cemBarrasConferencia(r){');
 const cemBarEnd=source.indexOf('function cemTabelaHTML(tipo){',cemBarStart);
 assert.ok(cemBarStart>0&&cemBarEnd>cemBarStart&&
- source.includes("tipo==='perfil'?'Barras (qtd. × comprimento)':'Linhas de cálculo'")&&
+ source.includes("tipo==='perfil'?'Barras (qtd. × comprimento)':'Quantidades'")&&
  source.includes("cemBarrasConferenciaHTML(barras.get(cemNome(p.codigo)))"),
  'A conferência dos perfis deve mostrar barras e comprimentos, preservando os acessórios');
 const {cemBarrasConferencia,cemBarrasConferenciaHTML}=new Function('cemNome','escapeHTML',
@@ -1368,4 +1369,38 @@ assert.ok(cemBarrasConferenciaHTML(undefined).includes('Não informado no ZIP')&
 assert.ok(source.includes('não são confirmação de estoque físico')&&
  source.includes('OBCALCP é a lista de cortes'),
  'Quantidade do aproveitamento não pode ser confundida com estoque físico ou cortes');
+
+// Orçamento por níveis: o usuário escolhe apenas as linhas pertinentes à obra.
+const budgetScript=readFileSync(fileURLToPath(new URL('../assets/orcamento-niveis.js',import.meta.url)),'utf8');
+const budgetCSS=readFileSync(fileURLToPath(new URL('../assets/orcamento-niveis.css',import.meta.url)),'utf8');
+const budgetMigration=readFileSync(fileURLToPath(new URL(
+ '../supabase/migrations/20261120223000_orcamento_niveis_e_empresas.sql',import.meta.url)),'utf8');
+assert.doesNotThrow(()=>new Function(budgetScript),'Script de orçamento por níveis deve ser sintaticamente válido');
+assert.ok(source.includes('id="cemQuoteRows"')&&source.includes('id="cemQuoteAddRow"')&&
+ source.includes('id="cemQuoteNewLevel"')&&source.includes('id="cemQuoteNewCompany"')&&
+ source.includes('id="cemQuoteSaveCompany"')&&source.includes('id="cemQuoteTotal"'),
+ 'Orçamento por níveis tem seleção e cadastro de níveis e empresas comerciais');
+assert.ok(source.includes('<script src="/assets/orcamento-niveis.js"></script>')&&
+ source.includes('<link rel="stylesheet" href="/assets/orcamento-niveis.css">')&&
+ budgetCSS.includes('.cemBudgetTable'),
+ 'A interface deve carregar a tabela e os arquivos de orçamento por níveis');
+assert.ok(!source.includes('id="cemQuoteAluminio"')&&
+ !source.includes('id="cemQuoteAcessorios"')&&!source.includes('id="cemQuoteVidros"'),
+ 'Nenhum nível tradicional será obrigatório ou criado como campo fixo');
+assert.ok(budgetScript.includes('Próxima etapa')&&
+ budgetScript.includes('adicionarLinha()')&&budgetScript.includes('faturar')&&
+ budgetScript.includes('Math.round(total*100)')&&
+ budgetScript.includes('Os valores dos níveis devem somar exatamente 100% da obra.'),
+ 'Níveis personalizáveis exigem a soma exata dos valores do orçamento');
+for(const tabela of ['ew_niveis_orcamento_catalogo','ew_empresas_faturamento_catalogo','ew_obra_orcamento_niveis']){
+ assert.ok(budgetMigration.includes('CREATE TABLE IF NOT EXISTS public.'+tabela),
+  'Migração SQL deve registrar catálogo de níveis/empresas e composição por obra: '+tabela);
+}
+assert.ok(budgetMigration.includes('ENABLE ROW LEVEL SECURITY')&&
+ budgetMigration.includes('ew_importar_obra_cem_financeiro')&&
+ budgetMigration.includes('v_soma<>v_valor')&&
+ budgetMigration.includes('v_faturar')&&
+ budgetMigration.includes('v_result:=public.ew_importar_obra_cem('),
+ 'Migração precisa garantir isolamento por empresa, soma e importação transacional');
+
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');

@@ -671,6 +671,7 @@
   .stockCemMirrorTable{width:100%;min-width:700px}
 
   </style>
+  <link rel="stylesheet" href="/assets/orcamento-niveis.css">
 </head>
 <body>
 <div class="wrap">
@@ -1166,8 +1167,8 @@
           <div id="cemExistingNotice" class="cemExistingNotice hidden" role="status"></div>
           <div id="cemPreview" class="hidden"></div>
           <div class="cemCommitArea">
-            <button type="button" class="btn primary" id="cemCommit" disabled>Importar dados selecionados</button>
-            <p class="hint" id="cemCommitHint">Analise o ZIP para habilitar a confirmação da importação da obra e dos materiais selecionados.</p>
+            <button type="button" class="btn primary" id="cemCommit" disabled>Próxima etapa</button>
+            <p class="hint" id="cemCommitHint">Analise o ZIP para conferir os dados e avançar aos valores da obra.</p>
           </div>
           <p id="cemImportResult" class="hint" role="status" aria-live="polite"></p>
         </div>
@@ -1476,25 +1477,59 @@
 </div>
 <div id="cemQuoteOverlay" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox finQuoteDialog" role="dialog" aria-modal="true" aria-labelledby="cemQuoteTitle">
-    <h2 id="cemQuoteTitle">Valores e orçamento da nova obra</h2>
-    <p class="hint">Confira os valores comerciais antes de cadastrar a obra. Nenhum dado foi gravado até aqui.</p>
+    <h2 id="cemQuoteTitle">Valores e níveis da nova obra</h2>
+    <p class="hint">Escolha livremente quais níveis compõem esta obra. Alumínio, vidro e componentes não são obrigatórios: em uma obra de ACM ou manutenção, use somente os níveis necessários. Nenhum dado será gravado antes da confirmação final.</p>
     <p id="cemQuoteWork" class="hint"></p>
     <form id="cemQuoteForm">
       <div class="finValuesGrid">
-        <label>Valor total da obra (R$) * <input id="cemQuoteTotal" type="number" min="0.01" step="0.01" required placeholder="183200,00"></label>
-        <label>Alumínio — teto de gastos (R$) * <input id="cemQuoteAluminio" type="number" min="0" step="0.01" required></label>
-        <label>Acessórios — teto de gastos (R$) * <input id="cemQuoteAcessorios" type="number" min="0" step="0.01" required></label>
-        <label>Vidros — teto de gastos (R$) * <input id="cemQuoteVidros" type="number" min="0" step="0.01" required></label>
-        <label>Outros insumos — teto de gastos (R$) * <input id="cemQuoteOutros" type="number" min="0" step="0.01" required></label>
-        <label>Fabricação — receita prevista (R$) * <input id="cemQuoteFabricacao" type="number" min="0" step="0.01" required></label>
-        <label>Instalação — receita prevista (R$) * <input id="cemQuoteInstalacao" type="number" min="0" step="0.01" required></label>
+        <label>Valor total da obra (R$) *
+          <input id="cemQuoteTotal" type="number" min="0.01" step="0.01" required placeholder="Ex.: 183200.00">
+        </label>
       </div>
-      <p class="finSumStatus" id="cemQuoteSoma" aria-live="polite">Informe os valores para conferir a soma.</p>
-      <p class="hint">Faturamento não é gerado pelo romaneio. As notas de materiais serão registradas posteriormente e abatidas dos tetos de gastos.</p>
+      <div class="cemBudgetActions">
+        <strong>Níveis desta obra — escolha somente os que se aplicam</strong>
+        <button id="cemQuoteAddRow" class="btn secondary" type="button">+ Adicionar nível</button>
+      </div>
+      <div class="cemBudgetTableWrap">
+        <table class="cemBudgetTable">
+          <thead><tr><th>Nível</th><th>Valor (R$)</th><th>% da obra</th><th>Empresa</th><th>Faturamento?</th><th>Ações</th></tr></thead>
+          <tbody id="cemQuoteRows"></tbody>
+        </table>
+      </div>
+      <p id="cemQuoteSoma" class="finSumStatus" aria-live="polite">Informe o valor total e adicione níveis para conferir a soma.</p>
+      <div class="cemBudgetTools">
+        <div class="cemBudgetTool">
+          <strong>Cadastrar novo nível</strong>
+          <div class="topactions">
+            <input id="cemQuoteNewLevel" type="text" maxlength="120" placeholder="Nome do nível">
+            <select id="cemQuoteNewGroup" aria-label="Grupo financeiro interno do nível">
+              <option value="outros" selected>Personalizado / outros</option>
+              <option value="aluminio">Alumínio</option>
+              <option value="acessorios">Componentes / acessórios</option>
+              <option value="vidros">Vidros</option>
+              <option value="fabricacao">Fabricação</option>
+              <option value="instalacao">Instalação</option>
+            </select>
+            <button id="cemQuoteSaveLevel" type="button" class="btn secondary">Adicionar</button>
+          </div>
+          <p class="hint">O nome é livre (ex.: ACM, manutenção). O grupo interno mantém os relatórios financeiros antigos compatíveis; para níveis novos, use Personalizado / outros. Essa classificação não determina a flag de faturamento.</p>
+        </div>
+        <div class="cemBudgetTool">
+          <strong>Cadastrar empresa para o nível</strong>
+          <div class="topactions">
+            <input id="cemQuoteNewCompany" type="text" maxlength="120" placeholder="Ex.: Artefal">
+            <button id="cemQuoteSaveCompany" type="button" class="btn secondary">Adicionar</button>
+          </div>
+          <p class="hint">Empresa comercial responsável pelo nível. Não altera o cadastro de empresas usuárias do EWGEST.</p>
+        </div>
+      </div>
+      <p id="cemQuoteCatalogInfo" class="hint">Carregando os cadastros...</p>
+      <p class="hint">Você decide quantos e quais níveis usar, sem categorias obrigatórias. A soma das linhas escolhidas deve ser 100% do valor total. Desmarque “Faturamento?” para níveis destinados somente ao controle de gastos.</p>
+      <p class="hint">A emissão atual por esquadria continua limitada a fabricação e instalação. O faturamento de outros níveis será uma etapa separada e não será liberado automaticamente por este cadastro.</p>
       <p id="cemQuoteError" class="feedback" role="alert"></p>
       <div class="modalbuttons">
         <button id="cemQuoteCancel" class="btn secondary" type="button">Voltar à conferência</button>
-        <button id="cemQuoteSave" class="btn primary" type="submit">Confirmar valores e importar obra</button>
+        <button id="cemQuoteSave" class="btn primary" type="submit" disabled>Conferir valores e importar obra</button>
       </div>
     </form>
   </div>
@@ -6736,7 +6771,7 @@ async function finLoad(){
  node('finMessage').textContent='Consultando orçamento, despesas e faturamentos…';
  try{
   await ensureSession();
-  const [b,c,fat,perfis,aces,roms,variacoes,galpoes]=await Promise.all([
+  const [b,c,fat,perfis,aces,roms,variacoes,galpoes,niveis]=await Promise.all([
    apiGet('ew_obra_orcamento',{select:'*',empresa_id:empresa,obra_id:obra,limit:'1'}),
    apiGet('ew_obra_despesas',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
    apiGet('ew_obra_faturamentos',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
@@ -6744,7 +6779,8 @@ async function finLoad(){
    apiGet('ew_acessorios',{select:'id,codigo,descricao,fabricante,unidade_item,unidade_embalagem,quantidade_por_embalagem',empresa_id:empresa,limit:'5000'}),
    apiGet('romaneios',{select:'id,status,cancelado_em',empresa_id:empresa,obra_id:obra,limit:'3000'}),
    apiGet('ew_materiais_variacoes',{select:'id,perfil_id,acessorio_id,tipo,cor,acabamento',empresa_id:empresa,limit:'10000'}),
-   apiGet('ew_locais_fisicos',{select:'nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'300'})
+   apiGet('ew_locais_fisicos',{select:'nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'300'}),
+   apiGet('ew_obra_orcamento_niveis',{select:'linha,nivel_nome,empresa_faturamento_nome,categoria_base,valor,percentual,faturar',empresa_id:empresa,obra_id:obra,order:'linha.asc',limit:'100'})
   ]);
   if(!b?.length){node('finMessage').textContent='Esta obra ainda não possui orçamento cadastrado. As novas importações agora exigem essa etapa.';return;}
   const invoiceIds=(fat||[]).map(x=>x.id),romaneioIds=(roms||[]).filter(x=>x.status==='emitido'&&!x.cancelado_em).map(x=>x.id);
@@ -6775,7 +6811,7 @@ async function finLoad(){
   finState={obraId,orcamento:b[0],despesas:c||[],faturas:fat||[],linhas:linhas||[],perfis:perfis||[],
    acessorios:aces||[],shipped,billed,pendentes,pendentesItens:pendentesItens||[],
    aprovadas,approvedItems:approvedItems||[],stockReceipts:stockReceipts||[],
-   variacoes:variacoes||[],galpoes:(galpoes||[]).filter(x=>x.ativo).map(x=>x.nome)};
+   variacoes:variacoes||[],galpoes:(galpoes||[]).filter(x=>x.ativo).map(x=>x.nome),orcamentoNiveis:niveis||[]};
   box.classList.remove('hidden');node('finMessage').textContent='';
   node('finExpensePanel').classList.toggle('hidden',!isFullAdminUser());
   node('finBillingPanel').classList.toggle('hidden',!isFullAdminUser());
@@ -6788,12 +6824,25 @@ function finRenderResumo(){
  for(const d of x.despesas)if(d.status==='aprovada')gastos.set(d.categoria,(gastos.get(d.categoria)||0)+Number(d.valor));
  for(const f of x.faturas)if(f.status==='emitido')faturado.set(f.categoria,(faturado.get(f.categoria)||0)+Number(f.valor_total));
  const gastoTotal=[...gastos.values()].reduce((a,b)=>a+b,0),recebTotal=[...faturado.values()].reduce((a,b)=>a+b,0);
- const totalReceita=Number(o.fabricacao)+Number(o.instalacao);
+ const totalReceita=x.orcamentoNiveis.length?
+  x.orcamentoNiveis.filter(n=>n.faturar&&['fabricacao','instalacao'].includes(n.categoria_base))
+    .reduce((sum,n)=>sum+Number(n.valor||0),0):Number(o.fabricacao)+Number(o.instalacao);
  node('finTotals').innerHTML='<span><strong>Valor da obra: '+finMoney(o.valor_total)+'</strong></span>'+
   '<span><strong>Faturado: '+finMoney(recebTotal)+'</strong></span>'+
-  '<span><strong>A faturar: '+finMoney(totalReceita-recebTotal)+'</strong></span>'+
+  '<span><strong>A faturar (fabricação/instalação): '+finMoney(totalReceita-recebTotal)+'</strong></span>'+
   '<span><strong>Gastos registrados: '+finMoney(gastoTotal)+'</strong></span>';
- node('finSummary').innerHTML='<div class="finTableWrap"><table class="finTable"><thead><tr>'+
+ const resumoNiveis=x.orcamentoNiveis.length?
+  '<h3>Níveis e empresas do orçamento</h3>'+
+  '<div class="finTableWrap"><table class="finTable"><thead><tr>'+
+  '<th>Nível</th><th>Empresa</th><th align="right">Valor</th><th align="right">% obra</th><th>Finalidade</th></tr></thead><tbody>'+
+  x.orcamentoNiveis.map(n=>'<tr><td>'+escapeHTML(n.nivel_nome)+'</td><td>'+escapeHTML(n.empresa_faturamento_nome)+
+    '</td><td align="right">'+finMoney(n.valor)+'</td><td align="right">'+
+    Number(n.percentual).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+
+    '%</td><td>'+(n.faturar?'Faturamento':'Somente controle de gastos')+'</td></tr>').join('')+
+  '</tbody></table></div>'+
+  '<p class="hint">Os níveis faturáveis identificam valores previstos. A emissão automática de outros níveis além de fabricação e instalação não está disponível nesta versão.</p>'+
+  '<h3>Grupos financeiros existentes</h3>':'';
+ node('finSummary').innerHTML=resumoNiveis+'<div class="finTableWrap"><table class="finTable"><thead><tr>'+
    '<th>Categoria</th><th>Controle</th><th align="right">Previsto / teto</th><th align="right">Realizado</th><th align="right">Restante</th></tr></thead><tbody>'+
  finCategories.map(([k,label,tipo])=>{
    const total=Number(o[k]),real=tipo==='custo'?(gastos.get(k)||0):(faturado.get(k)||0);
@@ -9247,5 +9296,6 @@ restaurarSessaoSalva().catch(e=>{
 });
 
 </script>
+<script src="/assets/orcamento-niveis.js"></script>
 </body>
 </html>

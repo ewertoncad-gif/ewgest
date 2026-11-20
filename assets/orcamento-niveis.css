@@ -1,0 +1,21 @@
+/* EWGEST — orçamento por níveis, etapa de importação. */
+.finQuoteDialog{width:min(1100px,calc(100vw - 24px));max-height:calc(100vh - 26px);overflow-y:auto}
+.cemBudgetActions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:15px 0 9px}
+.cemBudgetTableWrap{overflow:auto;border:1px solid #d4dfe9;border-radius:10px;background:#fff}
+.cemBudgetTable{width:100%;border-collapse:collapse;min-width:780px}
+.cemBudgetTable th,.cemBudgetTable td{padding:9px 8px;border-bottom:1px solid #e2e9f1;text-align:left;vertical-align:middle}
+.cemBudgetTable th{font-size:12px;background:#e9eff6;color:#25445f;white-space:nowrap}
+.cemBudgetTable td select,.cemBudgetTable td input[type=number],.cemBudgetTable td input[readonly]{width:100%;min-width:0}
+.cemBudgetTable td input[readonly]{background:#f0f4f8;color:#365373}
+.cemBudgetTable td:nth-child(2),.cemBudgetTable td:nth-child(3){min-width:105px}
+.cemBudgetTable td:nth-child(1),.cemBudgetTable td:nth-child(4){min-width:185px}
+.cemBudgetTable td:nth-child(5){text-align:center}
+.cemBudgetTable td:nth-child(5) input{width:20px;height:20px;cursor:pointer}
+.cemBudgetTable .btn{padding:7px 10px}
+.cemBudgetTools{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.cemBudgetTool{border:1px solid #d4dfe9;padding:12px;border-radius:10px;background:#f7f9fc}
+.cemBudgetTool strong{font-size:13px;color:#294c69}
+.cemBudgetTool .topactions{justify-content:flex-start;margin-top:9px}
+.cemBudgetTool input,.cemBudgetTool select{min-width:0;flex:1}
+.cemBudgetTool .btn{white-space:nowrap}
+@media(max-width:760px){.cemBudgetTools{grid-template-columns:1fr}.cemBudgetTool .topactions{flex-wrap:wrap}.cemBudgetTable{min-width:760px}}
