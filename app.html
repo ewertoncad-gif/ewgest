@@ -6183,7 +6183,7 @@ function cemRenderPreview(){
     notice.classList.add('noticeSafe');
     notice.innerHTML='<strong>Obra já cadastrada no EWGEST: '+escapeHTML(r.obraExistente.nome)+
       ' ('+escapeHTML(r.codigo)+')</strong>Para preservar as esquadrias, as liberações e os romaneios, importe apenas perfis e acessórios.'+
-      ' Materiais já cadastrados serão aproveitados sem sobrescrever alterações do ADM.';
+      ' Materiais cadastrados serão preservados. Se algum deles estiver inativo, será reativado para atender à obra.';
   }else{
     notice.classList.remove('noticeSafe');
     notice.innerHTML='<strong>Obra não encontrada no EWGEST: '+escapeHTML(r.codigo)+
@@ -6331,7 +6331,7 @@ async function cemImportarSelecionados(){
     material_id:x.materialId,usar_codigo_cem:x.decisao==='cem'}));
   const message='Confirmar a importação de '+perf.length+' perfis e '+aces.length+
     ' acessórios para '+r.obraExistente.nome+' ('+r.codigo+')?\n\n'+
-    'Os cadastros já existentes serão preservados. Nenhuma esquadria, romaneio, liberação ou saldo físico será modificado.'+
+    'Os dados técnicos dos cadastros existentes serão preservados. Materiais inativos presentes neste CEM serão reativados. Nenhuma esquadria, romaneio, liberação ou saldo físico será modificado.'+
     (a&&r.unidadesNovas?.length?'\n\nUnidades ainda não cadastradas: '+r.unidadesNovas.join(', ')+
       '. Confirme que são unidades válidas do CEM antes de importar.':'');
   if(!window.confirm(message))return;
@@ -6351,6 +6351,7 @@ async function cemImportarSelecionados(){
     result.innerHTML='<div class="cemImportReceipt"><strong>Materiais importados para '+escapeHTML(r.codigo)+'.</strong>'+
       '<p>Perfis novos: '+Number(answer.perfis_novos)+' · já existentes: '+Number(answer.perfis_existentes)+
       '<p>Acessórios novos: '+Number(answer.acessorios_novos)+' · já existentes: '+Number(answer.acessorios_existentes)+
+      '</p><p>Reativados por constarem nesta obra: '+Number(answer.perfis_reativados||0)+' perfis e '+Number(answer.acessorios_reativados||0)+' acessórios.'+
       '</p><p>Novas variações: '+Number(answer.variacoes_novas)+' · vínculos de material/obra: '+
       Number(answer.vinculos_por_obra)+'.</p>'+
       '<p>Esquadrias, liberações, romaneios e estoque físico não foram alterados.</p></div>';
