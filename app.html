@@ -547,10 +547,6 @@
     .cemCandidateHeading{font-weight:700;font-size:12px;color:#365778;margin-bottom:5px}
     .cemCandidateCode{font-size:15px;font-weight:750;color:#143e68;overflow-wrap:anywhere}
     .cemCandidateDesc{font-size:12px;color:#375874;line-height:1.45;overflow-wrap:anywhere}
-    .cemCandidateDescLabel{font-size:11px;color:#56728e;font-weight:650}
-    .cemCandidateDescInput{width:100%;min-width:0;font-size:12px;color:#214564;border:1px solid #aac5e2;border-radius:7px;background:#fff;padding:8px 9px;line-height:1.4}
-    .cemCandidateDescInput:disabled{opacity:1;color:#375874;border-color:transparent;padding:8px 0;background:transparent;cursor:default}
-    .cemCandidateOriginal{font-size:11px;color:#70849c;line-height:1.45;overflow-wrap:anywhere}
     .cemCandidateMeta{font-size:11px;color:#68809c}
     .cemCandidate select{width:100%;max-width:100%;margin-top:5px;font-size:12px}
     .cemCandidateAction select{min-height:42px}
@@ -6164,10 +6160,7 @@ function cemEncontrarConciliacoes(r,perfis,acessorios){
    const candidates=atuais.filter(x=>cemNome(x.fabricante)===cemNome(imp.fabricante)
      &&cemNome(x.codigo)!==cemNome(imp.codigo)&&cemNormalizarDescricao(x.descricao)===normalized
      &&(!x.linha||!imp.linha||cemNome(x.linha)===cemNome(imp.linha)));
-   if(candidates.length)list.push({
-     tipo,imp,candidatos:candidates,materialId:candidates[0].id,decisao:'',
-     descricaoOriginal:imp.descricao
-   });
+   if(candidates.length)list.push({tipo,imp,candidatos:candidates,materialId:candidates[0].id,decisao:''});
   }
  }
  return list;
@@ -6191,12 +6184,7 @@ function cemQuadroConciliacao(){
      return '<div class="cemCandidate" data-cem-candidate="'+i+'">'+
        '<div class="cemCandidateCol"><div class="cemCandidateHeading">'+tipo+' novo</div>'+
        '<strong class="cemCandidateCode">'+escapeHTML(x.imp.codigo)+'</strong>'+
-       '<label class="cemCandidateDescLabel">Descrição para o novo cadastro'+
-       '<input type="text" class="cemCandidateDescInput" maxlength="500" '+
-       'aria-label="Descrição do '+tipo.toLowerCase()+' novo '+escapeHTML(x.imp.codigo)+'" '+
-       'value="'+escapeHTML(x.imp.descricao||'')+'"'+(x.decisao==='separar'?'':' disabled')+'></label>'+
-       '<span class="cemCandidateOriginal'+(x.imp.descricao!==x.descricaoOriginal?'':' hidden')+'">Original: '+
-       escapeHTML(x.descricaoOriginal||'')+'</span>'+
+       '<span class="cemCandidateDesc">'+escapeHTML(x.imp.descricao||'Descrição não informada')+'</span>'+
        '<span class="cemCandidateMeta">Referência: '+escapeHTML(x.imp.fabricante||'Não informada')+
        (x.imp.linha?' · Linha: '+escapeHTML(x.imp.linha):'')+'</span></div>'+
        '<div class="cemCandidateCol"><div class="cemCandidateHeading">'+tipo+' existente no EWGEST</div>'+
@@ -6223,10 +6211,8 @@ function cemAtualizarBotao(){
  const r=cemParsed,esk=node('cemFlagEsquadrias').checked;
  const perf=node('cemFlagPerfis').checked,ace=node('cemFlagAcessorios').checked;
  const pendente=cemDecisoesAtivas().some(x=>!x.decisao);
- const descricaoInvalida=cemDecisoesAtivas().some(x=>x.decisao==='separar'&&
-   (x.imp.descricao.trim().length<2||x.imp.descricao.trim().length>500));
  const nova=Boolean(r&&!r.obraExistente);
- const pode=Boolean(r&&r.comparacaoConcluida&&!r.obraDuplicada&&!r.jaImportado&&!descricaoInvalida
+ const pode=Boolean(r&&r.comparacaoConcluida&&!r.obraDuplicada&&!r.jaImportado
    &&(!perf||r.perfMissing===0)&&(!ace||r.aceMissing===0)&&!pendente&&
    (nova?(esk&&r.esquadriasPayload?.length>0&&r.nomeObra?.trim()&&r.codigo?.trim()):
      (!esk&&(perf||ace))));
@@ -6239,7 +6225,6 @@ function cemAtualizarBotao(){
  else if(r.obraDuplicada)info='Há mais de uma obra com este código. Corrija a duplicidade antes de importar.';
  else if((perf&&r.perfMissing)||(ace&&r.aceMissing))info='Há materiais selecionados sem ficha técnica no ZIP. Confira o arquivo ou desmarque a categoria.';
  else if(pendente)info='Revise as possíveis equivalências de materiais.';
- else if(descricaoInvalida)info='Informe uma descrição válida (2 a 500 caracteres) para cada novo material.';
  else if(nova&&!r.nomeObra?.trim())info='O nome da obra não foi identificado no ZIP. Corrija o arquivo antes de importar.';
  else if(nova&&!esk)info='Marque Esquadrias para cadastrar a nova obra. Materiais são opcionais.';
  else if(!nova&&esk)info='Esta obra já existe. Desmarque Esquadrias para não duplicar seus itens.';
@@ -6489,24 +6474,8 @@ function cemRenderPreview(){
       }
       cemAtualizarBotao();
     });
-    const descricao=row.querySelector('.cemCandidateDescInput');
-    descricao.addEventListener('input',event=>{
-      match.imp.descricao=event.target.value;
-      row.querySelector('.cemCandidateOriginal').classList.toggle(
-        'hidden',match.imp.descricao===match.descricaoOriginal);
-      cemAtualizarBotao();
-    });
-    descricao.addEventListener('blur',()=>{
-      match.imp.descricao=descricao.value.trim();
-      descricao.value=match.imp.descricao;
-      row.querySelector('.cemCandidateOriginal').classList.toggle(
-        'hidden',match.imp.descricao===match.descricaoOriginal);
-      cemAtualizarBotao();
-    });
     row.querySelector('.cemCandidateDecision').addEventListener('change',event=>{
-      match.decisao=event.target.value;
-      descricao.disabled=match.decisao!=='separar';
-      cemAtualizarBotao();
+      match.decisao=event.target.value;cemAtualizarBotao();
     });
   });
   cemAtualizarBotao();
@@ -6663,10 +6632,6 @@ async function cemImportarSelecionados(){
  const nova=!r.obraExistente,perf=p?r.materiaisPayload.perfis:[],aces=a?r.materiaisPayload.acessorios:[];
  const decisions=cemDecisoesAtivas();
  if(decisions.some(x=>!x.decisao)){result.textContent='Resolva primeiro os cadastros equivalentes.';return;}
- if(decisions.some(x=>x.decisao==='separar'&&
-    (x.imp.descricao.trim().length<2||x.imp.descricao.trim().length>500))){
-   result.textContent='Corrija as descrições dos materiais novos antes da importação.';return;
- }
  const decisoes=decisions.filter(x=>x.decisao!=='separar').map(x=>({
    tipo:x.tipo,codigo_cem:x.imp.codigo,fabricante:x.imp.fabricante,
    material_id:x.materialId,usar_codigo_cem:x.decisao==='cem'}));
