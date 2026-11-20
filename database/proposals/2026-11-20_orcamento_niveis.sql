@@ -139,9 +139,10 @@ BEGIN
    v_nivel:=upper(btrim(coalesce(v_linha->>'nivel','')));
    v_empresa_faturamento:=upper(btrim(coalesce(v_linha->>'empresa_faturamento','')));
    v_base:=v_linha->>'categoria_base';
-   IF char_length(v_nivel) NOT BETWEEN 2 AND 120 OR
+   IF jsonb_typeof(v_linha) IS DISTINCT FROM 'object' OR
+      char_length(v_nivel) NOT BETWEEN 2 AND 120 OR
       char_length(v_empresa_faturamento) NOT BETWEEN 2 AND 120 OR
-      v_base NOT IN ('aluminio','acessorios','vidros','outros','fabricacao','instalacao') OR
+      v_base IS NULL OR v_base NOT IN ('aluminio','acessorios','vidros','outros','fabricacao','instalacao') OR
       jsonb_typeof(v_linha->'valor') IS DISTINCT FROM 'number' OR
       jsonb_typeof(v_linha->'faturar') IS DISTINCT FROM 'boolean'
    THEN RAISE EXCEPTION 'Nível ou empresa inválidos na linha %.',v_indice; END IF;
@@ -233,6 +234,46 @@ BEGIN
     'orcamento_gravado',true,'valor_total',v_valor,'niveis_gravados',v_indice);
 END;
 $function$;
+
+-- Regra de proteção: novos orçamentos não podem faturar fabricação ou
+-- instalação acima da parcela desses grupos marcada como "faturar".
+-- A RPC existente já bloqueia faturamento acima do total do grupo e
+-- serializa operações no orçamento; esta checagem acrescenta a flag.
+CREATE OR REPLACE FUNCTION public.ew_validar_faturamento_orcamento_niveis()
+RETURNS trigger LANGUAGE plpgsql SET search_path TO ''
+AS $function$
+DECLARE
+ v_limite numeric(14,2);
+ v_realizado numeric(14,2);
+BEGIN
+ IF NEW.status IS DISTINCT FROM 'emitido' OR
+    NEW.categoria NOT IN ('fabricacao','instalacao') THEN
+   RETURN NEW;
+ END IF;
+ IF NOT EXISTS (
+  SELECT 1 FROM public.ew_obra_orcamento_niveis n
+  WHERE n.empresa_id=NEW.empresa_id AND n.obra_id=NEW.obra_id
+ ) THEN
+  RETURN NEW; -- Orçamentos antigos continuam no fluxo legado.
+ END IF;
+ SELECT COALESCE(sum(n.valor),0) INTO v_limite
+ FROM public.ew_obra_orcamento_niveis n
+ WHERE n.empresa_id=NEW.empresa_id AND n.obra_id=NEW.obra_id
+   AND n.categoria_base=NEW.categoria AND n.faturar=true;
+ SELECT COALESCE(sum(f.valor_total),0) INTO v_realizado
+ FROM public.ew_obra_faturamentos f
+ WHERE f.empresa_id=NEW.empresa_id AND f.obra_id=NEW.obra_id
+   AND f.categoria=NEW.categoria AND f.status='emitido';
+ IF v_realizado+NEW.valor_total>v_limite THEN
+  RAISE EXCEPTION 'Faturamento superior ao saldo dos níveis autorizados: %',NEW.categoria;
+ END IF;
+ RETURN NEW;
+END;
+$function$;
+DROP TRIGGER IF EXISTS ew_faturamentos_validar_niveis ON public.ew_obra_faturamentos;
+CREATE TRIGGER ew_faturamentos_validar_niveis
+ BEFORE INSERT ON public.ew_obra_faturamentos
+ FOR EACH ROW EXECUTE FUNCTION public.ew_validar_faturamento_orcamento_niveis();
 
 -- ATENÇÃO (etapa posterior): o faturamento atual da obra registra somente
 -- fabricação e instalação, por esquadria. NÃO liberar faturamento por outros
