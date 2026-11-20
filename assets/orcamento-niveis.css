@@ -19,3 +19,16 @@
 .cemBudgetTool input,.cemBudgetTool select{min-width:0;flex:1}
 .cemBudgetTool .btn{white-space:nowrap}
 @media(max-width:760px){.cemBudgetTools{grid-template-columns:1fr}.cemBudgetTool .topactions{flex-wrap:wrap}.cemBudgetTable{min-width:760px}}
+
+/* Campos monetários: valores alinhados como em sistemas financeiros brasileiros. */
+#cemQuoteTotal,
+.cemBudgetTable input[data-budget-field="valor"]{
+ text-align:right;
+ font-variant-numeric:tabular-nums;
+ font-weight:650;
+ letter-spacing:.01em;
+ font-feature-settings:"tnum";
+}
+#cemQuoteTotal{font-size:16px}
+.cemBudgetTable input[data-budget-field="valor"]{min-width:135px}
+.cemBudgetTable td:nth-child(2){min-width:145px}
