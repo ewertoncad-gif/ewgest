@@ -6229,7 +6229,7 @@ function cemRenderPreview(){
   }else{
     notice.classList.remove('noticeSafe');
     notice.classList.add('noticeSafe');
-    notice.innerHTML='<strong>Nova obra identificada no CEM: '+escapeHTML(r.nomeObra||r.codigo)+
+    notice.innerHTML='<strong>Nova obra identificada: '+escapeHTML(r.nomeObra||r.codigo)+
       '</strong>Ao confirmar, a obra, suas esquadrias e os materiais selecionados serão cadastrados no EWGEST. Esta análise não grava dados.';
   }
   const summary='<div class="cemPreviewSection"><h3>Resumo do arquivo técnico</h3>'+
