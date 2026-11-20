@@ -672,6 +672,7 @@
 
   </style>
   <link rel="stylesheet" href="/assets/orcamento-niveis.css?v=20261120c">
+  <link rel="stylesheet" href="/assets/recebimento-manual.css?v=20261120a">
 </head>
 <body>
 <div class="wrap">
@@ -776,27 +777,49 @@
           <div class="finInfo" id="finTotals"></div>
           <div id="finSummary"></div>
           <div class="section panel" id="finExpensePanel">
-            <h2>Registrar gastos por nota fiscal</h2>
-            <p class="hint">Alumínio e acessórios atualizam o histórico de preços reais dos materiais vinculados. Vidros e outros insumos abatem seus próprios tetos. A nota não movimenta estoque físico.</p>
+            <h2>Entrada manual de materiais e notas</h2>
+            <p class="hint">Selecione o material, a cor ou variação, a quantidade física e o galpão. Ao confirmar, o EWGEST registra a nota e dá entrada no estoque da obra na mesma operação. Não é necessário enviar XML.</p>
             <form id="finExpenseForm">
               <div class="finFormRows">
-                <label>Categoria
+                <label>Categoria *
                   <select id="finCostCategory" required>
-                    <option value="aluminio">Alumínio</option><option value="acessorios">Acessórios</option>
-                    <option value="vidros">Vidros</option><option value="outros">Outros insumos</option>
+                    <option value="aluminio">Alumínio — perfis</option>
+                    <option value="acessorios">Componentes — acessórios</option>
+                    <option value="vidros">Vidros — somente despesa</option>
+                    <option value="outros">Outros insumos — somente despesa</option>
                   </select>
                 </label>
-                <label>XML da nota fiscal (NF-e)
-                  <input type="file" id="finCostXML" accept=".xml,text/xml,application/xml">
+                <label>Valor total da nota (R$) *
+                  <input id="finCostTotal" type="text" inputmode="decimal" autocomplete="off" placeholder="R$ 0,00" required>
                 </label>
-                <label>Valor do gasto (R$) * <input id="finCostTotal" type="number" min="0.01" step="0.01" required></label>
                 <label>Fornecedor <input id="finCostVendor" maxlength="240"></label>
-                <label>Número da nota/documento <input id="finCostNumber" maxlength="100"></label>
+                <label>Número da nota/documento *
+                  <input id="finCostNumber" required maxlength="100">
+                </label>
                 <label>Data <input id="finCostDate" type="date"></label>
+                <label id="finManualLocalLabel">Galpão que recebe os materiais *
+                  <select id="finManualLocal"><option value="">Selecione o galpão</option></select>
+                </label>
               </div>
+              <input type="file" id="finCostXML" class="hidden" disabled aria-hidden="true" tabindex="-1">
               <div id="finXmlPreview" class="hidden"></div>
+              <div id="finManualStockBlock">
+                <div class="cemBudgetActions">
+                  <strong>Materiais recebidos</strong>
+                  <button id="finManualAdd" class="btn secondary" type="button">+ Adicionar material</button>
+                </div>
+                <p class="hint">Cadastre uma linha por perfil/acessório e sua variação. Perfis exigem comprimento da barra. Para notas com mais de um material, informe o subtotal de cada item: a soma deve conferir com o valor da nota.</p>
+                <div class="finTableWrap"><table class="finTable finManualTable">
+                  <thead><tr><th>Material</th><th>Cor / variação</th><th>Comprimento (mm)</th><th>Qtd. física</th><th>Unidade</th><th>Valor do item (R$)</th><th>Ação</th></tr></thead>
+                  <tbody id="finManualRows"></tbody>
+                </table></div>
+                <p class="finSumStatus" id="finManualSum" aria-live="polite"></p>
+              </div>
+              <p id="finManualHint" class="hint"></p>
               <label>Observações <textarea id="finCostNotes" maxlength="1000" rows="2"></textarea></label>
-              <div class="topactions" style="margin-top:12px"><button type="submit" class="btn primary" id="finCostSubmit">Registrar despesa</button></div>
+              <div class="topactions" style="margin-top:12px">
+                <button type="submit" class="btn primary" id="finCostSubmit">Registrar nota e entrada no estoque</button>
+              </div>
             </form>
             <p id="finCostMessage" class="feedback" role="status"></p>
           </div>
@@ -6778,7 +6801,7 @@ async function finLoad(){
    apiGet('ew_perfis',{select:'id,codigo,descricao,fabricante',empresa_id:empresa,limit:'5000'}),
    apiGet('ew_acessorios',{select:'id,codigo,descricao,fabricante,unidade_item,unidade_embalagem,quantidade_por_embalagem',empresa_id:empresa,limit:'5000'}),
    apiGet('romaneios',{select:'id,status,cancelado_em',empresa_id:empresa,obra_id:obra,limit:'3000'}),
-   apiGet('ew_materiais_variacoes',{select:'id,perfil_id,acessorio_id,tipo,cor,acabamento',empresa_id:empresa,limit:'10000'}),
+   apiGet('ew_materiais_variacoes',{select:'id,perfil_id,acessorio_id,tipo,cor,acabamento,ativo',empresa_id:empresa,limit:'10000'}),
    apiGet('ew_locais_fisicos',{select:'nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'300'}),
    apiGet('ew_obra_orcamento_niveis',{select:'linha,nivel_nome,empresa_faturamento_nome,categoria_base,valor,percentual,faturar',empresa_id:empresa,obra_id:obra,order:'linha.asc',limit:'100'})
   ]);
@@ -7070,6 +7093,9 @@ async function finConfirmarRecebimento(row){
 
 function finRenderHistorico(){
  const x=finState;
+ const despesasComEstoque=new Set(
+  x.approvedItems.filter(i=>x.stockReceipts.some(r=>r.despesa_item_id===i.id))
+   .map(i=>i.despesa_id));
  const rows=[
  ...x.despesas.map(d=>({id:d.id,kind:'despesa',date:d.data_documento||d.criado_em?.slice(0,10)||'',grupo:'Despesa',tipo:d.categoria,
  doc:d.numero_documento||'—',valor:d.valor,status:d.status,desc:d.fornecedor||''})),
@@ -7083,7 +7109,9 @@ function finRenderHistorico(){
  (r.desc?' · '+escapeHTML(r.desc):'')+'</td><td align="right">'+finMoney(r.valor)+
  '</td><td>'+escapeHTML(r.status)+'</td><td>'+
  (isFullAdminUser()&&(r.kind==='faturamento'?r.status==='emitido':r.status==='aprovada')?
-   '<button class="btn secondary" type="button" data-fin-cancel="'+escapeHTML(r.id)+'" data-kind="'+r.kind+'">Cancelar com motivo</button>':'')+
+   (r.kind==='despesa'&&despesasComEstoque.has(r.id)?
+    '<span class="hint">Entrada física vinculada — exige estorno</span>':
+    '<button class="btn secondary" type="button" data-fin-cancel="'+escapeHTML(r.id)+'" data-kind="'+r.kind+'">Cancelar com motivo</button>'):'')+
  '</td></tr>').join('')+'</tbody></table></div>':
  '<p class="hint">Ainda não há notas de despesas nem documentos de faturamento registrados.</p>';
  node('finHistory').querySelectorAll('[data-fin-cancel]').forEach(b=>b.addEventListener('click',()=>finCancelarLancamento(b.dataset.kind,b.dataset.finCancel)));
@@ -9297,5 +9325,6 @@ restaurarSessaoSalva().catch(e=>{
 
 </script>
 <script src="/assets/orcamento-niveis.js?v=20261120c"></script>
+<script src="/assets/recebimento-manual.js?v=20261120a"></script>
 </body>
 </html>
