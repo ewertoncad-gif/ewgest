@@ -1083,10 +1083,10 @@ assert.ok(source.includes('function stockReversalBalances(obraId)')&&
  source.includes("request('/rest/v1/rpc/ew_estornar_estoque_obra'")&&
  source.includes("request('/rest/v1/rpc/ew_inspecionar_reversao_obra'"),
  'Estornos do estoque requerem saldo, conferência de pendências e RPC auditada');
-assert.ok(source.includes('const ativas=new Set(stockLocais.filter(x=>!x.excluido_em)')&&
- source.includes('stockLocais.map(loc=>')&&
+assert.ok(source.includes('const ativas=new Set(stockLocais.filter(l=>!l.excluido_em)')&&
+ source.includes('root.innerHTML=stockLocais.map(loc=>')&&
  source.includes('stockReverseSelectedWorkId'),
- 'Estoques arquivados ficam só em consulta e reversão, não nas movimentações comuns');
+ 'Estoques arquivados não entram nas movimentações comuns e permanecem consultáveis');
 // Obra com estoque arquivado permanece selecionável exclusivamente para consulta.
 for(const id of ['stockWorkHistory','stockArchivedHint','stockReverseHistoryList','stockReverseHistoryFilter']){
  assert.ok(source.includes('id="'+id+'"'),'Histórico de estoque por obra precisa de '+id);
