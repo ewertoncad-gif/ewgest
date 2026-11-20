@@ -6728,6 +6728,190 @@ function finAtualizarSomaFatura(){
  node('finBillingSum').textContent='Selecionados: '+count+' · Valor calculado: '+finMoney(sum);
 }
 
+
+function finXMLValor(parent,tag){
+ return parent?.getElementsByTagNameNS('*',tag)?.[0]?.textContent?.trim()||'';
+}
+function finLerNfe(xml){
+ const dom=new DOMParser().parseFromString(xml,'application/xml');
+ if(dom.getElementsByTagName('parsererror').length)throw new Error('XML inválido.');
+ const nfe=dom.getElementsByTagNameNS('*','infNFe')[0];
+ if(!nfe)throw new Error('Este arquivo não parece uma NF-e com dados de produtos.');
+ const chave=(nfe.getAttribute('Id')||'').replace(/^NFe/i,'');
+ if(!/^[0-9]{44}$/.test(chave))throw new Error('NF-e sem chave válida de 44 dígitos.');
+ const ide=nfe.getElementsByTagNameNS('*','ide')[0],
+ emit=nfe.getElementsByTagNameNS('*','emit')[0],
+ total=nfe.getElementsByTagNameNS('*','ICMSTot')[0];
+ const numero=finXMLValor(ide,'nNF'),fornecedor=finXMLValor(emit,'xNome');
+ const data=(finXMLValor(ide,'dhEmi')||finXMLValor(ide,'dEmi')).slice(0,10);
+ const valor=Number(finXMLValor(total,'vNF'));
+ if(!numero||!fornecedor||!Number.isFinite(valor)||valor<=0||valor>1e11)
+  throw new Error('Número, fornecedor ou valor total da NF-e não identificado.');
+ const dets=[...nfe.getElementsByTagNameNS('*','det')];
+ if(dets.length>500)throw new Error('A nota tem itens demais para este lançamento.');
+ const itens=dets.map(det=>{
+  const prod=det.getElementsByTagNameNS('*','prod')[0];
+  const qtd=Number(finXMLValor(prod,'qCom')),unit=Number(finXMLValor(prod,'vUnCom'));
+  const vProd=Number(finXMLValor(prod,'vProd'));
+  const codigo=finXMLValor(prod,'cProd'),descricao=finXMLValor(prod,'xProd');
+  const unidade=finXMLValor(prod,'uCom');
+  if(!prod||!Number.isFinite(qtd)||qtd<=0||!Number.isFinite(unit)||unit<0||
+    !Number.isFinite(vProd)||vProd<0)throw new Error('Produto com preço ou quantidade inválida na NF-e.');
+  return {codigo,descricao,unidade,quantidade:qtd,valor_unitario:unit,valor_total:vProd};
+ });
+ return {chave,numero,fornecedor,data,valor,itens};
+}
+function finDesenharXML(){
+ const box=node('finXmlPreview'),doc=finXmlDoc;
+ if(!doc){box.classList.add('hidden');box.innerHTML='';return;}
+ box.classList.remove('hidden');
+ const categoria=node('finCostCategory').value;
+ const mats=categoria==='aluminio'?finState?.perfis:categoria==='acessorios'?finState?.acessorios:[];
+ const col=categoria==='aluminio'?'perfil':'acessorio';
+ const options=doc.itens.map((item,i)=>{
+  const candidates=(mats||[]).filter(m=>String(m.codigo||'').toUpperCase()===String(item.codigo||'').toUpperCase());
+  const detected=candidates.length===1?candidates[0].id:'';
+  const opts=(mats||[]).map(m=>
+   '<option value="'+escapeHTML(m.id)+'"'+(detected===m.id?' selected':'')+'>'+
+    escapeHTML(m.codigo+' — '+m.descricao)+'</option>').join('');
+  return '<tr><td>'+escapeHTML(item.codigo)+'</td><td>'+escapeHTML(item.descricao)+'</td>'+
+   '<td>'+item.quantidade+' '+escapeHTML(item.unidade)+'</td><td>'+finMoney(item.valor_unitario)+'</td>'+
+   '<td>'+finMoney(item.valor_total)+'</td><td>'+(mats?.length?
+    '<select class="finCostMap" data-index="'+i+'" data-type="'+col+'">'+
+    '<option value="">Sem vínculo com catálogo</option>'+opts+'</select>':
+    '<span class="hint">Sem catálogo nesta categoria</span>')+'</td></tr>';
+ });
+ box.innerHTML='<p class="hint">NF-e '+escapeHTML(doc.numero)+' · '+escapeHTML(doc.fornecedor)+
+  ' · Total: '+finMoney(doc.valor)+
+  '. Os códigos dos fornecedores podem diferir do CEM: confirme a correspondência antes de associar preços reais ao catálogo. '+
+  'Esta versão atribui a nota integralmente à obra selecionada, sem rateio entre obras.</p>'+
+  (doc.itens.length?'<div class="finTableWrap"><table class="finTable"><thead><tr>'+
+  '<th>Código NF-e</th><th>Descrição</th><th>Quantidade</th><th>Preço unitário</th>'+
+  '<th>Total</th><th>Material no EWGEST</th></tr></thead><tbody>'+options.join('')+'</tbody></table></div>':
+  '<p class="hint">Nenhum item detalhado.</p>');
+}
+async function finXMLSelecionar(){
+ const file=node('finCostXML').files?.[0];
+ finXmlDoc=null;finDesenharXML();
+ if(!file)return;
+ try{
+  if(!/\.xml$/i.test(file.name)||file.size>6*1024*1024)throw new Error('Selecione uma NF-e XML de até 6 MB.');
+  const txt=await file.text();
+  finXmlDoc=finLerNfe(txt);
+  node('finCostTotal').value=finXmlDoc.valor.toFixed(2);
+  node('finCostTotal').readOnly=true;
+  node('finCostVendor').value=finXmlDoc.fornecedor;
+  node('finCostNumber').value=finXmlDoc.numero;
+  node('finCostDate').value=finXmlDoc.data;
+  node('finCostMessage').textContent='XML lido para conferência. Nada foi registrado ainda.';
+  finDesenharXML();
+ }catch(e){
+  node('finCostMessage').textContent='Arquivo rejeitado: '+e.message;
+  node('finCostXML').value='';
+  node('finCostTotal').readOnly=false;
+ }
+}
+async function finRegistrarCusto(event){
+ event.preventDefault();if(!finState||!isFullAdminUser())return;
+ const btn=node('finCostSubmit');
+ const val=Number(node('finCostTotal').value),cat=node('finCostCategory').value;
+ if(!Number.isFinite(val)||val<=0||Math.abs(val*100-Math.round(val*100))>0.00001){
+  node('finCostMessage').textContent='Informe um valor com até duas casas decimais.';return;
+ }
+ if(node('finCostXML').files?.length&&!finXmlDoc){
+  node('finCostMessage').textContent='Confirme a leitura correta do XML.';return;
+ }
+ if(finXmlDoc&&Math.round(val*100)!==Math.round(finXmlDoc.valor*100)){
+  node('finCostMessage').textContent='O valor do lançamento deve ser igual ao total da NF-e.';return;
+ }
+ const itens=finXmlDoc?finXmlDoc.itens.map((row,i)=>{
+  const select=node('finXmlPreview').querySelector('[data-index="'+i+'"]');
+  const extra=select?.value?
+   (cat==='aluminio'?{perfil_id:select.value}:{acessorio_id:select.value}):{};
+  return {...row,...extra};
+ }):[];
+ const diff=Number(finState.orcamento[cat])-
+  finState.despesas.filter(d=>d.status==='aprovada'&&d.categoria===cat)
+    .reduce((a,d)=>a+Number(d.valor),0)-val;
+ if(diff<0&&!window.confirm('Esta despesa ultrapassará o teto previsto de '+finMoney(finState.orcamento[cat])+
+  '. O saldo ficará negativo. Deseja registrar mesmo assim?'))return;
+ if(!window.confirm('Registrar '+finMoney(val)+' de gastos em '+finCategories.find(x=>x[0]===cat)?.[1]+
+   ' para esta obra? O saldo físico do estoque não será alterado.'))return;
+ finCostOpId ||= crypto.randomUUID();btn.disabled=true;
+ node('finCostMessage').textContent='Registrando despesa e histórico de preços…';
+ try{
+  await ensureSession();
+  const data=await request('/rest/v1/rpc/ew_registrar_despesa_financeira',{
+   method:'POST',token:session.access_token,timeoutMs:90000,
+   body:{p_empresa_id:currentCompany.id,p_obra_id:finState.obraId,p_categoria:cat,
+    p_valor:val,p_fornecedor:node('finCostVendor').value.trim(),
+    p_numero_documento:node('finCostNumber').value.trim(),p_data_documento:node('finCostDate').value||null,
+    p_origem:finXmlDoc?'nfe_xml':'manual',p_chave_nfe:finXmlDoc?.chave||null,
+    p_itens:itens,p_observacoes:node('finCostNotes').value.trim(),p_operacao_id:finCostOpId}
+  });
+  finCostOpId=null;node('finExpenseForm').reset();node('finCostTotal').readOnly=false;
+  finXmlDoc=null;finDesenharXML();
+  await finLoad();
+  node('finCostMessage').textContent='Despesa registrada: '+finMoney(val)+'.';
+ }catch(e){node('finCostMessage').textContent='Erro ao registrar despesa: '+e.message;}
+ finally{btn.disabled=false;}
+}
+async function finRegistrarFaturamento(event){
+ event.preventDefault();if(!finState||!isFullAdminUser())return;
+ const tipo=node('finBillingCategory').value,doc=node('finBillingDoc').value.trim();
+ const date=node('finBillingDate').value;
+ const itens=[];
+ for(const row of node('finBillingRows').querySelectorAll('.finInvoiceRow')){
+  if(!row.querySelector('.finSelected').checked)continue;
+  const qtd=Number(row.querySelector('.finQty').value),preco=Number(row.querySelector('.finPrice').value);
+  if(!Number.isSafeInteger(qtd)||qtd<1||qtd>Number(row.dataset.max)||
+     !Number.isFinite(preco)||preco<=0||Math.abs(preco*10000-Math.round(preco*10000))>0.00001){
+   node('finBillingMessage').textContent='Verifique as quantidades e os valores unitários dos itens marcados.';return;
+  }
+  itens.push({esquadria_id:row.dataset.esq,quantidade:qtd,valor_unitario:preco});
+ }
+ if(!itens.length||!doc||!date){
+  node('finBillingMessage').textContent='Escolha ao menos uma esquadria, informe o documento e a data.';return;
+ }
+ const instalado=node('finInstalledConfirm').checked;
+ if(tipo==='instalacao'&&!instalado){
+  node('finBillingMessage').textContent='Confirme que a instalação dos itens selecionados foi realizada.';return;
+ }
+ const value=itens.reduce((a,x)=>a+Math.round(x.quantidade*x.valor_unitario*100),0)/100;
+ const billed=finState.faturas.filter(f=>f.status==='emitido'&&f.categoria===tipo)
+  .reduce((v,f)=>v+Number(f.valor_total),0);
+ if(billed+value>Number(finState.orcamento[tipo])+0.00001){
+  node('finBillingMessage').textContent='O faturamento ultrapassa o valor contratado para '+tipo+'. Valor restante: '+
+    finMoney(Number(finState.orcamento[tipo])-billed);return;
+ }
+ if(!window.confirm('Registrar '+finMoney(value)+' em faturamento de '+tipo+' para '+itens.length+
+  ' item(ns)?\n\nDocumento: '+doc+
+  '\nO registro é independente do romaneio e da outra categoria.'))return;
+ const btn=node('finBillingSubmit');finBillingOpId ||= crypto.randomUUID();btn.disabled=true;
+ node('finBillingMessage').textContent='Registrando faturamento…';
+ try{
+  await ensureSession();
+  const data=await request('/rest/v1/rpc/ew_registrar_faturamento_financeiro',{
+   method:'POST',token:session.access_token,timeoutMs:90000,
+   body:{p_empresa_id:currentCompany.id,p_obra_id:finState.obraId,
+    p_categoria:tipo,p_data_faturamento:date,p_numero_documento:doc,
+    p_observacoes:node('finBillingNotes').value.trim(),p_itens:itens,
+    p_operacao_id:finBillingOpId,p_instalacao_confirmada:tipo==='instalacao'?instalado:false}
+  });
+  finBillingOpId=null;node('finBillingForm').reset();node('finBillingCategory').value=tipo;
+  await finLoad();node('finBillingMessage').textContent='Faturamento registrado: '+finMoney(value)+'.';
+ }catch(e){node('finBillingMessage').textContent='Erro ao faturar: '+e.message;}
+ finally{btn.disabled=false;}
+}
+node('navFinanceiro').addEventListener('click',()=>abrirFinanceiro());
+node('finWork').addEventListener('change',()=>{finCostOpId=null;finBillingOpId=null;finLoad();});
+node('finRefresh').addEventListener('click',finLoad);
+node('finBillingCategory').addEventListener('change',finRenderFaturaveis);
+node('finBillingForm').addEventListener('submit',finRegistrarFaturamento);
+node('finCostCategory').addEventListener('change',finDesenharXML);
+node('finCostXML').addEventListener('change',finXMLSelecionar);
+node('finExpenseForm').addEventListener('submit',finRegistrarCusto);
+
 node('matNovoHeader').addEventListener('click',()=>abrirEdicaoMaterial());
 node('matNovo').addEventListener('click',()=>abrirEdicaoMaterial());
 node('matTabPerfil').addEventListener('click',()=>matSelecionarTipo('perfil'));
