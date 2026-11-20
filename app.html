@@ -482,6 +482,11 @@
     .cemBarEntry strong{color:#174879}
     .cemBarEntry small{font-size:11px;color:#68839e;white-space:normal}
     .cemBarMissing{font-size:12px;color:#856221}
+    .cemAccessoryQuantities{min-width:162px;line-height:1.4}
+    .cemAccessoryQtyRow{display:grid;grid-template-columns:75px minmax(0,1fr);gap:7px;padding:2px 0;align-items:baseline}
+    .cemAccessoryQtyRow>span:first-child{font-size:10px;color:#68839e;white-space:nowrap}
+    .cemAccessoryQtyRow strong{color:#174879;font-size:12px}
+    .cemAccessoryEquiv{font-size:11px;color:#45627f}
     .cemImportReceipt{padding:14px 16px;margin:12px 0;background:#edf8f1;border-radius:10px;border:1px solid #b2dbc1;color:#1d6240}
 
 
@@ -5965,41 +5970,70 @@ function cemBarrasConferenciaHTML(grupo){
 }
 
 function cemAcessoriosConferencia(r){
-  // OBACES contém os totais da obra. Não confundir registros OBCALCA com unidades.
+  // OBCALCA.QTDE = necessidade líquida do cálculo. OBACES.QTDE = quantidade solicitada
+  // pelo CEM na unidade comercial; OBACES.EMBALAGEM = unidades por embalagem.
   if(r.acessoriosConferenciaCache)return r.acessoriosConferenciaCache;
   const porCodigo=new Map();
+  const catalogo=new Map((r.acesCatalog||[]).map(x=>[cemNome(x.CODACES),x]));
+  const grupoDe=(codigo)=>{
+    if(!porCodigo.has(codigo))porCodigo.set(codigo,{
+      liquidas:new Map(),solicitacoes:new Map(),equivalencias:new Map(),invalidos:0
+    });
+    return porCodigo.get(codigo);
+  };
+  const somar=(map,chave,quantidade)=>{
+    map.set(chave,Number(((map.get(chave)||0)+quantidade).toFixed(3)));
+  };
+  const valida=(n)=>Number.isFinite(n)&&n>=0&&n<=1e7&&
+    Math.abs(n*1000-Math.round(n*1000))<0.00001;
+  // Dados dos cálculos individuais: quantas unidades a obra efetivamente utilizará.
+  for(const row of r.aceMovs||[]){
+    const codigo=cemNome(row.CODACES);
+    if(!codigo)continue;
+    const grupo=grupoDe(codigo),quantidade=Number(row.QTDE);
+    if(!valida(quantidade)){grupo.invalidos++;continue;}
+    const unidade=cemNome(row.UNID||catalogo.get(codigo)?.UNID)||'UN';
+    somar(grupo.liquidas,unidade,quantidade);
+  }
+  // Dados consolidados da solicitação: quantidade de pacotes/peças e equivalência.
   for(const row of r.acessoriosObra||[]){
     const codigo=cemNome(row.CODACES);
     if(!codigo)continue;
-    if(!porCodigo.has(codigo))porCodigo.set(codigo,{cores:new Map(),invalidos:0});
-    const grupo=porCodigo.get(codigo);
-    const embalagens=Number(row.QTDE),embalagem=Number(row.EMBALAGEM??0);
+    const grupo=grupoDe(codigo),cadastro=catalogo.get(codigo);
+    const quantidade=Number(row.QTDE),embalagem=Number(row.EMBALAGEM??0);
     const fator=embalagem>1?embalagem:1;
-    const quantidade=Number((embalagens*fator).toFixed(3));
-    if(!Number.isFinite(embalagens)||embalagens<=0||embalagens>1e7||
-       Math.abs(embalagens*1000-Math.round(embalagens*1000))>0.00001||
-       !Number.isFinite(embalagem)||embalagem<0||embalagem>1e6||
-       !Number.isFinite(quantidade)||quantidade<=0||quantidade>1e7){
-      grupo.invalidos++;
-      continue;
+    if(!valida(quantidade)||quantidade===0||!Number.isFinite(embalagem)||
+       embalagem<0||embalagem>1e6||!valida(quantidade*fator)){
+      grupo.invalidos++;continue;
     }
-    const cor=cemNome(row.PRENATA)||'NÃO INFORMADA';
-    grupo.cores.set(cor,Number(((grupo.cores.get(cor)||0)+quantidade).toFixed(3)));
+    const unidadeBase=cemNome(cadastro?.UNID||row.UNID)||'UN';
+    const unidadeComercial=fator>1?
+      (cemNome(row.UNID_EMB||cadastro?.UNID_EMB)||'EMB'):
+      (cemNome(row.UNID||cadastro?.UNID)||'UN');
+    somar(grupo.solicitacoes,unidadeComercial,quantidade);
+    if(fator>1){
+      const chave=unidadeComercial+'|'+fator+'|'+unidadeBase;
+      grupo.equivalencias.set(chave,{unidadeComercial,fator,unidadeBase});
+    }
   }
   r.acessoriosConferenciaCache=porCodigo;
   return porCodigo;
 }
 function cemAcessoriosConferenciaHTML(grupo){
-  if(!grupo)return '<span class="cemBarMissing">Não informado no ZIP</span>';
-  const itens=[...grupo.cores.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR'));
-  const total=Number(itens.reduce((s,item)=>s+item[1],0).toFixed(3));
-  let html=itens.length?'<strong class="cemQuantityTotal">'+total.toLocaleString('pt-BR',{maximumFractionDigits:3})+'</strong>':
+  const formatar=n=>n.toLocaleString('pt-BR',{maximumFractionDigits:3});
+  const listar=map=>map.size?[...map.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR'))
+    .map(([unidade,quantidade])=>formatar(quantidade)+' '+escapeHTML(unidade)).join(' · '):
     '<span class="cemBarMissing">Não informado no ZIP</span>';
-  if(itens.length>1)html+='<div class="cemQuantityBreakdown">'+itens.map(([cor,qtd])=>
-    '<div>'+escapeHTML(cor)+': '+qtd.toLocaleString('pt-BR',{maximumFractionDigits:3})+'</div>').join('')+'</div>';
-  if(grupo.invalidos)html+='<div class="cemBarMissing">Conferir no CEM: '+
-    grupo.invalidos+' registro(s) com quantidade inválida</div>';
-  return html;
+  if(!grupo)return '<span class="cemBarMissing">Não informado no ZIP</span>';
+  const equivalencias=[...grupo.equivalencias.values()].map(e=>
+    '1 '+escapeHTML(e.unidadeComercial)+' = '+formatar(e.fator)+' '+escapeHTML(e.unidadeBase));
+  return '<div class="cemAccessoryQuantities">'+
+    '<div class="cemAccessoryQtyRow"><span>Uso líquido</span><strong>'+listar(grupo.liquidas)+'</strong></div>'+
+    '<div class="cemAccessoryQtyRow"><span>Solicitação</span><strong>'+listar(grupo.solicitacoes)+'</strong></div>'+
+    '<div class="cemAccessoryQtyRow"><span>Embalagem</span><span class="cemAccessoryEquiv">'+
+      (equivalencias.length?equivalencias.join(' · '):'Sem equivalência informada')+'</span></div>'+
+    (grupo.invalidos?'<div class="cemBarMissing">Conferir no CEM: '+
+      grupo.invalidos+' registro(s) inválido(s)</div>':'')+'</div>';
 }
 
 function cemTabelaHTML(tipo){
@@ -6025,7 +6059,7 @@ function cemTabelaHTML(tipo){
     '" placeholder="Código, fabricante, cor ou descrição"></label></div>'+
     '<div class="cemTableWrap"><table class="cemTable"><thead><tr><th>Código</th><th>Fabricante</th>'+
     '<th>Descrição</th><th>Linha</th><th>Acabamento / cor CEM</th><th>'+
-    (tipo==='perfil'?'Barras (qtd. × comprimento)':'Quantidade')+
+    (tipo==='perfil'?'Barras (qtd. × comprimento)':'Quantidades')+
     '</th><th>Cadastro</th></tr></thead><tbody>'+
     (matching.length?matching.map(p=>{
       const code=p.fabricante+'|'+p.codigo;
@@ -6045,9 +6079,10 @@ function cemTabelaHTML(tipo){
     (tipo==='perfil'?
       'As quantidades e comprimentos vêm das barras comerciais calculadas em OBAPROV do CEM; não são confirmação de estoque físico. '+
       'Quando não existirem dados de barras para um perfil, aparecerá “Não informado no ZIP”.':
-      'As quantidades vêm de OBACES do CEM, considerando embalagens quando informado. ' +
-      'Servem para conferência e não alteram o estoque físico. ' +
-      'Quando faltarem dados, aparecerá “Não informado no ZIP”.')+'</p></div>';
+      'Uso líquido: quantidade calculada em OBCALCA. Solicitação: quantidade comercial em OBACES. ' +
+      'Embalagem: unidades contidas em cada pacote, quando informado. ' +
+      'Os dados servem para conferência e não modificam o estoque físico. ' +
+      'Dados ausentes serão indicados como “Não informado no ZIP”.')+'</p></div>';
 }
 function cemRenderPreview(){
   const r=cemParsed,el=node('cemPreview'),notice=node('cemExistingNotice');
