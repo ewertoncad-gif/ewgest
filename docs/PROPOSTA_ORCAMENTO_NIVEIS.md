@@ -1,6 +1,6 @@
-# EWGEST — Alteração proposta: orçamento por níveis na importação
+# EWGEST — Orçamento por níveis na importação — registro de implantação
 
-**Status:** implementação em branch para revisão, **não implantada**. Base do trabalho: `feature/orcamento-por-niveis-cem`.
+**Status (20/11/2026):** SQL aplicado ao **Supabase de produção**; código integrado à **`main`** no PR #13 (commit `cb382772`). **Publicação efetiva na hospedagem e testes com usuário real ainda não puderam ser verificados por este ambiente.**
 
 ## Pedido do responsável
 
@@ -9,7 +9,7 @@
 - Criar catálogos reutilizáveis de níveis e empresas comerciais por empresa usuária do EWGEST.
 - A obra e os novos cadastros serão efetivados somente após a confirmação final.
 
-## Regras previstas no protótipo
+## Regras implementadas
 
 1. **Níveis 100% opcionais e escolhidos pelo usuário:** nenhuma categoria é obrigatória. Uma obra pode ter somente ACM, somente Manutenção, ou qualquer combinação de níveis novos e já cadastrados. A soma **apenas das linhas selecionadas** deve igualar **100% do valor total da obra**, inclusive níveis marcados somente para controle de gastos. Regra confirmada pelo responsável.
 2. Valor por nível = dinheiro positivo ou zero, com centavos; total da obra deve ser positivo. **Não pré-criar linhas** de alumínio, componentes ou vidros na obra; iniciar com uma única linha vazia para escolha e permitir adicionar/remover livremente.
@@ -24,38 +24,40 @@
 - `app.html`: modal de níveis, novos campos e exibição de níveis no resumo financeiro.
 - `assets/orcamento-niveis.js`: captura da etapa de valores, edição e validação das linhas, leitura de catálogos.
 - `assets/orcamento-niveis.css`: tabela adaptativa e edição dos níveis.
-- `database/proposals/2026-11-20_orcamento_niveis.sql`: **proposta ainda não aplicada**. Cria catálogos, relação obra-níveis, RLS, compatibilidade da RPC de importação e proteção do teto de fabricação/instalação para níveis não faturáveis.
+- `supabase/migrations/20261120223000_orcamento_niveis_e_empresas.sql`: migração versionada e **aplicada à produção** como `orcamento_niveis_empresas_20261120`; tabelas, RLS, RPC e proteção do teto de faturamento.
+- `database/rollback/20261120_funcao_importacao_financeira_anterior.sql`: definição anterior da RPC preservada. **Não é backup completo do banco.**
+- `database/proposals/2026-11-20_orcamento_niveis.sql`: registro da proposta original aprovada.
 
 ## Limitações explícitas
 
 - O **faturamento efetivo** hoje registra por esquadria apenas fabricação ou instalação. Marcar outros níveis como faturáveis guarda intenção, mas **não habilita emissão de notas por esses níveis** nesta versão.
 - O controle real de despesas mantém os grupos antigos. Evoluir despesas e faturamentos para nível individual e empresa faturadora requer um fluxo adicional.
-- O ambiente `ewgest-restauracao-teste` estava pausado na última verificação. **Não utilizar produção como substituto de testes.**
-- Não houve execução de SQL em produção, nem criação de obra, nem validação do fluxo real de importação.
+- O ambiente `ewgest-restauracao-teste` foi reativado e recebeu **estruturas de suporte simuladas** porque ainda não possuía o módulo financeiro atual. Os ensaios não equivalem a uma restauração integral da produção.
+- SQL foi aplicado em produção **sem importar obras** e o orçamento anterior permaneceu preservado. Não foi realizada importação com ZIP real no navegador; essa validação continua pendente.
 
-## Ordem obrigatória para implantação após aprovação
+## Implantação realizada e verificações restantes
 
-1. **Regra confirmada:** usuário define livremente quantos e quais níveis compõem a obra; somente as linhas presentes entram nos 100%. Revisar a distinção entre o nível comercial personalizado e os grupos financeiros internos legados, e discutir faturamento por nível.
-2. Preparar backup verificável e ambiente de teste (incluindo permissões).
-3. Revisar e testar o SQL proposto em ambiente isolado. Analisar grants/RLS e impacto da RPC atual.
-4. Validar EWGEST no ambiente de testes: importação de nova obra, lançamentos, catálogos, estorno em falha, acesso de outros perfis e reimportação de obra existente.
-5. Aplicar a estrutura aprovada ao banco de produção em janela controlada.
-6. Somente depois publicar a interface correspondente na hospedagem. Verificar /app, importação, financeiro e responsividade.
-7. Registrar resultado no PR. Não declarar implantado antes de conferir a produção.
+1. **Concluído:** níveis livres conforme escolha do usuário; flag faturamento começa desmarcada; soma de todas as linhas deve atingir 100%.
+2. **Concluído em banco de testes com estruturas simuladas:** gravação de níveis personalizados e empresas, soma válida, rejeição de soma inválida, formato legado e teste de RLS de usuário autorizado/não vinculado, sempre com rollback dos registros fictícios.
+3. **Concluído:** revisão e aplicação da migração ao banco de produção; verificação de três tabelas novas, seis políticas e preservação do orçamento já existente.
+4. **Concluído:** integração do frontend na `main` e testes automatizados do GitHub aprovados.
+5. **Pendente:** confirmar publicação na hospedagem e validar o fluxo visual com ZIP real e usuário autorizado.
+6. **Pendente:** teste integral do banco com cópia atual e backup/restauração completo. O projeto de teste era anterior ao módulo financeiro, portanto **não foi homologação de produção**.
+7. **Futuro:** evolução do faturamento individual para todos os níveis personalizados, além de fabricação/instalação.
 
 ## Checklist de regressão pendente
 
-- [ ] Importação de obra nova com níveis múltiplos e empresas distintas
-- [ ] Soma divergente de 100% rejeitada sem cadastrar obra
+- [x] Ensaio transacional da importação com níveis múltiplos e empresas distintas em banco de teste simulado
+- [x] Soma divergente de 100% rejeitada sem cadastrar obra (ensaio em banco de testes)
 - [ ] Nível marcado só para gastos não permite faturamento de fabricação/instalação indevido
-- [ ] Importação antiga de seis categorias permanece compatível
+- [x] Importação antiga de seis categorias permanece compatível (ensaio em banco de testes)
 - [ ] Obra existente só importa materiais e não duplica esquadrias/orçamento
-- [ ] Registros de outra empresa não aparecem no catálogo
-- [ ] Usuário sem perfil ADM não consegue incluir níveis ou orçamento
+- [x] Usuário sem vínculo à empresa não visualiza níveis do catálogo (ensaio de RLS)
+- [x] Chamada da RPC sem perfil ADM não permite importação (ensaio em banco de testes)
 - [ ] Resumo financeiro mostra os níveis corretos e preserva os lançamentos antigos
 - [ ] Falhas de rede não geram importações duplicadas
 - [ ] Verificação visual no desktop e no celular
-- [ ] SQL e frontend passam por validação real em teste antes da produção
+- [x] Migração SQL aplicada em teste e produção; testes automatizados estáticos do frontend aprovados (não substitui teste de ponta a ponta).
 
 ## Registro compartilhado
 
