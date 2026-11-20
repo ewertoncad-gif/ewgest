@@ -623,6 +623,20 @@
     #stockManualForm .stockManualContinue{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:500;cursor:pointer}
     #stockManualForm .stockManualContinue input{margin:0;width:17px;height:17px;flex:none}
 
+  .finTable{width:100%;border-collapse:collapse;font-size:12px;min-width:550px}
+  .finTable th,.finTable td{text-align:left;padding:9px 11px;border-bottom:1px solid #dce8f2;vertical-align:middle}
+  .finTable th{background:#edf4fb;color:#2a4d70;font-size:11px}
+  .finTable td[align="right"],.finTable th[align="right"]{text-align:right}
+  .finTableWrap{overflow-x:auto;border:1px solid #dce8f2;border-radius:10px;margin:12px 0}
+  .finNegative{color:#b34235;font-weight:700}
+  .finFormRows{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+  .finFormRows label{font-size:12px;font-weight:650;color:#375779}
+  .finFormRows input,.finFormRows select{margin-top:5px}
+  .finInfo{display:flex;gap:11px;flex-wrap:wrap;margin:12px 0}
+  .finInfo span{padding:10px 13px;background:#f3f8fd;border:1px solid #dce8f2;border-radius:9px}
+  .finRowCheck input{width:16px;height:16px}
+  .finCostMap{width:100%;max-width:270px}
+  .finTable .finSmallInput{width:95px;min-width:75px;padding:5px 7px;font-size:12px}
   .finValuesGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
   .finValuesGrid label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:650;color:#345575}
   .finValuesGrid input{width:100%;min-width:0}
@@ -666,6 +680,7 @@
     <button id="navManufacturers" class="workspaceLink hidden" type="button"><span class="navSymbol">◫</span> Fabricantes</button>
     <button id="navMaterials" class="workspaceLink hidden" type="button"><span class="navSymbol">▥</span> Banco de materiais</button>
     <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
+    <button id="navFinanceiro" class="workspaceLink hidden" type="button"><span class="navSymbol">◈</span> Financeiro das obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
@@ -708,6 +723,68 @@
       </div>
       <div class="section"><h2>Obras cadastradas</h2><div id="works" class="works"></div></div>
       <p class="notice">Liberações para corte: selecione uma esquadria e informe quantidade e data. Os lançamentos ficam registrados no banco. Confirme medições técnicas antes de usar os totais como medição contratual.</p>
+    </section>
+    <section id="financeiro" class="hidden">
+      <div class="head"><div><h1>Financeiro das obras</h1>
+        <p class="muted">Faturamento de fabricação e instalação separado dos tetos de gastos de materiais.</p></div></div>
+      <div class="section panel">
+        <label for="finWork">Selecione a obra</label>
+        <div class="topactions" style="justify-content:flex-start;margin-top:7px">
+          <select id="finWork" style="min-width:250px;max-width:470px"><option value="">Escolha a obra</option></select>
+          <button class="btn secondary" id="finRefresh" type="button">Atualizar informações</button>
+        </div>
+        <p id="finMessage" class="feedback" role="status"></p>
+        <div id="finContent" class="hidden">
+          <h2>Resumo do orçamento</h2>
+          <div class="finInfo" id="finTotals"></div>
+          <div id="finSummary"></div>
+          <div class="section panel" id="finExpensePanel">
+            <h2>Registrar gastos por nota fiscal</h2>
+            <p class="hint">Alumínio e acessórios atualizam o histórico de preços reais dos materiais vinculados. Vidros e outros insumos abatem seus próprios tetos. A nota não movimenta estoque físico.</p>
+            <form id="finExpenseForm">
+              <div class="finFormRows">
+                <label>Categoria
+                  <select id="finCostCategory" required>
+                    <option value="aluminio">Alumínio</option><option value="acessorios">Acessórios</option>
+                    <option value="vidros">Vidros</option><option value="outros">Outros insumos</option>
+                  </select>
+                </label>
+                <label>XML da nota fiscal (NF-e)
+                  <input type="file" id="finCostXML" accept=".xml,text/xml,application/xml">
+                </label>
+                <label>Valor do gasto (R$) * <input id="finCostTotal" type="number" min="0.01" step="0.01" required></label>
+                <label>Fornecedor <input id="finCostVendor" maxlength="240"></label>
+                <label>Número da nota/documento <input id="finCostNumber" maxlength="100"></label>
+                <label>Data <input id="finCostDate" type="date"></label>
+              </div>
+              <div id="finXmlPreview" class="hidden"></div>
+              <label>Observações <textarea id="finCostNotes" maxlength="1000" rows="2"></textarea></label>
+              <div class="topactions" style="margin-top:12px"><button type="submit" class="btn primary" id="finCostSubmit">Registrar despesa</button></div>
+            </form>
+            <p id="finCostMessage" class="feedback" role="status"></p>
+          </div>
+          <div class="section panel" id="finBillingPanel">
+            <h2>Faturamento por esquadria</h2>
+            <p class="hint">Romaneio confirma a saída, mas NÃO gera faturamento. Marque os itens, informe o valor unitário de cada um e registre fabricação ou instalação separadamente. Apenas itens com romaneio completo podem ser faturados nesta etapa.</p>
+            <form id="finBillingForm">
+              <div class="finFormRows">
+                <label>Faturar
+                  <select id="finBillingCategory"><option value="fabricacao">Fabricação</option><option value="instalacao">Instalação</option></select>
+                </label>
+                <label>Data de faturamento <input id="finBillingDate" type="date" required></label>
+                <label>Número da nota/documento * <input id="finBillingDoc" required maxlength="120"></label>
+              </div>
+              <div id="finBillingRows"></div>
+              <label id="finInstalledLabel" class="hidden"><input id="finInstalledConfirm" type="checkbox" style="width:auto"> Confirmo que a instalação dos itens selecionados foi realizada</label>
+              <label>Observações <textarea id="finBillingNotes" maxlength="1000" rows="2"></textarea></label>
+              <p class="hint" id="finBillingSum"></p>
+              <button class="btn primary" type="submit" id="finBillingSubmit">Registrar faturamento</button>
+            </form>
+            <p id="finBillingMessage" class="feedback" role="status"></p>
+          </div>
+          <div class="section panel"><h2>Histórico de despesas e faturamentos</h2><div id="finHistory"></div></div>
+        </div>
+      </div>
     </section>
     <section id="worksPage" class="hidden">
       <div class="head"><div>
@@ -1874,7 +1951,7 @@ function podeEmitirRomaneio(){return ['administrador','gerenciador','supervisor'
 function setView(view){
   node('startup').classList.add('hidden');
   if(isAlmoxarife()&&!['login','romaneiosPage','myPassword'].includes(view))view='romaneiosPage';
-  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','typologies','manufacturers','materials','stock','cemImport','users','myPassword'])
+  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','typologies','manufacturers','materials','stock','financeiro','cemImport','users','myPassword'])
     node(id).classList.toggle('hidden',id!==view);
   node('logout').classList.toggle('hidden',view==='login');
   node('myPasswordHeader').classList.toggle('hidden',view==='login');
@@ -1883,7 +1960,7 @@ function setView(view){
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
   const ativo=view==='detail'?'worksPage':view;
   for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],
-      ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navCem','cemImport'],['navUsers','users'],['navManageWorks','manageWorks']]){
+      ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navCem','cemImport'],['navUsers','users'],['navManageWorks','manageWorks']]){
     const button=node(id);
     const selecionado=ativo===target;
     button.classList.toggle('active',selecionado);
@@ -2034,7 +2111,7 @@ async function loadPanel(){
   node('navHome').classList.toggle('hidden',somenteRomaneios);
   node('navWorks').classList.toggle('hidden',somenteRomaneios);
   node('navRomaneios').classList.toggle('hidden',!podeEmitirRomaneio());
-  for(const id of ['navTypologies','navManufacturers','navMaterials','navStock','navCem','navUsers','navManageWorks'])node(id).classList.toggle('hidden',!adminNav);
+  for(const id of ['navTypologies','navManufacturers','navMaterials','navStock','navCem','navUsers','navManageWorks','navFinanceiro'])node(id).classList.toggle('hidden',!adminNav);
   node('openRomaneioHub').classList.toggle('hidden',!podeEmitirRomaneio()||somenteRomaneios);
   node('topTag').textContent=somenteRomaneios?'Romaneios e expedição':'Gestão de obras · liberações e saídas';
   node('openTypologies').classList.toggle('hidden',!canAdministrate());
