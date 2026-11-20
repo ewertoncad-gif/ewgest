@@ -771,6 +771,7 @@
         <div id="finContent" class="hidden">
           <h2>Resumo do orçamento</h2>
           <div id="finPendingPanel" class="section panel hidden"></div>
+          <div id="finReceivePanel" class="section panel hidden"></div>
           <div class="finInfo" id="finTotals"></div>
           <div id="finSummary"></div>
           <div class="section panel" id="finExpensePanel">
@@ -6734,23 +6735,32 @@ async function finLoad(){
  node('finMessage').textContent='Consultando orçamento, despesas e faturamentos…';
  try{
   await ensureSession();
-  const [b,c,fat,perfis,aces,roms]=await Promise.all([
+  const [b,c,fat,perfis,aces,roms,variacoes,galpoes]=await Promise.all([
    apiGet('ew_obra_orcamento',{select:'*',empresa_id:empresa,obra_id:obra,limit:'1'}),
    apiGet('ew_obra_despesas',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
    apiGet('ew_obra_faturamentos',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
    apiGet('ew_perfis',{select:'id,codigo,descricao,fabricante',empresa_id:empresa,limit:'5000'}),
    apiGet('ew_acessorios',{select:'id,codigo,descricao,fabricante,unidade_item,quantidade_por_embalagem',empresa_id:empresa,limit:'5000'}),
-   apiGet('romaneios',{select:'id,status,cancelado_em',empresa_id:empresa,obra_id:obra,limit:'3000'})
+   apiGet('romaneios',{select:'id,status,cancelado_em',empresa_id:empresa,obra_id:obra,limit:'3000'}),
+   apiGet('ew_materiais_variacoes',{select:'id,perfil_id,acessorio_id,tipo,cor,acabamento',empresa_id:empresa,limit:'10000'}),
+   apiGet('ew_locais_fisicos',{select:'nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'300'})
   ]);
   if(!b?.length){node('finMessage').textContent='Esta obra ainda não possui orçamento cadastrado. As novas importações agora exigem essa etapa.';return;}
   const invoiceIds=(fat||[]).map(x=>x.id),romaneioIds=(roms||[]).filter(x=>x.status==='emitido'&&!x.cancelado_em).map(x=>x.id);
   const pendentes=(c||[]).filter(x=>x.status==='pendente'),pendingIds=pendentes.map(x=>x.id);
-  const [linhas,romLinhas,pendentesItens]=await Promise.all([
+  const aprovadas=(c||[]).filter(x=>x.status==='aprovada'&&['aluminio','acessorios'].includes(x.categoria));
+  const approvedIds=aprovadas.map(x=>x.id);
+  const [linhas,romLinhas,pendentesItens,approvedItems,stockReceipts]=await Promise.all([
    invoiceIds.length?apiGet('ew_obra_faturamentos_itens',{select:'faturamento_id,esquadria_id,quantidade,valor_total',empresa_id:empresa,faturamento_id:'in.('+invoiceIds.join(',')+')',limit:'5000'}):[],
    romaneioIds.length?apiGet('romaneios_itens',{select:'romaneio_id,esquadria_id,quantidade,natureza,tipo_saida',romaneio_id:'in.('+romaneioIds.join(',')+')',limit:'10000'}):[],
    pendingIds.length?apiGet('ew_obra_despesas_itens',{
      select:'id,despesa_id,codigo_fornecedor,descricao,unidade,quantidade,valor_unitario,valor_total,perfil_id,acessorio_id',
-     empresa_id:empresa,despesa_id:'in.('+pendingIds.join(',')+')',limit:'10000'}):[]
+     empresa_id:empresa,despesa_id:'in.('+pendingIds.join(',')+')',limit:'10000'}):[],
+   approvedIds.length?apiGet('ew_obra_despesas_itens',{
+     select:'id,despesa_id,codigo_fornecedor,descricao,unidade,quantidade,valor_unitario,valor_total,perfil_id,acessorio_id',
+     empresa_id:empresa,despesa_id:'in.('+approvedIds.join(',')+')',limit:'10000'}):[],
+   apiGet('ew_nfe_recebimentos',{select:'id,despesa_item_id,variacao_id,quantidade,unidade,comprimento_mm,local_estoque,criado_em',
+     empresa_id:empresa,obra_id:obra,limit:'10000'})
   ]);
   const shipped=new Map();
   for(const x of romLinhas||[])if(x.esquadria_id&&x.natureza==='esquadria'&&x.tipo_saida==='completo')
@@ -6762,11 +6772,13 @@ async function finLoad(){
    if(tipo)billed[tipo].set(x.esquadria_id,(billed[tipo].get(x.esquadria_id)||0)+Number(x.quantidade||0));
   }
   finState={obraId,orcamento:b[0],despesas:c||[],faturas:fat||[],linhas:linhas||[],perfis:perfis||[],
-   acessorios:aces||[],shipped,billed,pendentes,pendentesItens:pendentesItens||[]};
+   acessorios:aces||[],shipped,billed,pendentes,pendentesItens:pendentesItens||[],
+   aprovadas,approvedItems:approvedItems||[],stockReceipts:stockReceipts||[],
+   variacoes:variacoes||[],galpoes:(galpoes||[]).filter(x=>x.ativo).map(x=>x.nome)};
   box.classList.remove('hidden');node('finMessage').textContent='';
   node('finExpensePanel').classList.toggle('hidden',!isFullAdminUser());
   node('finBillingPanel').classList.toggle('hidden',!isFullAdminUser());
-  finRenderResumo();finRenderPendentes();finRenderFaturaveis();finRenderHistorico();
+  finRenderResumo();finRenderPendentes();finRenderRecebimentos();finRenderFaturaveis();finRenderHistorico();
  }catch(e){node('finMessage').textContent='Não foi possível carregar o financeiro: '+e.message;}
 }
 function finRenderResumo(){
