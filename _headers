@@ -21,3 +21,11 @@
 
 /index.html
   Cache-Control: no-cache, max-age=0, must-revalidate
+
+/assets/orcamento-niveis.js
+  Content-Type: text/javascript; charset=utf-8
+  Cache-Control: no-store
+
+/assets/orcamento-niveis.css
+  Content-Type: text/css; charset=utf-8
+  Cache-Control: no-store
