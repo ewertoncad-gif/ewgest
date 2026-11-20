@@ -226,7 +226,7 @@
    const key=base+'|'+(n.faturar?'receita':'gasto');
    const canBill=n.faturar&&['fabricacao','instalacao'].includes(base);
    const canSpend=!n.faturar&&['aluminio','acessorios','vidros','outros'].includes(base);
-   const known=(counts.get(key)===1)&&(n.faturar?!canBill?true:true:canSpend);
+   const known=(counts.get(key)===1)&&(n.faturar||canSpend);
    // Faturamento de outros níveis ainda não pode ser lançado no EWGEST;
    // exibir zero registrado, distinguindo previsão de emissão disponível.
    const real=known?(n.faturar?(faturas.get(base)||0):(despesas.get(base)||0)):null;
