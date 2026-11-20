@@ -639,7 +639,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v44.2</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v44.3</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="login" class="panel login">
@@ -661,7 +661,7 @@
     </section>
     <section id="dashboard" class="hidden">
       <div class="head"><div><h1 id="heading">Painel de obras</h1><div class="muted" id="userline"></div></div><div class="topactions"><button id="openTypologies" type="button" class="btn secondary hidden">Banco de tipologias</button><button id="openManufacturers" type="button" class="btn secondary hidden">Fabricantes</button><button id="openUsers" type="button" class="btn secondary hidden">Usuários</button>
-        <button id="openManageWorks" type="button" class="btn secondary hidden">Gerenciar obras</button><button id="openRomaneioHub" type="button" class="btn secondary">Romaneios</button><button id="refresh" class="btn secondary">Atualizar dados</button></div></div>
+        <button id="openRomaneioHub" type="button" class="btn secondary">Romaneios</button><button id="refresh" class="btn secondary">Atualizar dados</button></div></div>
       <div id="panelError" class="error"></div>
       <div class="stats">
         <div class="stat"><div class="label">Obras</div><div class="number" id="count">—</div></div>
@@ -1989,7 +1989,6 @@ async function loadPanel(){
   node('openTypologies').classList.toggle('hidden',!canAdministrate());
   node('openManufacturers').classList.toggle('hidden',!canAdministrate());
   node('openUsers').classList.toggle('hidden',!canAdministrate());
-  node('openManageWorks').classList.toggle('hidden',!canAdministrate());
   const [w,e,tips]=await Promise.all([
     apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,arquivada_em:'is.null',order:'nome.asc'}),
     apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id,rotulo_tipologia_relatorio,quantidade_modulos,modulacao_id',empresa_id:'eq.'+currentCompany.id}),
@@ -3989,7 +3988,6 @@ node('romaneioSaveNumber').addEventListener('click',async()=>{
   finally{btn.disabled=false;}
 });
 node('openUsers').addEventListener('click',openManagedUsersPage);
-node('openManageWorks').addEventListener('click',abrirGerenciamentoObras);
 node('navManageWorks').addEventListener('click',abrirGerenciamentoObras);
 node('manageWorksBack').addEventListener('click',()=>setView('dashboard'));
 node('openRomaneioHub').addEventListener('click',abrirAreaRomaneios);

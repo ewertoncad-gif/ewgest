@@ -958,7 +958,7 @@ assert.ok(restoreFn.includes('if(!session||erroDeSessaoIrrecuperavel(error))')&&
 // Exclusão de obra segura somente antes de qualquer liberação/romaneio/estoque.
 const worksMigration=readFileSync(fileURLToPath(new URL(
  '../supabase/migrations/20261118_exclusao_segura_obras_pre_operacao.sql',import.meta.url)),'utf8');
-for(const id of ['manageWorks','openManageWorks','navManageWorks','manageWorksList',
+for(const id of ['manageWorks','navManageWorks','manageWorksList',
  'manageWorksReview','manageWorksReason','manageWorksDelete',
  'manageWorksRefresh','manageWorksFeedback'])
  assert.ok(source.includes('id="'+id+'"'), 'Gestão de obras incompleta: '+id);
@@ -1242,4 +1242,10 @@ assert.ok(source.includes('let cemOperacaoId=null,cemAnaliseGeracao=0')&&
 assert.ok(source.includes('A análise do ZIP é apenas uma prévia e não grava uma obra.')&&
  source.includes('Esquadrias (somente conferência)'),
  'A interface não pode sugerir que a prévia cadastra esquadrias no banco');
+// v44.3: evitar duplicidade de navegação Gerenciar obras na Tela inicial.
+assert.ok(!source.includes('id="openManageWorks"')&&
+ !source.includes("node('openManageWorks')")&&
+ source.includes('id="navManageWorks"')&&
+ source.includes("node('navManageWorks').addEventListener('click',abrirGerenciamentoObras)"),
+ 'Gerenciar obras fica apenas na barra lateral, preservando o acesso');
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');

@@ -384,3 +384,8 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 - **Sair**, expiração/substituição de sessão e cancelamento de nova sessão descartam o ZIP selecionado, a análise da obra, as decisões de conciliação, o identificador de operação e os resultados temporários da prévia. O próximo acesso começa com campos vazios e opções padrão, mesmo sem recarregar a página.
 - O botão **Limpar análise** permite iniciar outro ZIP sem sair. A limpeza jamais remove, altera ou arquiva obras e materiais já confirmados no banco. Importações que chegaram a ser confirmadas no servidor não são revertidas ao sair.
 - A leitura assíncrona do arquivo é invalidada por contador de geração ao sair ou escolher outro arquivo, evitando que uma análise antiga volte a preencher a tela após logout/troca de ZIP. Isso não cancela uma gravação já enviada ao servidor.
+
+
+### Acesso único a Gerenciar obras (v44.3 — 20/11/2026)
+- Retirar o botão **Gerenciar obras** do cabeçalho da **Tela inicial**, pois a ação já existe na barra lateral em **Administração → Gerenciar obras**.
+- Manter inalterada a navegação lateral, permissões, conferência e cancelamento de liberações e exclusão de obras. Sem alteração de dados ou operações no Supabase.
