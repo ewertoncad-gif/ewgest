@@ -4,7 +4,7 @@ Este arquivo orienta o uso do **Claude Code** e de outros assistentes Claude no 
 
 ## Instrução principal: ler as regras compartilhadas
 
-**Antes de trabalhar, leia integralmente `AGENTS.md` na raiz do repositório e siga suas regras.** Ele é a referência comum para os três desenvolvedores e suas IAs (ChatGPT, Claude e outras).
+**Antes de trabalhar, leia integralmente `AGENTS.md` e `docs/HISTORICO_DESENVOLVIMENTO.md` na raiz do repositório e siga suas regras.** Consulte issues, PRs e commits recentes apontados no índice: eles são a referência comum para os três desenvolvedores e suas IAs (ChatGPT, Claude e outras).
 
 Se estiver usando Claude em uma conversa sem acesso ao repositório, peça ao desenvolvedor para conectar o GitHub ou fornecer o conteúdo atualizado de `AGENTS.md`. **Não afirme que leu o arquivo sem tê-lo acessado.**
 
