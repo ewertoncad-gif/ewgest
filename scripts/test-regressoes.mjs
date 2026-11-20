@@ -1015,10 +1015,10 @@ assert.ok(source.includes('data-work-cancel-releases=')&&
  source.includes('id="manageWorksCancelShipments"')&&
  source.includes('id="manageWorksGoRomaneios"'),
  'Gerenciar obras oferece cancelamento de liberações por obra, saídas e estorno de estoque');
-assert.ok(source.includes("'ew_cancelar_liberacoes_obra'")&&
- source.includes("'ew_estornar_estoque_obra'")&&
+assert.ok(source.includes("'/rest/v1/rpc/ew_cancelar_liberacoes_obra'")&&
+ source.includes("'/rest/v1/rpc/ew_estornar_estoque_obra'")&&
  source.includes('function executarReversaoObra(tipo)'),
- 'UI deve chamar as duas RPCs de reversão com confirmação');
+ 'UI preserva RPCs de cancelamento de liberação e reversão do estoque');
 for(const term of ['public.ew_auditoria_operacoes','public.obras add column if not exists arquivada_em',
  'public.liberacoes_corte add column if not exists cancelado_em',
  'public.ew_liberacoes_lotes add column if not exists cancelado_em',
