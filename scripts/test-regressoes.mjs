@@ -1380,8 +1380,8 @@ assert.ok(source.includes('id="cemQuoteRows"')&&source.includes('id="cemQuoteAdd
  source.includes('id="cemQuoteNewLevel"')&&source.includes('id="cemQuoteNewCompany"')&&
  source.includes('id="cemQuoteSaveCompany"')&&source.includes('id="cemQuoteTotal"'),
  'Orçamento por níveis tem seleção e cadastro de níveis e empresas comerciais');
-assert.ok(source.includes('<script src="/assets/orcamento-niveis.js?v=20261120b"></script>')&&
- source.includes('<link rel="stylesheet" href="/assets/orcamento-niveis.css?v=20261120b">')&&
+assert.ok(source.includes('<script src="/assets/orcamento-niveis.js?v=20261120c"></script>')&&
+ source.includes('<link rel="stylesheet" href="/assets/orcamento-niveis.css?v=20261120c">')&&
  budgetCSS.includes('.cemBudgetTable'),
  'A interface deve carregar os arquivos versionados de orçamento, sem cache antigo');
 const headers=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
@@ -1427,6 +1427,33 @@ const campoMonetario={value:'183200',selectionStart:6,setSelectionRange(a,b){thi
 moeda.moedaMascaraAoDigitar(campoMonetario);
 assert.equal(campoMonetario.value,'R$ 183.200','Formatar milhar enquanto digita');
 assert.equal(campoMonetario.caret,campoMonetario.value.length,'Manter cursor ao final após formatar');
+
+// Teste da digitação sequencial no campo real: foi isto que causou
+// "R$ 1.83200" no navegador ao teclar 183200 sem vírgula.
+for(const [teclas,valorFinal,centavosFinais] of [
+ ['183200','R$ 183.200',18320000],
+ ['183200,50','R$ 183.200,50',18320050],
+ ['1000000','R$ 1.000.000',100000000],
+ ['1200,05','R$ 1.200,05',120005],
+ ['0,05','R$ 0,05',5]
+]){
+ const campo={value:'',selectionStart:0,setSelectionRange(a,b){this.selectionStart=a;}};
+ for(const tecla of teclas){
+  const cursor=campo.selectionStart;
+  campo.value=campo.value.slice(0,cursor)+tecla+campo.value.slice(cursor);
+  campo.selectionStart=cursor+1;
+  moeda.moedaMascaraAoDigitar(campo);
+  assert.notEqual(moeda.moedaCentavos(campo.value),null,
+   'Valor intermediário deve permanecer válido durante a digitação '+teclas+': '+campo.value);
+ }
+ assert.equal(campo.value,valorFinal,'Máscara correta ao digitar '+teclas);
+ assert.equal(moeda.moedaCentavos(campo.value),centavosFinais,'Total correto após '+teclas);
+ assert.equal(moeda.moedaExibir(campo.value,true),
+  moeda.moedaExibir(teclas,true),'Centavos exibidos ao concluir '+teclas);
+}
+assert.equal(moeda.moedaExibir('R$ 1.83200',true),'R$ 183.200,00',
+ 'Formatação recupera valor anteriormente exibido com agrupamento quebrado');
+
 assert.ok(budgetScript.includes('valor:valorCentavos/100')&&
  budgetScript.includes('valor_total:totalCentavos/100'),
  'A API recebe os valores como números, sem R$ nem pontuação brasileira');
