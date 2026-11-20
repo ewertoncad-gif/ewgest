@@ -389,3 +389,9 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 ### Acesso único a Gerenciar obras (v44.3 — 20/11/2026)
 - Retirar o botão **Gerenciar obras** do cabeçalho da **Tela inicial**, pois a ação já existe na barra lateral em **Administração → Gerenciar obras**.
 - Manter inalterada a navegação lateral, permissões, conferência e cancelamento de liberações e exclusão de obras. Sem alteração de dados ou operações no Supabase.
+
+
+### Croquis exclusivamente por edição individual (v44.4 — 20/11/2026)
+- Remover do cabeçalho de **Banco de tipologias → Consultar tipologias cadastradas** o indicador `Croquis: X de Y` e o botão `Importar croquis` (pacotes JSON). Remover seu input e lógica de importação em lote para evitar referências inválidas.
+- No cadastro, o usuário administrador encontra a tipologia pela busca/filtros e clica em **Editar**. Ali, se a tipologia não tem croqui, mostrar **Adicionar croqui**; se já tem, mostrar **Trocar croqui**. O seletor aceita PNG/JPG/WebP e grava o croqui da tipologia individualmente com a rotina existente.
+- Preservar croquis existentes, a visualização/ampliação, permissões e a persistência no Supabase. Não alterar, apagar ou reinicializar croquis no banco.

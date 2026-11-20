@@ -1248,4 +1248,18 @@ assert.ok(!source.includes('id="openManageWorks"')&&
  source.includes('id="navManageWorks"')&&
  source.includes("node('navManageWorks').addEventListener('click',abrirGerenciamentoObras)"),
  'Gerenciar obras fica apenas na barra lateral, preservando o acesso');
+// v44.4: sem contador/importação global de croquis; upload individual só ao editar a tipologia.
+for(const deleted of ['croquiCatalogCount','croquiPackageButton','croquiPackageInput',
+ 'croquiImportStatus','importCroquiPackage(file)']){
+ assert.ok(!source.includes(deleted),'Controle de croquis em lote não pode permanecer no catálogo: '+deleted);
+}
+assert.ok(source.includes('Para adicionar ou substituir um croqui, encontre a tipologia e clique em Editar.')&&
+ source.includes('id="croquiReplaceButton"')&&
+ source.includes('id="croquiReplaceInput"')&&
+ source.includes('accept="image/png,image/jpeg,image/webp"')&&
+ source.includes('function refreshCroquiPreview(tipologiaId)')&&
+ source.includes("node('croquiReplaceButton').textContent=src?'Trocar croqui':'Adicionar croqui'")&&
+ source.includes("node('croquiReplaceButton').addEventListener('click',()=>node('croquiReplaceInput').click())")&&
+ source.includes('await salvarCroquiRemoto(id,base64'),
+ 'O cadastro individual deve permitir adicionar ou substituir imagens pelo editor');
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
