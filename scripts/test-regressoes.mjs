@@ -1389,9 +1389,39 @@ assert.ok(!source.includes('id="cemQuoteAluminio"')&&
  'Nenhum nível tradicional será obrigatório ou criado como campo fixo');
 assert.ok(budgetScript.includes('Próxima etapa')&&
  budgetScript.includes('adicionarLinha()')&&budgetScript.includes('faturar')&&
- budgetScript.includes('Math.round(total*100)')&&
+ budgetScript.includes('totalCentavos')&&
  budgetScript.includes('Os valores dos níveis devem somar exatamente 100% da obra.'),
  'Níveis personalizáveis exigem a soma exata dos valores do orçamento');
+assert.ok(source.includes('id="cemQuoteTotal" type="text" inputmode="decimal"')&&
+ budgetScript.includes('type="text" inputmode="decimal" autocomplete="off" required data-budget-field="valor"'),
+ 'Campos de orçamento devem utilizar texto com entrada decimal em vez de setas numéricas');
+const moneyStart=budgetScript.indexOf(' function moedaPartes(');
+const moneyEnd=budgetScript.indexOf(' const cadastroInfo=',moneyStart);
+assert.ok(moneyStart>=0&&moneyEnd>moneyStart,'Funções monetárias estão disponíveis no script de níveis');
+const moeda=new Function(budgetScript.slice(moneyStart,moneyEnd)+
+ '\nreturn {moedaCentavos,moedaExibir,moedaMascaraAoDigitar};')();
+for(const [entrada,centavos,exibido] of [
+ ['183200',18320000,'R$ 183.200,00'],
+ ['R$ 183.200,00',18320000,'R$ 183.200,00'],
+ ['1.234,50',123450,'R$ 1.234,50'],
+ ['183200,5',18320050,'R$ 183.200,50'],
+ ['2500.75',250075,'R$ 2.500,75'],
+ ['0,05',5,'R$ 0,05'],
+ ['10.000',1000000,'R$ 10.000,00'],
+ ['1,2,3',null,'1,2,3'],
+ ['-5',null,'-5'],
+ ['1000000000000',null,'1000000000000']
+]){
+ assert.equal(moeda.moedaCentavos(entrada),centavos,'Converter valor BRL '+entrada+' para centavos');
+ assert.equal(moeda.moedaExibir(entrada,true),exibido,'Exibir valor BRL '+entrada);
+}
+const campoMonetario={value:'183200',selectionStart:6,setSelectionRange(a,b){this.caret=a;}};
+moeda.moedaMascaraAoDigitar(campoMonetario);
+assert.equal(campoMonetario.value,'R$ 183.200','Formatar milhar enquanto digita');
+assert.equal(campoMonetario.caret,campoMonetario.value.length,'Manter cursor ao final após formatar');
+assert.ok(budgetScript.includes('valor:valorCentavos/100')&&
+ budgetScript.includes('valor_total:totalCentavos/100'),
+ 'A API recebe os valores como números, sem R$ nem pontuação brasileira');
 for(const tabela of ['ew_niveis_orcamento_catalogo','ew_empresas_faturamento_catalogo','ew_obra_orcamento_niveis']){
  assert.ok(budgetMigration.includes('CREATE TABLE IF NOT EXISTS public.'+tabela),
   'Migração SQL deve registrar catálogo de níveis/empresas e composição por obra: '+tabela);
