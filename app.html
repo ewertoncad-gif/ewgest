@@ -675,6 +675,7 @@
     <button id="navHome" class="workspaceLink" type="button"><span class="navSymbol">⌂</span> Tela inicial</button>
     <button id="navWorks" class="workspaceLink" type="button"><span class="navSymbol">▦</span> Obras</button>
     <button id="navRomaneios" class="workspaceLink" type="button"><span class="navSymbol">▤</span> Romaneios e expedição</button>
+    <button id="navEnviarNotas" class="workspaceLink hidden" type="button"><span class="navSymbol">▧</span> Enviar notas fiscais</button>
     <div class="workspaceNavCaption workspaceNavCaptionSecond">ADMINISTRAÇÃO</div>
     <button id="navTypologies" class="workspaceLink hidden" type="button"><span class="navSymbol">▦</span> Banco de tipologias</button>
     <button id="navManufacturers" class="workspaceLink hidden" type="button"><span class="navSymbol">◫</span> Fabricantes</button>
@@ -724,6 +725,27 @@
       <div class="section"><h2>Obras cadastradas</h2><div id="works" class="works"></div></div>
       <p class="notice">Liberações para corte: selecione uma esquadria e informe quantidade e data. Os lançamentos ficam registrados no banco. Confirme medições técnicas antes de usar os totais como medição contratual.</p>
     </section>
+    <section id="almoxNotas" class="hidden">
+      <div class="head"><div><h1>Enviar notas fiscais</h1>
+        <p class="muted">Envie uma NF-e de compra para a obra. O setor administrativo conferirá e aprovará antes que ela abata o teto de gastos.</p></div></div>
+      <div class="section panel">
+        <form id="almoxNotaForm">
+          <div class="finFormRows">
+            <label>Obra <select id="almoxNotaWork" required><option value="">Escolha a obra</option></select></label>
+            <label>Categoria <select id="almoxNotaCategoria" required>
+              <option value="aluminio">Alumínio</option><option value="acessorios">Acessórios</option>
+              <option value="vidros">Vidros</option><option value="outros">Outros insumos</option>
+            </select></label>
+            <label>Nota fiscal eletrônica (XML) <input type="file" id="almoxNotaArquivo" accept=".xml,text/xml,application/xml" required></label>
+          </div>
+          <div id="almoxNotaPreview" class="section panel hidden"></div>
+          <label>Observações <textarea id="almoxNotaObservacoes" maxlength="1000" rows="2"></textarea></label>
+          <p class="hint">Esta página não permite consultar orçamentos, tetos, faturamentos ou preços de outras notas. A nota enviada ficará pendente de aprovação.</p>
+          <button type="submit" class="btn primary" id="almoxNotaEnviar">Enviar para conferência</button>
+        </form>
+        <p id="almoxNotaMensagem" class="feedback" role="status"></p>
+      </div>
+    </section>
     <section id="financeiro" class="hidden">
       <div class="head"><div><h1>Financeiro das obras</h1>
         <p class="muted">Faturamento de fabricação e instalação separado dos tetos de gastos de materiais.</p></div></div>
@@ -736,6 +758,7 @@
         <p id="finMessage" class="feedback" role="status"></p>
         <div id="finContent" class="hidden">
           <h2>Resumo do orçamento</h2>
+          <div id="finPendingPanel" class="section panel hidden"></div>
           <div class="finInfo" id="finTotals"></div>
           <div id="finSummary"></div>
           <div class="section panel" id="finExpensePanel">
@@ -1951,8 +1974,8 @@ document.querySelectorAll('[data-show-password]').forEach(button=>{
 function podeEmitirRomaneio(){return ['administrador','gerenciador','supervisor','almoxarife'].includes(String(membership?.perfil||'').toLowerCase());}
 function setView(view){
   node('startup').classList.add('hidden');
-  if(isAlmoxarife()&&!['login','romaneiosPage','myPassword'].includes(view))view='romaneiosPage';
-  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','typologies','manufacturers','materials','stock','financeiro','cemImport','users','myPassword'])
+  if(isAlmoxarife()&&!['login','romaneiosPage','almoxNotas','myPassword'].includes(view))view='romaneiosPage';
+  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','almoxNotas','typologies','manufacturers','materials','stock','financeiro','cemImport','users','myPassword'])
     node(id).classList.toggle('hidden',id!==view);
   node('logout').classList.toggle('hidden',view==='login');
   node('myPasswordHeader').classList.toggle('hidden',view==='login');
@@ -1960,7 +1983,7 @@ function setView(view){
   node('workspaceNav').classList.toggle('hidden',!autenticado);
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
   const ativo=view==='detail'?'worksPage':view;
-  for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],
+  for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],['navEnviarNotas','almoxNotas'],
       ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navCem','cemImport'],['navUsers','users'],['navManageWorks','manageWorks']]){
     const button=node(id);
     const selecionado=ativo===target;
@@ -2112,6 +2135,7 @@ async function loadPanel(){
   node('navHome').classList.toggle('hidden',somenteRomaneios);
   node('navWorks').classList.toggle('hidden',somenteRomaneios);
   node('navRomaneios').classList.toggle('hidden',!podeEmitirRomaneio());
+  node('navEnviarNotas').classList.toggle('hidden',!somenteRomaneios);
   for(const id of ['navTypologies','navManufacturers','navMaterials','navStock','navCem','navUsers','navManageWorks','navFinanceiro'])node(id).classList.toggle('hidden',!adminNav);
   node('openRomaneioHub').classList.toggle('hidden',!podeEmitirRomaneio()||somenteRomaneios);
   node('topTag').textContent=somenteRomaneios?'Romaneios e expedição':'Gestão de obras · liberações e saídas';
