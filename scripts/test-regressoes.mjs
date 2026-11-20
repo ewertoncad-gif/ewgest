@@ -1369,4 +1369,38 @@ assert.ok(cemBarrasConferenciaHTML(undefined).includes('Não informado no ZIP')&
 assert.ok(source.includes('não são confirmação de estoque físico')&&
  source.includes('OBCALCP é a lista de cortes'),
  'Quantidade do aproveitamento não pode ser confundida com estoque físico ou cortes');
+
+// Orçamento por níveis: o usuário escolhe apenas as linhas pertinentes à obra.
+const budgetScript=readFileSync(fileURLToPath(new URL('../assets/orcamento-niveis.js',import.meta.url)),'utf8');
+const budgetCSS=readFileSync(fileURLToPath(new URL('../assets/orcamento-niveis.css',import.meta.url)),'utf8');
+const budgetMigration=readFileSync(fileURLToPath(new URL(
+ '../supabase/migrations/20261120223000_orcamento_niveis_e_empresas.sql',import.meta.url)),'utf8');
+assert.doesNotThrow(()=>new Function(budgetScript),'Script de orçamento por níveis deve ser sintaticamente válido');
+assert.ok(source.includes('id="cemQuoteRows"')&&source.includes('id="cemQuoteAddRow"')&&
+ source.includes('id="cemQuoteNewLevel"')&&source.includes('id="cemQuoteNewCompany"')&&
+ source.includes('id="cemQuoteSaveCompany"')&&source.includes('id="cemQuoteTotal"'),
+ 'Orçamento por níveis tem seleção e cadastro de níveis e empresas comerciais');
+assert.ok(source.includes('<script src="/assets/orcamento-niveis.js"></script>')&&
+ source.includes('<link rel="stylesheet" href="/assets/orcamento-niveis.css">')&&
+ budgetCSS.includes('.cemBudgetTable'),
+ 'A interface deve carregar a tabela e os arquivos de orçamento por níveis');
+assert.ok(!source.includes('id="cemQuoteAluminio"')&&
+ !source.includes('id="cemQuoteAcessorios"')&&!source.includes('id="cemQuoteVidros"'),
+ 'Nenhum nível tradicional será obrigatório ou criado como campo fixo');
+assert.ok(budgetScript.includes('Próxima etapa')&&
+ budgetScript.includes('adicionarLinha()')&&budgetScript.includes('faturar')&&
+ budgetScript.includes('Math.round(total*100)')&&
+ budgetScript.includes('Os valores dos níveis devem somar exatamente 100% da obra.'),
+ 'Níveis personalizáveis exigem a soma exata dos valores do orçamento');
+for(const tabela of ['ew_niveis_orcamento_catalogo','ew_empresas_faturamento_catalogo','ew_obra_orcamento_niveis']){
+ assert.ok(budgetMigration.includes('CREATE TABLE IF NOT EXISTS public.'+tabela),
+  'Migração SQL deve registrar catálogo de níveis/empresas e composição por obra: '+tabela);
+}
+assert.ok(budgetMigration.includes('ENABLE ROW LEVEL SECURITY')&&
+ budgetMigration.includes('ew_importar_obra_cem_financeiro')&&
+ budgetMigration.includes('v_soma<>v_valor')&&
+ budgetMigration.includes('v_faturar')&&
+ budgetMigration.includes('v_result:=public.ew_importar_obra_cem('),
+ 'Migração precisa garantir isolamento por empresa, soma e importação transacional');
+
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
