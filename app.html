@@ -542,6 +542,11 @@
     @media(max-width:800px){.releaseMirrorLineTop{grid-template-columns:1fr 1fr}.releaseMirrorLineTop label:first-child{grid-column:1/-1}}
 
 
+    .stockReceiveStatus{font-size:11px;font-weight:750;display:inline-block;border:1px solid #d2e0ed;border-radius:7px;padding:4px 7px;white-space:nowrap}
+    .stockReceiveStatus-pending{color:#896318;background:#fff9e8;border-color:#f3dcaf}
+    .stockReceiveStatus-partial{color:#935e15;background:#fff1da;border-color:#f0cf9f}
+    .stockReceiveStatus-received{color:#15655d;background:#eaf8f4;border-color:#b8e3d8}
+    .stockReceiveStatus-neutral{color:#4c6b85;background:#eff5fa}
     .cemCandidate{background:#f7faff;padding:14px;border:1px solid #dbe7f5;border-radius:10px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(205px,.85fr);gap:12px;margin-top:12px;align-items:start}
     .cemCandidateCol{min-width:0;display:flex;flex-direction:column;gap:6px}
     .cemCandidateHeading{font-weight:700;font-size:12px;color:#365778;margin-bottom:5px}
@@ -7319,6 +7324,40 @@ function estoqueUnidade(row){
   return row.v.tipo==='perfil'?'M':row.link?.unidade_prevista||row.mat.unidade_item||'PC';
 }
 
+function stockNecessidade(item){
+  const {v,mat,link,perWork}=item;
+  const status={texto:'Sem previsão importada',tom:'neutral',detalhe:''};
+  if(!link||link.quantidade_prevista===null&&link.comprimento_total_m===null)
+    return {necessaria:'Não informada',...status};
+  const fmt=(n,dp=3)=>Number(n||0).toLocaleString('pt-BR',{maximumFractionDigits:dp});
+  if(v.tipo==='perfil'){
+    // Necessidade em cortes e metros; saldo físico em barras com comprimentos distintos.
+    const metros=Number(link.comprimento_total_m),cortes=Number(link.quantidade_prevista);
+    const totalBruto=perWork.reduce((sum,m)=>sum+
+      (Number(m.comprimento_mm||0)*Number(m.quantidade_delta||0)/1000),0);
+    const qtdBarras=perWork.filter(m=>m.unidade==='BARRA').reduce((sum,m)=>sum+Number(m.quantidade_delta),0);
+    const necessaria=(Number.isFinite(metros)&&metros>0?fmt(metros)+' m em cortes':'Consumo não informado')+
+      (Number.isFinite(cortes)&&cortes>0?' ('+fmt(cortes,0)+' cortes)':'');
+    if(!(metros>0))return {necessaria,texto:'Conferir previsão',tom:'neutral',detalhe:''};
+    const r=totalBruto<=0?'Pendente de recebimento':totalBruto+0.0001<metros?
+      'Recebimento parcial':'Volume bruto atendido';
+    return {necessaria,texto:r,tom:totalBruto<=0?'pending':totalBruto<metros?'partial':'received',
+      detalhe:'Total na obra: '+fmt(qtdBarras,0)+' barras / '+fmt(totalBruto)+' m brutos. Verificar aproveitamento antes de cortar.'};
+  }
+  const unit=releaseUnidadeAcessorio(mat.unidade_item||link.unidade_prevista||'PC');
+  const qtd=Number(link.quantidade_prevista);
+  const recebido=perWork.filter(m=>releaseUnidadeAcessorio(m.unidade)===unit)
+    .reduce((sum,m)=>sum+Number(m.quantidade_delta||0),0);
+  const outraUnidade=perWork.some(m=>releaseUnidadeAcessorio(m.unidade)!==unit&&Number(m.quantidade_delta)!==0);
+  if(!Number.isFinite(qtd)||qtd<=0)return {necessaria:'Não informada',
+    texto:outraUnidade?'Conferir unidade':'Sem previsão quantitativa',tom:'neutral',detalhe:''};
+  const necessaria=fmt(qtd)+' '+escapeHTML(unit);
+  if(outraUnidade)return {necessaria,texto:'Conferir unidade',tom:'neutral',
+    detalhe:'Há movimentações em unidades diferentes. Não foram convertidas automaticamente.'};
+  const texto=recebido<=0?'Pendente de recebimento':recebido+0.0001<qtd?'Recebimento parcial':'Recebido';
+  return {necessaria,texto,tom:recebido<=0?'pending':recebido<qtd?'partial':'received',
+    detalhe:'Saldo total na obra: '+fmt(recebido)+' '+unit};
+}
 function renderEstoque(){
   const out=node('stockRecords'),obra=node('stockWork').value;
   if(!out)return;
@@ -7373,20 +7412,24 @@ function renderEstoque(){
     (a.comprimento||0)-(b.comprimento||0)||String(a.local_estoque).localeCompare(String(b.local_estoque),'pt-BR'));
   out.innerHTML='<div class="stockTableWrap"><table class="stockTable"><thead><tr>'+
     '<th>Código</th><th>Material / fabricante</th><th>Cor e acabamento</th>'+
-    '<th>Quantidade na obra</th><th>Comprimento da barra</th><th>Galpão</th><th>Ação</th></tr></thead><tbody>'+
+    '<th>Quantidade necessária</th><th>Em estoque</th><th>Situação</th><th>Comprimento da barra</th><th>Galpão</th><th>Ação</th></tr></thead><tbody>'+
     linhas.map(x=>{
       const unit=x.v.tipo==='perfil'?'barra(s)':escapeHTML(x.unidade);
       const amount=x.informado?
         '<span class="stockValue">'+matFormat(x.quantidade,x.v.tipo==='perfil'?0:3)+
           ' '+unit+'</span>':
-        '<span class="stockEmptyValue">Não cadastrada</span>';
+        '<span class="stockEmptyValue">0 '+unit+'</span>';
+      const previsto=stockNecessidade(x);
       const size=x.v.tipo==='perfil'?
         (x.comprimento?'<span class="stockLength">'+x.comprimento.toLocaleString('pt-BR')+
           ' mm</span>':'<span class="stockEmptyValue">Não informado</span>'):'—';
       return '<tr><td><strong>'+escapeHTML(x.mat.codigo)+'</strong></td>'+
         '<td>'+escapeHTML(x.mat.descricao)+'<div class="hint">'+escapeHTML(x.mat.fabricante)+'</div></td>'+
         '<td>'+escapeHTML(x.v.cor)+'<div class="hint">'+escapeHTML(x.v.acabamento)+'</div></td>'+
-        '<td>'+amount+'</td><td>'+size+'</td><td><strong>'+escapeHTML(x.local_estoque||'—')+'</strong></td>'+
+        '<td>'+previsto.necessaria+'</td><td>'+amount+'</td>'+
+        '<td><span class="stockReceiveStatus stockReceiveStatus-'+previsto.tom+'">'+escapeHTML(previsto.texto)+'</span>'+
+        (previsto.detalhe?'<div class="hint">'+escapeHTML(previsto.detalhe)+'</div>':'')+'</td>'+
+        '<td>'+size+'</td><td><strong>'+escapeHTML(x.local_estoque||'—')+'</strong></td>'+
         '<td class="stockRowActions">'+(arquivado?
           '<span class="hint">Somente consulta</span>':(x.informado?
           '<button type="button" class="btn secondary" data-stock-adjust="'+
@@ -7400,7 +7443,9 @@ function renderEstoque(){
     }).join('')+'</tbody></table></div>'+
     '<p class="stockFoot">'+linhas.length+' linha(s) de material nesta obra. '+
     'Quando houver barras de comprimentos diferentes, elas aparecerão separadas. '+
-    'Peças previstas para corte no CEM não são convertidas automaticamente em barras.</p>';
+    'A quantidade necessária vem do cálculo técnico; o saldo vem apenas de movimentações físicas.'+
+    ' Para perfis, a cobertura é estimada pelo comprimento bruto das barras, não representa aproveitamento confirmado.'+
+    ' Com filtro de galpão, a coluna Em estoque mostra o saldo local, enquanto Situação considera o total da obra.</p>';
   out.querySelectorAll('[data-stock-open-new]').forEach(btn=>btn.addEventListener('click',()=>
     stockManualOpen(btn.dataset.stockOpenNew)));
   out.querySelectorAll('[data-stock-adjust]').forEach(btn=>btn.addEventListener('click',()=>{
