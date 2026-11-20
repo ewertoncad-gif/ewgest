@@ -200,16 +200,11 @@
   for(const d of state.despesas)if(d.status==='aprovada')
    despesas.set(d.categoria,(despesas.get(d.categoria)||0)+Number(d.valor||0));
   const totalF=levels.filter(n=>n.faturar).reduce((sum,n)=>sum+Number(n.valor||0),0);
-  const emissivel=levels.filter(n=>n.faturar&&['fabricacao','instalacao'].includes(n.categoria_base))
-   .reduce((sum,n)=>sum+Number(n.valor||0),0);
-  const outras=totalF-emissivel;
   const realizado=[...faturas.values()].reduce((sum,v)=>sum+v,0);
   const gastos=[...despesas.values()].reduce((sum,v)=>sum+v,0);
   byId('finTotals').innerHTML='<span><strong>Valor da obra: '+finMoney(state.orcamento.valor_total)+'</strong></span>'+
    '<span><strong>Faturado: '+finMoney(realizado)+'</strong></span>'+
-   '<span><strong>A faturar (todos os níveis): '+finMoney(Math.max(0,totalF-realizado))+'</strong></span>'+
-   '<span><strong>Disponível no módulo por esquadria: '+finMoney(Math.max(0,emissivel-realizado))+'</strong></span>'+
-   (outras>0?'<span><strong>Outros níveis faturáveis (sem emissão aqui): '+finMoney(outras)+'</strong></span>':'')+
+   '<span><strong>A faturar: '+finMoney(Math.max(0,totalF-realizado))+'</strong></span>'+
    '<span><strong>Gastos registrados: '+finMoney(gastos)+'</strong></span>';
 
   // Um grupo interno pode reunir vários níveis personalizados. Sem vínculo
