@@ -432,7 +432,9 @@
     .materialEmptyIcon{font-size:38px;color:#2b86d9}
     .materialImportHead{display:flex;align-items:start;justify-content:space-between;gap:14px;flex-wrap:wrap}
     .matImportBox{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-    .matImportBox input{max-width:540px;flex:1}
+    .matImportBox .cemFileName{color:#506b86;font-size:13px;min-width:0;max-width:min(360px,100%);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .matImportBox #matCemEscolher{white-space:nowrap}
+    .matImportBox #matCemArquivo{display:none}
     .matDialog{width:min(100%,720px)}
     .matFormGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
     .matFormGrid label{margin-top:11px}.matFormGrid label input,.matFormGrid textarea{display:block;margin-top:7px;width:100%}
@@ -645,7 +647,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v44.7</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v44.8</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -1006,9 +1008,10 @@
       </div></div>
       <div class="section panel">
         <h2>1. Arquivo de exportação</h2>
-        <label for="matCemArquivo">Arquivo ZIP de exportação técnica</label>
         <div class="matImportBox">
-          <input id="matCemArquivo" type="file" accept=".zip,application/zip">
+          <input id="matCemArquivo" type="file" accept=".zip,application/zip" aria-label="Selecionar arquivo ZIP da obra">
+          <button id="matCemEscolher" class="btn secondary" type="button">Importar obra</button>
+          <span id="matCemNomeArquivo" class="cemFileName" role="status" aria-live="polite" title="Nenhum arquivo selecionado">Nenhum arquivo selecionado</span>
           <button id="matCemConferir" class="btn primary" type="button">Analisar arquivo</button>
           <button id="matCemLimpar" class="btn secondary" type="button">Limpar análise</button>
         </div>
@@ -6020,11 +6023,17 @@ function cemRenderPreview(){
 }
 
 let cemOperacaoId=null,cemAnaliseGeracao=0;
+function cemAtualizarNomeArquivo(){
+  const nome=node('matCemArquivo').files?.[0]?.name||'Nenhum arquivo selecionado';
+  node('matCemNomeArquivo').textContent=nome;
+  node('matCemNomeArquivo').title=nome;
+}
 function cemDescartarRascunho(){
   // O ZIP analisado é temporário. Nunca apagar obras ou materiais já gravados no banco.
   cemAnaliseGeracao++;
   cemParsed=null;cemOperacaoId=null;
   node('matCemArquivo').value='';
+  cemAtualizarNomeArquivo();
   node('matCemConferir').disabled=false;
   for(const id of ['cemFlagEsquadrias','cemFlagPerfis','cemFlagAcessorios'])
     node(id).checked=true;
@@ -6149,12 +6158,14 @@ node('matEditCancel').addEventListener('click',matClose);
 node('matEditForm').addEventListener('submit',salvarMaterial);
 node('matVarCancel').addEventListener('click',matVarClose);
 node('matVarForm').addEventListener('submit',salvarVariacao);
+node('matCemEscolher').addEventListener('click',()=>node('matCemArquivo').click());
 node('matCemConferir').addEventListener('click',matVerificarZip);
 node('matCemLimpar').addEventListener('click',cemDescartarRascunho);
 node('cemCommit').addEventListener('click',cemImportarSelecionados);
 node('matCemArquivo').addEventListener('change',()=>{
  cemAnaliseGeracao++;
  cemParsed=null;cemOperacaoId=null;
+ cemAtualizarNomeArquivo();
  node('matCemConferir').disabled=false;
  cemRenderPreview();
  node('cemImportResult').textContent='';

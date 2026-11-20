@@ -416,3 +416,10 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 - Remover os eventos JavaScript e ajustes de visibilidade dos botões excluídos, sem afetar os demais botões (Histórico de acessos, Relatório de operações, atualização, cadastro, importação, filtros etc.). Ajustar as margens dos títulos após a remoção.
 - **Não remover** o botão de retorno da tela **Minha senha**: usuários restritos ao almoxarifado não dispõem do botão Tela inicial na lateral; o retorno deve continuar levando à área autorizada.
 - Não alterar dados do Supabase, esquadrias, saldos, autenticação nem permissões.
+
+
+### Seleção de ZIP mais limpa (v44.8 — 20/11/2026)
+- Em **Importar arquivo técnico → 1. Arquivo de exportação**, retirar o rótulo **Arquivo ZIP de exportação técnica** e esconder o controle nativo de seleção de arquivo (que parecia um botão dentro de outro).
+- Exibir um único botão visual **Importar obra** que abre o seletor de arquivos ZIP e um texto discreto com o nome do arquivo escolhido (ou **Nenhum arquivo selecionado**). Manter os botões independentes **Analisar arquivo** e **Limpar análise**.
+- A seleção do ZIP **não grava obra no banco**. Permanece a limitação do módulo atual: análise de esquadrias e importação de materiais de obras cadastradas, com confirmação separada. Nunca interpretar o texto do botão como autorização para alterar essa regra de importação.
+- O arquivo e o nome exibido devem ser descartados ao limpar a análise, trocar de sessão ou sair, sem afetar obras salvas.

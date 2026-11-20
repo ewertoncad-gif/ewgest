@@ -1313,4 +1313,26 @@ for(const id of ['userAccessHistoryToggle','userOperationsToggle',
 assert.ok(source.includes('id="myPasswordBack"')&&
  source.includes("node('myPasswordBack').addEventListener"),
  'Retorno da alteração de senha é necessário ao perfil Almoxarife e foi preservado');
+// v44.8: seletor de ZIP com um botão limpo, sem controle nativo embutido.
+const cemImportSection=source.slice(source.indexOf('<section id="cemImport"'),
+ source.indexOf('</section>',source.indexOf('<section id="cemImport"')));
+assert.ok(cemImportSection.includes('id="matCemEscolher"')&&
+ cemImportSection.includes('>Importar obra</button>')&&
+ cemImportSection.includes('id="matCemArquivo"')&&
+ cemImportSection.includes('id="matCemNomeArquivo"')&&
+ !cemImportSection.includes('Arquivo ZIP de exportação técnica')&&
+ source.includes('.matImportBox #matCemArquivo{display:none}'),
+ 'Seletor ZIP exibe apenas o botão Importar obra e o nome do arquivo, sem botão nativo');
+assert.ok(source.includes("node('matCemEscolher').addEventListener('click',()=>node('matCemArquivo').click())")&&
+ source.includes('function cemAtualizarNomeArquivo()')&&
+ source.includes("node('matCemNomeArquivo').textContent=nome")&&
+ source.includes("node('matCemNomeArquivo').title=nome")&&
+ source.includes("node('matCemConferir').addEventListener('click',matVerificarZip)")&&
+ source.includes("node('matCemLimpar').addEventListener('click',cemDescartarRascunho)"),
+ 'Selecionar, analisar e limpar um ZIP devem manter ações distintas');
+const cemReset=source.slice(source.indexOf('function cemDescartarRascunho(){'),
+ source.indexOf('async function matVerificarZip(){'));
+assert.ok(cemReset.includes("node('matCemArquivo').value=''")&&
+ cemReset.includes('cemAtualizarNomeArquivo()'),
+ 'O nome do arquivo desaparece ao limpar análise ou encerrar sessão');
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
