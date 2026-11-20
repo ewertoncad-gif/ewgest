@@ -1483,8 +1483,8 @@ assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
  !source.includes('<label>XML da nota fiscal (NF-e)')&&
  source.includes('id="finCostCategory" required'),
  'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
-assert.ok(source.includes('recebimento-manual.js?v=20261120b')&&
- source.includes('recebimento-manual.css?v=20261120a')&&receiveCSS.includes('.finManualTable'),
+assert.ok(source.includes('recebimento-manual.js?v=20261120c')&&
+ source.includes('recebimento-manual.css?v=20261120c')&&receiveCSS.includes('.finManualTable'),
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
  receiveScript.includes('p_itens:items')&&receiveScript.includes('finCostOpId ||= crypto.randomUUID()')&&
@@ -1574,5 +1574,74 @@ assert.ok(dupHtml.includes('seus valores realizados não são distribuídos auto
  'Níveis repetidos não podem contabilizar o mesmo gasto duas vezes');
 const legado=renderResumo({orcamentoNiveis:[],despesas:[],faturas:[],orcamento:{}});
 assert.equal(legado.legacyCalls,1,'Obras antigas permanecem com resumo legado');
+
+
+// Recebimento manual só permite materiais vinculados à obra e evidencia a
+// diferença de unidade entre cortes planejados e barras físicas recebidas.
+assert.ok(source.includes("apiGet('ew_cem_obras_materiais'")&&
+ source.includes("materiaisObra:materiaisObra||[]")&&
+ source.includes("obra_id:obra,limit:'10000'"),
+ 'Financeiro deve carregar os quantitativos apenas da obra selecionada');
+assert.ok(receiveScript.includes('finState.materiaisObra')&&
+ receiveScript.includes('finState.stockReceipts')&&
+ receiveScript.includes('quantityInfo(row)')&&
+ receiveScript.includes('getVariations(row.material)')&&
+ receiveScript.includes('renderRows();')&&
+ receiveCSS.includes('.finManualInfoRow'),
+ 'A seleção por obra e por variação apresenta os totais planejados e os recebimentos da NF');
+const resolverStart=receiveScript.indexOf(' function stockCategory(){');
+const resolverEnd=receiveScript.indexOf(' function unitFor(',resolverStart);
+assert.ok(resolverStart>=0&&resolverEnd>resolverStart,
+ 'O filtro deve estar disponível sem a necessidade de modificar movimentos físicos');
+const mockResolver=new Function('state','selectedCategory',
+ 'let finState=state, category=selectedCategory;\n'+
+ receiveScript.slice(resolverStart,resolverEnd)+
+ '\nreturn {getMaterials,getVariations,quantityInfo};');
+const mkState={
+ perfis:[{id:'p1',codigo:'CG179',descricao:'Corrimão'},{id:'p2',codigo:'OUTRO',descricao:'Não pertence à obra'}],
+ acessorios:[{id:'a1',codigo:'PARAFUSO',descricao:'Parafuso'},{id:'a2',codigo:'OUTRO-ACESS',descricao:'Não pertence à obra'}],
+ variacoes:[
+  {id:'v1',tipo:'perfil',perfil_id:'p1',cor:'BRANCO',ativo:true},
+  {id:'v2',tipo:'perfil',perfil_id:'p1',cor:'PRETO',ativo:true},
+  {id:'v3',tipo:'perfil',perfil_id:'p2',cor:'BRANCO',ativo:true},
+  {id:'va1',tipo:'acessorio',acessorio_id:'a1',cor:'NATURAL',ativo:true},
+  {id:'va2',tipo:'acessorio',acessorio_id:'a2',cor:'NATURAL',ativo:true}
+ ],
+ materiaisObra:[
+  {tipo:'perfil',perfil_id:'p1',variacao_id:'v1',quantidade_prevista:24,unidade_prevista:'CORTE',comprimento_total_m:54.96},
+  {tipo:'perfil',perfil_id:'p1',variacao_id:'v2',quantidade_prevista:10,unidade_prevista:'CORTE',comprimento_total_m:30},
+  {tipo:'acessorio',acessorio_id:'a1',variacao_id:'va1',quantidade_prevista:58,unidade_prevista:'PC'}
+ ],
+ stockReceipts:[
+  {variacao_id:'v1',unidade:'BARRA',quantidade:2,comprimento_mm:6000},
+  {variacao_id:'v2',unidade:'BARRA',quantidade:3,comprimento_mm:6000},
+  {variacao_id:'v3',unidade:'BARRA',quantidade:100,comprimento_mm:6000},
+  {variacao_id:'va1',unidade:'PC',quantidade:20,comprimento_mm:null},
+  {variacao_id:'va2',unidade:'PC',quantidade:400,comprimento_mm:null}
+ ]
+};
+const perfMock=mockResolver(mkState,'aluminio');
+assert.deepEqual(perfMock.getMaterials().map(x=>x.id),['p1'],
+ 'Um perfil não previsto na obra jamais aparece no seletor');
+assert.deepEqual(perfMock.getVariations('p1').map(x=>x.id),['v1','v2'],
+ 'A variação pertence ao perfil e à lista técnica da obra');
+assert.deepEqual(perfMock.getVariations('p2'),[],
+ 'Outras cores cadastradas somente para materiais de outra obra não aparecem');
+const geral=perfMock.quantityInfo({material:'p1',variacao:''});
+assert.ok(geral.includes('34 cortes')&&geral.includes('84,96 m')&&
+ geral.includes('5 barras')&&geral.includes('30 m')&&!geral.includes('105 barras'),
+ 'Necessidade total de perfil usa cortes/metragem; recebimento contabiliza só barras deste item');
+const cor=perfMock.quantityInfo({material:'p1',variacao:'v1'});
+assert.ok(cor.includes('24 cortes')&&cor.includes('54,96 m')&&
+ cor.includes('2 barras')&&cor.includes('12 m')&&!cor.includes('5 barras'),
+ 'Quantidade por cor fica restrita à variação escolhida');
+const accMock=mockResolver(mkState,'acessorios');
+assert.deepEqual(accMock.getMaterials().map(x=>x.id),['a1'],
+ 'Não exibir acessórios globais sem vínculo com esta obra');
+const accInfo=accMock.quantityInfo({material:'a1',variacao:'va1'});
+assert.ok(accInfo.includes('58 PC')&&accInfo.includes('20 PC')&&accInfo.includes('38 PC'),
+ 'Acessório usa unidade compatível e mostra necessário, recebido e falta receber');
+const empty=mockResolver({...mkState,materiaisObra:[]},'aluminio');
+assert.deepEqual(empty.getMaterials(),[],'Obra sem quantitativos não deve listar todo o catálogo global');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
