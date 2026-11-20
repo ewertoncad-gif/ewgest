@@ -1483,7 +1483,7 @@ assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
  !source.includes('<label>XML da nota fiscal (NF-e)')&&
  source.includes('id="finCostCategory" required'),
  'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
-assert.ok(source.includes('recebimento-manual.js?v=20261120a')&&
+assert.ok(source.includes('recebimento-manual.js?v=20261120b')&&
  source.includes('recebimento-manual.css?v=20261120a')&&receiveCSS.includes('.finManualTable'),
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
@@ -1509,5 +1509,67 @@ assert.ok(receiveSQL.includes('Estorne as entradas de estoque antes de cancelar'
  receiveSQL.includes('REVOKE ALL ON FUNCTION public.ew_registrar_recebimento_manual_financeiro')&&
  receiveSQL.includes('GRANT EXECUTE ON FUNCTION public.ew_registrar_recebimento_manual_financeiro'),
  'Cancelamento de despesa não pode deixar estoque físico sem estorno; função restrita a autenticados');
+
+
+// O financeiro moderno apresenta uma tabela consolidada, sem duplicar níveis
+// em "Grupos financeiros existentes". O formato legado permanece compatível.
+const resumoStart=receiveScript.indexOf(' const oldResumo=finRenderResumo;');
+const resumoEnd=receiveScript.indexOf(" byId('finExpenseForm').removeEventListener",resumoStart);
+assert.ok(resumoStart>=0&&resumoEnd>resumoStart,'Localizar implementação financeira unificada');
+const resumoPrelude=[
+ "let finState=state,legacyCalls=0;",
+ "const nodes={finTotals:{innerHTML:''},finSummary:{innerHTML:''}};",
+ "const byId=id=>nodes[id];",
+ "const finMoney=n=>Number(n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});",
+ "const escapeHTML=x=>String(x||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');",
+ "const initForm=()=>{};",
+ "let finRenderResumo=function(){legacyCalls++;};"
+].join('\n');
+const renderResumo=new Function('state',resumoPrelude+'\n'+
+ receiveScript.slice(resumoStart,resumoEnd)+
+ '\nfinRenderResumo();return {nodes,legacyCalls};');
+const niveisExemplo=[
+ ['ALUMÍNIO','aluminio',73200,false,'GVG ESQUADRIAS'],
+ ['COMPONENTES','acessorios',22000,false,'GVG ESQUADRIAS'],
+ ['VIDROS','vidros',24000,false,'GVG ESQUADRIAS'],
+ ['OUTROS INSUMOS','outros',24000,true,'ARTEFAL'],
+ ['FABRICAÇÃO','fabricacao',32000,true,'GVG ESQUADRIAS'],
+ ['INSTALAÇÃO','instalacao',8000,true,'GVG ESQUADRIAS']
+].map(([nivel_nome,categoria_base,valor,faturar,empresa_faturamento_nome])=>({
+ nivel_nome,categoria_base,valor,faturar,empresa_faturamento_nome,
+ percentual:valor/183200*100
+}));
+const exemplo=()=>({
+ orcamento:{valor_total:183200},
+ orcamentoNiveis:niveisExemplo,
+ despesas:[{categoria:'aluminio',status:'aprovada',valor:5000}],
+ faturas:[{categoria:'fabricacao',status:'emitido',valor_total:2500}]
+});
+const unificado=renderResumo(exemplo());
+const htmlResumo=unificado.nodes.finSummary.innerHTML;
+assert.equal(unificado.legacyCalls,0,'Orçamento por níveis não deve renderizar tabela legada');
+assert.equal((htmlResumo.match(/<table\b/g)||[]).length,1,'Uma só tabela financeira por obra');
+assert.ok(htmlResumo.includes('Orçamento por níveis e acompanhamento financeiro')&&
+ !htmlResumo.includes('Grupos financeiros existentes')&&
+ htmlResumo.includes('OUTROS INSUMOS')&&htmlResumo.includes('ARTEFAL')&&
+ htmlResumo.includes('R$ 24.000,00')&&
+ htmlResumo.includes('Faturamento (emissão pendente)')&&
+ htmlResumo.includes('R$ 5.000,00')&&
+ htmlResumo.includes('R$ 68.200,00'),
+ 'Tabela inclui empresa, previsto, custos realizados, faturamento especial e restante');
+assert.ok(unificado.nodes.finTotals.innerHTML.includes('R$ 64.000,00'),
+ 'Faturamento previsto considera outros insumos com flag de faturamento');
+const duplicados=exemplo();
+duplicados.orcamentoNiveis.push({
+ nivel_nome:'ALUMÍNIO ADICIONAL',categoria_base:'aluminio',valor:1000,
+ percentual:1,faturar:false,empresa_faturamento_nome:'GVG ESQUADRIAS'
+});
+const dupHtml=renderResumo(duplicados).nodes.finSummary.innerHTML;
+assert.equal((dupHtml.match(/<table\b/g)||[]).length,1);
+assert.ok(dupHtml.includes('seus valores realizados não são distribuídos automaticamente (—)')&&
+ dupHtml.includes('ALUMÍNIO ADICIONAL'),
+ 'Níveis repetidos não podem contabilizar o mesmo gasto duas vezes');
+const legado=renderResumo({orcamentoNiveis:[],despesas:[],faturas:[],orcamento:{}});
+assert.equal(legado.legacyCalls,1,'Obras antigas permanecem com resumo legado');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
