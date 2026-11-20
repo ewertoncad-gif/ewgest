@@ -645,7 +645,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v44.6</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v44.7</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -696,8 +696,7 @@
     </section>
     <section id="manageWorks" class="hidden">
       <div class="head"><div>
-        <button id="manageWorksBack" type="button" class="btn secondary">← Tela inicial</button>
-        <h1 style="margin-top:17px">Gerenciar obras cadastradas</h1>
+        <h1>Gerenciar obras cadastradas</h1>
         <p class="muted">Para excluir uma obra das telas operacionais do EWGEST, cancele as operações ativas e estorne os saldos do estoque. O histórico permanece salvo para auditoria.</p>
       </div></div>
       <div class="section panel">
@@ -740,8 +739,7 @@
     </section>
     <section id="romaneiosPage" class="hidden">
       <div class="head"><div>
-        <button id="romaneiosBack" type="button" class="btn secondary">← Tela inicial</button>
-        <h1 style="margin-top:17px">Romaneios e expedição</h1>
+        <h1>Romaneios e expedição</h1>
         <p class="muted">Emissão, acompanhamento e reimpressão de comprovantes de entrega.</p>
       </div></div>
       <div class="section panel">
@@ -791,10 +789,9 @@
 
     <section id="users" class="hidden">
       <div class="head"><div>
-        <button id="usersBack" class="btn secondary" type="button">← Tela inicial</button>
-        <button id="userAccessHistoryToggle" class="btn secondary" type="button" style="margin-left:8px">Histórico de acessos</button>
+        <button id="userAccessHistoryToggle" class="btn secondary" type="button">Histórico de acessos</button>
         <button id="userOperationsToggle" class="btn secondary" type="button" style="margin-left:8px">Relatório de operações</button>
-        <h1 style="margin-top:18px">Cadastro de usuários</h1>
+        <h1>Cadastro de usuários</h1>
         <div class="muted">ADM e Gerenciador podem administrar usuários. Somente o ADM pode alterar contas de administradores.</div>
       </div></div>
       <div id="userOperationsPanel" class="section panel hidden">
@@ -924,8 +921,7 @@
 
     <section id="materials" class="hidden">
       <div class="head">
-        <div><button id="materialsBack" type="button" class="btn secondary">← Tela inicial</button>
-          <h1 style="margin-top:20px">Banco de materiais</h1>
+        <div><h1>Banco de materiais</h1>
           <p class="muted">Cadastros técnicos compartilhados entre as obras: perfis, acessórios, acabamentos e cores.</p>
         </div>
         <button class="btn primary" id="matNovoHeader" type="button">+ Cadastrar material</button>
@@ -957,8 +953,7 @@
 
     <section id="stock" class="hidden">
       <div class="head"><div>
-        <button type="button" class="btn secondary" id="stockBack">← Tela inicial</button>
-        <h1 style="margin-top:20px">Estoque por obra</h1>
+        <h1>Estoque por obra</h1>
         <p class="muted">Controle de barras inteiras por comprimento e quantidades de acessórios de cada obra.</p>
       </div>
       <div class="stockTopActions">
@@ -1006,8 +1001,7 @@
     </section>
     <section id="cemImport" class="hidden">
       <div class="head"><div>
-        <button type="button" class="btn secondary" id="cemBack">← Tela inicial</button>
-        <h1 style="margin-top:20px">Importar dados de arquivo técnico</h1>
+        <h1>Importar dados de arquivo técnico</h1>
         <p class="muted">A análise do ZIP é apenas uma prévia e não grava uma obra. Nesta etapa, a gravação é limitada a materiais vinculados a uma obra já cadastrada.</p>
       </div></div>
       <div class="section panel">
@@ -1042,7 +1036,6 @@
     </section>
     <section id="typologies" class="hidden">
       <div class="head"><div>
-        <button id="backTypologies" type="button" class="btn secondary" style="margin-bottom:18px">← Tela inicial</button><button id="openManufacturersFromCatalog" type="button" class="btn secondary" style="margin-bottom:18px;margin-left:10px">Cadastro de fabricantes</button>
         <h1>Banco de tipologias</h1>
         <div class="muted">Catálogo técnico, códigos MOD e pendências. Códigos EA de obras antigas permanecem apenas como referências históricas.</div>
       </div></div>
@@ -2993,7 +2986,6 @@ function renderRomaneioHub(){
   select.value=hubObraId;
   const obra=works.find(w=>w.id===hubObraId);
   if(obra)selectedWork=obra;
-  node('romaneiosBack').classList.toggle('hidden',isAlmoxarife());
   node('hubEmitRomaneio').disabled=!obra||!podeEmitirRomaneio()||!dispatchReady||Boolean(romaneioLoadError);
   const box=node('hubRomaneioList');
   if(!obra){box.textContent='Escolha a obra para consultar e emitir romaneios.';return;}
@@ -3994,7 +3986,6 @@ node('romaneioSaveNumber').addEventListener('click',async()=>{
 });
 node('openUsers').addEventListener('click',openManagedUsersPage);
 node('navManageWorks').addEventListener('click',abrirGerenciamentoObras);
-node('manageWorksBack').addEventListener('click',()=>setView('dashboard'));
 node('openRomaneioHub').addEventListener('click',abrirAreaRomaneios);
 node('navHome').addEventListener('click',()=>setView('dashboard'));
 node('navWorks').addEventListener('click',abrirObrasPelaBarra);
@@ -4005,7 +3996,6 @@ node('navMaterials').addEventListener('click',abrirMateriais);
 node('navStock').addEventListener('click',abrirEstoque);
 node('navCem').addEventListener('click',()=>setView('cemImport'));
 node('navUsers').addEventListener('click',()=>node('openUsers').click());
-node('romaneiosBack').addEventListener('click',()=>setView('dashboard'));
 node('hubWorkSelect').addEventListener('change',()=>{
   hubObraId=node('hubWorkSelect').value;
   renderRomaneioHub();
@@ -4023,7 +4013,6 @@ node('hubRefreshRomaneio').addEventListener('click',async()=>{
     node('hubRomaneioMessage').textContent='Lista atualizada.';
   }catch(e){node('hubRomaneioMessage').textContent='Erro ao atualizar: '+e.message;}
 });
-node('usersBack').addEventListener('click',()=>setView('dashboard'));
 node('reloadUsers').addEventListener('click',async()=>{
   node('usersMessage').textContent='Atualizando…';
   try{await reloadManagedUsers();}
@@ -5418,7 +5407,6 @@ function openManufacturersPage(){
   setView('manufacturers');
 }
 node('openManufacturers').addEventListener('click',openManufacturersPage);
-node('openManufacturersFromCatalog').addEventListener('click',openManufacturersPage);
 node('manufacturerForm').addEventListener('submit',async(event)=>{
   event.preventDefault();
   if(!adminCanManageManufacturers())return;
@@ -5474,7 +5462,6 @@ node('openTypologies').addEventListener('click',()=>{
   renderTypologiesAdmin();
   setView('typologies');
 });
-node('backTypologies').addEventListener('click',()=>setView('dashboard'));
 node('typologySearch').addEventListener('input',renderTypologiesAdmin);
 node('typologyManufacturerFilter').addEventListener('change',renderTypologiesAdmin);
 node('typologyTypeFilter').addEventListener('change',renderTypologiesAdmin);
@@ -6150,14 +6137,11 @@ async function cemImportarSelecionados(){
     cemAtualizarBotao();
   }
 }
-node('materialsBack').addEventListener('click',()=>setView('dashboard'));
 node('matNovoHeader').addEventListener('click',()=>abrirEdicaoMaterial());
 node('matNovo').addEventListener('click',()=>abrirEdicaoMaterial());
 node('matTabPerfil').addEventListener('click',()=>matSelecionarTipo('perfil'));
 node('matTabAcessorio').addEventListener('click',()=>matSelecionarTipo('acessorio'));
-node('stockBack').addEventListener('click',()=>setView('dashboard'));
 node('stockRefresh').addEventListener('click',abrirEstoque);
-node('cemBack').addEventListener('click',()=>setView('dashboard'));
 
 node('matPesquisa').addEventListener('input',renderMateriais);
 node('matMostrarInativos').addEventListener('change',renderMateriais);

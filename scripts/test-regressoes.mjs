@@ -581,8 +581,8 @@ assert.ok(!source.includes("node('romaneioConfirm').checked"),
 assert.ok(source.includes('id="workspaceNav"') && source.includes('id="navHome"')
  && source.includes('id="navRomaneios"'),
  'Nova navegação acessível permanece disponível');
-assert.ok(source.includes('id="romaneiosBack" type="button" class="btn secondary">← Tela inicial'),
- 'Retorno de romaneios renomeado para Tela inicial');
+assert.ok(!source.includes('id="romaneiosBack"')&&source.includes('id="navRomaneios"'),
+ 'Navegação dos romaneios permanece disponível exclusivamente na lateral');
 assert.ok(source.includes('id="sentArea"')&&source.includes('function progressoExpedicao(list)'),
  'Indicadores de expedição preservados na tela inicial');
 const observ=montarRomaneio({...cabecalho,observacoes:'ENTREGA PARCIAL\nCONFERIDO PELO ALMOXARIFE'},[linha(1)]);
@@ -1293,4 +1293,24 @@ assert.ok(restored.includes("const raw=sessionStorage.getItem('ewgest_session_v3
 assert.ok(source.includes('EWGEST <strong>· v44.6</strong>')&&
  source.includes('@media(prefers-reduced-motion:reduce){.startupSpinner'),
  'Indicador de carregamento acessível e versão atualizada');
+// v44.7: os sete atalhos marcados no cabeçalho devem desaparecer, sem eventos órfãos.
+const obsoleteHeaderButtons=[
+ 'manageWorksBack','romaneiosBack','usersBack','materialsBack','stockBack',
+ 'cemBack','backTypologies','openManufacturersFromCatalog'
+];
+for(const id of obsoleteHeaderButtons){
+ assert.ok(!source.includes('id="'+id+'"')&&!source.includes("node('"+id+"')"),
+  'Atalho de navegação redundante ou evento órfão: '+id);
+}
+for(const id of ['navHome','navRomaneios','navTypologies','navManufacturers',
+ 'navMaterials','navStock','navCem','navUsers','navManageWorks']){
+ assert.ok(source.includes('id="'+id+'"'),'Preservar acesso no menu lateral: '+id);
+}
+for(const id of ['userAccessHistoryToggle','userOperationsToggle',
+ 'matNovoHeader','stockRefresh','hubRefreshRomaneio']){
+ assert.ok(source.includes('id="'+id+'"'),'Preservar ação operacional: '+id);
+}
+assert.ok(source.includes('id="myPasswordBack"')&&
+ source.includes("node('myPasswordBack').addEventListener"),
+ 'Retorno da alteração de senha é necessário ao perfil Almoxarife e foi preservado');
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');

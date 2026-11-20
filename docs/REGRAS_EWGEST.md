@@ -408,3 +408,11 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 - Se há sessão válida em `sessionStorage`, manter a interface na tela de carregamento até restaurar a sessão, consultar permissões e carregar o painel; então exibir o painel/área autorizada diretamente, sem mostrar o login no meio do caminho.
 - Se não há sessão ou ela foi revogada/expirada irrecuperavelmente, apresentar o login normalmente. Em falhas de rede recuperáveis, preservar as credenciais e apresentar o controle de recuperação de sessão já existente.
 - Em caso de exceção inesperada de inicialização, revelar o login com o erro para evitar carregamento infinito. O indicador de carregamento respeita a preferência do sistema por movimento reduzido. Não guardar credenciais novas, burlar a validação de sessão única, modificar permissões ou alterar o backend.
+
+
+### Remover atalhos redundantes de navegação dos cabeçalhos (v44.7 — 20/11/2026)
+- Remover **← Tela inicial** dos cabeçalhos de **Romaneios e expedição**, **Banco de tipologias**, **Banco de materiais**, **Estoque**, **Importar arquivo técnico**, **Usuários** e **Gerenciar obras**. O acesso correspondente permanece na barra lateral.
+- Remover também **Cadastro de fabricantes** do cabeçalho do **Banco de tipologias**, pois o menu **Fabricantes** já está na barra lateral. A página Fabricantes já não possui botões redundantes desde v44.5.
+- Remover os eventos JavaScript e ajustes de visibilidade dos botões excluídos, sem afetar os demais botões (Histórico de acessos, Relatório de operações, atualização, cadastro, importação, filtros etc.). Ajustar as margens dos títulos após a remoção.
+- **Não remover** o botão de retorno da tela **Minha senha**: usuários restritos ao almoxarifado não dispõem do botão Tela inicial na lateral; o retorno deve continuar levando à área autorizada.
+- Não alterar dados do Supabase, esquadrias, saldos, autenticação nem permissões.
