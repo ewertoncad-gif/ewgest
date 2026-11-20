@@ -183,42 +183,81 @@
  }
  // Valor total deixa de mostrar apenas fabricação/instalação se outro nível
  // também tiver flag de faturamento (ex.: OUTROS INSUMOS para Artefal).
+ // Obras com orçamento por níveis usam uma única tabela financeira. Obras
+ // anteriores preservam o resumo tradicional de categorias.
  const oldResumo=finRenderResumo;
  finRenderResumo=function(){
-  oldResumo();
   if(!finState)return;
   const state=finState,levels=state.orcamentoNiveis||[];
-  if(levels.length){
-   const totalF=levels.filter(n=>n.faturar).reduce((s,n)=>s+Number(n.valor||0),0);
-   const emissivel=levels.filter(n=>n.faturar&&['fabricacao','instalacao'].includes(n.categoria_base))
-    .reduce((s,n)=>s+Number(n.valor||0),0);
-   const outras=totalF-emissivel;
-   const realizado=state.faturas.filter(f=>f.status==='emitido')
-    .reduce((s,f)=>s+Number(f.valor_total||0),0);
-   const gastos=state.despesas.filter(d=>d.status==='aprovada')
-    .reduce((s,d)=>s+Number(d.valor||0),0);
-   byId('finTotals').innerHTML='<span><strong>Valor da obra: '+finMoney(state.orcamento.valor_total)+'</strong></span>'+
-    '<span><strong>Faturado: '+finMoney(realizado)+'</strong></span>'+
-    '<span><strong>A faturar (todos os níveis): '+finMoney(Math.max(0,totalF-realizado))+'</strong></span>'+
-    '<span><strong>Disponível no módulo por esquadria: '+finMoney(Math.max(0,emissivel-realizado))+'</strong></span>'+
-    (outras>0?'<span><strong>Outros níveis faturáveis (sem emissão aqui): '+finMoney(outras)+'</strong></span>':'')+
-    '<span><strong>Gastos registrados: '+finMoney(gastos)+'</strong></span>';
-   const existing=byId('finSummary').querySelectorAll('table');
-   if(existing.length>1){
-    const groupTable=existing[existing.length-1];
-    groupTable.querySelector('th:nth-child(2)').textContent='Controle técnico anterior';
-    for(const [i,[key]] of finCategories.entries()){
-     const row=groupTable.tBodies[0]?.rows[i];if(!row)continue;
-     const assigned=levels.filter(n=>n.categoria_base===key),f=assigned.filter(n=>n.faturar);
-     if(!assigned.length)continue;
-     const label=f.length===assigned.length?'Faturamento':f.length?'Misto':'Gasto';
-     row.cells[1].textContent=label+
-       ((f.length&& !['fabricacao','instalacao'].includes(key))?' (emissão pendente)':'');
-    }
-   }
-   byId('finSummary').insertAdjacentHTML('beforeend',
-    '<p class="hint">O quadro técnico acima mantém os agrupamentos históricos de custos. Os níveis personalizados e suas flags são a referência para o orçamento; outros níveis faturáveis ainda não têm emissão neste módulo.</p>');
+  if(!levels.length){
+   oldResumo();
+   initForm();
+   return;
   }
+  const faturas=new Map(),despesas=new Map();
+  for(const f of state.faturas)if(f.status==='emitido')
+   faturas.set(f.categoria,(faturas.get(f.categoria)||0)+Number(f.valor_total||0));
+  for(const d of state.despesas)if(d.status==='aprovada')
+   despesas.set(d.categoria,(despesas.get(d.categoria)||0)+Number(d.valor||0));
+  const totalF=levels.filter(n=>n.faturar).reduce((sum,n)=>sum+Number(n.valor||0),0);
+  const emissivel=levels.filter(n=>n.faturar&&['fabricacao','instalacao'].includes(n.categoria_base))
+   .reduce((sum,n)=>sum+Number(n.valor||0),0);
+  const outras=totalF-emissivel;
+  const realizado=[...faturas.values()].reduce((sum,v)=>sum+v,0);
+  const gastos=[...despesas.values()].reduce((sum,v)=>sum+v,0);
+  byId('finTotals').innerHTML='<span><strong>Valor da obra: '+finMoney(state.orcamento.valor_total)+'</strong></span>'+
+   '<span><strong>Faturado: '+finMoney(realizado)+'</strong></span>'+
+   '<span><strong>A faturar (todos os níveis): '+finMoney(Math.max(0,totalF-realizado))+'</strong></span>'+
+   '<span><strong>Disponível no módulo por esquadria: '+finMoney(Math.max(0,emissivel-realizado))+'</strong></span>'+
+   (outras>0?'<span><strong>Outros níveis faturáveis (sem emissão aqui): '+finMoney(outras)+'</strong></span>':'')+
+   '<span><strong>Gastos registrados: '+finMoney(gastos)+'</strong></span>';
+
+  // Um grupo interno pode reunir vários níveis personalizados. Sem vínculo
+  // do lançamento ao nível específico, não podemos atribuir gasto/receita
+  // arbitrariamente a uma linha (nem deduzi-lo duas vezes).
+  const counts=new Map();
+  for(const n of levels){
+   const key=String(n.categoria_base)+'|'+(n.faturar?'receita':'gasto');
+   counts.set(key,(counts.get(key)||0)+1);
+  }
+  let naoDiscriminados=false;
+  const rows=levels.map(n=>{
+   const base=String(n.categoria_base||'');
+   const key=base+'|'+(n.faturar?'receita':'gasto');
+   const canBill=n.faturar&&['fabricacao','instalacao'].includes(base);
+   const canSpend=!n.faturar&&['aluminio','acessorios','vidros','outros'].includes(base);
+   const known=(counts.get(key)===1)&&(n.faturar?!canBill?true:true:canSpend);
+   // Faturamento de outros níveis ainda não pode ser lançado no EWGEST;
+   // exibir zero registrado, distinguindo previsão de emissão disponível.
+   const real=known?(n.faturar?(faturas.get(base)||0):(despesas.get(base)||0)):null;
+   const previsto=Number(n.valor||0),restante=real===null?null:
+    (Math.round(previsto*100)-Math.round(real*100))/100;
+   if(real===null)naoDiscriminados=true;
+   const finalidade=n.faturar?(
+    canBill?'Faturamento':'Faturamento (emissão pendente)'
+   ):'Controle de gastos';
+   return '<tr><td>'+escapeHTML(n.nivel_nome)+'</td>'+
+    '<td>'+escapeHTML(n.empresa_faturamento_nome)+'</td>'+
+    '<td align="right">'+finMoney(previsto)+'</td>'+
+    '<td align="right">'+Number(n.percentual||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%</td>'+
+    '<td>'+finalidade+'</td>'+
+    '<td align="right">'+(real===null?'—':finMoney(real))+'</td>'+
+    '<td align="right"'+(restante!==null&&restante<0?' class="finNegative"':'')+'>'+
+    (restante===null?'—':finMoney(restante))+'</td></tr>';
+  }).join('');
+  byId('finSummary').innerHTML=
+   '<h3>Orçamento por níveis e acompanhamento financeiro</h3>'+
+   '<div class="finTableWrap"><table class="finTable"><thead><tr>'+
+   '<th>Nível</th><th>Empresa</th><th align="right">Previsto</th>'+
+   '<th align="right">% da obra</th><th>Finalidade</th>'+
+   '<th align="right">Realizado</th><th align="right">Restante</th>'+
+   '</tr></thead><tbody>'+rows+'</tbody></table></div>'+
+   '<p class="hint">Realizado considera apenas despesas aprovadas e faturamentos emitidos registrados no EWGEST. '+
+   'Romaneios não contabilizam faturamento. Níveis de faturamento fora de fabricação/instalação '+
+   'ainda não podem ter nota emitida por este módulo.'+
+   (naoDiscriminados?' Quando vários níveis compartilham uma categoria interna ou não possuem categoria '+
+    'de lançamento correspondente, seus valores realizados não são distribuídos automaticamente (—).':'')+
+   '</p>';
   initForm();
  };
  byId('finExpenseForm').removeEventListener('submit',finRegistrarCusto);
