@@ -6058,7 +6058,8 @@ function cemTabelaHTML(tipo){
     '<input type="search" id="'+key+'" value="'+escapeHTML(search)+
     '" placeholder="Código, fabricante, cor ou descrição"></label></div>'+
     '<div class="cemTableWrap"><table class="cemTable"><thead><tr><th>Código</th><th>Fabricante</th>'+
-    '<th>Descrição</th><th>Linha</th><th>Acabamento / cor CEM</th><th>'+
+    '<th>Descrição</th><th>Linha</th><th>'+
+    (tipo==='perfil'?'Acabamento / cor CEM':'Cor CEM')+'</th><th>'+
     (tipo==='perfil'?'Barras (qtd. × comprimento)':'Quantidades')+
     '</th><th>Cadastro</th></tr></thead><tbody>'+
     (matching.length?matching.map(p=>{
@@ -6066,7 +6067,7 @@ function cemTabelaHTML(tipo){
       const status=existing.has(code)?
         '<span class="cemStatusOld">Já cadastrado — será preservado</span>':
         '<span class="cemStatusNew">Novo</span>';
-      const vars=p.variacoes.map(v=>v.acabamento+' / '+v.cor).join(' · ');
+      const vars=[...new Set(p.variacoes.map(v=>tipo==='perfil'?v.acabamento+' / '+v.cor:v.cor))].join(' · ');
       const conferencia=tipo==='perfil'?
         cemBarrasConferenciaHTML(barras.get(cemNome(p.codigo))):
         cemAcessoriosConferenciaHTML(acessorios.get(cemNome(p.codigo)));
