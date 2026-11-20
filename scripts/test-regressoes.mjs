@@ -1483,8 +1483,8 @@ assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
  !source.includes('<label>XML da nota fiscal (NF-e)')&&
  source.includes('id="finCostCategory" required'),
  'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
-assert.ok(source.includes('recebimento-manual.js?v=20261120c')&&
- source.includes('recebimento-manual.css?v=20261120c')&&receiveCSS.includes('.finManualTable'),
+assert.ok(source.includes('recebimento-manual.js?v=20261120d')&&
+ source.includes('recebimento-manual.css?v=20261120d')&&receiveCSS.includes('.finManualTable'),
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
  receiveScript.includes('p_itens:items')&&receiveScript.includes('finCostOpId ||= crypto.randomUUID()')&&
@@ -1584,11 +1584,13 @@ assert.ok(source.includes("apiGet('ew_cem_obras_materiais'")&&
  'Financeiro deve carregar os quantitativos apenas da obra selecionada');
 assert.ok(receiveScript.includes('finState.materiaisObra')&&
  receiveScript.includes('finState.stockReceipts')&&
- receiveScript.includes('quantityInfo(row)')&&
- receiveScript.includes('getVariations(row.material)')&&
+ receiveScript.includes('quantityData(row)')&&
+ receiveScript.includes('selectOptions()')&&
+ receiveScript.includes('finManualReadonly')&&
  receiveScript.includes('renderRows();')&&
- receiveCSS.includes('.finManualInfoRow'),
- 'A seleção por obra e por variação apresenta os totais planejados e os recebimentos da NF');
+ receiveCSS.includes('.finManualStat')&&
+ source.includes('<th>Necessário</th><th>Já recebido</th><th>Falta receber</th>'),
+ 'Cor preenchida e quantidades planejadas, recebidas e pendentes ficam visíveis na tabela');
 const resolverStart=receiveScript.indexOf(' function stockCategory(){');
 const resolverEnd=receiveScript.indexOf(' function unitFor(',resolverStart);
 assert.ok(resolverStart>=0&&resolverEnd>resolverStart,
@@ -1596,7 +1598,7 @@ assert.ok(resolverStart>=0&&resolverEnd>resolverStart,
 const mockResolver=new Function('state','selectedCategory',
  'let finState=state, category=selectedCategory;\n'+
  receiveScript.slice(resolverStart,resolverEnd)+
- '\nreturn {getMaterials,getVariations,quantityInfo};');
+ '\nreturn {getMaterials,getVariations,quantityInfo,quantityData,selectOptions,autoBarLength,plannedRows};');
 const mkState={
  perfis:[{id:'p1',codigo:'CG179',descricao:'Corrimão'},{id:'p2',codigo:'OUTRO',descricao:'Não pertence à obra'}],
  acessorios:[{id:'a1',codigo:'PARAFUSO',descricao:'Parafuso'},{id:'a2',codigo:'OUTRO-ACESS',descricao:'Não pertence à obra'}],
@@ -1627,10 +1629,8 @@ assert.deepEqual(perfMock.getVariations('p1').map(x=>x.id),['v1','v2'],
  'A variação pertence ao perfil e à lista técnica da obra');
 assert.deepEqual(perfMock.getVariations('p2'),[],
  'Outras cores cadastradas somente para materiais de outra obra não aparecem');
-const geral=perfMock.quantityInfo({material:'p1',variacao:''});
-assert.ok(geral.includes('34 cortes')&&geral.includes('84,96 m')&&
- geral.includes('5 barras')&&geral.includes('30 m')&&!geral.includes('105 barras'),
- 'Necessidade total de perfil usa cortes/metragem; recebimento contabiliza só barras deste item');
+assert.deepEqual(perfMock.selectOptions().map(({v})=>v.id),['v1','v2'],
+ 'Variações de um mesmo perfil são opções completas do seletor, sem escolher cor novamente');
 const cor=perfMock.quantityInfo({material:'p1',variacao:'v1'});
 assert.ok(cor.includes('24 cortes')&&cor.includes('54,96 m')&&
  cor.includes('2 barras')&&cor.includes('12 m')&&!cor.includes('5 barras'),
@@ -1643,5 +1643,40 @@ assert.ok(accInfo.includes('58 PC')&&accInfo.includes('20 PC')&&accInfo.includes
  'Acessório usa unidade compatível e mostra necessário, recebido e falta receber');
 const empty=mockResolver({...mkState,materiaisObra:[]},'aluminio');
 assert.deepEqual(empty.getMaterials(),[],'Obra sem quantitativos não deve listar todo o catálogo global');
+
+
+const profileInfo=perfMock.quantityData({material:'p1',variacao:'v1'});
+assert.equal(profileInfo.needed,'24 cortes');
+assert.equal(profileInfo.neededSub,'54,96 m');
+assert.equal(profileInfo.received,'2 barras');
+assert.equal(profileInfo.receivedSub,'12 m');
+assert.equal(profileInfo.pending,'42,96 m');
+assert.equal(perfMock.autoBarLength({material:'p1',variacao:'v1'}),null,
+ 'Nunca inventar comprimento comercial não cadastrado ou não importado');
+const withLength=mockResolver({...mkState,
+ perfis:[{...mkState.perfis[0],comprimento_comercial_mm:6000},mkState.perfis[1]]},'aluminio');
+assert.equal(withLength.autoBarLength({material:'p1',variacao:'v1'}),6000,
+ 'Comprimento comercial cadastrado é preenchido automaticamente');
+const historical=mockResolver({...mkState,
+ barrasCem:[{variacao_id:'v1',comprimento_mm:5500,origem:'IMPORTACAO_CEM'}]},'aluminio');
+assert.equal(historical.autoBarLength({material:'p1',variacao:'v1'}),5500,
+ 'Comprimento da barra da importação técnica é recuperado se for único');
+const ambiguous=mockResolver({...mkState,
+ barrasCem:[{variacao_id:'v1',comprimento_mm:5500},{variacao_id:'v1',comprimento_mm:6000}]},'aluminio');
+assert.equal(ambiguous.autoBarLength({material:'p1',variacao:'v1'}),null,
+ 'Duas medidas diferentes não autorizam preenchimento arbitrário');
+const duplicated=mockResolver({...mkState,materiaisObra:[
+ {...mkState.materiaisObra[0],quantidade_prevista:5,comprimento_total_m:5.75,linhas_calculo:1},
+ {...mkState.materiaisObra[0],quantidade_prevista:5,comprimento_total_m:5.75,linhas_calculo:1}
+]},'aluminio');
+assert.equal(duplicated.quantityData({material:'p1',variacao:'v1'}).needed,'5 cortes',
+ 'A importação repetida de linha idêntica não dobra a necessidade da obra');
+assert.equal(duplicated.quantityData({material:'p1',variacao:'v1'}).neededSub,'5,75 m',
+ 'A importação repetida não dobra a metragem prevista');
+assert.ok(!receiveScript.includes('<td><select class="finManualVariation"'),
+ 'A cor não deve depender de uma segunda seleção editável');
+assert.ok(receiveScript.includes('Informe a barra')&&
+ receiveScript.includes('finState.comprimentosComerciais'),
+ 'Comprimento desconhecido requer medida comercial real, nunca estimativa fictícia');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');

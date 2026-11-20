@@ -672,7 +672,7 @@
 
   </style>
   <link rel="stylesheet" href="/assets/orcamento-niveis.css?v=20261120c">
-  <link rel="stylesheet" href="/assets/recebimento-manual.css?v=20261120c">
+  <link rel="stylesheet" href="/assets/recebimento-manual.css?v=20261120d">
 </head>
 <body>
 <div class="wrap">
@@ -808,11 +808,12 @@
                   <strong>Materiais recebidos</strong>
                   <button id="finManualAdd" class="btn secondary" type="button">+ Adicionar material</button>
                 </div>
-                <p class="hint">Cadastre uma linha por perfil/acessório e sua variação. Perfis exigem comprimento da barra. Para notas com mais de um material, informe o subtotal de cada item: a soma deve conferir com o valor da nota.</p>
+                <p class="hint">Os materiais e as cores vêm da lista técnica desta obra. O comprimento comercial será preenchido quando estiver registrado; caso contrário, escolha o tamanho realmente recebido. A quantidade que entra agora é informada manualmente. Para notas com vários materiais, confira os subtotais.</p>
                 <div class="finTableWrap"><table class="finTable finManualTable">
-                  <thead><tr><th>Material</th><th>Cor / variação</th><th>Comprimento (mm)</th><th>Recebendo agora</th><th>Unidade</th><th>Valor do item (R$)</th><th>Ação</th></tr></thead>
+                  <thead><tr><th>Material da obra</th><th>Cor do CEM</th><th>Barra (mm)</th><th>Necessário</th><th>Já recebido</th><th>Falta receber</th><th>Entrando agora</th><th>Un.</th><th>Valor do item (R$)</th><th>Ação</th></tr></thead>
                   <tbody id="finManualRows"></tbody>
                 </table></div>
+                <p id="finManualDetail" class="hint finManualDetail"></p>
                 <p class="finSumStatus" id="finManualSum" aria-live="polite"></p>
               </div>
               <p id="finManualHint" class="hint"></p>
@@ -6794,17 +6795,19 @@ async function finLoad(){
  node('finMessage').textContent='Consultando orçamento, despesas e faturamentos…';
  try{
   await ensureSession();
-  const [b,c,fat,perfis,aces,roms,variacoes,galpoes,niveis,materiaisObra]=await Promise.all([
+  const [b,c,fat,perfis,aces,roms,variacoes,galpoes,niveis,materiaisObra,comprimentos,barraCem]=await Promise.all([
    apiGet('ew_obra_orcamento',{select:'*',empresa_id:empresa,obra_id:obra,limit:'1'}),
    apiGet('ew_obra_despesas',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
    apiGet('ew_obra_faturamentos',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
-   apiGet('ew_perfis',{select:'id,codigo,descricao,fabricante',empresa_id:empresa,limit:'5000'}),
+   apiGet('ew_perfis',{select:'id,codigo,descricao,fabricante,comprimento_comercial_mm',empresa_id:empresa,limit:'5000'}),
    apiGet('ew_acessorios',{select:'id,codigo,descricao,fabricante,unidade_item,unidade_embalagem,quantidade_por_embalagem',empresa_id:empresa,limit:'5000'}),
    apiGet('romaneios',{select:'id,status,cancelado_em',empresa_id:empresa,obra_id:obra,limit:'3000'}),
    apiGet('ew_materiais_variacoes',{select:'id,perfil_id,acessorio_id,tipo,cor,acabamento,ativo',empresa_id:empresa,limit:'10000'}),
    apiGet('ew_locais_fisicos',{select:'nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'300'}),
    apiGet('ew_obra_orcamento_niveis',{select:'linha,nivel_nome,empresa_faturamento_nome,categoria_base,valor,percentual,faturar',empresa_id:empresa,obra_id:obra,order:'linha.asc',limit:'100'}),
-   apiGet('ew_cem_obras_materiais',{select:'tipo,perfil_id,acessorio_id,variacao_id,quantidade_prevista,unidade_prevista,comprimento_total_m',empresa_id:empresa,obra_id:obra,limit:'10000'})
+   apiGet('ew_cem_obras_materiais',{select:'tipo,perfil_id,acessorio_id,variacao_id,quantidade_prevista,unidade_prevista,comprimento_total_m,linhas_calculo',empresa_id:empresa,obra_id:obra,limit:'10000'}),
+   apiGet('ew_comprimentos_comerciais',{select:'comprimento_mm',empresa_id:empresa,order:'comprimento_mm.asc',limit:'100'}),
+   apiGet('ew_estoque_obras_movimentos',{select:'variacao_id,comprimento_mm,origem',empresa_id:empresa,obra_id:obra,origem:'eq.IMPORTACAO_CEM',unidade:'eq.BARRA',limit:'3000'})
   ]);
   if(!b?.length){node('finMessage').textContent='Esta obra ainda não possui orçamento cadastrado. As novas importações agora exigem essa etapa.';return;}
   const invoiceIds=(fat||[]).map(x=>x.id),romaneioIds=(roms||[]).filter(x=>x.status==='emitido'&&!x.cancelado_em).map(x=>x.id);
@@ -6836,7 +6839,7 @@ async function finLoad(){
    acessorios:aces||[],shipped,billed,pendentes,pendentesItens:pendentesItens||[],
    aprovadas,approvedItems:approvedItems||[],stockReceipts:stockReceipts||[],
    variacoes:variacoes||[],galpoes:(galpoes||[]).filter(x=>x.ativo).map(x=>x.nome),orcamentoNiveis:niveis||[],
-   materiaisObra:materiaisObra||[]};
+   materiaisObra:materiaisObra||[],comprimentosComerciais:(comprimentos||[]).map(x=>x.comprimento_mm),barrasCem:barraCem||[]};
   box.classList.remove('hidden');node('finMessage').textContent='';
   node('finExpensePanel').classList.toggle('hidden',!isFullAdminUser());
   node('finBillingPanel').classList.toggle('hidden',!isFullAdminUser());
@@ -9327,6 +9330,6 @@ restaurarSessaoSalva().catch(e=>{
 
 </script>
 <script src="/assets/orcamento-niveis.js?v=20261120c"></script>
-<script src="/assets/recebimento-manual.js?v=20261120c"></script>
+<script src="/assets/recebimento-manual.js?v=20261120d"></script>
 </body>
 </html>
