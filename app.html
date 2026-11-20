@@ -477,6 +477,11 @@
     .cemResultCount{font-size:12px;color:#6c8097}
     .cemStatusOld{color:#986622;font-weight:650}
     .cemStatusNew{color:#167c65;font-weight:650}
+    .cemBarEntry{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 6px;padding:3px 0;white-space:nowrap}
+    .cemBarEntry+.cemBarEntry{border-top:1px dashed #dfe7f0}
+    .cemBarEntry strong{color:#174879}
+    .cemBarEntry small{font-size:11px;color:#68839e;white-space:normal}
+    .cemBarMissing{font-size:12px;color:#856221}
     .cemImportReceipt{padding:14px 16px;margin:12px 0;background:#edf8f1;border-radius:10px;border:1px solid #b2dbc1;color:#1d6240}
 
 
@@ -647,7 +652,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v44.8</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v44.9</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -5920,6 +5925,44 @@ function cemAtualizarBotao(){
   else info='Pronto para importar materiais sem modificar esquadrias, liberações, romaneios ou estoque físico.';
   node('cemCommitHint').textContent=info;
 }
+function cemBarrasConferencia(r){
+  // OBAPROV informa barras comerciais calculadas: NUMBARRAS e BARRA (milímetros).
+  // OBCALCP é a lista de cortes: seus registros não equivalem a barras.
+  if(r.barrasConferenciaCache)return r.barrasConferenciaCache;
+  const porCodigo=new Map();
+  for(const row of r.barrasAproveitamento||[]){
+    const codigo=cemNome(row.CODPERF);
+    if(!codigo)continue;
+    if(!porCodigo.has(codigo))porCodigo.set(codigo,{barras:new Map(),invalidos:0});
+    const grupo=porCodigo.get(codigo);
+    const quantidade=Number(row.NUMBARRAS),comprimento_mm=Number(row.BARRA);
+    if(!Number.isSafeInteger(quantidade)||quantidade<=0||
+       !Number.isSafeInteger(comprimento_mm)||comprimento_mm<100||comprimento_mm>20000){
+      grupo.invalidos++;
+      continue;
+    }
+    const cor=cemNome(row.CODTRATEXT||row.CODTRAT)||'NÃO INFORMADA';
+    const chave=cor+'|'+comprimento_mm;
+    const atual=grupo.barras.get(chave);
+    if(atual)atual.quantidade+=quantidade;
+    else grupo.barras.set(chave,{cor,comprimento_mm,quantidade});
+  }
+  r.barrasConferenciaCache=porCodigo;
+  return porCodigo;
+}
+function cemBarrasConferenciaHTML(grupo){
+  if(!grupo)return '<span class="cemBarMissing">Não informado no ZIP</span>';
+  const barras=[...grupo.barras.values()].sort((a,b)=>
+    a.comprimento_mm-b.comprimento_mm||a.cor.localeCompare(b.cor,'pt-BR'));
+  const cores=new Set(barras.map(b=>b.cor));
+  const itens=barras.map(b=>'<div class="cemBarEntry"><strong>'+
+    b.quantidade.toLocaleString('pt-BR')+' barra(s)</strong><span>×</span><strong>'+
+    b.comprimento_mm.toLocaleString('pt-BR')+' mm</strong>'+
+    (cores.size>1?'<small> · '+escapeHTML(b.cor)+'</small>':'')+'</div>');
+  if(grupo.invalidos)itens.push('<div class="cemBarMissing">Conferir no CEM: '+
+    grupo.invalidos+' registro(s) de barras com valores inválidos</div>');
+  return itens.join('')||'<span class="cemBarMissing">Não informado no ZIP</span>';
+}
 function cemTabelaHTML(tipo){
   const r=cemParsed;
   const entries=tipo==='perfil'?r.materiaisPayload.perfis:r.materiaisPayload.acessorios;
@@ -5932,6 +5975,7 @@ function cemTabelaHTML(tipo){
     ...x.variacoes.flatMap(v=>[v.cor,v.acabamento,v.codigo_cor])
   ].some(y=>cemNome(y).includes(search)));
   const caption=tipo==='perfil'?'Perfis':'Acessórios';
+  const barras=tipo==='perfil'?cemBarrasConferencia(r):null;
   const key=tipo==='perfil'?'cemSearchPerf':'cemSearchAces';
   return '<div class="cemPreviewSection"><div class="cemResultToolbar"><div><h3>'+caption+' identificados — '+
     entries.length+' códigos</h3><span class="cemResultCount" id="'+key+'Count">'+
@@ -5940,7 +5984,9 @@ function cemTabelaHTML(tipo){
     '<input type="search" id="'+key+'" value="'+escapeHTML(search)+
     '" placeholder="Código, fabricante, cor ou descrição"></label></div>'+
     '<div class="cemTableWrap"><table class="cemTable"><thead><tr><th>Código</th><th>Fabricante</th>'+
-    '<th>Descrição</th><th>Linha</th><th>Acabamento / cor CEM</th><th>Linhas de cálculo</th><th>Cadastro</th></tr></thead><tbody>'+
+    '<th>Descrição</th><th>Linha</th><th>Acabamento / cor CEM</th><th>'+
+    (tipo==='perfil'?'Barras (qtd. × comprimento)':'Linhas de cálculo')+
+    '</th><th>Cadastro</th></tr></thead><tbody>'+
     (matching.length?matching.map(p=>{
       const code=p.fabricante+'|'+p.codigo;
       const rows=p.variacoes.reduce((n,v)=>n+v.linhas_calculo,0);
@@ -5948,13 +5994,18 @@ function cemTabelaHTML(tipo){
         '<span class="cemStatusOld">Já cadastrado — será preservado</span>':
         '<span class="cemStatusNew">Novo</span>';
       const vars=p.variacoes.map(v=>v.acabamento+' / '+v.cor).join(' · ');
+      const conferencia=tipo==='perfil'?
+        cemBarrasConferenciaHTML(barras.get(cemNome(p.codigo))):rows.toLocaleString('pt-BR');
       return '<tr><td>'+escapeHTML(p.codigo)+'</td><td>'+escapeHTML(p.fabricante)+
       '</td><td>'+escapeHTML(p.descricao)+'</td><td>'+escapeHTML(p.linha||'—')+
-      '</td><td>'+escapeHTML(vars)+'</td><td>'+rows.toLocaleString('pt-BR')+
+      '</td><td>'+escapeHTML(vars)+'</td><td>'+conferencia+
       '</td><td>'+status+'</td></tr>';
     }).join(''):'<tr><td colspan="7">Nenhum material corresponde à pesquisa.</td></tr>')+
     '</tbody></table></div><p class="hint">Todos os códigos encontrados estão disponíveis nesta lista. '+
-    'As linhas de cálculo não equivalem a barras ou peças físicas em estoque.</p></div>';
+    (tipo==='perfil'?
+      'As quantidades e comprimentos vêm das barras comerciais calculadas em OBAPROV do CEM; não são confirmação de estoque físico. '+
+      'Quando não existirem dados de barras para um perfil, aparecerá “Não informado no ZIP”.':
+      'As linhas de cálculo não equivalem a peças físicas em estoque.')+'</p></div>';
 }
 function cemRenderPreview(){
   const r=cemParsed,el=node('cemPreview'),notice=node('cemExistingNotice');

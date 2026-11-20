@@ -423,3 +423,10 @@ A regra da v43.0 (bloqueio por qualquer lançamento histórico) foi substituída
 - Exibir um único botão visual **Importar obra** que abre o seletor de arquivos ZIP e um texto discreto com o nome do arquivo escolhido (ou **Nenhum arquivo selecionado**). Manter os botões independentes **Analisar arquivo** e **Limpar análise**.
 - A seleção do ZIP **não grava obra no banco**. Permanece a limitação do módulo atual: análise de esquadrias e importação de materiais de obras cadastradas, com confirmação separada. Nunca interpretar o texto do botão como autorização para alterar essa regra de importação.
 - O arquivo e o nome exibido devem ser descartados ao limpar a análise, trocar de sessão ou sair, sem afetar obras salvas.
+
+
+### Conferência de barras e comprimentos no ZIP CEM (v44.9 — 20/11/2026)
+- Na etapa **Importar arquivo técnico → Conferência antes de importar → Perfis identificados**, substituir a coluna **Linhas de cálculo** por **Barras (qtd. × comprimento)**, usando `OBAPROV.NUMBARRAS` e `OBAPROV.BARRA` (mm). Ex.: **12 barra(s) × 6.000 mm**. Mesmos código/cor/comprimento somam quantidade; comprimentos diferentes são apresentados separadamente.
+- Exibir cor/tratamento ao lado do conjunto quando houver acabamentos diferentes para o mesmo código. Se OBAPROV não tiver dado para um perfil, escrever **Não informado no ZIP**, nunca zero fictício. Dados inválidos devem ser sinalizados para conferência.
+- Esses números representam **barras comerciais calculadas pelo CEM**, não saldo físico de almoxarifado. `OBCALCP` permanece como cálculo de peças/cortes e não deve ser usado para inferir barras. Não lançar movimentação de estoque nem alterar dados do banco por essa conferência.
+- A tabela de acessórios continua com seu indicador de linhas de cálculo por enquanto; o ajuste solicitado é exclusivo dos perfis.

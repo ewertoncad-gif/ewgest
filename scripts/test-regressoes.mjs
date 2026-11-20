@@ -1335,4 +1335,37 @@ const cemReset=source.slice(source.indexOf('function cemDescartarRascunho(){'),
 assert.ok(cemReset.includes("node('matCemArquivo').value=''")&&
  cemReset.includes('cemAtualizarNomeArquivo()'),
  'O nome do arquivo desaparece ao limpar análise ou encerrar sessão');
+// v44.9: conferir quantidade e comprimento de barras do CEM, nunca linhas de corte como estoque.
+const cemBarStart=source.indexOf('function cemBarrasConferencia(r){');
+const cemBarEnd=source.indexOf('function cemTabelaHTML(tipo){',cemBarStart);
+assert.ok(cemBarStart>0&&cemBarEnd>cemBarStart&&
+ source.includes("tipo==='perfil'?'Barras (qtd. × comprimento)':'Linhas de cálculo'")&&
+ source.includes("cemBarrasConferenciaHTML(barras.get(cemNome(p.codigo)))"),
+ 'A conferência dos perfis deve mostrar barras e comprimentos, preservando os acessórios');
+const {cemBarrasConferencia,cemBarrasConferenciaHTML}=new Function('cemNome','escapeHTML',
+ source.slice(cemBarStart,cemBarEnd)+
+ 'return {cemBarrasConferencia,cemBarrasConferenciaHTML};')(
+ x=>String(x||'').trim().toLocaleUpperCase('pt-BR'),
+ x=>String(x).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'));
+const amostraBarras={barrasAproveitamento:[
+ {CODPERF:'060787',CODTRATEXT:'ANOD-1002-A13',NUMBARRAS:'12',BARRA:'6000'},
+ {CODPERF:'060787',CODTRATEXT:'ANOD-1002-A13',NUMBARRAS:'3',BARRA:'6000'},
+ {CODPERF:'060787',CODTRATEXT:'ANOD-1002-A13',NUMBARRAS:'4',BARRA:'6500'},
+ {CODPERF:'000633',NUMBARRAS:'x',BARRA:'6000'}
+]};
+const mapaBarras=cemBarrasConferencia(amostraBarras);
+assert.equal(mapaBarras.get('060787').barras.get('ANOD-1002-A13|6000').quantidade,15,
+ 'Linhas repetidas da mesma barra/cor/comprimento devem somar as quantidades');
+assert.equal(mapaBarras.get('060787').barras.size,2,
+ 'Comprimentos comerciais diferentes devem permanecer separados');
+const htmlBarras=cemBarrasConferenciaHTML(mapaBarras.get('060787'));
+assert.ok(htmlBarras.includes('15 barra(s)')&&htmlBarras.includes('6.000 mm')&&
+ htmlBarras.includes('4 barra(s)')&&htmlBarras.includes('6.500 mm'),
+ 'Exibir pares quantitativo × comprimento, não linhas de cálculo');
+assert.ok(cemBarrasConferenciaHTML(undefined).includes('Não informado no ZIP')&&
+ cemBarrasConferenciaHTML(mapaBarras.get('000633')).includes('Conferir no CEM'),
+ 'Dados ausentes ou inválidos nunca devem ser apresentados como zero barras');
+assert.ok(source.includes('não são confirmação de estoque físico')&&
+ source.includes('OBCALCP é a lista de cortes'),
+ 'Quantidade do aproveitamento não pode ser confundida com estoque físico ou cortes');
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
