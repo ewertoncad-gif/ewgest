@@ -1478,7 +1478,7 @@
 <div id="cemQuoteOverlay" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox finQuoteDialog" role="dialog" aria-modal="true" aria-labelledby="cemQuoteTitle">
     <h2 id="cemQuoteTitle">Valores e níveis da nova obra</h2>
-    <p class="hint">Esta é a próxima etapa da importação. Cadastre níveis linha a linha; nenhum dado da obra será gravado antes da confirmação final.</p>
+    <p class="hint">Escolha livremente quais níveis compõem esta obra. Alumínio, vidro e componentes não são obrigatórios: em uma obra de ACM ou manutenção, use somente os níveis necessários. Nenhum dado será gravado antes da confirmação final.</p>
     <p id="cemQuoteWork" class="hint"></p>
     <form id="cemQuoteForm">
       <div class="finValuesGrid">
@@ -1487,7 +1487,7 @@
         </label>
       </div>
       <div class="cemBudgetActions">
-        <strong>Composição do orçamento por níveis</strong>
+        <strong>Níveis desta obra — escolha somente os que se aplicam</strong>
         <button id="cemQuoteAddRow" class="btn secondary" type="button">+ Adicionar nível</button>
       </div>
       <div class="cemBudgetTableWrap">
@@ -1502,17 +1502,17 @@
           <strong>Cadastrar novo nível</strong>
           <div class="topactions">
             <input id="cemQuoteNewLevel" type="text" maxlength="120" placeholder="Nome do nível">
-            <select id="cemQuoteNewGroup" aria-label="Grupo financeiro do nível">
+            <select id="cemQuoteNewGroup" aria-label="Grupo financeiro interno do nível">
+              <option value="outros" selected>Personalizado / outros</option>
               <option value="aluminio">Alumínio</option>
               <option value="acessorios">Componentes / acessórios</option>
               <option value="vidros">Vidros</option>
-              <option value="outros">Outros insumos</option>
               <option value="fabricacao">Fabricação</option>
               <option value="instalacao">Instalação</option>
             </select>
             <button id="cemQuoteSaveLevel" type="button" class="btn secondary">Adicionar</button>
           </div>
-          <p class="hint">O grupo mantém os controles financeiros existentes compatíveis com os níveis novos.</p>
+          <p class="hint">O nome é livre (ex.: ACM, manutenção). O grupo interno mantém os relatórios financeiros antigos compatíveis; para níveis novos, use Personalizado / outros. Essa classificação não determina a flag de faturamento.</p>
         </div>
         <div class="cemBudgetTool">
           <strong>Cadastrar empresa para o nível</strong>
@@ -1524,7 +1524,7 @@
         </div>
       </div>
       <p id="cemQuoteCatalogInfo" class="hint">Carregando os cadastros...</p>
-      <p class="hint">A soma dos níveis deve resultar em 100% do valor total. Quando “Faturamento?” estiver desmarcado, o nível é somente para controle de gastos.</p>
+      <p class="hint">Você decide quantos e quais níveis usar, sem categorias obrigatórias. A soma das linhas escolhidas deve ser 100% do valor total. Desmarque “Faturamento?” para níveis destinados somente ao controle de gastos.</p>
       <p class="hint">A emissão atual por esquadria continua limitada a fabricação e instalação. O faturamento de outros níveis será uma etapa separada e não será liberado automaticamente por este cadastro.</p>
       <p id="cemQuoteError" class="feedback" role="alert"></p>
       <div class="modalbuttons">
