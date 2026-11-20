@@ -335,7 +335,10 @@
   if(event.target.matches('.finManualMaterial')){
    r.material=event.target.value;r.variacao='';r.quantidade='';r.comprimento='';r.valor='';
    renderRows();
-  }else if(event.target.matches('.finManualVariation'))r.variacao=event.target.value;
+  }else if(event.target.matches('.finManualVariation')){
+   r.variacao=event.target.value;
+   renderRows();
+  }
  });
  byId('finManualRows').addEventListener('input',event=>{
   const tr=event.target.closest('[data-manual-row]');if(!tr)return;
