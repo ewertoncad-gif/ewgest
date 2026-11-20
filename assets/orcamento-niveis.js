@@ -59,7 +59,7 @@
  }
  function adicionarLinha(nivel='',empresa=''){
   if(linhas.length>=100){node('cemQuoteError').textContent='Limite de 100 níveis por obra.';return;}
-  linhas.push({nivel,empresa:empresa||catalogoEmpresas[0]||'',valor:'',faturar:true});
+  linhas.push({nivel,empresa:empresa||'',valor:'',faturar:true});
   render();
  }
  function validar(){
@@ -183,7 +183,6 @@
     'O nível já existe: selecione-o na tabela.':'O nível já existe com outro grupo financeiro.');
    catalogoNiveis.push({nome,categoria_base});
    catalogoNiveis.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
-   if(linhas.length)linhas[linhas.length-1].nivel=nome;
    node('cemQuoteNewLevel').value='';node('cemQuoteError').textContent='';render();
   }catch(e){node('cemQuoteError').textContent=e.message;}
  });
@@ -195,7 +194,6 @@
    if(catalogoEmpresas.includes(nome))throw new Error('A empresa já existe: selecione-a na tabela.');
    catalogoEmpresas.push(nome);
    catalogoEmpresas.sort((a,b)=>a.localeCompare(b,'pt-BR'));
-   if(linhas.length)linhas[linhas.length-1].empresa=nome;
    node('cemQuoteNewCompany').value='';node('cemQuoteError').textContent='';render();
   }catch(e){node('cemQuoteError').textContent=e.message;}
  });
