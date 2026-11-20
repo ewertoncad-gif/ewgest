@@ -681,8 +681,8 @@ assert.equal(mapped.acessorios[0].variacoes[0].unidade_prevista,'PC',
  'Unidade de acessórios deve respeitar o CEM');
 assert.ok(source.includes('id="cemExistingNotice"'),'Mostra aviso de obra já cadastrada');
 assert.ok(source.includes('id="cemCommitHint"'),'Explica quando a importação é habilitada');
-assert.ok(source.includes("node('cemFlagEsquadrias').checked=false"),
-  'Desmarca esquadrias automaticamente para obra já existente');
+assert.ok(source.includes("node('cemFlagEsquadrias').checked=!r.obraExistente"),
+  'Seleciona esquadrias somente para obra nova, desmarcando para obra já existente');
 assert.ok(source.includes('async function cemImportarSelecionados()')&&
  source.includes("'/rest/v1/rpc/ew_importar_cem_conciliado'"),
  'Botão importa somente materiais via transação no servidor');
