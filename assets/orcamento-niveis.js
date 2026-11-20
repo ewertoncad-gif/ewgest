@@ -14,20 +14,32 @@
  // Formatação apenas visual: o servidor continua recebendo valores numéricos em R$.
  // Números inteiros digitados significam reais: 183200 -> R$ 183.200,00.
  function moedaPartes(entrada){
-  const texto=String(entrada??'').replace(/^\s*R\$\s*/i,'').replace(/\s/g,'');
-  if(!texto)return null;
-  if(!/^[\d.,]+$/.test(texto))return null;
-  const virgula=texto.lastIndexOf(','),ponto=texto.lastIndexOf('.');
-  const pontoDecimal=virgula<0&&ponto>=0&&
-   /^\d{1,2}$/.test(texto.slice(ponto+1))&&!/^\d{1,3}(?:\.\d{3})+$/.test(texto);
-  const pos=virgula>=0?virgula:pontoDecimal?ponto:-1;
-  const inteira=pos>=0?texto.slice(0,pos):texto;
-  const fracao=pos>=0?texto.slice(pos+1):'';
-  if(!(inteira===''&&pos>=0)&&!/^\d+$|^\d{1,3}(?:\.\d{3})+$/.test(inteira))return null;
-  if(!/^\d{0,2}$/.test(fracao))return null;
+  const bruto=String(entrada??'');
+  const temPrefixo=/^\s*R\$\s*/i.test(bruto);
+  const texto=bruto.replace(/^\s*R\$\s*/i,'').replace(/\s/g,'');
+  if(!texto||!/^[\d.,]+$/.test(texto))return null;
+  let inteira=texto,fracao='',decimal=false;
+  if(texto.includes(',')){
+   // Padrão BR: apenas a vírgula separa centavos. Pontos são milhares.
+   if((texto.match(/,/g)||[]).length!==1)return null;
+   [inteira,fracao]=texto.split(',');
+   decimal=true;
+   if(!/^\d{0,2}$/.test(fracao))return null;
+  }else if(!temPrefixo&&/^\d{4,}\.\d{1,2}$/.test(texto)){
+   // Aceita colagem de valor externo como 2500.75 sem confundir o
+   // ponto de milhar que a própria máscara gera enquanto se digita.
+   const pos=texto.lastIndexOf('.');
+   inteira=texto.slice(0,pos);
+   fracao=texto.slice(pos+1);
+   decimal=true;
+  }
+  // Durante a digitação, o último grupo de milhares pode estar incompleto.
+  // Exemplo: R$ 1.8320 deve ser interpretado como 18320 reais, e não
+  // ser rejeitado ou convertido para 1 real e 8320 centavos.
+  if(inteira!==''&&!/^\d+(?:\.\d+)*$/.test(inteira))return null;
   const digitos=(inteira.replaceAll('.','')||'0').replace(/^0+(?=\d)/,'');
   if(digitos.length>12)return null;
-  return {inteira:digitos,fracao,decimal:pos>=0};
+  return {inteira:digitos,fracao,decimal};
  }
  function moedaCentavos(entrada){
   const partes=moedaPartes(entrada);
