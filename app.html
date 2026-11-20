@@ -6312,10 +6312,10 @@ async function matVerificarZip(){
     r.esquadriasPayload=cemMontarEsquadrias(r);
     cemParsed=r;
     cemRenderPreview();
-    if(r.materiaisPayload.perfis.length!==r.perfCodes.size ||
-       r.materiaisPayload.acessorios.length!==r.acesCodes.size){
-      throw new Error('Há códigos de materiais sem ficha técnica no XML. Corrija a exportação antes de importar.');
-    }
+    // Categorias incompletas ficam bloqueadas individualmente.
+    // A obra nova pode ser importada com Esquadrias mesmo sem cadastrar essas categorias.
+    r.perfMissing=Math.max(r.perfMissing,r.perfCodes.size-r.materiaisPayload.perfis.length);
+    r.aceMissing=Math.max(r.aceMissing,r.acesCodes.size-r.materiaisPayload.acessorios.length);
     await ensureSession();
     if(analise!==cemAnaliseGeracao||!session)return;
     if(!currentCompany?.id)throw new Error('Não foi possível identificar a empresa do usuário.');
@@ -6348,7 +6348,11 @@ async function matVerificarZip(){
       [x.unidade,x.embalagem].filter(u=>u&&!unidadesConhecidas.has(u))))].sort();
     node('cemFlagEsquadrias').checked=!r.obraExistente;
     r.comparacaoConcluida=true;
-    out.textContent='Análise concluída. O arquivo permanece no navegador. Confira as listas completas e escolha o que deseja importar.';
+    out.textContent=(r.perfMissing||r.aceMissing?
+      'Análise concluída com pendências: '+r.perfMissing+' perfil(is) e '+r.aceMissing+
+      ' acessório(s) sem cadastro técnico. Desmarque a categoria incompleta ou corrija o ZIP. ':
+      'Análise concluída. ')+
+      'Confira a obra, suas esquadrias e os materiais antes da importação.';
     cemRenderPreview();
   }catch(e){
     if(analise!==cemAnaliseGeracao||!session)return;
