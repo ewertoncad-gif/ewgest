@@ -1,0 +1,19 @@
+
+/* Recebimento manual de materiais — limitado ao módulo financeiro. */
+.finManualTable{min-width:900px}
+.finManualTable th{white-space:nowrap}
+.finManualTable td{min-width:100px;vertical-align:middle}
+.finManualTable td:first-child{min-width:195px}
+.finManualTable td:nth-child(2){min-width:185px}
+.finManualTable td:nth-child(6){min-width:145px}
+.finManualTable input,.finManualTable select{width:100%;min-width:0;max-width:100%}
+.finManualTable .finManualLength,.finManualTable .finManualQty,.finManualTable .finManualSubtotal{
+ font-variant-numeric:tabular-nums;text-align:right;
+}
+.finManualTable .btn{white-space:nowrap}
+#finCostTotal{text-align:right;font-variant-numeric:tabular-nums;font-weight:650}
+#finManualSum{font-weight:650;margin:12px 0}
+.finManualCorrect{color:#167048}
+@media(max-width:850px){
+ #finExpensePanel .finFormRows{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+}
