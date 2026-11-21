@@ -6,6 +6,7 @@ const el=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:3});
 let docs=[],editId=null,busy=false;
+let editVersion=0,motoristas=[],veiculos=[],transporteCarregado=false;
 function empresa(){return typeof currentCompany!=='undefined'&&currentCompany?currentCompany.id:null;}
 function dataHoje(){const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');}
 function erro(v){el('romTransfStatus').textContent=String(v||'');}
@@ -62,7 +63,7 @@ async function carregar(){
  }catch(e){erro('Não foi possível consultar romaneios de transferência: '+e.message);}
  finally{busy=false;}
 }
-function close(){el('romTransfOverlay').classList.add('hidden');editId=null;}
+function close(){editVersion++;el('romTransfOverlay').classList.add('hidden');editId=null;transporteCarregado=false;}
 function addRow(value={}){
  const div=document.createElement('div');div.className='romTransfExtra';
  div.innerHTML='<label>Código (opcional)<input data-av-codigo maxlength="40" value="'+esc(value.codigo||'')+'"></label>'+
@@ -73,26 +74,81 @@ function addRow(value={}){
  div.querySelector('[data-av-remove]').addEventListener('click',()=>div.remove());
  el('romTransfExtras').append(div);
 }
+function selecionarTransporte(id,lista,campo,valor){
+ const seletor=el(id);
+ const placeholder=id==='romTransfMotorista'?'Selecione um motorista cadastrado':'Selecione uma placa cadastrada';
+ seletor.replaceChildren(new Option(placeholder,''));
+ for(const registro of lista){
+  const texto=String(registro[campo]||'').trim();
+  if(texto)seletor.add(new Option(texto,texto));
+ }
+ seletor.value=lista.some(x=>x[campo]===valor)?valor:'';
+ seletor.disabled=false;
+}
+async function carregarTransporteEdicao(id,version,motoristaAtual,placaAtual){
+ try{
+  const [drivers,vehicles]=await Promise.all([
+   apiGet('romaneios_motoristas',{select:'id,nome,ativo',empresa_id:'eq.'+empresa(),ativo:'eq.true',order:'nome.asc'}),
+   apiGet('romaneios_veiculos',{select:'id,placa,ativo',empresa_id:'eq.'+empresa(),ativo:'eq.true',order:'placa.asc'})
+  ]);
+  if(editVersion!==version||editId!==id)return;
+  motoristas=Array.isArray(drivers)?drivers:[];
+  veiculos=Array.isArray(vehicles)?vehicles:[];
+  selecionarTransporte('romTransfMotorista',motoristas,'nome',motoristaAtual);
+  selecionarTransporte('romTransfPlaca',veiculos,'placa',placaAtual);
+  transporteCarregado=true;
+  el('romTransfEditForm').querySelector('button[type="submit"]').disabled=false;
+  const avisos=[];
+  if(!motoristas.length)avisos.push('Não há motoristas ativos cadastrados.');
+  if(!veiculos.length)avisos.push('Não há placas ativas cadastradas.');
+  if(motoristaAtual&&!motoristas.some(x=>x.nome===motoristaAtual))avisos.push('O motorista anterior não está ativo; selecione outro.');
+  if(placaAtual&&!veiculos.some(x=>x.placa===placaAtual))avisos.push('A placa anterior não está ativa; selecione outra.');
+  el('romTransfEditStatus').textContent=avisos.length?
+   avisos.join(' ')+' Cadastre novos motoristas ou veículos na emissão de romaneios da obra.':'';
+ }catch(e){
+  if(editVersion!==version||editId!==id)return;
+  transporteCarregado=false;
+  el('romTransfEditStatus').textContent='Não foi possível carregar os motoristas e placas cadastrados: '+e.message;
+ }
+}
 function editar(id){
  const d=docs.find(x=>x.id===id);
  if(!d||d.status!=='RASCUNHO')return;
  editId=id;
+ const version=++editVersion;
+ transporteCarregado=false;
+ motoristas=[];veiculos=[];
  el('romTransfEditTitle').textContent='Editar '+d.numero+' · '+rota(d);
  el('romTransfDate').value=d.data||dataHoje();
- el('romTransfMotorista').value=d.motorista||'';
- el('romTransfPlaca').value=d.placa||'';
+ for(const [field,label] of [
+  ['romTransfMotorista','Carregando motoristas cadastrados…'],
+  ['romTransfPlaca','Carregando placas cadastradas…']
+ ]){
+  const select=el(field);
+  select.replaceChildren(new Option(label,''));
+  select.disabled=true;
+ }
  el('romTransfObs').value=d.observacoes||'';
  el('romTransfExtras').replaceChildren();
  (d.itens||[]).filter(i=>i.tipo==='AVULSO').forEach(addRow);
  const reais=(d.itens||[]).filter(i=>i.tipo==='TRANSFERENCIA');
  el('romTransfLinked').innerHTML='<table><thead><tr><th>Código</th><th>Material</th><th>Qtd.</th><th>Obra</th></tr></thead><tbody>'+
  reais.map(itemResumo).join('')+'</tbody></table>';
- el('romTransfEditStatus').textContent='';
+ el('romTransfEditStatus').textContent='Carregando motoristas e placas cadastrados…';
+ el('romTransfEditForm').querySelector('button[type="submit"]').disabled=true;
  el('romTransfOverlay').classList.remove('hidden');
+ void carregarTransporteEdicao(id,version,d.motorista||'',d.placa||'');
 }
 async function salvar(){
  const d=docs.find(x=>x.id===editId);
  if(!d||busy)return;
+ const motorista=el('romTransfMotorista').value;
+ const placa=el('romTransfPlaca').value;
+ if(!transporteCarregado||!motoristas.some(x=>x.nome===motorista)||
+    !veiculos.some(x=>x.placa===placa)){
+  el('romTransfEditStatus').textContent='Selecione um motorista e uma placa ativos dos cadastros antes de salvar.';
+  return;
+ }
  const avulsos=[...el('romTransfExtras').querySelectorAll('.romTransfExtra')].map(row=>({
   codigo:row.querySelector('[data-av-codigo]').value.trim(),
   descricao:row.querySelector('[data-av-descricao]').value.trim(),
@@ -106,8 +162,8 @@ async function salvar(){
  try{
   await rpc('ew_romaneio_transferencia_salvar',{
    p_empresa_id:empresa(),p_documento_id:d.id,
-   p_data:el('romTransfDate').value,p_motorista:el('romTransfMotorista').value.trim(),
-   p_placa:el('romTransfPlaca').value.trim(),
+   p_data:el('romTransfDate').value,p_motorista:motorista,
+   p_placa:placa,
    p_observacoes:el('romTransfObs').value,
    p_avulsos:avulsos
   });

@@ -14,7 +14,7 @@
 .romTransfEditDialog{width:min(100%,990px);max-height:93vh;overflow:auto}
 .romTransfFields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .romTransfFields label,.romTransfExtra label{margin:0}
-.romTransfFields input,.romTransfFields textarea,.romTransfExtra input{width:100%;margin-top:7px}
+.romTransfFields input,.romTransfFields select,.romTransfFields textarea,.romTransfExtra input{width:100%;margin-top:7px}
 .romTransfWide{grid-column:1/-1}
 .romTransfExtra{display:grid;grid-template-columns:125px minmax(220px,1fr) 100px 85px auto;align-items:end;gap:9px;margin:11px 0}
 #romTransfLinked,#romTransfViewContent{overflow-x:auto;margin-top:12px}
