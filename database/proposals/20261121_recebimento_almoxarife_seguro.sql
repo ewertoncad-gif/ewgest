@@ -37,58 +37,8 @@ begin
 end
 $func$;
 
-create or replace function public.ew_receber_despesa_almox(
- p_empresa_id uuid,p_obra_id uuid,p_categoria text,p_valor numeric,
- p_fornecedor text,p_numero_documento text,p_data_documento date,
- p_observacoes text,p_operacao_id uuid
-) returns jsonb
-language plpgsql security definer set search_path=''
-as $func$
-declare v_uid uuid:=auth.uid();v_id uuid;v_old public.ew_obra_despesas%rowtype;
-begin
- perform public.ew_exigir_sessao_atual();
- if v_uid is null or p_operacao_id is null or
-  not exists(select 1 from public.usuarios_empresas u
-    where u.usuario_id=v_uid and u.empresa_id=p_empresa_id and u.perfil='almoxarife')
- then raise exception 'Acesso não autorizado ao recebimento.';end if;
- if p_categoria not in ('vidros','outros') or p_valor is null or p_valor<=0
-    or p_valor>999999999999.99 or p_valor<>round(p_valor,2)
-    or p_data_documento is null
-    or char_length(btrim(coalesce(p_numero_documento,''))) not between 1 and 100
-    or length(coalesce(p_fornecedor,''))>240
-    or length(coalesce(p_observacoes,''))>1000
- then raise exception 'Dados da nota inválidos.';end if;
- if not exists(select 1 from public.ew_obra_orcamento o
-    where o.empresa_id=p_empresa_id and o.obra_id=p_obra_id)
- then raise exception 'Obra sem orçamento vinculado.';end if;
- perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_operacao_id::text,541889));
- -- Serializar por número da nota, fornecedor e categoria além do UUID da operação:
- -- duas sessões usando UUIDs diferentes não devem duplicar a mesma NF.
- perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
-   p_empresa_id::text||'|'||p_obra_id::text||'|'||p_categoria||'|'||
-   lower(btrim(coalesce(p_fornecedor,'')))||'|'||lower(btrim(p_numero_documento)),541890));
- select * into v_old from public.ew_obra_despesas d
-   where d.empresa_id=p_empresa_id and d.operacao_id=p_operacao_id;
- if found then
-  if v_old.obra_id<>p_obra_id or v_old.categoria<>p_categoria or v_old.valor<>p_valor or v_old.status<>'aprovada'
-  then raise exception 'Identificador já utilizado em outra operação.';end if;
-  return jsonb_build_object('id',v_old.id,'ja_registrado',true);
- end if;
- if exists(select 1 from public.ew_obra_despesas d where d.empresa_id=p_empresa_id
-   and d.obra_id=p_obra_id and d.status='aprovada' and d.categoria=p_categoria
-   and lower(btrim(d.numero_documento))=lower(btrim(p_numero_documento))
-   and lower(btrim(d.fornecedor))=lower(btrim(coalesce(p_fornecedor,''))))
- then raise exception 'Já existe nota com mesmo número, fornecedor e categoria nesta obra.';end if;
- insert into public.ew_obra_despesas
-  (empresa_id,obra_id,categoria,valor,origem,fornecedor,numero_documento,
-   data_documento,status,observacoes,criado_por,aprovado_por,aprovado_em,operacao_id)
- values(p_empresa_id,p_obra_id,p_categoria,p_valor,'manual',coalesce(p_fornecedor,''),
-  btrim(p_numero_documento),p_data_documento,'aprovada',coalesce(p_observacoes,''),
-  v_uid,v_uid,now(),p_operacao_id)
- returning id into v_id;
- return jsonb_build_object('id',v_id,'ja_registrado',false);
-end
-$func$;
+-- Vidros e outros insumos agora são recebidos pela função com itens discriminados
+-- em database/proposals/20261121_recebimento_itens_vidros_outros.sql.
 
 create or replace function public.ew_receber_materiais_almox(
  p_empresa_id uuid,p_obra_id uuid,p_categoria text,p_valor numeric,
@@ -244,13 +194,10 @@ end
 $func$;
 
 revoke all on function public.ew_quantidades_recebidas_obra(uuid,uuid) from public;
-revoke all on function public.ew_receber_despesa_almox(uuid,uuid,text,numeric,text,text,date,text,uuid) from public;
 revoke all on function public.ew_receber_materiais_almox(uuid,uuid,text,numeric,text,text,date,text,text,jsonb,uuid) from public;
 revoke execute on function public.ew_quantidades_recebidas_obra(uuid,uuid) from anon;
-revoke execute on function public.ew_receber_despesa_almox(uuid,uuid,text,numeric,text,text,date,text,uuid) from anon;
 revoke execute on function public.ew_receber_materiais_almox(uuid,uuid,text,numeric,text,text,date,text,text,jsonb,uuid) from anon;
 grant execute on function public.ew_quantidades_recebidas_obra(uuid,uuid) to authenticated;
-grant execute on function public.ew_receber_despesa_almox(uuid,uuid,text,numeric,text,text,date,text,uuid) to authenticated;
 grant execute on function public.ew_receber_materiais_almox(uuid,uuid,text,numeric,text,text,date,text,text,jsonb,uuid) to authenticated;
 
 commit;
