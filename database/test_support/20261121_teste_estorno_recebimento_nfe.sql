@@ -58,6 +58,15 @@ begin
  select sum(quantidade_delta) into v_saldo from public.ew_estoque_obras_movimentos
  where empresa_id=v_empresa and obra_id=v_obra;
  if v_saldo<>0 then raise exception 'Saldo final deveria ser zero, recebido %',v_saldo;end if;
+ v_result:=public.ew_quantidades_recebidas_obra(v_empresa,v_obra);
+ if jsonb_array_length(v_result)<>0 then
+  raise exception 'Quantidades recebidas não deveriam incluir entrada já estornada';end if;
+ v_block:=false;
+ begin
+  perform public.ew_estornar_movimento_obra(
+    v_obra,v_compra,'Tentativa de estorno genérico indevido',gen_random_uuid());
+ exception when others then v_block:=true;end;
+ if not v_block then raise exception 'Estorno genérico permitiu apagar entrada de NF-e';end if;
  v_result:=public.ew_estornar_recebimento_nfe(v_empresa,v_recebimento,
    'Material devolvido ao fornecedor',v_op);
  if v_result->>'ja_estornado'<>'true' then raise exception 'Idempotência de estorno falhou';end if;
