@@ -7615,38 +7615,40 @@ function estoqueUnidade(row){
 }
 
 function stockNecessidade(item){
-  const {v,mat,link,perWork}=item;
-  const status={texto:'Sem previsão importada',tom:'neutral',detalhe:''};
-  if(!link||link.quantidade_prevista===null&&link.comprimento_total_m===null)
-    return {necessaria:'Não informada',...status};
-  const fmt=(n,dp=3)=>Number(n||0).toLocaleString('pt-BR',{maximumFractionDigits:dp});
-  if(v.tipo==='perfil'){
-    // Necessidade em cortes e metros; saldo físico em barras com comprimentos distintos.
-    const metros=Number(link.comprimento_total_m),cortes=Number(link.quantidade_prevista);
-    const totalBruto=perWork.reduce((sum,m)=>sum+
-      (Number(m.comprimento_mm||0)*Number(m.quantidade_delta||0)/1000),0);
-    const qtdBarras=perWork.filter(m=>m.unidade==='BARRA').reduce((sum,m)=>sum+Number(m.quantidade_delta),0);
-    const necessaria=(Number.isFinite(metros)&&metros>0?fmt(metros)+' m em cortes':'Consumo não informado')+
-      (Number.isFinite(cortes)&&cortes>0?' ('+fmt(cortes,0)+' cortes)':'');
-    if(!(metros>0))return {necessaria,texto:'Conferir previsão',tom:'neutral',detalhe:''};
-    const r=totalBruto<=0?'Pendente de recebimento':totalBruto+0.0001<metros?
-      'Recebimento parcial':'Volume bruto atendido';
-    return {necessaria,texto:r,tom:totalBruto<=0?'pending':totalBruto<metros?'partial':'received',
-      detalhe:'Total na obra: '+fmt(qtdBarras,0)+' barras / '+fmt(totalBruto)+' m brutos. Verificar aproveitamento antes de cortar.'};
-  }
-  const unit=releaseUnidadeAcessorio(mat.unidade_item||link.unidade_prevista||'PC');
-  const qtd=Number(link.quantidade_prevista);
-  const recebido=perWork.filter(m=>releaseUnidadeAcessorio(m.unidade)===unit)
-    .reduce((sum,m)=>sum+Number(m.quantidade_delta||0),0);
-  const outraUnidade=perWork.some(m=>releaseUnidadeAcessorio(m.unidade)!==unit&&Number(m.quantidade_delta)!==0);
-  if(!Number.isFinite(qtd)||qtd<=0)return {necessaria:'Não informada',
-    texto:outraUnidade?'Conferir unidade':'Sem previsão quantitativa',tom:'neutral',detalhe:''};
-  const necessaria=fmt(qtd)+' '+escapeHTML(unit);
-  if(outraUnidade)return {necessaria,texto:'Conferir unidade',tom:'neutral',
-    detalhe:'Há movimentações em unidades diferentes. Não foram convertidas automaticamente.'};
-  const texto=recebido<=0?'Pendente de recebimento':recebido+0.0001<qtd?'Recebimento parcial':'Recebido';
-  return {necessaria,texto,tom:recebido<=0?'pending':recebido<qtd?'partial':'received',
-    detalhe:'Saldo total na obra: '+fmt(recebido)+' '+unit};
+ const {v,mat,link,perWork,comprimento}=item;
+ const fmt=(n,dp=3)=>Number(n||0).toLocaleString('pt-BR',{maximumFractionDigits:dp});
+ if(v.tipo==='perfil'){
+  // OBCALCP são cortes; o planejamento de compra é OBAPROV (NUMBARRAS/BARRA).
+  const plano=Array.isArray(link?.barras_planejadas)?link.barras_planejadas:[];
+  const mm=Number(comprimento);
+  const real=perWork.filter(m=>m.unidade==='BARRA'&&Number(m.comprimento_mm)===mm)
+   .reduce((sum,m)=>sum+Number(m.quantidade_delta||0),0);
+  if(!plano.length)return {necessaria:'Não importado',texto:real>0?'Saldo registrado':'Plano não importado',
+   tom:real>0?'partial':'neutral',detalhe:'Sem plano de barras nesta obra. Atualize somente Perfis pelo menu Importar arquivo técnico.'};
+  const destaMedida=plano.filter(b=>Number(b.comprimento_mm)===mm);
+  if(!destaMedida.length)return {necessaria:'Não planejado',texto:real>0?'Comprimento fora do plano':'Não planejado',
+   tom:real>0?'partial':'neutral',detalhe:'Comprimento não previsto no plano do CEM desta obra.'};
+  const prevista=destaMedida.reduce((s,b)=>s+Number(b.quantidade||0),0);
+  const texto=real<=0?'Pendente de recebimento':real<prevista?'Recebimento parcial':'Quantidade atendida';
+  return {necessaria:fmt(prevista,0)+(prevista===1?' barra':' barras'),
+   texto,tom:real<=0?'pending':real<prevista?'partial':'received',
+   detalhe:'Total na obra: '+fmt(real,0)+' de '+fmt(prevista,0)+' barras de '+fmt(mm,0)+' mm'};
+ }
+ if(!link||link.quantidade_prevista===null&&link.comprimento_total_m===null)
+  return {necessaria:'Não informada',texto:'Sem previsão importada',tom:'neutral',detalhe:''};
+ const unit=releaseUnidadeAcessorio(mat.unidade_item||link.unidade_prevista||'PC');
+ const qtd=Number(link.quantidade_prevista);
+ const recebido=perWork.filter(m=>releaseUnidadeAcessorio(m.unidade)===unit)
+  .reduce((sum,m)=>sum+Number(m.quantidade_delta||0),0);
+ const outraUnidade=perWork.some(m=>releaseUnidadeAcessorio(m.unidade)!==unit&&Number(m.quantidade_delta)!==0);
+ if(!Number.isFinite(qtd)||qtd<=0)return {necessaria:'Não informada',
+   texto:outraUnidade?'Conferir unidade':'Sem previsão quantitativa',tom:'neutral',detalhe:''};
+ const necessaria=fmt(qtd)+' '+escapeHTML(unit);
+ if(outraUnidade)return {necessaria,texto:'Conferir unidade',tom:'neutral',
+   detalhe:'Há movimentações em unidades diferentes. Não foram convertidas automaticamente.'};
+ const texto=recebido<=0?'Pendente de recebimento':recebido+0.0001<qtd?'Recebimento parcial':'Recebido';
+ return {necessaria,texto,tom:recebido<=0?'pending':recebido<qtd?'partial':'received',
+   detalhe:'Saldo total na obra: '+fmt(recebido)+' '+unit};
 }
 function renderEstoque(){
   const out=node('stockRecords'),obra=node('stockWork').value;
@@ -7734,8 +7736,8 @@ function renderEstoque(){
     }).join('')+'</tbody></table></div>'+
     '<p class="stockFoot">'+linhas.length+' linha(s) de material nesta obra. '+
     'Quando houver barras de comprimentos diferentes, elas aparecerão separadas. '+
-    'A quantidade necessária vem do cálculo técnico; o saldo vem apenas de movimentações físicas.'+
-    ' Para perfis, a cobertura é estimada pelo comprimento bruto das barras, não representa aproveitamento confirmado.'+
+    'A quantidade necessária dos perfis é o número de BARRAS do CEM, não cortes; o estoque é saldo físico.'+
+    ' O cálculo é separado por comprimento, sem presumir aproveitamento dos cortes.'+
     ' Com filtro de galpão, a coluna Em estoque mostra o saldo local, enquanto Situação considera o total da obra.</p>';
   out.querySelectorAll('[data-stock-open-new]').forEach(btn=>btn.addEventListener('click',()=>
     stockManualOpen(btn.dataset.stockOpenNew)));
