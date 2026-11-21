@@ -52,3 +52,25 @@ jobs:
           done
           echo "::error::Nao foi possivel comprovar a versao publicada. Conferir hospedagem/deploy Cloudflare e DNS."
           exit 1
+
+      - name: Conferir arquivos JavaScript do estoque físico
+        shell: bash
+        run: |
+          set -euo pipefail
+          js="$(mktemp)"
+          receipt="$(mktemp)"
+          css="$(mktemp)"
+          trap 'rm -f "$js" "$receipt" "$css"' EXIT
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/assets/insumos-fisicos.js?verify=${GITHUB_SHA}" -o "$js"
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/assets/recebimento-manual.js?verify=${GITHUB_SHA}" -o "$receipt"
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/assets/insumos-fisicos.css?verify=${GITHUB_SHA}" -o "$css"
+          grep -Fq 'ew_insumos_transferir' "$js"
+          grep -Fq 'ew_insumos_receber' "$receipt"
+          grep -Fq '.insumosStockTable' "$css"
+          echo 'PUBLICACAO CONFIRMADA: scripts e estilo do estoque físico v45.2 disponíveis.'
