@@ -160,7 +160,7 @@ for(const token of [
  'id="releaseFactory"',
  'AFOGADOS',
  'IMBIRIBEIRA',
- '/rest/v1/rpc/ew_liberar_plano_corte_revisado',
+ '/rest/v1/rpc/ew_liberar_plano_corte_componente',
  'p_fabrica:fabrica',
  'id="romaneioModal"',
  'id="romaneioForm"',
@@ -737,9 +737,11 @@ assert.ok(!source.includes('rows.slice(0,6)'), 'Exibe a lista completa de materi
 
 assert.ok(source.includes('id="stockManualForm"')&&source.includes('id="stockManualWork"')&&
  source.includes('id="stockNewMaterialCode"'), 'Cadastro manual de obra e material deve existir');
-assert.ok(source.includes('id="releaseMirrorRows"')&&source.includes('name="releaseMethod"')&&
- !source.includes('name="releaseMethod" type="radio" value="cem"'),
- 'Liberação individual tem espelho manual, sem importação de lote CEM');
+assert.ok(source.includes('class="releaseMirrorIntro hidden"')&&
+ source.includes('id="releaseComponent" required')&&
+ source.includes('id="releaseMirrorPanel" class="hidden"')&&
+ source.includes("p_materiais:[],p_fonte:'SEM_BAIXA'"),
+ 'Liberação individual é somente técnica, com parte selecionada e sem baixa');
 assert.ok(source.includes('id="releaseBatchOpen"')&&source.includes('id="releaseBatchPreview"')&&
  source.includes("'/rest/v1/rpc/ew_liberar_lote_cem'")&&source.includes('function releaseBatchCollect()'),
  'Liberação em lote CEM deve ter espelho editável, validação e confirmação única');
@@ -752,8 +754,8 @@ assert.ok(source.includes('id="stockFactoryFilter"')&&source.includes('id="stock
  'Estoque transferível com seletor centralizado e tabela sem coluna Ação');
 assert.ok(source.includes('const obrasParaRomaneio=works.filter'),
  'Romaneios escondem obra de estoque arquivado sem esquadrias e sem histórico');
-assert.ok(source.includes("'/rest/v1/rpc/ew_liberar_plano_corte_revisado'"),
- 'Liberação confirma materiais em operação atômica');
+assert.ok(source.includes("'/rest/v1/rpc/ew_liberar_plano_corte_componente'"),
+ 'Liberação confirma parte e quantidade em operação atômica');
 assert.ok(source.includes("'/rest/v1/rpc/ew_movimentar_estoque_obra_local'")&&
  source.includes("'/rest/v1/rpc/ew_cadastrar_material_manual_estoque_local'"),
  'Cadastro existente e novos materiais exigem local físico do estoque');
@@ -2070,7 +2072,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.3')&&
+assert.ok(source.includes('v46.4')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2303,7 +2305,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.3</strong>'),
+ source.includes('EWGEST <strong>· v46.4</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
