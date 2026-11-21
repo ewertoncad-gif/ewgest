@@ -226,11 +226,14 @@
  }
  function miscRender(){
   const body=byId('finMiscRows');if(!body)return;
-  const units=['PC','UN','M2','MT','KG','CX','CJ','PR'];
+  const units=window.ewUnidadesMedida?.lista()||[
+   {codigo:'PC',nome:'Peça'},{codigo:'UN',nome:'Unidade'},{codigo:'M2',nome:'Metro quadrado'},
+   {codigo:'MT',nome:'Metro'},{codigo:'KG',nome:'Quilograma'},
+   {codigo:'CX',nome:'Caixa'},{codigo:'CJ',nome:'Conjunto'},{codigo:'PR',nome:'Par'}];
   body.innerHTML=miscRows.map((m,i)=>'<tr data-misc-row="'+i+'">'+
    '<td><input class="finMiscDescription" list="insumoCatalogoSugestoes" required maxlength="500" placeholder="Descrição e medidas do vidro ou insumo" value="'+escapeHTML(m.descricao)+'"></td>'+
    '<td><input class="finMiscQty" type="number" inputmode="decimal" min="0.001" max="1000000" step="0.001" required placeholder="Qtd." value="'+escapeHTML(m.quantidade)+'"></td>'+
-   '<td><select class="finMiscUnit">'+units.map(u=>'<option value="'+u+'"'+(u===m.unidade?' selected':'')+'>'+(u==='M2'?'m²':u)+'</option>').join('')+'</select></td>'+
+   '<td><select class="finMiscUnit">'+units.map(u=>'<option value="'+escapeHTML(u.codigo)+'"'+(u.codigo===m.unidade?' selected':'')+'>'+escapeHTML(u.codigo+' — '+u.nome)+'</option>').join('')+'</select></td>'+
    '<td><input class="finMiscAmount" inputmode="decimal" required placeholder="R$ 0,00" value="'+escapeHTML(m.valor)+'"></td>'+
    '<td><button type="button" class="btn secondary" data-misc-remove="'+i+'">Remover</button></td>'+
    '</tr>').join('');
@@ -251,7 +254,7 @@
    if(!String(r.quantidade).trim()||!Number.isFinite(quantidade)||quantidade<=0||quantidade>1000000||
     Math.abs(quantidade*1000-Math.round(quantidade*1000))>0.00001)
     throw Error('Quantidade inválida no item '+(i+1)+'.');
-   if(!['PC','UN','M2','MT','KG','CX','CJ','PR'].includes(r.unidade))throw Error('Unidade inválida no item '+(i+1)+'.');
+   if(!(window.ewUnidadesMedida?.ativa(r.unidade)??['PC','UN','M2','MT','KG','CX','CJ','PR'].includes(r.unidade)))throw Error('Unidade inválida no item '+(i+1)+'.');
    if(centavos===null||centavos<0)throw Error('Subtotal inválido no item '+(i+1)+'.');
    if(['PC','UN','CX','CJ','PR'].includes(r.unidade)&&!Number.isInteger(quantidade))
     throw Error('Nesta unidade, informe quantidade inteira no item '+(i+1)+'.');
@@ -558,6 +561,9 @@
  byId('finExpenseForm').removeEventListener('submit',finRegistrarCusto);
  if(typeof window!=='undefined')window.ewRecebimentoManualInit=initForm;
  byId('finExpenseForm').addEventListener('submit',submit);
+ window.ewRecebimentoAtualizarUnidades=()=>{
+  if(['vidros','outros'].includes(category)&&miscRows.length)miscRender();
+ };
  byId('finCostCategory').addEventListener('change',()=>{
   category=byId('finCostCategory').value;
   renderForm();
