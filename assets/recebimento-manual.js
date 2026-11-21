@@ -245,6 +245,8 @@
   byId('finManualStockBlock').classList.toggle('hidden',!hasStock);
   byId('finManualLocalLabel').classList.toggle('hidden',!hasStock);
   byId('finManualLocal').required=hasStock;
+  byId('finCostVendor').required=hasStock;
+  byId('finCostDate').required=hasStock;
   byId('finCostSubmit').textContent=hasStock?'Registrar nota e entrada no estoque':'Registrar despesa sem movimentar estoque';
   byId('finCostTotal').readOnly=hasStock;
   byId('finCostTotal').title=hasStock?
@@ -363,6 +365,9 @@
   const note=cents(byId('finCostTotal').value);
   if(note===null||note<=0){el.textContent='Informe o valor total da nota com centavos válidos.';return;}
   const number=byId('finCostNumber').value.trim(),vendor=byId('finCostVendor').value.trim();
+  if(stockCategory()&&(!vendor||!(finState.fornecedores||[]).some(f=>f.nome===vendor))){
+   el.textContent='Selecione um fornecedor cadastrado antes de registrar a nota.';return;
+  }
   if(!number){el.textContent='Informe o número da nota/documento.';return;}
   const hasStock=stockCategory(),location=byId('finManualLocal').value;
   let items=[];
