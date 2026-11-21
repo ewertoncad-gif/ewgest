@@ -2070,7 +2070,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.1')&&
+assert.ok(source.includes('v46.2')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2118,8 +2118,8 @@ assert.ok(source.includes('id="stockTransferPickLocal">Transferência entre galp
  source.includes('id="romTransfSection"')&&
  source.includes('id="romTransfMerge"')&&
  source.includes('id="romTransfExtras"')&&
- source.includes('romaneios-transferencia.css?v=20261121b')&&
- source.includes('romaneios-transferencia.js?v=20261121b')&&
+ source.includes('romaneios-transferencia.css?v=20261121c')&&
+ source.includes('romaneios-transferencia.js?v=20261121c')&&
  source.includes("if(window.ewTransferRomaneiosReload)window.ewTransferRomaneiosReload()"),
  'Transferencia entre galpoes deve ter romaneio na guia de expedicao');
 for(const token of [
@@ -2303,7 +2303,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.1</strong>'),
+ source.includes('EWGEST <strong>· v46.2</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2376,9 +2376,64 @@ assert.ok(transferTransport.includes("apiGet('romaneios_motoristas'")&&
  transferTransport.includes("if(editVersion!==version||editId!==id)return")&&
  transferTransport.includes("void carregarTransporteEdicao(id,version,d.motorista||'',d.placa||'')"),
  'Romaneios de transferencia precisam carregar cadastros ativos, preservar valores validos e bloquear texto livre');
-assert.ok(source.includes('romaneios-transferencia.js?v=20261121b')&&
- source.includes('romaneios-transferencia.css?v=20261121b')&&
+assert.ok(source.includes('romaneios-transferencia.js?v=20261121c')&&
+ source.includes('romaneios-transferencia.css?v=20261121c')&&
  transferTransportCSS.includes('.romTransfFields select'),
  'O deploy da versao 46.1 precisa atualizar o cache e o estilo do seletor');
+
+
+// EWGEST v46.2 — emitir abre a previa/caixa de impressao e mantem reimpressao.
+assert.ok(transferTransport.includes('Emitir e imprimir</button>')&&
+ transferTransport.includes('Imprimir / reimprimir</button>')&&
+ transferTransport.includes('function avisoDocumento(id,message)')&&
+ transferTransport.includes('data-t-status=')&&
+ transferTransport.includes('return true;')&&
+ transferTransport.includes('janela.document.getElementById(\'imprimirRomaneio\')'),
+ 'Emissao e reimpressao devem ser visiveis e seus erros apresentados junto ao documento');
+const beginEmit=transferTransport.indexOf('async function emitir(id){');
+const endEmit=transferTransport.indexOf('function visualizar(id){',beginEmit);
+assert.ok(beginEmit>0&&endEmit>beginEmit,'Funcoes de emissao/impressao devem existir');
+const emitirSource=transferTransport.slice(beginEmit,endEmit);
+assert.ok(emitirSource.indexOf("window.open('about:blank','_blank')")<
+ emitirSource.indexOf("await rpc('ew_romaneio_transferencia_emitir'"),
+ 'A aba de impressao deve ser aberta no clique, antes da RPC, evitando bloqueio de popup');
+assert.ok(emitirSource.indexOf("await rpc('ew_romaneio_transferencia_emitir'")<
+ emitirSource.indexOf("d.status='EMITIDO'")&&
+ emitirSource.indexOf("d.status='EMITIDO'")<emitirSource.indexOf('imprimir(id,aba)'),
+ 'A impressao so pode acontecer depois que o banco confirma a emissao');
+async function simularEmissao(falhar){
+ const chamadas=[];
+ const doc={id:'d',numero:'RM009',status:'RASCUNHO',motorista:'Motorista QA',
+  placa:'ABC1D23',origem:'AFOGADOS',destino:'IMBIRIBEIRA',data:'2026-11-21',itens:[]};
+ const tab={closed:false,document:{body:{textContent:''},open(){chamadas.push('doc.open');},
+  write(){chamadas.push('doc.write');},close(){chamadas.push('doc.close');},
+  getElementById(){return {addEventListener(){}}}},
+  focus(){},print(){chamadas.push('print');},close(){chamadas.push('tab.close');this.closed=true;}};
+ const ctx={docs:[doc],empresa:()=> 'empresaQA',window:{
+   confirm:()=>true,open:()=>{chamadas.push('open');return tab;}},
+   rpc:async()=>{chamadas.push('rpc');if(falhar)throw Error('Erro QA');},
+   render:()=>chamadas.push('render'),
+   carregar:async()=>{chamadas.push('refresh')},
+   erro:()=>{},avisoDocumento:()=>{},estaEstornado:()=>false,
+   editar:()=>{},esc:x=>String(x??''),num:x=>String(x),
+   itemResumo:()=>'',el:()=>({textContent:''})};
+ const harness=new Function('ctx',
+  'let docs=ctx.docs,busy=false;const window=ctx.window,empresa=ctx.empresa,'+
+  'rpc=ctx.rpc,render=ctx.render,carregar=ctx.carregar,erro=ctx.erro,'+
+  'avisoDocumento=ctx.avisoDocumento,estaEstornado=ctx.estaEstornado,'+
+  'editar=ctx.editar,esc=ctx.esc,num=ctx.num,itemResumo=ctx.itemResumo,el=ctx.el;\n'+
+  emitirSource+'\nreturn {emitir,imprimir};')(ctx);
+ await harness.emitir('d');
+ return {chamadas,doc,tab};
+}
+const emissaoOK=await simularEmissao(false);
+assert.equal(emissaoOK.doc.status,'EMITIDO');
+assert.ok(emissaoOK.chamadas.indexOf('open')<emissaoOK.chamadas.indexOf('rpc'));
+assert.ok(emissaoOK.chamadas.indexOf('rpc')<emissaoOK.chamadas.indexOf('doc.write'));
+assert.ok(emissaoOK.chamadas.includes('print'));
+const emissaoFalhou=await simularEmissao(true);
+assert.equal(emissaoFalhou.doc.status,'RASCUNHO');
+assert.ok(emissaoFalhou.tab.closed);
+assert.ok(!emissaoFalhou.chamadas.includes('doc.write'));
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
