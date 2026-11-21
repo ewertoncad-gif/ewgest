@@ -220,21 +220,24 @@
   updateSum();
  }
  function updateSum(){
-  const note=cents(byId('finCostTotal').value);
-  if(stockCategory()&&rows.length===1&&note!==null){
-   // Nota de um único material: todo o valor é deste item, sem rateio arbitrário.
-   rows[0].valor=finMoney(note/100);
-   const el=byId('finManualRows').querySelector('.finManualSubtotal');
-   if(el&&document.activeElement!==el)el.value=rows[0].valor;
+  const totalField=byId('finCostTotal');
+  const valores=rows.map(r=>cents(r.valor));
+  const soma=valores.reduce((sum,n)=>sum+(n??0),0);
+  if(stockCategory()){
+   // A nota de materiais é a soma dos itens, não um segundo valor digitado.
+   // Recalcular a cada edição, inclusão e remoção de linha.
+   totalField.value=soma>0?finMoney(soma/100):'';
   }
-  const values=rows.map(r=>cents(r.valor));
-  const sum=values.reduce((v,n)=>v+(n??0),0);
-  const match=note!==null&&note>0&&values.every(v=>v!==null)&&sum===note;
+  const nota=cents(totalField.value);
+  const completo=valores.every(n=>n!==null);
+  const confere=nota!==null&&nota>0&&completo&&soma===nota;
   byId('finManualSum').textContent=
-   'Total dos itens: '+finMoney(sum/100)+' · Valor da nota: '+
-   finMoney((note||0)/100)+(note!==null&&note>0?
-    (match?' · Valores conferem':' · Diferença: '+finMoney((note-sum)/100)):'');
-  byId('finManualSum').classList.toggle('finManualCorrect',match);
+   'Total dos itens: '+finMoney(soma/100)+' · Valor da nota: '+finMoney((nota||0)/100)+
+   (stockCategory()?(completo&&soma>0?' · Total atualizado automaticamente':
+     !completo?' · Complete os valores dos materiais':''):
+    nota!==null&&nota>0?(confere?' · Valores conferem':
+     ' · Diferença: '+finMoney((nota-soma)/100)):'');
+  byId('finManualSum').classList.toggle('finManualCorrect',confere);
  }
  function renderForm(){
   category=byId('finCostCategory').value;
@@ -243,6 +246,9 @@
   byId('finManualLocalLabel').classList.toggle('hidden',!hasStock);
   byId('finManualLocal').required=hasStock;
   byId('finCostSubmit').textContent=hasStock?'Registrar nota e entrada no estoque':'Registrar despesa sem movimentar estoque';
+  byId('finCostTotal').readOnly=hasStock;
+  byId('finCostTotal').title=hasStock?
+   'Calculado automaticamente pela soma dos valores dos itens.':'Informe o valor total da despesa.';
   const list=hasStock?getMaterials():[];
   byId('finManualAdd').disabled=hasStock&&!list.length;
   byId('finCostSubmit').disabled=hasStock&&!list.length;
