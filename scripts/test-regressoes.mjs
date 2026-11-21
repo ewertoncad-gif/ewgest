@@ -612,7 +612,7 @@ for(const token of ['ew_perfis','ew_acessorios','ew_materiais_variacoes',
   assert.ok(source.includes(token),'Cadastro de materiais deve conter '+token);
 }
 assert.ok(source.includes('Quantidade necessária')&&source.includes('Em estoque')&&
- source.includes('Comprimento da barra')&&source.includes('data-stock-work-transfer')&&
+ source.includes('Comprimento da barra')&&source.includes('id="stockTransferPickWork"')&&
  !source.includes('data-stock-adjust')&&!source.includes('data-stock-open-new'),
  'Estoque mostra planejamento, saldo e transferência, sem cadastro direto de quantidade');
 assert.ok(source.includes('async function abrirEstoque()')&&source.includes('async function registrarMovimentoEstoque(e)'),
@@ -1908,8 +1908,8 @@ assert.ok(source.includes('cadastros-hub.js?v=20261121a')&&
  cadastroHubJS.includes("apiGet('ew_locais_fisicos'")&&
  cadastroHubJS.includes('cadastrarGalpaoEmpresa(nome)'),
  'Um único menu de cadastros reutiliza fornecedores e galpões já cadastrados');
-assert.ok(source.includes('data-stock-work-transfer')&&
- source.includes('Transferir entre obras')&&
+assert.ok(source.includes('id="stockTransferPickWork"')&&
+ source.includes("stockObraTransferOpen(candidate.item.v.id")&&
  source.includes('id="stockObraTransferOverlay"')&&
  source.includes('id="stockObraTransferTarget"')&&
  source.includes('id="stockObraTransferToLocal"')&&
