@@ -35,7 +35,7 @@ assert.ok(source.includes('id="cadastroEditPanel"')&&
  cadastroSeguroSQL.includes("raise exception 'Cadastro em uso"),
  'Cadastros auxiliaries: edição e exclusão preservam notas e movimentações');
 // Validar também a sintaxe do aplicativo principal (não apenas fragments).
-const inlineJS=[...source.matchAll(/<script(?:\\s[^>]*)?>([\\s\\S]*?)<\\/script>/g)]
+const inlineJS=[...source.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)]
  .map(x=>x[1]);
 assert.ok(inlineJS.length>=1,'Script principal da interface deve estar no HTML');
 for(const js of inlineJS)assert.doesNotThrow(()=>new Function(js),
