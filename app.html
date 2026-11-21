@@ -781,6 +781,8 @@
         </div>
         <p class="feedback" id="recebimentoMessage" role="status"></p>
       </div>
+          <div id="finPendingPanel" class="section panel hidden"></div>
+          <div id="finReceivePanel" class="section panel hidden"></div>
           <div class="section panel" id="finExpensePanel">
             <h2>Recebimento de materiais</h2>
             <p class="hint">Selecione o material, a cor ou variação, a quantidade física e o galpão. Ao confirmar, o EWGEST registra o valor da nota no Financeiro e dá entrada física somente nos materiais efetivamente recebidos. Não é necessário enviar XML.</p>
@@ -859,8 +861,6 @@
         <p id="finMessage" class="feedback" role="status"></p>
         <div id="finContent" class="hidden">
           <h2>Resumo do orçamento</h2>
-          <div id="finPendingPanel" class="section panel hidden"></div>
-          <div id="finReceivePanel" class="section panel hidden"></div>
           <div class="finInfo" id="finTotals"></div>
           <div id="finSummary"></div>
           <div class="section panel" id="finBillingPanel">
@@ -2328,6 +2328,16 @@ async function loadPanel(){
   membership=rel.find(r=>r.empresa_id===currentCompany.id);
   const somenteRomaneios=isAlmoxarife();
   const adminNav=canAdministrate();
+  if(somenteRomaneios){
+    // Impedir que informações financeiras de uma sessão administrativa
+    // anterior permaneçam no DOM durante a troca de conta no mesmo navegador.
+    finState=null;
+    for(const id of ['finPendingPanel','finReceivePanel','finTotals','finSummary',
+      'finHistory','finManualRows']){
+      node(id).replaceChildren();
+    }
+    node('finExpenseForm').reset();
+  }
   for(const id of ['createUserRole','userEditRole']){
     const option=node(id).querySelector('[value="administrador"]');
     if(option){option.disabled=!isFullAdminUser();option.hidden=!isFullAdminUser();}
@@ -6949,6 +6959,9 @@ async function carregarRecebimento(){
  const obraId=node('recebimentoWork').value;
  const msg=node('recebimentoMessage');
  node('finExpensePanel').classList.add('hidden');
+ if(isAlmoxarife())for(const id of ['finPendingPanel','finReceivePanel']){
+   node(id).classList.add('hidden');node(id).replaceChildren();
+ }
  finCostOpId=null;
  if(!obraId){msg.textContent='Selecione uma obra para iniciar o recebimento.';return;}
  msg.textContent='Consultando materiais previstos e recebidos…';
