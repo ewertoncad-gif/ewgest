@@ -40,3 +40,9 @@
 .finManualTable .finManualLengthHint{display:block;margin-top:4px;font-size:11px;line-height:1.25;color:#60788d}
 .finManualTable .finManualMissing{display:block;padding:9px 6px;color:#8f5117;font-weight:650;font-size:12px;line-height:1.35;white-space:normal}
 .finManualDetail{margin:9px 0 0;font-size:12px}
+
+/* Plano anterior à migração sem OBAPROV persistido: orientar recuperação,
+   nunca exigir que o operador invente ou redigite tamanho de barra. */
+.finManualTable .finManualMissingPlan{display:flex;flex-direction:column;gap:5px;align-items:stretch;min-width:145px}
+.finManualTable .finManualMissingPlan strong{font-size:12px;line-height:1.25;color:#8b4b16;white-space:normal}
+.finManualTable .finManualMissingPlan .btn{font-size:11px;line-height:1.2;padding:7px 6px;white-space:normal;text-align:center}
