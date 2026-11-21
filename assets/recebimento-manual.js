@@ -298,7 +298,17 @@
     'Somente materiais cadastrados nesta obra aparecem na lista. Necessidade: quantitativos do CEM. Já recebido: entradas físicas registradas por nota. Confirme quantidade e galpão antes de gravar.':
     'Esta obra não possui materiais desta categoria vinculados à sua lista técnica. Não é possível dar entrada por este formulário.'):
    'Vidros e outros insumos são discriminados na nota, sem saldo físico automático enquanto não existir catálogo próprio destes materiais.';
-  if(hasStock)resetRows();else miscReset();
+  // Campos obrigatórios ocultos continuam participando da validação HTML.
+  // Desmontar as linhas inativas evita bloquear a nota pela categoria anterior.
+  if(hasStock){
+   byId('finMiscRows').replaceChildren();
+   miscRows=[];
+   resetRows();
+  }else{
+   byId('finManualRows').replaceChildren();
+   rows=[];
+   miscReset();
+  }
  }
  function hojeLocalISO(){
   const now=new Date(),pad=n=>String(n).padStart(2,'0');
