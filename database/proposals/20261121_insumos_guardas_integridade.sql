@@ -87,7 +87,7 @@ begin
   'movimentos_estoque',v_mov,'movimentos_pendentes',v_mov_abertos,
   'saldos_nao_zerados',v_saldos,'saldos_insumos_nao_zerados',v_insumos_saldos,
   'referencias_externas',v_refs));
-end;$function$
+end;$function$;
 
 
 CREATE OR REPLACE FUNCTION public.ew_cancelar_despesa_financeira(p_empresa_id uuid, p_despesa_id uuid, p_motivo text)
@@ -122,7 +122,7 @@ BEGIN
  observacoes=observacoes||' | Cancelada: '||btrim(p_motivo)
  WHERE id=p_despesa_id AND empresa_id=p_empresa_id;
  RETURN jsonb_build_object('id',p_despesa_id,'status','cancelada');
-END;$function$
+END;$function$;
 
 
 CREATE OR REPLACE FUNCTION public.ew_gerenciar_cadastro_auxiliar(p_empresa_id uuid, p_tipo text, p_id uuid, p_acao text, p_nome text DEFAULT NULL::text)
