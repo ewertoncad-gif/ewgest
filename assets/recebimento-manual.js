@@ -259,14 +259,79 @@
    'Esta categoria será registrada somente como despesa. Não haverá movimentação física de estoque: o catálogo atual permite recebimento automático de perfis e acessórios.';
   resetRows();
  }
+ function hojeLocalISO(){
+  const now=new Date(),pad=n=>String(n).padStart(2,'0');
+  return now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate());
+ }
+ function preencherFornecedores(prefer=''){
+  const select=byId('finCostVendor'),old=prefer||select.value;
+  select.innerHTML='<option value="">Selecione o fornecedor</option>'+
+   (finState?.fornecedores||[]).slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'))
+    .map(f=>'<option value="'+escapeHTML(f.nome)+'">'+escapeHTML(f.nome)+'</option>').join('');
+  if((finState?.fornecedores||[]).some(f=>f.nome===old))select.value=old;
+ }
+ function preencherGalpoes(prefer=''){
+  const select=byId('finManualLocal'),old=prefer||select.value;
+  select.innerHTML='<option value="">Selecione o galpão</option>'+
+   (finState?.galpoes||[]).slice().sort((a,b)=>a.localeCompare(b,'pt-BR'))
+    .map(g=>'<option value="'+escapeHTML(g)+'">'+escapeHTML(g)+'</option>').join('');
+  if((finState?.galpoes||[]).includes(old))select.value=old;
+ }
  function initForm(){
   if(!finState)return;
-  const select=byId('finManualLocal'),prev=select.value;
-  select.innerHTML='<option value="">Selecione o galpão</option>'+
-   finState.galpoes.map(g=>'<option value="'+escapeHTML(g)+'">'+escapeHTML(g)+'</option>').join('');
-  if(finState.galpoes.includes(prev))select.value=prev;
+  preencherFornecedores();preencherGalpoes();
+  if(!byId('finCostDate').value)byId('finCostDate').value=hojeLocalISO();
   byId('finCostMessage').textContent='';
   renderForm();
+ }
+ let cadastroTipo=null;
+ function cadastroAbrir(tipo){
+  if(!finState||!isFullAdminUser())return;
+  cadastroTipo=tipo;
+  const box=byId('finRegistryPanel'),input=byId('finRegistryName');
+  box.classList.remove('hidden');
+  byId('finRegistryTitle').textContent=tipo==='fornecedor'?'Cadastrar fornecedor':'Cadastrar galpão';
+  input.value='';input.maxLength=tipo==='fornecedor'?180:80;
+  input.placeholder=tipo==='fornecedor'?'Nome ou razão social':'Nome do galpão';
+  byId('finRegistryMessage').textContent='';
+  input.focus();
+ }
+ function cadastroFechar(){
+  cadastroTipo=null;
+  byId('finRegistryPanel').classList.add('hidden');
+  byId('finRegistryMessage').textContent='';
+ }
+ async function cadastroSalvar(){
+  if(!finState||!isFullAdminUser()||!cadastroTipo)return;
+  const tipo=cadastroTipo,button=byId('finRegistrySave'),msg=byId('finRegistryMessage');
+  const nome=String(byId('finRegistryName').value||'').trim()
+   .replace(/\s+/g,' ').toLocaleUpperCase('pt-BR');
+  const max=tipo==='fornecedor'?180:80;
+  if(nome.length<3||nome.length>max){
+   msg.textContent='Informe um nome entre 3 e '+max+' caracteres.';return;
+  }
+  if((tipo==='fornecedor'&&(finState.fornecedores||[]).some(f=>f.nome===nome))||
+     (tipo==='galpao'&&(finState.galpoes||[]).includes(nome))){
+   msg.textContent='Este cadastro já existe. Selecione na lista.';return;
+  }
+  button.disabled=true;
+  try{
+   await ensureSession();
+   if(tipo==='fornecedor'){
+    await request('/rest/v1/ew_fornecedores',{method:'POST',token:session.access_token,
+     body:{empresa_id:currentCompany.id,nome,criado_por:currentUser.id}});
+    finState.fornecedores.push({nome});
+    preencherFornecedores(nome);
+   }else{
+    const novo=await cadastrarGalpaoEmpresa(nome);
+    finState.galpoes.push(novo);
+    preencherGalpoes(novo);
+   }
+   cadastroFechar();
+   byId('finCostMessage').textContent=(tipo==='fornecedor'?'Fornecedor ':'Galpão ')+
+    nome+' cadastrado e selecionado.';
+  }catch(e){msg.textContent='Não foi possível cadastrar: '+e.message;}
+  finally{button.disabled=false;}
  }
  function normalizeItem(row,i){
   const mat=getMaterials().find(m=>m.id===row.material);
@@ -434,6 +499,10 @@
  });
  byId('finCostTotal').addEventListener('blur',moneyInput);
  byId('finCostTotal').addEventListener('input',updateSum);
+ byId('finSupplierAdd').addEventListener('click',()=>cadastroAbrir('fornecedor'));
+ byId('finWarehouseAdd').addEventListener('click',()=>cadastroAbrir('galpao'));
+ byId('finRegistrySave').addEventListener('click',cadastroSalvar);
+ byId('finRegistryCancel').addEventListener('click',cadastroFechar);
  byId('finManualAdd').addEventListener('click',()=>{
   if(rows.length>=100){byId('finCostMessage').textContent='Limite de 100 materiais por nota.';return;}
   rows.push({material:'',variacao:'',comprimento:'',quantidade:'',valor:''});renderRows();
