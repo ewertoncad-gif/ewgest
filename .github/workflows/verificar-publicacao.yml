@@ -74,3 +74,27 @@ jobs:
           grep -Fq 'ew_insumos_receber' "$receipt"
           grep -Fq '.insumosStockTable' "$css"
           echo 'PUBLICACAO CONFIRMADA: scripts e estilo do estoque físico v45.2 disponíveis.'
+
+      - name: Conferir assets publicados da entrega à produção
+        shell: bash
+        run: |
+          set -euo pipefail
+          js="$(mktemp)"
+          css="$(mktemp)"
+          html="$(mktemp)"
+          trap 'rm -f "$js" "$css" "$html"' EXIT
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/app.html?verify=${GITHUB_SHA}" -o "$html"
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/assets/entregas-producao.js?verify=${GITHUB_SHA}" -o "$js"
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/assets/entregas-producao.css?verify=${GITHUB_SHA}" -o "$css"
+          grep -Fq 'v45.3' "$html"
+          grep -Fq 'id="entregasProducaoPanel"' "$html"
+          grep -Fq 'Estornar recebimento' "$html"
+          grep -Fq 'ew_confirmar_entrega_producao' "$js"
+          grep -Fq '#entregasProducaoPanel' "$css"
+          echo 'PUBLICACAO CONFIRMADA: v45.3, estorno GN096 e scripts da entrega disponíveis.'
