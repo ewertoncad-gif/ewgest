@@ -684,6 +684,7 @@
   </style>
   <link rel="stylesheet" href="/assets/orcamento-niveis.css?v=20261120c">
   <link rel="stylesheet" href="/assets/recebimento-manual.css?v=20261121g">
+<link rel="stylesheet" href="/assets/insumos-fisicos.css?v=20261121a">
 </head>
 <body>
 <div class="wrap">
@@ -708,7 +709,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v45.1</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v45.2</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -846,7 +847,7 @@
                   <strong>Itens recebidos — vidros e outros insumos</strong>
                   <button id="finMiscAdd" class="btn secondary" type="button">+ Adicionar item</button>
                 </div>
-                <p class="hint">Registre a descrição, quantidade, unidade e valor de cada item recebido. Estes itens entram no histórico financeiro da obra. O estoque físico de vidros e outros insumos ainda não possui catálogo próprio: nenhuma quantidade será criada no estoque automaticamente.</p>
+                <p class="hint">Registre a descrição completa (incluindo medidas e espessura do vidro, quando aplicável), unidade, quantidade e valor. Ao confirmar, o material entra no estoque físico do galpão selecionado e no histórico financeiro da obra. Itens e unidades diferentes têm saldos separados.</p>
                 <div class="finTableWrap">
                   <table class="finTable finMiscTable">
                     <thead><tr><th>Descrição do item</th><th>Quantidade</th><th>Unidade</th><th>Valor do item (R$)</th><th>Ação</th></tr></thead>
@@ -1188,6 +1189,7 @@
         <button id="cadastroJumpFornecedores" type="button" class="cadastrosTile"><strong>Fornecedores</strong><span>Notas e materiais</span></button>
         <button id="cadastroJumpGalpoes" type="button" class="cadastrosTile"><strong>Galpões</strong><span>Locais de armazenamento</span></button>
         <button id="cadastroGerenciarEstoque" type="button" class="cadastrosTile"><strong>Administração de estoques</strong><span>Históricos, saldos e estornos</span></button>
+        <button id="cadastroInsumosJump" type="button" class="cadastrosTile"><strong>Vidros e outros insumos</strong><span>Catálogo físico e unidades</span></button>
         <button id="navUsers" type="button" class="cadastrosTile"><strong>Usuários</strong><span>Acessos e permissões</span></button>
       </div>
       <div class="cadastrosListGrid">
@@ -1203,6 +1205,21 @@
             <button type="submit" class="btn primary">Cadastrar galpão</button>
           </form><div id="cadastroGalpaoList" class="cadastrosList"></div>
         </div>
+      </div>
+      <div class="section panel" id="cadastroInsumos">
+        <h2>Vidros e outros insumos</h2>
+        <p class="hint">Catálogo compartilhado por empresa. Material que já foi recebido, transferido ou estornado não pode ser excluído nem renomeado; o histórico fica preservado.</p>
+        <form id="cadastroInsumosForm" class="cadastrosNovoForm">
+          <div class="finFormRows">
+            <label>Categoria <select id="cadastroInsumosCategory"><option value="vidros">Vidros</option><option value="outros">Outros insumos</option></select></label>
+            <label>Descrição <input id="cadastroInsumosDescription" maxlength="500" required placeholder="Ex.: VIDRO LAMINADO 8MM 1000X1000"></label>
+            <label>Unidade <select id="cadastroInsumosUnit"><option value="PC">Peça (PC)</option><option value="UN">Unidade (UN)</option><option value="M2">m²</option><option value="MT">Metro</option><option value="KG">Quilo</option><option value="CX">Caixa</option><option value="CJ">Conjunto</option><option value="PR">Par</option></select></label>
+          </div>
+          <button type="submit" class="btn primary" id="cadastroInsumosSave">Cadastrar material</button>
+          <button type="button" class="btn secondary hidden" id="cadastroInsumosCancel">Cancelar edição</button>
+        </form>
+        <p id="cadastroInsumosStatus" class="feedback" role="status"></p>
+        <div id="cadastroInsumosList" class="cadastrosList"></div>
       </div>
       <div id="cadastroEditPanel" class="section panel hidden" role="region" aria-labelledby="cadastroEditTitle">
         <h2 id="cadastroEditTitle">Editar cadastro</h2>
@@ -1220,7 +1237,7 @@
     <section id="stock" class="hidden">
       <div class="head"><div>
         <h1>Estoque por obra</h1>
-        <p class="muted">Controle de barras inteiras por comprimento e quantidades de acessórios de cada obra.</p>
+        <p class="muted">Perfis em barras inteiras, acessórios, vidros e outros insumos por obra e galpão.</p>
       </div>
       <div class="stockTopActions">
           <button type="button" class="btn primary" id="stockCreateAnother">+ Criar estoque vazio</button>
@@ -1241,7 +1258,7 @@
         <div class="stockFilters">
           <label>Obra <select id="stockWork"><option value="">Todas as obras</option></select></label>
           <label>Local do estoque <select id="stockFactoryFilter"><option value="">Todos os galpões</option></select></label>
-          <label>Categoria <select id="stockType"><option value="">Todos os materiais</option><option value="perfil">Perfis</option><option value="acessorio">Acessórios</option></select></label>
+          <label>Categoria <select id="stockType"><option value="">Todos os materiais</option><option value="perfil">Perfis</option><option value="acessorio">Acessórios</option><option value="vidros">Vidros</option><option value="outros">Outros insumos</option></select></label>
           <label>Buscar material <input id="stockSearch" type="search" placeholder="Código, descrição ou cor"></label>
         </div>
         <div class="stockTopActions">
@@ -1254,6 +1271,39 @@
         <p id="stockArchivedHint" class="hint hidden" role="status"></p>
         <div id="stockMessage" class="feedback" role="status"></div>
         <div id="stockRecords"></div>
+        <div id="insumosStockPanel" class="section panel" style="margin-top:16px">
+          <div class="rowHead"><h3>Vidros e outros insumos — estoque físico</h3>
+            <button id="insumosStockRefresh" type="button" class="btn secondary">Atualizar</button>
+          </div>
+          <p class="hint">Saldos por obra, material, unidade e galpão, somente após recebimento confirmado. Nunca somar peças com m² ou outras unidades. Transferências não geram nova despesa.</p>
+          <p id="insumosStockMessage" class="feedback" role="status"></p>
+          <div id="insumosStockTable"></div>
+          <div class="topactions" style="margin-top:12px">
+            <button id="insumosTransferOpen" type="button" class="btn secondary">Transferir vidro ou insumo</button>
+          </div>
+          <div id="insumosTransferFormPanel" class="section panel hidden">
+            <h3>Transferência física de vidro / insumo</h3>
+            <form id="insumosTransferForm">
+              <div class="finFormRows">
+                <label>Material / galpão de origem
+                  <select id="insumosTransferSource" required><option value="">Selecione</option></select>
+                </label>
+                <label>Obra de destino
+                  <select id="insumosTransferWork" required><option value="">Selecione</option></select>
+                </label>
+                <label>Galpão de destino
+                  <select id="insumosTransferLocal" required><option value="">Selecione</option></select>
+                </label>
+                <label>Quantidade
+                  <input id="insumosTransferQty" required type="number" min="0.001" max="1000000" step="0.001" inputmode="decimal">
+                </label>
+              </div>
+              <label>Motivo / observações <textarea id="insumosTransferReason" maxlength="400" rows="2" placeholder="Ex.: realocação de material entre obras"></textarea></label>
+              <div class="topactions"><button type="submit" class="btn primary">Confirmar transferência</button><button id="insumosTransferCancel" type="button" class="btn secondary">Cancelar</button></div>
+            </form>
+            <p id="insumosTransferStatus" class="feedback" role="status"></p>
+          </div>
+        </div>
         <p class="hint stockEntryHint">Entradas de material: registre a nota no Recebimento ou transfira de outra obra com saldo disponível. O estoque não permite cadastrar quantidades diretamente.</p>
         <div class="stockReportPreview">
           <div class="rowHead"><h3>Resumo para relatórios de estoque</h3>
@@ -9907,5 +9957,6 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/orcamento-niveis.js?v=20261120c"></script>
 <script src="/assets/recebimento-manual.js?v=20261121h"></script>
 <script src="/assets/cadastros-hub.js?v=20261121b"></script>
+<script src="/assets/insumos-fisicos.js?v=20261121a"></script>
 </body>
 </html>
