@@ -41,7 +41,7 @@ assert.ok(inlineJS.length>=1,'Script principal da interface deve estar no HTML')
 for(const js of inlineJS)assert.doesNotThrow(()=>new Function(js),
  'JavaScript principal da interface deve ser sintaticamente válido');
 const receiptCacheHeaders=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
-assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121i')&&
+assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121j')&&
  source.includes('/assets/recebimento-manual.css?v=20261121g'),
  'O recebimento precisa de URLs versionadas para evitar assets antigos após deploy');
 assert.match(receiptCacheHeaders,/\/assets\/recebimento-manual\.js\s+Content-Type: text\/javascript; charset=utf-8\s+Cache-Control: no-store/,
@@ -1546,7 +1546,7 @@ assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
  !source.includes('<label>XML da nota fiscal (NF-e)')&&
  source.includes('id="finCostCategory" required'),
  'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
-assert.ok(source.includes('recebimento-manual.js?v=20261121i')&&
+assert.ok(source.includes('recebimento-manual.js?v=20261121j')&&
  source.includes('recebimento-manual.css?v=20261121g')&&receiveCSS.includes('.finManualTable'),
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
@@ -1701,7 +1701,7 @@ const mockResolver=new Function('state','selectedCategory',
 const fixture={
  perfis:[{id:'p1',codigo:'GN097',descricao:'Folha colada',comprimento_comercial_mm:null},
   {id:'p2',codigo:'NAO-DA-OBRA',descricao:'Não vinculado',comprimento_comercial_mm:6000}],
- acessorios:[{id:'a1',codigo:'PARAFUSO',descricao:'Parafuso'},
+ acessorios:[{id:'a1',codigo:'PARAFUSO',descricao:'Parafuso',unidade_item:'PC'},
   {id:'a2',codigo:'ACESS-EXTERNO',descricao:'Não vinculado'}],
  variacoes:[
   {id:'v1',tipo:'perfil',perfil_id:'p1',cor:'ANOD-1002-A13',acabamento:'ANODIZADO',ativo:true},
@@ -1749,7 +1749,7 @@ assert.ok(receiveScript.includes('type="text" inputmode="numeric" pattern="[0-9]
 const normalizeEnd=receiveScript.indexOf(' async function submit(',resolverStart);
 assert.ok(normalizeEnd>resolverEnd,'Validador da NF encontrado');
 const normalizeFixture=new Function('state','selectedCategory',
- 'let finState=state,category=selectedCategory; const cents=()=>10000;\n'+
+ 'let finState=state,category=selectedCategory; const cents=()=>10000; const releaseUnidadeAcessorio=code=>code;\n'+
  receiveScript.slice(naturalStart,normalizeEnd)+
  '\nreturn normalizeItem;');
 const normalizeBar=normalizeFixture(fixture,'aluminio');
@@ -1761,8 +1761,17 @@ for(const invalid of ['0','-1','3,001','3.001','1e3','2.5']){
 }
 const normalizeAccessory=normalizeFixture(fixture,'acessorios');
 assert.equal(normalizeAccessory({material:'a1',variacao:'va1',comprimento:'',
+ quantidade:'2',valor:'R$ 100,00'},0).quantidade,2,
+ 'Peça inteira recebida na unidade PC');
+assert.throws(()=>normalizeAccessory({material:'a1',variacao:'va1',comprimento:'',
+ quantidade:'2.5',valor:'R$ 100,00'},0),/exigem quantidade inteira/,
+ 'Não receber 2,5 peças.');
+const fixtureMT={...fixture,acessorios:fixture.acessorios.map(a=>
+ a.id==='a1'?{...a,unidade_item:'MT'}:a)};
+const normalizeAccessoryMT=normalizeFixture(fixtureMT,'acessorios');
+assert.equal(normalizeAccessoryMT({material:'a1',variacao:'va1',comprimento:'',
  quantidade:'2.5',valor:'R$ 100,00'},0).quantidade,2.5,
- 'Não alterar acessório medido em unidade fracionável');
+ 'Acessório medido em MT continua aceitando fracionamento');
 
 assert.deepEqual(perfil.getMaterials().map(x=>x.id),['p1'],
  'Não mostrar perfis externos à obra');
@@ -2058,7 +2067,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v45.7')&&
+assert.ok(source.includes('v45.8')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2239,5 +2248,44 @@ for(const id of ['stockTransferQtyLabel','stockObraTransferQtyLabel'])
 assert.ok(!source.includes('id="stockTransferQty" type="number" min="0.001" step="1"')&&
  !source.includes('id="stockObraTransferQty" type="number" min="0.001" step="1"'),
  'Minimo de 0,001 nao pode ser aplicado a barras inteiras');
+
+
+// EWGEST v45.8 — acessórios em PC/UN/PR/CJ/CX não podem ser fracionados em NF.
+const countableMigration=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261121_recebimento_quantidades_contaveis_v458.sql',import.meta.url)),'utf8');
+assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121j'),
+ 'Novas regras de quantidade devem invalidar o cache do JS anterior');
+for(const marker of [
+ "const unidadesContaveis=new Set(['PC','UN','PR','CJ','CX'])",
+ "const auto=autoBarLength(row),unit=unitFor(row.material),contavel=",
+ "contavel?'type=\"number\" inputmode=\"numeric\" min=\"1\" max=\"1000000\" step=\"1\"'",
+ "r.quantidade=category==='acessorios'&&r.material&&unidadeContavel(unitFor(r.material))?'1':''",
+ "category==='acessorios'&&unidadeContavel(unitFor(row.material))&&!validarQuantidadeContavel(rawQty)",
+ "unidadeContavel(m.unidade)?'1':'0.001'",
+ "if(unidadeContavel(item.unidade)&&item.quantidade&&",
+]){
+ assert.ok(receiveScript.includes(marker),'Recebimento deve tratar unidades contáveis: '+marker);
+}
+const contaveisInicio=receiveScript.indexOf(" const unidadesContaveis=new Set");
+const contaveisFim=receiveScript.indexOf(" function stockCategory()",contaveisInicio);
+assert.ok(contaveisInicio>0&&contaveisFim>contaveisInicio,
+ 'Funções de unidade contável devem existir');
+const unidadeValidadores=new Function(receiveScript.slice(contaveisInicio,contaveisFim)+
+ '\nreturn {unidadeContavel,validarQuantidadeContavel};')();
+for(const unidade of ['PC','UN','PR','CJ','CX'])
+ assert.equal(unidadeValidadores.unidadeContavel(unidade),true,'Unidade contável '+unidade);
+for(const unidade of ['MT','KG','L','ML','M2'])
+ assert.equal(unidadeValidadores.unidadeContavel(unidade),false,'Unidade fracionável '+unidade);
+for(const qtd of ['1','2','15','1000000'])
+ assert.equal(unidadeValidadores.validarQuantidadeContavel(qtd),true,'Quantidade inteira '+qtd);
+for(const qtd of ['','0','0.001','0.005','0,005','-1','1.5','1e2','1000001'])
+ assert.equal(unidadeValidadores.validarQuantidadeContavel(qtd),false,
+  'Quantidade contável deve rejeitar '+qtd);
+assert.ok(countableMigration.includes("v_unidade in ('PC','UN','PR','CJ','CX') and v_qty<>trunc(v_qty)")&&
+ countableMigration.includes("v_unidade IN ('PC','UN','PR','CJ','CX') AND v_quantidade<>trunc(v_quantidade)")&&
+ countableMigration.includes('ew_receber_materiais_almox')&&
+ countableMigration.includes('ew_registrar_recebimento_manual_financeiro')&&
+ !/update public\.ew_estoque_obras_movimentos/i.test(countableMigration),
+ 'As duas RPCs de recebimento devem validar inteiros sem regravar o estoque');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');

@@ -31,6 +31,12 @@
   const raw=String(value??'').trim(),number=Number(raw);
   return /^[0-9]+$/.test(raw)&&Number.isSafeInteger(number)&&number>=1&&number<=1000000;
  }
+ const unidadesContaveis=new Set(['PC','UN','PR','CJ','CX']);
+ function unidadeContavel(unidade){return unidadesContaveis.has(String(unidade||'').toUpperCase())}
+ function validarQuantidadeContavel(raw){
+  const valor=String(raw??'').trim(),n=Number(valor);
+  return /^[0-9]+$/.test(valor)&&Number.isSafeInteger(n)&&n>=1&&n<=1000000;
+ }
  function stockCategory(){return category==='aluminio'||category==='acessorios'}
  function plannedRows(matId='',variationId=''){
   if(!finState)return [];
@@ -175,7 +181,7 @@
         ' · BARRAS NÃO IMPORTADAS'):'') )+'</option>').join('');
    const variation=opts.find(x=>x.value===row.selectionKey)?.v;
    const color=variation?[variation.cor,variation.acabamento].filter(Boolean).join(' / '):'—';
-   const auto=autoBarLength(row),unit=unitFor(row.material);
+   const auto=autoBarLength(row),unit=unitFor(row.material),contavel=category==='acessorios'&&unidadeContavel(unit);
    // O comprimento veio do CEM na seleção, mas deve permanecer editável na NF.
    const q=quantityData(row);
    const length=Number(row.comprimento),validLength=String(row.comprimento).trim()&&
@@ -207,7 +213,8 @@
     stats('<strong>'+escapeHTML(q.pending)+'</strong>')+
     '<td><input class="finManualQty" '+(category==='aluminio'?
      'type="text" inputmode="numeric" pattern="[0-9]*" maxlength="7" title="Somente barras inteiras: 1, 2, 3..."':
-     'type="number" inputmode="decimal" min="0.001" step="0.001"')+
+     (contavel?'type="number" inputmode="numeric" min="1" max="1000000" step="1"':
+      'type="number" inputmode="decimal" min="0.001" max="1000000" step="0.001"'))+
     ' required placeholder="Qtd." value="'+escapeHTML(row.quantidade)+'" aria-label="Recebendo agora '+(i+1)+'"></td>'+
     '<td class="hint">'+escapeHTML(unit||'—')+'</td>'+
     '<td><input class="finManualSubtotal" type="text" inputmode="decimal" required placeholder="R$ 0,00" value="'+escapeHTML(row.valor)+'" aria-label="Subtotal do material '+(i+1)+'"></td>'+
@@ -232,7 +239,9 @@
    {codigo:'CX',nome:'Caixa'},{codigo:'CJ',nome:'Conjunto'},{codigo:'PR',nome:'Par'}];
   body.innerHTML=miscRows.map((m,i)=>'<tr data-misc-row="'+i+'">'+
    '<td><input class="finMiscDescription" list="insumoCatalogoSugestoes" required maxlength="500" placeholder="Descrição e medidas do vidro ou insumo" value="'+escapeHTML(m.descricao)+'"></td>'+
-   '<td><input class="finMiscQty" type="number" inputmode="decimal" min="0.001" max="1000000" step="0.001" required placeholder="Qtd." value="'+escapeHTML(m.quantidade)+'"></td>'+
+   '<td><input class="finMiscQty" type="number" inputmode="'+(unidadeContavel(m.unidade)?'numeric':'decimal')+
+    '" min="'+(unidadeContavel(m.unidade)?'1':'0.001')+'" max="1000000" step="'+(unidadeContavel(m.unidade)?'1':'0.001')+
+    '" required placeholder="Qtd." value="'+escapeHTML(m.quantidade)+'"></td>'+
    '<td><select class="finMiscUnit">'+units.map(u=>'<option value="'+escapeHTML(u.codigo)+'"'+(u.codigo===m.unidade?' selected':'')+'>'+escapeHTML(u.codigo+' — '+u.nome)+'</option>').join('')+'</select></td>'+
    '<td><input class="finMiscAmount" inputmode="decimal" required placeholder="R$ 0,00" value="'+escapeHTML(m.valor)+'"></td>'+
    '<td><button type="button" class="btn secondary" data-misc-remove="'+i+'">Remover</button></td>'+
@@ -256,7 +265,7 @@
     throw Error('Quantidade inválida no item '+(i+1)+'.');
    if(!(window.ewUnidadesMedida?.ativa(r.unidade)??['PC','UN','M2','MT','KG','CX','CJ','PR'].includes(r.unidade)))throw Error('Unidade inválida no item '+(i+1)+'.');
    if(centavos===null||centavos<0)throw Error('Subtotal inválido no item '+(i+1)+'.');
-   if(['PC','UN','CX','CJ','PR'].includes(r.unidade)&&!Number.isInteger(quantidade))
+   if(unidadeContavel(r.unidade)&&!Number.isInteger(quantidade))
     throw Error('Nesta unidade, informe quantidade inteira no item '+(i+1)+'.');
    const total=centavos/100;
    return {codigo:'',descricao,unidade:r.unidade,quantidade,
@@ -400,6 +409,8 @@
   if(!rawQty||!Number.isFinite(qty)||qty<=0||qty>1000000||
     Math.abs(qty*1000-Math.round(qty*1000))>0.00001)
    throw new Error('Quantidade física inválida na linha '+(i+1)+'.');
+  if(category==='acessorios'&&unidadeContavel(unitFor(row.material))&&!validarQuantidadeContavel(rawQty))
+   throw new Error('Acessórios em PC, UN, PR, CJ ou CX exigem quantidade inteira positiva (1, 2, 3...). Linha '+(i+1)+'.');
   if(amount===null||amount<0)throw new Error('Subtotal do material inválido na linha '+(i+1)+'.');
   const length=category==='aluminio'?Number(row.comprimento):null;
   if(category==='aluminio'){
@@ -593,7 +604,15 @@
  byId('finMiscRows').addEventListener('change',event=>{
   const tr=event.target.closest('[data-misc-row]');if(!tr)return;
   const item=miscRows[Number(tr.dataset.miscRow)];
-  if(item&&event.target.matches('.finMiscUnit'))item.unidade=event.target.value;
+  if(item&&event.target.matches('.finMiscUnit')){
+   item.unidade=event.target.value;
+   if(unidadeContavel(item.unidade)&&item.quantidade&&
+       !validarQuantidadeContavel(item.quantidade)){
+    item.quantidade='';
+    byId('finCostMessage').textContent='A unidade selecionada exige quantidade inteira; informe a nova quantidade.';
+   }
+   miscRender();
+  }
  });
  byId('finMiscRows').addEventListener('focusout',event=>{
   const tr=event.target.closest('[data-misc-row]');
@@ -617,7 +636,7 @@
    r.variacao=selected?.v.id||'';
    r.selectionKey=selected?.value||'';
    r.comprimento=selected?.length?String(selected.length):'';
-   r.quantidade='';r.valor='';
+   r.quantidade=category==='acessorios'&&r.material&&unidadeContavel(unitFor(r.material))?'1':'';r.valor='';
    renderRows();
   }
  });
