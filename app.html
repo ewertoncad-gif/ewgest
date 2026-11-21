@@ -672,7 +672,7 @@
 
   </style>
   <link rel="stylesheet" href="/assets/orcamento-niveis.css?v=20261120c">
-  <link rel="stylesheet" href="/assets/recebimento-manual.css?v=20261121e">
+  <link rel="stylesheet" href="/assets/recebimento-manual.css?v=20261121f">
 </head>
 <body>
 <div class="wrap">
@@ -1160,7 +1160,7 @@
           <button type="button" class="btn secondary" id="stockReceiveNfe" disabled>Receber material por NF-e</button>
         </div>
         <div class="stockLegend">
-          <span><strong>Necessária:</strong> consumo previsto no cálculo. <strong>Em estoque:</strong> saldo físico registrado, considerando entradas e saídas.</span>
+          <span><strong>Necessária:</strong> para perfis, número de barras planejadas no CEM por comprimento; para acessórios, quantidade prevista. <strong>Em estoque:</strong> saldo físico de entradas e saídas.</span>
           <span><strong>Comprimento:</strong> tamanho comercial da barra em milímetros, independente da quantidade de peças cortadas.</span>
         </div>
         <p id="stockArchivedHint" class="hint hidden" role="status"></p>
@@ -9404,6 +9404,6 @@ restaurarSessaoSalva().catch(e=>{
 
 </script>
 <script src="/assets/orcamento-niveis.js?v=20261120c"></script>
-<script src="/assets/recebimento-manual.js?v=20261121e"></script>
+<script src="/assets/recebimento-manual.js?v=20261121f"></script>
 </body>
 </html>
