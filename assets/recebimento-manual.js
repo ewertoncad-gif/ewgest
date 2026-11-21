@@ -31,7 +31,7 @@
   const raw=String(value??'').trim(),number=Number(raw);
   return /^[0-9]+$/.test(raw)&&Number.isSafeInteger(number)&&number>=1&&number<=1000000;
  }
- const unidadesContaveis=new Set(['PC','UN','PR','CJ','CX']);
+ const unidadesContaveis=new Set(['PC','UN','PR','CJ','CX','MT']);
  function unidadeContavel(unidade){return unidadesContaveis.has(String(unidade||'').toUpperCase())}
  function validarQuantidadeContavel(raw){
   const valor=String(raw??'').trim(),n=Number(valor);
@@ -410,7 +410,7 @@
     Math.abs(qty*1000-Math.round(qty*1000))>0.00001)
    throw new Error('Quantidade física inválida na linha '+(i+1)+'.');
   if(category==='acessorios'&&unidadeContavel(unitFor(row.material))&&!validarQuantidadeContavel(rawQty))
-   throw new Error('Acessórios em PC, UN, PR, CJ ou CX exigem quantidade inteira positiva (1, 2, 3...). Linha '+(i+1)+'.');
+   throw new Error('Acessórios em PC, UN, PR, CJ, CX ou MT exigem quantidade inteira positiva (1, 2, 3...). Linha '+(i+1)+'.');
   if(amount===null||amount<0)throw new Error('Subtotal do material inválido na linha '+(i+1)+'.');
   const length=category==='aluminio'?Number(row.comprimento):null;
   if(category==='aluminio'){
@@ -609,7 +609,7 @@
    if(unidadeContavel(item.unidade)&&item.quantidade&&
        !validarQuantidadeContavel(item.quantidade)){
     item.quantidade='1';
-    byId('finCostMessage').textContent='A unidade selecionada exige quantidade inteira; quantidade ajustada para 1.';
+    byId('finCostMessage').textContent='A unidade selecionada exige quantidade inteira, inclusive metros; quantidade ajustada para 1.';
    }
    miscRender();
   }
