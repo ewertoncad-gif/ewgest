@@ -80,12 +80,9 @@
  function autoBarLength(row){
   if(category!=='aluminio'||!row.material||!row.variacao)return null;
   const selecionado=selectOptions().find(x=>x.value===row.selectionKey);
-  if(selecionado?.length)return selecionado.length;
-  const p=finState?.perfis.find(x=>x.id===row.material);
-  const cadastrado=Number(p?.comprimento_comercial_mm);
-  if(Number.isSafeInteger(cadastrado)&&cadastrado>=100&&cadastrado<=20000)return cadastrado;
-  const sizes=[...new Set(plannedBarRows(row.variacao).map(x=>Number(x.comprimento_mm)))];
-  return sizes.length===1?sizes[0]:null;
+  // Somente o plano de barras do CEM específico desta obra define a medida.
+  // O comprimento comercial genérico do cadastro não substitui esse dado.
+  return selecionado?.length??null;
  }
  function quantityData(row){
   if(!row.material||!row.variacao)
@@ -99,19 +96,22 @@
    // com o mesmo código, cor, comprimento e obra.
    const length=Number(row.comprimento);
    if(!Number.isSafeInteger(length)||length<100||length>20000)
-    return {needed:'—',received:'—',pending:'—',note:'Confira o tamanho comercial da barra.'};
+    return {needed:'Não informado',received:'—',pending:'—',
+     note:'Informe o comprimento efetivamente recebido em milímetros para consultar por medida.'};
    const planned=plannedBarRows(row.variacao)
     .filter(x=>Number(x.comprimento_mm)===length);
    const hasPlan=planned.length>0;
+   const hasAnyPlan=plannedBarRows(row.variacao).length>0;
    const expected=planned.reduce((sum,x)=>sum+Number(x.quantidade_delta||0),0);
    const received=registered.filter(x=>x.unidade==='BARRA'&&Number(x.comprimento_mm)===length)
     .reduce((sum,x)=>sum+Number(x.quantidade||0),0);
    return {
-    needed:hasPlan?barLabel(expected):'Não importado',
+    needed:hasPlan?barLabel(expected):(hasAnyPlan?'Não planejado':'Não importado'),
     received:barLabel(received),
     pending:hasPlan?barLabel(Math.max(0,expected-received)):'—',
     note:hasPlan?'Quantidade de barras planejada no CEM, sem confundir com saldo físico.':
-     'Barras necessárias não importadas para esta obra/medida. Consulte a importação de estoque do CEM.'
+     hasAnyPlan?'Comprimento não planejado para este perfil e cor. A barra real pode ser recebida sem alterar o plano.':
+      'Barras necessárias não importadas para esta obra. Informe o comprimento real recebido; a entrada não cria necessidade planejada.'
    };
   }
   const wanted=new Map(),invoices=new Map();
@@ -149,8 +149,7 @@
  function renderRows(){
   const body=byId('finManualRows');
   if(!finState){body.innerHTML='';return;}
-  const opts=selectOptions(),sizes=(finState.comprimentosComerciais||[])
-   .map(Number).filter(n=>Number.isSafeInteger(n)&&n>=100&&n<=20000);
+  const opts=selectOptions();
   body.innerHTML=rows.map((row,i)=>{
    const options='<option value="">'+(opts.length?'Selecione material da obra':'Nenhum material vinculado à obra')+'</option>'+
     opts.map(({mat,v,length,value})=>'<option value="'+escapeHTML(value)+'"'+(row.selectionKey===value?' selected':'')+'>'+
@@ -159,22 +158,21 @@
         ' · BARRAS NÃO IMPORTADAS'):'') )+'</option>').join('');
    const variation=opts.find(x=>x.value===row.selectionKey)?.v;
    const color=variation?[variation.cor,variation.acabamento].filter(Boolean).join(' / '):'—';
-   const auto=autoBarLength(row),unit=unitFor(row.material),q=quantityData(row);
-   if(auto&&!row.comprimento)row.comprimento=String(auto);
+   const auto=autoBarLength(row),unit=unitFor(row.material);
+   // O comprimento veio do CEM na seleção, mas deve permanecer editável na NF.
+   const q=quantityData(row);
+   const length=Number(row.comprimento),validLength=String(row.comprimento).trim()&&
+    Number.isSafeInteger(length)&&length>=100&&length<=20000;
+   const isPlanned=category==='aluminio'&&validLength&&
+    plannedBarRows(row.variacao).some(x=>Number(x.comprimento_mm)===length);
    let lengthField='<span class="finManualEmpty">—</span>';
-   if(category==='aluminio'){
-    if(auto){
-     lengthField='<input type="number" class="finManualLength" readonly value="'+auto+
-      '" aria-label="Comprimento comercial cadastrado" title="Comprimento identificado no cadastro ou na importação">';
-    }else if(sizes.length){
-     lengthField='<select class="finManualLength" aria-label="Escolher tamanho da barra não informado no CEM" required>'+
-      '<option value="">Informe a barra</option>'+
-      [...new Set(sizes)].map(n=>'<option value="'+n+'"'+(String(n)===String(row.comprimento)?' selected':'')+'>'+
-       Number(n).toLocaleString('pt-BR')+' mm</option>').join('')+'</select>';
-    }else{
-     lengthField='<input class="finManualLength" type="number" min="100" max="20000" step="1" required '+
-      'placeholder="Não consta do CEM" value="'+escapeHTML(row.comprimento)+'">';
-    }
+   if(category==='aluminio'&&row.material){
+    lengthField='<input class="finManualLength" type="number" inputmode="numeric" min="100" max="20000" step="1" required'+
+     ' aria-label="Comprimento real da barra em milímetros"'+
+     ' title="Predefinido pelo CEM quando disponível; altere se a compra chegou em outra medida."'+
+     ' placeholder="Barra (mm)" value="'+escapeHTML(row.comprimento)+'">'+
+     '<small class="finManualLengthHint">'+(isPlanned?'Medida do CEM':validLength?
+      'Fora do plano do CEM':auto?'Confira a medida':'Informe a medida')+'</small>';
    }
    const stats=html=>'<td class="finManualStat">'+html+'</td>';
    return '<tr data-manual-row="'+i+'">'+
@@ -192,7 +190,7 @@
   }).join('');
   const message=byId('finManualDetail');
   if(message)message.textContent=category==='aluminio'?
-   'Necessário: barras e tamanhos registrados pelo CEM para esta obra. Já recebido: barras das notas fiscais. Falta receber: diferença entre barras da mesma cor e comprimento. Sem plano de barras importado, a necessidade fica como não informada.':
+   'O comprimento vem predefinido do plano do CEM quando disponível, mas pode ser alterado para o tamanho realmente comprado. Necessário/Falta receber vêm do planejamento por medida; Já recebido vem das notas. Medidas diferentes não alteram a necessidade original.':
    'Necessário, recebido e falta receber são calculados na unidade de cada acessório, quando compatível.';
   updateSum();
  }
@@ -250,9 +248,12 @@
    throw new Error('Quantidade física inválida na linha '+(i+1)+'.');
   if(amount===null||amount<0)throw new Error('Subtotal do material inválido na linha '+(i+1)+'.');
   const length=category==='aluminio'?Number(row.comprimento):null;
-  if(category==='aluminio'&&(!Number.isSafeInteger(qty)||!String(row.comprimento).trim()||
-      !Number.isSafeInteger(length)||length<100||length>20000))
-    throw new Error('Perfil exige barras inteiras e comprimento entre 100 e 20.000 mm na linha '+(i+1)+'.');
+  if(category==='aluminio'){
+   if(!Number.isSafeInteger(qty))
+    throw new Error('Perfis exigem quantidades inteiras de barras na linha '+(i+1)+'.');
+   if(!String(row.comprimento).trim()||!Number.isSafeInteger(length)||length<100||length>20000)
+    throw new Error('Informe o comprimento real da barra entre 100 e 20.000 mm (linha '+(i+1)+').');
+  }
   return {variacao_id:variacao.id,quantidade:qty,comprimento_mm:length,valor_total:amount/100};
  }
  async function submit(event){
@@ -274,10 +275,15 @@
     if(sum!==note)throw new Error('A soma dos itens deve ser igual ao valor total da nota.');
    }
   }catch(e){el.textContent=e.message;return;}
+  const medidasForaPlano=hasStock&&category==='aluminio'?rows.filter(r=>
+   !plannedBarRows(r.variacao).some(x=>Number(x.comprimento_mm)===Number(r.comprimento))):[];
+  const avisoMedidas=medidasForaPlano.length?'\n\nATENÇÃO: '+medidasForaPlano.length+
+   ' item(ns) têm comprimento diferente do plano de barras do CEM, ou não possuem plano importado. '+
+   'O estoque receberá o comprimento real informado, sem alterar o planejamento original.':'';
   const text='Registrar nota '+number+' no valor de '+finMoney(note/100)+' para esta obra?'+
    (hasStock?'\n\nIsto dará entrada IMEDIATA de '+items.length+' material(is) no estoque da obra, galpão '+location+'.':
     '\n\nEsta operação registrará somente a despesa; NÃO movimentará estoque.')+
-   '\n\nConfirme apenas itens e quantidades realmente recebidos.';
+   avisoMedidas+'\n\nConfirme apenas itens e quantidades realmente recebidos.';
   if(!window.confirm(text))return;
   btn.disabled=true;finCostOpId ||= crypto.randomUUID();
   el.textContent=hasStock?'Registrando nota e estoque na mesma operação…':'Registrando despesa…';
@@ -406,11 +412,8 @@
    r.material=selected?.mat.id||'';
    r.variacao=selected?.v.id||'';
    r.selectionKey=selected?.value||'';
-   r.comprimento=selected?.length?String(selected.length):String(autoBarLength(r)||'');
+   r.comprimento=selected?.length?String(selected.length):'';
    r.quantidade='';r.valor='';
-   renderRows();
-  }else if(event.target.matches('.finManualLength')){
-   r.comprimento=event.target.value;
    renderRows();
   }
  });
@@ -418,7 +421,21 @@
   const tr=event.target.closest('[data-manual-row]');if(!tr)return;
   const r=rows[Number(tr.dataset.manualRow)];if(!r)return;
   if(event.target.matches('.finManualQty'))r.quantidade=event.target.value;
-  if(event.target.matches('.finManualLength'))r.comprimento=event.target.value;
+  if(event.target.matches('.finManualLength')){
+   r.comprimento=event.target.value;
+   // Atualiza os indicadores sem recriar o campo durante a digitação.
+   const q=quantityData(r),cells=tr.querySelectorAll('.finManualStat strong');
+   if(cells.length===3){
+    cells[0].textContent=q.needed;cells[1].textContent=q.received;
+    cells[2].textContent=q.pending;
+   }
+   const length=Number(r.comprimento);
+   const planned=r.comprimento.trim()&&Number.isSafeInteger(length)&&
+    plannedBarRows(r.variacao).some(x=>Number(x.comprimento_mm)===length);
+   const hint=tr.querySelector('.finManualLengthHint');
+   if(hint)hint.textContent=planned?'Medida do CEM':
+    r.comprimento.trim()?'Fora do plano do CEM':'Informe a medida';
+  }
   if(event.target.matches('.finManualSubtotal')){r.valor=event.target.value;updateSum();}
  });
  byId('finManualRows').addEventListener('focusout',event=>{
