@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const source=readFileSync(fileURLToPath(new URL('../app.html',import.meta.url)),'utf8');
 const receiptCacheHeaders=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
-assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121c')&&
- source.includes('/assets/recebimento-manual.css?v=20261121c'),
+assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121d')&&
+ source.includes('/assets/recebimento-manual.css?v=20261121d'),
  'O recebimento precisa de URLs versionadas para evitar assets antigos após deploy');
 assert.match(receiptCacheHeaders,/\/assets\/recebimento-manual\.js\s+Content-Type: text\/javascript; charset=utf-8\s+Cache-Control: no-store/,
  'Cloudflare não deve manter o JavaScript de recebimento em cache');
@@ -1497,8 +1497,8 @@ assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
  !source.includes('<label>XML da nota fiscal (NF-e)')&&
  source.includes('id="finCostCategory" required'),
  'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
-assert.ok(source.includes('recebimento-manual.js?v=20261121c')&&
- source.includes('recebimento-manual.css?v=20261121c')&&receiveCSS.includes('.finManualTable'),
+assert.ok(source.includes('recebimento-manual.js?v=20261121d')&&
+ source.includes('recebimento-manual.css?v=20261121d')&&receiveCSS.includes('.finManualTable'),
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
  receiveScript.includes('p_itens:items')&&receiveScript.includes('finCostOpId ||= crypto.randomUUID()')&&
@@ -1723,19 +1723,15 @@ assert.ok(receiveScript.includes('class="finManualLength" type="number"')&&
  !receiveScript.includes('finManualLength[readonly]'),
  'Se há plano CEM, barra continua pré-preenchida, editável e confirma divergências');
 assert.ok(receiveScript.includes('if(!plannedBarRows(row.variacao).length)')&&
- receiveScript.includes('data-manual-reimport')&&
- receiveScript.includes('Plano não importado')&&
- receiveScript.includes('cemAbrirRecuperacaoPlano(finState.obraId,mat.codigo,row.variacao)'),
- 'Quando o plano não foi gravado, mostrar recuperação do ZIP em vez de pedir comprimento avulso');
-assert.ok(source.includes('function cemAbrirRecuperacaoPlano(')&&
- source.includes('cemRecuperacaoPlano={obraId,codigoObra:obra.codigo,perfilCodigo,cor:variacao.cor}')&&
- source.includes("node('cemFlagEsquadrias').checked=false")&&
- source.includes("node('cemFlagAcessorios').checked=false")&&
- source.includes('r.obraExistente?.id!==cemRecuperacaoPlano.obraId')&&
- source.includes('OBAPROV/NUMBARRAS/BARRA'),
- 'O ZIP de recuperação deve corresponder à obra e ao perfil/cor; esquadrias e acessórios ficam desmarcados');
-assert.equal(noImport.autoBarLength({material:'p1',variacao:'v1',selectionKey:'v1|'}),null,
- 'Sem barra importada, comprimento deve iniciar vazio e poder ser preenchido na compra');
+ receiveScript.includes('Plano de barras não importado')&&
+ receiveScript.includes('"Importar arquivo técnico"')&&
+ !receiveScript.includes('data-manual-reimport')&&
+ !receiveScript.includes('cemAbrirRecuperacaoPlano'),
+ 'Ausência de plano deve ter só aviso, sem novo botão de recuperação');
+assert.ok(!source.includes('function cemAbrirRecuperacaoPlano(')&&
+ !source.includes('cemRecuperacaoPlano')&&
+ source.includes("node('navCem').addEventListener('click',()=>setView('cemImport'))"),
+ 'Manter o menu de importação técnica sem fluxo duplicado');
 const cad=mockResolver({...fixture,barrasCem:[],
  perfis:[{...fixture.perfis[0],comprimento_comercial_mm:5500},fixture.perfis[1]]},'aluminio');
 assert.equal(cad.autoBarLength({material:'p1',variacao:'v1',selectionKey:'v1|'}),null,
