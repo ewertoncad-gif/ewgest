@@ -2192,9 +2192,9 @@
     </div>
     <div class="userActions" style="margin-top:24px;border-top:1px solid #38516a;padding-top:18px">
       <button id="userToggleActive" type="button" class="btn secondary">Desativar acesso</button>
-      <button id="userDeleteButton" type="button" class="btn secondary" style="border-color:#ce776a;color:#db796a">Excluir usuário</button>
+      <button id="userDeleteButton" type="button" class="btn secondary" style="border-color:#ce776a;color:#db796a">Arquivar usuário</button>
     </div>
-    <p class="userExplanation">Desativar permite reativação. Excluir remove o usuário da lista, bloqueia seu acesso e preserva seu histórico operacional. A conta ADM não pode ser excluída.</p>
+    <p class="userExplanation">Desativar permite reativação. Arquivar remove o usuário da lista ativa e bloqueia seu acesso, sem apagar sua identidade nem o histórico de obras, notas e operações. A conta ADM não pode ser arquivada.</p>
     <p id="userEditMessage" class="feedback" role="status" aria-live="polite"></p>
   </div>
 </div>
@@ -4568,9 +4568,9 @@ node('userDeleteButton').addEventListener('click',async()=>{
   if(!canManageUsers()||!editingManagedAccount)return;
   const target=editingManagedAccount;
   if(target.usuario_id===currentUser?.id||target.perfil==='administrador'){
-    node('userEditMessage').textContent='Contas ADM e a própria conta não podem ser excluídas.';return;
+    node('userEditMessage').textContent='Contas ADM e a própria conta não podem ser arquivadas.';return;
   }
-  const confirmar=window.confirm('EXCLUIR USUÁRIO\n\nO usuário '+target.login+
+  const confirmar=window.confirm('ARQUIVAR USUÁRIO\n\nO usuário '+target.login+
     ' deixará de aparecer na lista e não poderá mais entrar no EWGEST.\n\n'+
     'O histórico de liberações, romaneios e acessos será preservado.\n\nDeseja continuar?');
   if(!confirmar)return;
@@ -4579,14 +4579,14 @@ node('userDeleteButton').addEventListener('click',async()=>{
   if(digitado.trim().toLocaleLowerCase('pt-BR')!==target.login.toLocaleLowerCase('pt-BR')){
     node('userEditMessage').textContent='Login informado não corresponde ao usuário. Nenhuma alteração foi feita.';return;
   }
-  const btn=node('userDeleteButton');btn.disabled=true;btn.textContent='Excluindo…';
+  const btn=node('userDeleteButton');btn.disabled=true;btn.textContent='Arquivando…';
   try{
     await userApi({acao:'excluir',usuario_id:target.usuario_id});
     closeManagedUserEdit();
     await reloadManagedUsers();
-    node('usersMessage').textContent='Usuário '+target.login+' excluído do cadastro ativo. Histórico preservado.';
+    node('usersMessage').textContent='Usuário '+target.login+' arquivado no cadastro ativo. Histórico preservado.';
   }catch(e){node('userEditMessage').textContent='Não foi possível concluir a exclusão: '+e.message;}
-  finally{btn.disabled=false;btn.textContent='Excluir usuário';}
+  finally{btn.disabled=false;btn.textContent='Arquivar usuário';}
 });
 node('myPasswordHeader').addEventListener('click',()=>{
   node('myPasswordForm').reset();
