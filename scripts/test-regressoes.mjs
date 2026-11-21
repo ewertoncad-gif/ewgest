@@ -2,6 +2,38 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const source=readFileSync(fileURLToPath(new URL('../app.html',import.meta.url)),'utf8');
+// Issue #31 — Recebimento separado do Financeiro e operação por perfil.
+const recebimentoSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_recebimento_almoxarife_seguro.sql',import.meta.url)),'utf8');
+const cadastroSeguroSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_cadastros_dependencias.sql',import.meta.url)),'utf8');
+const receiptIdx=source.indexOf('<section id="recebimento"');
+const financeIdx=source.indexOf('<section id="financeiro"');
+const receiptFormIdx=source.indexOf('id="finExpensePanel"');
+assert.ok(receiptIdx>0&&financeIdx>receiptIdx&&receiptFormIdx>receiptIdx&&receiptFormIdx<financeIdx,
+ 'O formulário de recebimento deve pertencer à tela Recebimento, não ao Financeiro');
+assert.ok(source.includes('id="navRecebimento"')&&source.includes("['navRecebimento','recebimento']")&&
+ source.includes("node('navRecebimento').classList.toggle('hidden',!(isAlmoxarife()||isFullAdminUser()))"),
+ 'Menu Recebimento liberado por perfil, sem exibir o Financeiro ao almoxarife');
+const recebimentoLoader=source.slice(source.indexOf('async function carregarRecebimento(){'),
+ source.indexOf('function finOptionsObras(prefer){'));
+assert.ok(recebimentoLoader.includes("if(isFullAdminUser()){")&&
+ recebimentoLoader.includes('apiGet(\'ew_cem_obras_materiais\'')&&
+ recebimentoLoader.includes('rpc/ew_quantidades_recebidas_obra')&&
+ !recebimentoLoader.includes("apiGet('ew_obra_despesas'")&&
+ !recebimentoLoader.includes("apiGet('ew_obra_orcamento'"),
+ 'Almoxarife consulta materiais e quantidades, sem buscar despesas ou orçamento');
+assert.ok(recebimentoSQL.includes("u.perfil='almoxarife'")&&
+ recebimentoSQL.includes("perform public.ew_exigir_sessao_atual()")&&
+ recebimentoSQL.includes('insert into public.ew_obra_despesas')&&
+ recebimentoSQL.includes('insert into public.ew_estoque_obras_movimentos')&&
+ recebimentoSQL.includes('insert into public.ew_nfe_recebimentos')&&
+ recebimentoSQL.includes('revoke execute on function public.ew_receber_materiais_almox')&&
+ recebimentoSQL.includes('from anon;'),
+ 'RPC do almoxarife insere nota e estoque na mesma transação e bloqueia anon');
+assert.ok(source.includes('id="cadastroEditPanel"')&&
+ cadastroSeguroSQL.includes('from public.ew_estoque_obras_movimentos')&&
+ cadastroSeguroSQL.includes('from public.ew_obra_despesas')&&
+ cadastroSeguroSQL.includes("raise exception 'Cadastro em uso"),
+ 'Cadastros auxiliaries: edição e exclusão preservam notas e movimentações');
 const receiptCacheHeaders=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
 assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121g')&&
  source.includes('/assets/recebimento-manual.css?v=20261121f'),
