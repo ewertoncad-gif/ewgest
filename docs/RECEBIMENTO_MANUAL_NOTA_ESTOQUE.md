@@ -68,13 +68,21 @@ O banco `ewgest-restauracao-teste` possui estruturas simuladas criadas exclusiva
 
 **Status: em desenvolvimento, aguardando revisão e publicação.** PR da branch `fix/recebimento-barras-cem-20261120`.
 
-- A coluna **Barra (mm)** é apenas informativa. O usuário não escolhe medida comercial nem digita comprimento de perfil.
+- A coluna **Barra (mm)** possui campo numérico **editável**; o valor inicial vem da importação do CEM, quando disponível. O operador pode alterá-lo caso a compra seja recebida com outro comprimento.
 - Código, cor e comprimento são resolvidos pelo item da obra e pelo histórico de barras importadas do CEM; havendo duas medidas, cada combinação aparece como uma opção própria no seletor de materiais.
 - A necessidade em barras vem de `NUMBARRAS`, agrupada por variação e comprimento. Quantidades recebidas por NF são consultadas separadamente em `ew_nfe_recebimentos`.
 - Os indicadores são calculados **depois** de definir a medida selecionada; não exibem traços por simples ordem de execução.
-- Sem barra planejada, a tela mostra **Não importado** e impede registrar o perfil com medida inventada. Isso não altera nem apaga estoque ou notas.
+- Sem barra planejada, o campo fica vazio, sem presumir tamanho; exige informação do comprimento real para registrar a NF. Comprimento diferente do planejado pode ser recebido, com aviso de divergência, mas não altera a necessidade original.
 
 **Limitação verificada em leitura somente no banco de produção:** há obras com vínculos em `ew_cem_obras_materiais` sem movimentos `IMPORTACAO_CEM` de barras. A importação técnica conserva dados de cortes, mas não um cadastro próprio persistente do plano de barras. É necessária uma segunda correção estrutural para armazenar `NUMBARRAS`/`BARRA` por obra, perfil, cor e comprimento **sem gerar estoque físico**. Os registros antigos que não guardaram essas medidas precisam ser confrontados com o ZIP original, pois não é correto inferi-las dos cortes ou de tamanhos genéricos.
 
 **Banco de dados:** nenhuma alteração de esquema ou saldos nesta correção de interface.
 **Testes:** validação local das rotinas puras para medida importada e medida ausente; regressões completas do repositório e teste em navegador permanecem dependentes do CI e homologação.
+
+## Ajuste de regra — barra pré-preenchida e editável (20/11/2026)
+
+- Quando uma opção do mesmo perfil/cor/medida for selecionada, o campo inicia no comprimento lido do CEM (`OBAPROV.BARRA`). Se o operador digitar outro comprimento, essa alteração deve permanecer durante a conferência.
+- Com comprimento válido entre 100 e 20.000 mm e quantidade inteira positiva, a RPC atual permite gravar a barra de tamanho real no estoque físico e vincular à nota, inclusive sem medida planejada equivalente.
+- A coluna **Necessário/Falta receber** é o plano daquela mesma medida, sem substituir pela contagem de cortes. A coluna **Já recebido** usa a soma de entradas por NF da mesma medida. Comprimento não planejado aparece como **Não planejado** (ou **Não importado** se não existe plano da variação) e não compensa o plano de outra medida.
+- O usuário vê advertência antes da confirmação quando a nota inclui comprimento não planejado.
+- Quando a importação anterior não preservou `NUMBARRAS/BARRA`, o sistema **não consegue** pré-preencher essa informação só com os cortes. O campo fica vazio e exige o tamanho real; persistir o plano separadamente continua registrado na issue #22.
