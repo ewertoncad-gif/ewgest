@@ -61,8 +61,8 @@ begin
  v_result:=public.ew_estornar_recebimento_nfe(v_empresa,v_recebimento,
    'Material devolvido ao fornecedor',v_op);
  if v_result->>'ja_estornado'<>'true' then raise exception 'Idempotência de estorno falhou';end if;
- select status into strict v_result from public.ew_obra_despesas where id=v_despesa;
- if v_result::text not like '%aprovada%' then raise exception 'Nota financeira não foi preservada';end if;
+ if not exists(select 1 from public.ew_obra_despesas where id=v_despesa and status='aprovada')
+ then raise exception 'Nota financeira não foi preservada';end if;
 
  -- Reentrada do item após estorno permitido, histórico original permanece.
  insert into public.ew_estoque_obras_movimentos(
