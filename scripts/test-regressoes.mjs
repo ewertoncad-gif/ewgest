@@ -1491,8 +1491,8 @@ assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
  !source.includes('<label>XML da nota fiscal (NF-e)')&&
  source.includes('id="finCostCategory" required'),
  'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
-assert.ok(source.includes('recebimento-manual.js?v=20261120e')&&
- source.includes('recebimento-manual.css?v=20261120d')&&receiveCSS.includes('.finManualTable'),
+assert.ok(source.includes('recebimento-manual.js?v=20261121a')&&
+ source.includes('recebimento-manual.css?v=20261121a')&&receiveCSS.includes('.finManualTable'),
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
  receiveScript.includes('p_itens:items')&&receiveScript.includes('finCostOpId ||= crypto.randomUUID()')&&
