@@ -1170,7 +1170,7 @@
         <p class="muted">Controle de barras inteiras por comprimento e quantidades de acessórios de cada obra.</p>
       </div>
       <div class="stockTopActions">
-          <button type="button" class="btn primary" id="stockCreateAnother">+ Criar estoque de outra obra</button>
+          <button type="button" class="btn primary" id="stockCreateAnother">+ Criar estoque vazio</button>
           <button type="button" class="btn secondary" id="stockManageLocations">Gerenciar estoques</button>
           <button type="button" class="btn secondary" id="stockArchivedReview">Saldos e estornos</button>
           <button type="button" class="btn secondary" id="stockRefresh">Atualizar</button>
@@ -1190,9 +1190,7 @@
           <label>Buscar material <input id="stockSearch" type="search" placeholder="Código, descrição ou cor"></label>
         </div>
         <div class="stockTopActions">
-          <button type="button" class="btn secondary" id="stockFactoryCreate">+ Cadastrar galpão</button>
           <button type="button" class="btn secondary" id="stockWorkHistory" disabled>Movimentações da obra</button>
-          <button type="button" class="btn secondary" id="stockReceiveNfe" disabled>Receber material por NF-e</button>
         </div>
         <div class="stockLegend">
           <span><strong>Necessária:</strong> para perfis, número de barras planejadas no CEM por comprimento; para acessórios, quantidade prevista. <strong>Em estoque:</strong> saldo físico de entradas e saídas.</span>
@@ -1201,9 +1199,7 @@
         <p id="stockArchivedHint" class="hint hidden" role="status"></p>
         <div id="stockMessage" class="feedback" role="status"></div>
         <div id="stockRecords"></div>
-        <div class="stockBottomActions">
-          <button type="button" class="btn primary" id="stockNewManual">+ Adicionar material</button>
-        </div>
+        <p class="hint stockEntryHint">Entradas de material: registre a nota no Financeiro das obras ou transfira de outra obra com saldo disponível. O estoque não permite cadastrar quantidades diretamente.</p>
         <div class="stockReportPreview">
           <div class="rowHead"><h3>Resumo para relatórios de estoque</h3>
             <label><input id="stockReportIncludeEmpty" type="checkbox"> Incluir estoques de obras sem esquadrias</label>
@@ -4274,7 +4270,7 @@ node('navWorks').addEventListener('click',abrirObrasPelaBarra);
 node('navRomaneios').addEventListener('click',abrirAreaRomaneios);
 node('navTypologies').addEventListener('click',()=>node('openTypologies').click());
 node('navManufacturers').addEventListener('click',()=>node('openManufacturers').click());
-node('navMaterials').addEventListener('click',abrirMateriais);
+node('navMaterials').addEventListener('click',async()=>{matSelecionarTipo('perfil');await abrirMateriais();});
 node('navStock').addEventListener('click',abrirEstoque);
 node('navCem').addEventListener('click',()=>setView('cemImport'));
 node('navUsers').addEventListener('click',()=>node('openUsers').click());
@@ -7621,7 +7617,7 @@ async function stockCadastrarGalpao(){
   node('stockMessage').textContent='Galpão '+cadastrado+' cadastrado. Ele já está disponível nos lançamentos.';
  }catch(e){node('stockMessage').textContent='Erro ao cadastrar galpão: '+e.message;}
 }
-node('stockFactoryCreate').addEventListener('click',stockCadastrarGalpao);
+
 function estoqueDados(){
   const byV=new Map(estoqueLinks.filter(link=>!node('stockWork').value||
     link.obra_id===node('stockWork').value).map(link=>[link.variacao_id,link]));
@@ -7692,8 +7688,6 @@ function renderEstoque(){
   const local=stockLocais.find(l=>l.obra_id===obra);
   const arquivado=Boolean(local?.excluido_em);
   node('stockWorkHistory').disabled=!obra||!local;
-  node('stockReceiveNfe').disabled=!obra||!local||arquivado;
-  node('stockNewManual').disabled=arquivado;
   node('stockArchivedHint').classList.toggle('hidden',!arquivado);
   node('stockArchivedHint').classList.toggle('stockArchivedNotice',arquivado);
   node('stockArchivedHint').textContent=arquivado?
@@ -7710,8 +7704,8 @@ function renderEstoque(){
   node('stockAcesCount').textContent=itens.filter(x=>x.v.tipo==='acessorio').length.toLocaleString('pt-BR');
   node('stockCounted').textContent=itens.filter(x=>x.perWork.length>0).length.toLocaleString('pt-BR');
   if(!itens.length){
-    out.innerHTML='<div class="materialEmpty">Esta obra ainda não possui materiais relacionados ao estoque. '+
-      'Clique em <strong>Adicionar material</strong> para começar, usando um item do banco de materiais ou cadastrando um novo.</div>';
+    out.innerHTML='<div class="materialEmpty">Esta obra ainda não possui materiais no estoque. '+
+      'As entradas são feitas pelo Financeiro das obras ou por transferência entre obras.</div>';
     return;
   }
   const linhas=[];
@@ -7999,10 +7993,7 @@ async function registrarMovimentoEstoque(e){
   finally{btn.disabled=false;}
 }
 node('stockWork').addEventListener('change',renderEstoque);
-node('stockReceiveNfe').addEventListener('click',()=>{
-  const obraId=node('stockWork').value;
-  if(obraId)abrirFinanceiro(obraId);
-});
+
 node('stockFactoryFilter').addEventListener('change',renderEstoque);
 node('stockType').addEventListener('change',renderEstoque);
 node('stockSearch').addEventListener('input',renderEstoque);
