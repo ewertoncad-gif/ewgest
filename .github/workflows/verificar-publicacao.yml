@@ -1,0 +1,54 @@
+name: Verificar publicacao do EWGEST
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verificar-publicacao.yml'
+      - 'app.html'
+      - 'assets/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Conferir versao na hospedagem (sem autenticar)
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(python3 - <<'PY'
+          import re
+          from pathlib import Path
+          s = Path('app.html').read_text(encoding='utf-8')
+          m = re.search(r'workspaceNavFooter">EWGEST <strong>· (v\d+\.\d+)', s)
+          if not m:
+              raise SystemExit('Versao nao encontrada no app.html')
+          print(m.group(1))
+          PY
+          )"
+          echo "Versao esperada: $expected"
+          file="$(mktemp)"
+          trap 'rm -f "$file"' EXIT
+          for attempt in $(seq 1 12); do
+            if curl --fail --silent --show-error --location \
+              --max-time 15 --retry 0 \
+              -H 'Cache-Control: no-cache' \
+              "https://ewgest.com.br/app.html?verify=${GITHUB_SHA}" -o "$file"; then
+              if grep -Fq "$expected" "$file" && grep -Fq 'id="navRecebimento"' "$file"; then
+                echo "PUBLICACAO CONFIRMADA: HTML publico contem $expected e menu Recebimento."
+                exit 0
+              fi
+              echo "Tentativa $attempt: o HTML ainda nao contem a versao esperada."
+            else
+              echo "Tentativa $attempt: dominio ou pagina nao acessivel."
+            fi
+            sleep 10
+          done
+          echo "::error::Nao foi possivel comprovar a versao publicada. Conferir hospedagem/deploy Cloudflare e DNS."
+          exit 1
