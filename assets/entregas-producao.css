@@ -1,0 +1,12 @@
+/* EWGEST v45.3 — entrega de materiais à produção */
+#entregasProducaoPanel .entregaRelatorio{border:1px solid var(--border, #d9e2ed);border-radius:13px;padding:16px;margin:14px 0;background:var(--card, #fff)}
+#entregasProducaoPanel .entregaRelatorioCabecalho{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+#entregasProducaoPanel .entregaRelatorioCabecalho span{font-size:13px;color:var(--muted, #63738c)}
+#entregasProducaoPanel .entregaRelatorioConferida{display:flex;align-items:flex-start;gap:9px;margin:12px 0;line-height:1.45;font-weight:600}
+#entregasProducaoPanel .entregaRelatorioConferida input{width:18px;height:18px;flex:none}
+#entregasProducaoPanel .entregaRelatorioConfirmar{margin-top:5px}
+#entregasProducaoPanel .entregaRelatorioErro{margin-top:9px}
+#entregasProducaoPanel .finTableWrap{max-width:100%;overflow-x:auto}
+#entregasProducaoPanel table{min-width:680px}
+.finReceiveUndo{margin-top:7px}
+@media(max-width:720px){#entregasProducaoPanel .entregaRelatorio{padding:12px}#entregasProducaoPanel .entregaRelatorioConfirmar{width:100%}}
