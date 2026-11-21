@@ -792,14 +792,31 @@
                 <label>Valor total da nota (R$) *
                   <input id="finCostTotal" type="text" inputmode="decimal" autocomplete="off" placeholder="R$ 0,00" required>
                 </label>
-                <label>Fornecedor <input id="finCostVendor" maxlength="240"></label>
+                <label>Fornecedor
+                  <span class="finRegistryControl">
+                    <select id="finCostVendor"><option value="">Selecione o fornecedor</option></select>
+                    <button class="btn secondary" type="button" id="finSupplierAdd" title="Cadastrar fornecedor" aria-label="Cadastrar fornecedor">+ Novo</button>
+                  </span>
+                </label>
                 <label>Número da nota/documento *
                   <input id="finCostNumber" required maxlength="100">
                 </label>
                 <label>Data <input id="finCostDate" type="date"></label>
                 <label id="finManualLocalLabel">Galpão que recebe os materiais *
-                  <select id="finManualLocal"><option value="">Selecione o galpão</option></select>
+                  <span class="finRegistryControl">
+                    <select id="finManualLocal"><option value="">Selecione o galpão</option></select>
+                    <button class="btn secondary" type="button" id="finWarehouseAdd" title="Cadastrar galpão" aria-label="Cadastrar galpão">+ Novo</button>
+                  </span>
                 </label>
+              </div>
+              <div id="finRegistryPanel" class="finRegistryPanel hidden" aria-label="Cadastro rápido">
+                <strong id="finRegistryTitle"></strong>
+                <label>Nome <input id="finRegistryName" type="text" maxlength="240" autocomplete="off" placeholder="Digite o nome"></label>
+                <div class="finRegistryActions">
+                  <button class="btn primary" type="button" id="finRegistrySave">Salvar cadastro</button>
+                  <button class="btn secondary" type="button" id="finRegistryCancel">Cancelar</button>
+                </div>
+                <p id="finRegistryMessage" class="feedback" role="status"></p>
               </div>
               <input type="file" id="finCostXML" class="hidden" disabled aria-hidden="true" tabindex="-1">
               <div id="finXmlPreview" class="hidden"></div>
@@ -6825,7 +6842,7 @@ async function finLoad(){
  node('finMessage').textContent='Consultando orçamento, despesas e faturamentos…';
  try{
   await ensureSession();
-  const [b,c,fat,perfis,aces,roms,variacoes,galpoes,niveis,materiaisObra,comprimentos,barraCem]=await Promise.all([
+  const [b,c,fat,perfis,aces,roms,variacoes,galpoes,niveis,materiaisObra,comprimentos,barraCem,fornecedores]=await Promise.all([
    apiGet('ew_obra_orcamento',{select:'*',empresa_id:empresa,obra_id:obra,limit:'1'}),
    apiGet('ew_obra_despesas',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
    apiGet('ew_obra_faturamentos',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
@@ -6837,7 +6854,8 @@ async function finLoad(){
    apiGet('ew_obra_orcamento_niveis',{select:'linha,nivel_nome,empresa_faturamento_nome,categoria_base,valor,percentual,faturar',empresa_id:empresa,obra_id:obra,order:'linha.asc',limit:'100'}),
    apiGet('ew_cem_obras_materiais',{select:'*',empresa_id:empresa,obra_id:obra,limit:'10000'}),
    apiGet('ew_comprimentos_comerciais',{select:'comprimento_mm',empresa_id:empresa,order:'comprimento_mm.asc',limit:'100'}),
-   apiGet('ew_estoque_obras_movimentos',{select:'variacao_id,comprimento_mm,quantidade_delta,origem',empresa_id:empresa,obra_id:obra,origem:'eq.IMPORTACAO_CEM',unidade:'eq.BARRA',limit:'3000'})
+   apiGet('ew_estoque_obras_movimentos',{select:'variacao_id,comprimento_mm,quantidade_delta,origem',empresa_id:empresa,obra_id:obra,origem:'eq.IMPORTACAO_CEM',unidade:'eq.BARRA',limit:'3000'}),
+   apiGet('ew_fornecedores',{select:'id,nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'1000'})
   ]);
   if(!b?.length){node('finMessage').textContent='Esta obra ainda não possui orçamento cadastrado. As novas importações agora exigem essa etapa.';return;}
   const invoiceIds=(fat||[]).map(x=>x.id),romaneioIds=(roms||[]).filter(x=>x.status==='emitido'&&!x.cancelado_em).map(x=>x.id);
@@ -6868,7 +6886,8 @@ async function finLoad(){
   finState={obraId,orcamento:b[0],despesas:c||[],faturas:fat||[],linhas:linhas||[],perfis:perfis||[],
    acessorios:aces||[],shipped,billed,pendentes,pendentesItens:pendentesItens||[],
    aprovadas,approvedItems:approvedItems||[],stockReceipts:stockReceipts||[],
-   variacoes:variacoes||[],galpoes:(galpoes||[]).filter(x=>x.ativo).map(x=>x.nome),orcamentoNiveis:niveis||[],
+   variacoes:variacoes||[],galpoes:(galpoes||[]).filter(x=>x.ativo).map(x=>x.nome),
+   fornecedores:(fornecedores||[]).filter(x=>x.ativo).map(x=>({id:x.id,nome:x.nome})),orcamentoNiveis:niveis||[],
    materiaisObra:materiaisObra||[],comprimentosComerciais:(comprimentos||[]).map(x=>x.comprimento_mm),barrasCem:barraCem||[]};
   box.classList.remove('hidden');node('finMessage').textContent='';
   node('finExpensePanel').classList.toggle('hidden',!isFullAdminUser());
@@ -7532,6 +7551,16 @@ async function abrirEstoque(){
     node('stockMessage').textContent='';
   }catch(e){node('stockMessage').textContent='Não foi possível carregar estoque: '+e.message;}
 }
+async function cadastrarGalpaoEmpresa(nome){
+ if(!matIsAdmin()||!currentCompany)throw new Error('Sem permissão para cadastrar galpão.');
+ const normalizado=cemNome(nome);
+ if(normalizado.length<3||normalizado.length>80)
+  throw new Error('Informe um nome entre 3 e 80 caracteres.');
+ await ensureSession();
+ await request('/rest/v1/ew_locais_fisicos',{method:'POST',token:session.access_token,
+   body:{empresa_id:currentCompany.id,nome:normalizado,criado_por:currentUser.id}});
+ return normalizado;
+}
 function stockPreencherGalpoes(){
  const locations=stockLocaisFisicos.slice().sort((a,b)=>a.localeCompare(b,'pt-BR'));
  for(const id of ['stockFactoryFilter','stockManualFactory']){
@@ -7547,15 +7576,13 @@ async function stockCadastrarGalpao(){
  const raw=window.prompt('Nome do novo galpão / local físico:');
  if(raw===null)return;
  const nome=cemNome(raw);
- if(nome.length<3||nome.length>80||stockLocaisFisicos.includes(nome)){
-  node('stockMessage').textContent='Informe um nome novo com 3 a 80 caracteres.';return;
+ if(stockLocaisFisicos.includes(nome)){
+  node('stockMessage').textContent='Este galpão já está cadastrado.';return;
  }
  try{
-  await ensureSession();
-  await request('/rest/v1/ew_locais_fisicos',{method:'POST',token:session.access_token,
-    body:{empresa_id:currentCompany.id,nome,criado_por:currentUser.id}});
-  stockLocaisFisicos.push(nome);stockPreencherGalpoes();
-  node('stockMessage').textContent='Galpão '+nome+' cadastrado. Ele já está disponível nos lançamentos.';
+  const cadastrado=await cadastrarGalpaoEmpresa(nome);
+  stockLocaisFisicos.push(cadastrado);stockPreencherGalpoes();
+  node('stockMessage').textContent='Galpão '+cadastrado+' cadastrado. Ele já está disponível nos lançamentos.';
  }catch(e){node('stockMessage').textContent='Erro ao cadastrar galpão: '+e.message;}
 }
 node('stockFactoryCreate').addEventListener('click',stockCadastrarGalpao);
