@@ -785,6 +785,12 @@
       </div>
           <div id="finPendingPanel" class="section panel hidden"></div>
           <div id="finReceivePanel" class="section panel hidden"></div>
+        <div id="entregasProducaoPanel" class="section panel hidden">
+          <h2>Entregas de materiais à produção</h2>
+          <p class="hint">Após o técnico liberar e imprimir o relatório, o almoxarife confere o documento e registra a entrega física. Só essa confirmação baixa o estoque; gerar a liberação não movimenta materiais.</p>
+          <p id="entregasProducaoStatus" class="feedback" role="status"></p>
+          <div id="entregasProducaoLista"></div>
+        </div>
           <div class="section panel" id="finExpensePanel">
             <h2>Recebimento de materiais</h2>
             <p class="hint">Selecione o material, a cor ou variação, a quantidade física e o galpão. Ao confirmar, o EWGEST registra o valor da nota no Financeiro e dá entrada física somente nos materiais efetivamente recebidos. Não é necessário enviar XML.</p>
@@ -7145,9 +7151,11 @@ async function carregarRecebimento(){
  const msg=node('recebimentoMessage');
  node('finExpensePanel').classList.add('hidden');
  // Não manter notas de outra obra enquanto a seleção estiver vazia/carregando.
- for(const id of ['finPendingPanel','finReceivePanel']){
+ for(const id of ['finPendingPanel','finReceivePanel']) {
    node(id).classList.add('hidden');node(id).replaceChildren();
  }
+ node('entregasProducaoPanel').classList.add('hidden');
+ node('entregasProducaoLista').replaceChildren();
  finState=null;
  finCostOpId=null;
  if(!obraId){msg.textContent='Selecione uma obra para iniciar o recebimento.';return;}
@@ -7183,6 +7191,7 @@ async function carregarRecebimento(){
   node('finWarehouseAdd').classList.toggle('hidden',!isFullAdminUser());
   node('finExpensePanel').classList.remove('hidden');
   msg.textContent='Informe apenas materiais efetivamente recebidos. Os valores digitados não dão acesso ao orçamento da obra.';
+  if(window.ewCarregarEntregasProducao)await window.ewCarregarEntregasProducao(obraId);
  }catch(e){msg.textContent='Não foi possível carregar o recebimento: '+e.message;}
 }
 function finOptionsObras(prefer){
@@ -7239,7 +7248,7 @@ async function finLoad(){
    approvedIds.length?apiGet('ew_obra_despesas_itens',{
      select:'id,despesa_id,codigo_fornecedor,descricao,unidade,quantidade,valor_unitario,valor_total,perfil_id,acessorio_id',
      empresa_id:empresa,despesa_id:'in.('+approvedIds.join(',')+')',limit:'10000'}):[],
-   apiGet('ew_nfe_recebimentos',{select:'id,despesa_item_id,variacao_id,quantidade,unidade,comprimento_mm,local_estoque,criado_em',
+   apiGet('ew_nfe_recebimentos',{select:'id,despesa_item_id,variacao_id,quantidade,unidade,comprimento_mm,local_estoque,criado_em,estornado_em,estorno_motivo,estorno_detalhes',
      empresa_id:empresa,obra_id:obra,limit:'10000'})
   ]);
   const shipped=new Map();
@@ -7387,7 +7396,10 @@ function finRenderRecebimentos(){
     node('recebimento').classList.contains('hidden')){
    el.classList.add('hidden');el.replaceChildren();return;
  }
- const recebidos=new Map(x.stockReceipts.map(r=>[r.despesa_item_id,r]));
+ const recebidos=new Map(x.stockReceipts.filter(r=>!r.estornado_em)
+  .map(r=>[r.despesa_item_id,r]));
+ const estornados=new Map(x.stockReceipts.filter(r=>r.estornado_em)
+  .map(r=>[r.despesa_item_id,r]));
  const rows=x.approvedItems.filter(i=>x.aprovadas.some(d=>d.id===i.despesa_id));
  if(!rows.length){el.classList.add('hidden');return;}
  el.classList.remove('hidden');
@@ -7406,16 +7418,23 @@ function finRenderRecebimentos(){
       cemNome(m.codigo)===cemNome(i.codigo_fornecedor)).length===1?
       materials.find(m=>cemNome(m.codigo)===cemNome(i.codigo_fornecedor)).id:'');
     const received=recebidos.get(i.id);
+    const anteriorEstornado=estornados.get(i.id);
     if(received)return '<div class="finReceiveRow" data-receive-item="'+escapeHTML(i.id)+'">'+
        '<strong>'+escapeHTML(i.codigo_fornecedor)+' — '+escapeHTML(i.descricao)+'</strong>'+
        '<p class="hint">NF '+escapeHTML(invoice.numero_documento)+' · Recebido: '+
        Number(received.quantidade).toLocaleString('pt-BR',{maximumFractionDigits:3})+
        ' '+escapeHTML(received.unidade)+' · '+escapeHTML(received.local_estoque)+
-       (received.comprimento_mm?' · '+received.comprimento_mm+' mm':'')+'</p></div>';
+       (received.comprimento_mm?' · '+received.comprimento_mm+' mm':'')+
+       ' · Galpão informado na entrada (o saldo pode ter sido transferido)</p>'+
+       '<button type="button" class="btn secondary finReceiveUndo" data-receipt-id="'+escapeHTML(received.id)+'">Estornar recebimento</button>'+
+       '</div>';
     return '<div class="finReceiveRow" data-receive-item="'+escapeHTML(i.id)+
       '" data-receive-type="'+tipo+'" data-invoice-unit="'+escapeHTML(i.unidade||'')+
       '" data-invoice-qty="'+Number(i.quantidade)+'">'+
       '<strong>'+escapeHTML(i.codigo_fornecedor)+' — '+escapeHTML(i.descricao)+'</strong>'+
+      (anteriorEstornado?'<p class="hint">Entrada anterior estornada: '+
+        escapeHTML(anteriorEstornado.estorno_motivo||'consulte o histórico')+
+        '. A nota financeira permanece aprovada.</p>':'')+
       '<p class="hint">NF '+escapeHTML(invoice.numero_documento)+' · '+escapeHTML(invoice.fornecedor)+
       ' · '+Number(i.quantidade).toLocaleString('pt-BR',{maximumFractionDigits:3})+
       ' '+escapeHTML(i.unidade||'')+' · Preço real unitário: '+finMoney(i.valor_unitario)+'</p>'+
@@ -7432,6 +7451,8 @@ function finRenderRecebimentos(){
       '<button type="button" class="btn secondary finReceiveSubmit">Confirmar entrada física deste item</button>'+
       '<p class="feedback finReceiveError" role="status"></p></div>';
    }).join('');
+ el.querySelectorAll('.finReceiveUndo').forEach(b=>
+   b.addEventListener('click',()=>finEstornarRecebimentoFisico(b.dataset.receiptId)));
  el.querySelectorAll('.finReceiveRow[data-receive-type]').forEach(row=>{
    const mat=row.querySelector('.finReceiveMaterial');
    const qty=row.querySelector('.finReceiveQty');
@@ -7474,6 +7495,32 @@ function finRenderRecebimentos(){
    update();
    row.querySelector('.finReceiveSubmit').addEventListener('click',()=>finConfirmarRecebimento(row));
  });
+}
+async function finEstornarRecebimentoFisico(recebimentoId){
+ if(!isFullAdminUser()||!finState||!node('recebimentoWork').value)return;
+ const motivo=window.prompt('Motivo do estorno da entrada física da NF-e (mínimo 5 caracteres):','');
+ if(motivo===null)return;
+ if(motivo.trim().length<5||motivo.trim().length>400){
+   node('recebimentoMessage').textContent='Informe motivo de 5 a 400 caracteres.';return;
+ }
+ if(!window.confirm('Estornar somente a ENTRADA FÍSICA do material?\n\nA despesa da NF-e continua aprovada. O sistema procurará o saldo no galpão original e nos demais galpões DA MESMA OBRA; não permitirá estorno de material com baixa para produção.'))return;
+ const op=crypto.randomUUID(),obra=finState.obraId;
+ const b=[...node('finReceivePanel').querySelectorAll('.finReceiveUndo')].find(x=>x.dataset.receiptId===recebimentoId);
+ if(b){b.disabled=true;b.textContent='Estornando…';}
+ try{
+   await ensureSession();
+   const result=await request('/rest/v1/rpc/ew_estornar_recebimento_nfe',{
+     method:'POST',token:session.access_token,timeoutMs:45000,
+     body:{p_empresa_id:currentCompany.id,p_recebimento_id:recebimentoId,
+       p_motivo:motivo.trim(),p_operacao_id:op}});
+   if(node('recebimentoWork').value!==obra)return;
+   await carregarRecebimento();
+   node('recebimentoMessage').textContent=result?.ja_estornado?
+    'Este recebimento já havia sido estornado; nenhum saldo foi alterado.':
+    'Recebimento físico estornado com histórico e galpões registrados. A nota financeira permanece aprovada.';
+ }catch(e){
+   node('recebimentoMessage').textContent='Estorno não realizado: '+e.message;
+ }finally{if(b){b.disabled=false;b.textContent='Estornar recebimento';}}
 }
 async function finConfirmarRecebimento(row){
  if(!finState||!isFullAdminUser())return;
