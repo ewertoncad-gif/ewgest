@@ -808,7 +808,7 @@
                   <strong>Materiais recebidos</strong>
                   <button id="finManualAdd" class="btn secondary" type="button">+ Adicionar material</button>
                 </div>
-                <p class="hint">Os materiais e as cores vêm da lista técnica desta obra. O comprimento comercial será preenchido quando estiver registrado; caso contrário, escolha o tamanho realmente recebido. A quantidade que entra agora é informada manualmente. Para notas com vários materiais, confira os subtotais.</p>
+                <p class="hint">Perfis: a necessidade e o tamanho das barras vêm da importação de barras do CEM (NUMBARRAS / BARRA). O recebimento por NF mostra o que já chegou e o que falta, por medida. Informe somente quantas barras estão chegando agora e confira o valor da nota.</p>
                 <div class="finTableWrap"><table class="finTable finManualTable">
                   <thead><tr><th>Material da obra</th><th>Cor do CEM</th><th>Barra (mm)</th><th>Necessário</th><th>Já recebido</th><th>Falta receber</th><th>Entrando agora</th><th>Un.</th><th>Valor do item (R$)</th><th>Ação</th></tr></thead>
                   <tbody id="finManualRows"></tbody>
@@ -6807,7 +6807,7 @@ async function finLoad(){
    apiGet('ew_obra_orcamento_niveis',{select:'linha,nivel_nome,empresa_faturamento_nome,categoria_base,valor,percentual,faturar',empresa_id:empresa,obra_id:obra,order:'linha.asc',limit:'100'}),
    apiGet('ew_cem_obras_materiais',{select:'tipo,perfil_id,acessorio_id,variacao_id,quantidade_prevista,unidade_prevista,comprimento_total_m,linhas_calculo',empresa_id:empresa,obra_id:obra,limit:'10000'}),
    apiGet('ew_comprimentos_comerciais',{select:'comprimento_mm',empresa_id:empresa,order:'comprimento_mm.asc',limit:'100'}),
-   apiGet('ew_estoque_obras_movimentos',{select:'variacao_id,comprimento_mm,origem',empresa_id:empresa,obra_id:obra,origem:'eq.IMPORTACAO_CEM',unidade:'eq.BARRA',limit:'3000'})
+   apiGet('ew_estoque_obras_movimentos',{select:'variacao_id,comprimento_mm,quantidade_delta,origem',empresa_id:empresa,obra_id:obra,origem:'eq.IMPORTACAO_CEM',unidade:'eq.BARRA',limit:'3000'})
   ]);
   if(!b?.length){node('finMessage').textContent='Esta obra ainda não possui orçamento cadastrado. As novas importações agora exigem essa etapa.';return;}
   const invoiceIds=(fat||[]).map(x=>x.id),romaneioIds=(roms||[]).filter(x=>x.status==='emitido'&&!x.cancelado_em).map(x=>x.id);
@@ -9330,6 +9330,6 @@ restaurarSessaoSalva().catch(e=>{
 
 </script>
 <script src="/assets/orcamento-niveis.js?v=20261120c"></script>
-<script src="/assets/recebimento-manual.js?v=20261120d"></script>
+<script src="/assets/recebimento-manual.js?v=20261120e"></script>
 </body>
 </html>

@@ -56,42 +56,63 @@
    category==='aluminio'?v.tipo==='perfil'&&v.perfil_id===matId:
    v.tipo==='acessorio'&&v.acessorio_id===matId));
  }
+ // OBAPROV do CEM já informa NUMBARRAS e BARRA (mm). A importação
+ // guarda essas linhas com origem IMPORTACAO_CEM. São quantidades planejadas,
+ // não recebimentos físicos, mesmo quando a importação foi estornada depois.
+ function plannedBarRows(variationId=''){
+  return (finState?.barrasCem||[]).filter(x=>(!variationId||x.variacao_id===variationId)&&
+   Number.isSafeInteger(Number(x.comprimento_mm))&&Number(x.comprimento_mm)>=100&&
+   Number(x.comprimento_mm)<=20000&&Number(x.quantidade_delta)>0);
+ }
  function selectOptions(){
-  return getMaterials().flatMap(mat=>getVariations(mat.id).map(v=>({mat,v})));
+  return getMaterials().flatMap(mat=>getVariations(mat.id).flatMap(v=>{
+   const lengths=category==='aluminio'?
+    [...new Set(plannedBarRows(v.id).map(x=>Number(x.comprimento_mm)))].sort((a,b)=>a-b):[];
+   return (lengths.length?lengths:[null]).map(length=>({
+    mat,v,length,value:v.id+'|'+(length===null?'':length)
+   }));
+  }));
  }
  function formatQty(n){
   return Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:3});
  }
+ function barLabel(n){return formatQty(n)+(Number(n)===1?' barra':' barras');}
  function autoBarLength(row){
   if(category!=='aluminio'||!row.material||!row.variacao)return null;
+  const selecionado=selectOptions().find(x=>x.value===row.selectionKey);
+  if(selecionado?.length)return selecionado.length;
   const p=finState?.perfis.find(x=>x.id===row.material);
   const cadastrado=Number(p?.comprimento_comercial_mm);
   if(Number.isSafeInteger(cadastrado)&&cadastrado>=100&&cadastrado<=20000)return cadastrado;
-  // Em obras antigas, algumas importações de estoque continham o tamanho
-  // comercial, mas não preencheram o cadastro do perfil.
-  const list=[...new Set((finState?.barrasCem||[])
-   .filter(x=>x.variacao_id===row.variacao)
-   .map(x=>Number(x.comprimento_mm))
-   .filter(n=>Number.isSafeInteger(n)&&n>=100&&n<=20000))];
-  return list.length===1?list[0]:null;
+  const sizes=[...new Set(plannedBarRows(row.variacao).map(x=>Number(x.comprimento_mm)))];
+  return sizes.length===1?sizes[0]:null;
  }
  function quantityData(row){
   if(!row.material||!row.variacao)
    return {needed:'—',received:'—',pending:'—',note:'Selecione o material para consultar.'};
   const all=plannedRows(row.material,row.variacao);
-  if(!all.length)return {needed:'—',received:'—',pending:'—',note:'Sem necessidade cadastrada nesta obra.'};
+  if(!all.length)return {needed:'—',received:'—',pending:'—',note:'Material não previsto na obra.'};
   const registered=(finState.stockReceipts||[]).filter(x=>x.variacao_id===row.variacao);
   if(category==='aluminio'){
-   const cuts=all.reduce((s,r)=>s+Number(r.quantidade_prevista||0),0);
-   const m=all.reduce((s,r)=>s+Number(r.comprimento_total_m||0),0);
-   const bars=registered.filter(x=>x.unidade==='BARRA');
-   const receivedBars=bars.reduce((s,r)=>s+Number(r.quantidade||0),0);
-   const receivedM=bars.reduce((s,r)=>s+Number(r.quantidade||0)*Number(r.comprimento_mm||0)/1000,0);
-   return {needed:formatQty(cuts)+' cortes',neededSub:formatQty(m)+' m',
-    received:formatQty(receivedBars)+' barras',receivedSub:formatQty(receivedM)+' m',
-    pending:formatQty(Math.max(0,m-receivedM))+' m',
-    pendingSub:'metro linear, sem perdas de corte',
-    note:'CEM: cortes e metros. NF: barras e metros. O saldo em metros é referência, não quantidade exata de barras.'};
+   // Não usar cortes, metros lineares ou comprimento total da peça como
+   // quantidade de barras necessárias. A comparação é BARRA X BARRA
+   // com o mesmo código, cor, comprimento e obra.
+   const length=Number(row.comprimento);
+   if(!Number.isSafeInteger(length)||length<100||length>20000)
+    return {needed:'—',received:'—',pending:'—',note:'Confira o tamanho comercial da barra.'};
+   const planned=plannedBarRows(row.variacao)
+    .filter(x=>Number(x.comprimento_mm)===length);
+   const hasPlan=planned.length>0;
+   const expected=planned.reduce((sum,x)=>sum+Number(x.quantidade_delta||0),0);
+   const received=registered.filter(x=>x.unidade==='BARRA'&&Number(x.comprimento_mm)===length)
+    .reduce((sum,x)=>sum+Number(x.quantidade||0),0);
+   return {
+    needed:hasPlan?barLabel(expected):'Não importado',
+    received:barLabel(received),
+    pending:hasPlan?barLabel(Math.max(0,expected-received)):'—',
+    note:hasPlan?'Quantidade de barras planejada no CEM, sem confundir com saldo físico.':
+     'Barras necessárias não importadas para esta obra/medida. Consulte a importação de estoque do CEM.'
+   };
   }
   const wanted=new Map(),invoices=new Map();
   for(const item of all){
@@ -112,8 +133,8 @@
  function quantityInfo(row){
   if(!row.material)return 'Selecione um material desta obra para consultar os quantitativos.';
   const q=quantityData(row);
-  return '<strong>Necessário:</strong> '+q.needed+(q.neededSub?' · '+q.neededSub:'')+
-   ' | <strong>Já recebido em NF:</strong> '+q.received+(q.receivedSub?' · '+q.receivedSub:'')+
+  return '<strong>Necessário:</strong> '+q.needed+
+   ' | <strong>Já recebido em NF:</strong> '+q.received+
    ' | <strong>Falta receber:</strong> '+q.pending+' ('+q.note+')';
  }
  function unitFor(matId){
@@ -132,9 +153,11 @@
    .map(Number).filter(n=>Number.isSafeInteger(n)&&n>=100&&n<=20000);
   body.innerHTML=rows.map((row,i)=>{
    const options='<option value="">'+(opts.length?'Selecione material da obra':'Nenhum material vinculado à obra')+'</option>'+
-    opts.map(({mat,v})=>'<option value="'+escapeHTML(v.id)+'"'+(row.variacao===v.id?' selected':'')+'>'+
-      escapeHTML(mat.codigo+' — '+mat.descricao+' · '+[v.cor,v.acabamento].filter(Boolean).join(' / '))+'</option>').join('');
-   const variation=opts.find(({v})=>v.id===row.variacao)?.v;
+    opts.map(({mat,v,length,value})=>'<option value="'+escapeHTML(value)+'"'+(row.selectionKey===value?' selected':'')+'>'+
+      escapeHTML(mat.codigo+' — '+mat.descricao+' · '+[v.cor,v.acabamento].filter(Boolean).join(' / ')+
+       (category==='aluminio'?(length?' · '+Number(length).toLocaleString('pt-BR')+' mm':
+        ' · BARRAS NÃO IMPORTADAS'):'') )+'</option>').join('');
+   const variation=opts.find(x=>x.value===row.selectionKey)?.v;
    const color=variation?[variation.cor,variation.acabamento].filter(Boolean).join(' / '):'—';
    const auto=autoBarLength(row),unit=unitFor(row.material),q=quantityData(row);
    if(auto&&!row.comprimento)row.comprimento=String(auto);
@@ -158,9 +181,9 @@
     '<td><select class="finManualMaterial" required aria-label="Material da obra '+(i+1)+'">'+options+'</select></td>'+
     '<td><span class="finManualReadonly">'+escapeHTML(color)+'</span></td>'+
     '<td>'+lengthField+'</td>'+
-    stats('<strong>'+escapeHTML(q.needed)+'</strong>'+(q.neededSub?'<small>'+escapeHTML(q.neededSub)+'</small>':''))+
-    stats('<strong>'+escapeHTML(q.received)+'</strong>'+(q.receivedSub?'<small>'+escapeHTML(q.receivedSub)+'</small>':''))+
-    stats('<strong>'+escapeHTML(q.pending)+'</strong>'+(q.pendingSub?'<small>'+escapeHTML(q.pendingSub)+'</small>':''))+
+    stats('<strong>'+escapeHTML(q.needed)+'</strong>')+
+    stats('<strong>'+escapeHTML(q.received)+'</strong>')+
+    stats('<strong>'+escapeHTML(q.pending)+'</strong>')+
     '<td><input class="finManualQty" type="number" min="0.001" step="'+(category==='aluminio'?'1':'0.001')+
     '" required placeholder="Qtd." value="'+escapeHTML(row.quantidade)+'" aria-label="Recebendo agora '+(i+1)+'"></td>'+
     '<td class="hint">'+escapeHTML(unit||'—')+'</td>'+
@@ -169,7 +192,7 @@
   }).join('');
   const message=byId('finManualDetail');
   if(message)message.textContent=category==='aluminio'?
-   'Necessário: cortes e metros informados pelo CEM. Recebido: barras e metros das notas já registradas. O saldo linear não contempla perdas no plano de corte.':
+   'Necessário: barras e tamanhos registrados pelo CEM para esta obra. Já recebido: barras das notas fiscais. Falta receber: diferença entre barras da mesma cor e comprimento. Sem plano de barras importado, a necessidade fica como não informada.':
    'Necessário, recebido e falta receber são calculados na unidade de cada acessório, quando compatível.';
   updateSum();
  }
@@ -378,15 +401,17 @@
   const tr=event.target.closest('[data-manual-row]');if(!tr)return;
   const i=Number(tr.dataset.manualRow),r=rows[i];if(!r)return;
   if(event.target.matches('.finManualMaterial')){
-   const variantId=event.target.value;
-   const selected=selectOptions().find(({v})=>v.id===variantId);
+   const optionKey=event.target.value;
+   const selected=selectOptions().find(x=>x.value===optionKey);
    r.material=selected?.mat.id||'';
    r.variacao=selected?.v.id||'';
-   r.comprimento=r.variacao?String(autoBarLength(r)||''):'';
+   r.selectionKey=selected?.value||'';
+   r.comprimento=selected?.length?String(selected.length):String(autoBarLength(r)||'');
    r.quantidade='';r.valor='';
    renderRows();
   }else if(event.target.matches('.finManualLength')){
    r.comprimento=event.target.value;
+   renderRows();
   }
  });
  byId('finManualRows').addEventListener('input',event=>{
