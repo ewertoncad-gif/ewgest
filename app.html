@@ -7537,10 +7537,14 @@ async function finCancelarLancamento(tipo,id){
  if(!isFullAdminUser()||!finState)return;
  const motivo=window.prompt('Motivo do cancelamento (mínimo 5 caracteres):','');
  if(motivo===null||motivo.trim().length<5)return;
- if(!window.confirm('Cancelar '+tipo+'? O lançamento permanecerá no histórico e os saldos serão recalculados.'))return;
+ if(!window.confirm('Cancelar '+tipo+'? A operação preservará o histórico. Se a nota tiver vidros/insumos recebidos, o EWGEST exigirá saldo no galpão original para estornar as quantidades; se já tiverem sido transferidas, estorne primeiro as transferências.'))return;
  try{
   await ensureSession();
-  const url=tipo==='despesa'?'ew_cancelar_despesa_financeira':'ew_cancelar_faturamento_financeiro';
+  const despesaOriginal=finState.despesas.find(d=>d.id===id);
+  const possuiInsumos=tipo==='despesa'&&['vidros','outros'].includes(despesaOriginal?.categoria);
+  const url=tipo==='despesa'?
+   (possuiInsumos?'ew_insumos_cancelar_nota':'ew_cancelar_despesa_financeira'):
+   'ew_cancelar_faturamento_financeiro';
   const body=tipo==='despesa'?
    {p_empresa_id:currentCompany.id,p_despesa_id:id,p_motivo:motivo.trim()}:
    {p_empresa_id:currentCompany.id,p_faturamento_id:id,p_motivo:motivo.trim()};
@@ -8038,6 +8042,10 @@ function renderEstoque(){
   node('stockPerfCount').textContent=itens.filter(x=>x.v.tipo==='perfil').length.toLocaleString('pt-BR');
   node('stockAcesCount').textContent=itens.filter(x=>x.v.tipo==='acessorio').length.toLocaleString('pt-BR');
   node('stockCounted').textContent=itens.filter(x=>x.perWork.length>0).length.toLocaleString('pt-BR');
+  if(['vidros','outros'].includes(node('stockType').value)){
+    out.innerHTML='<p class="hint">Os vidros e outros insumos estão no quadro de estoque físico logo abaixo, por material, unidade e galpão.</p>';
+    return;
+  }
   if(!itens.length){
     out.innerHTML='<div class="materialEmpty">Esta obra ainda não possui materiais no estoque. '+
       'As entradas são feitas pelo Recebimento ou por transferência entre obras.</div>';
