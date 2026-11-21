@@ -34,6 +34,12 @@ assert.ok(source.includes('id="cadastroEditPanel"')&&
  cadastroSeguroSQL.includes('from public.ew_obra_despesas')&&
  cadastroSeguroSQL.includes("raise exception 'Cadastro em uso"),
  'Cadastros auxiliaries: edição e exclusão preservam notas e movimentações');
+// Validar também a sintaxe do aplicativo principal (não apenas fragments).
+const inlineJS=[...source.matchAll(/<script(?:\\s[^>]*)?>([\\s\\S]*?)<\\/script>/g)]
+ .map(x=>x[1]);
+assert.ok(inlineJS.length>=1,'Script principal da interface deve estar no HTML');
+for(const js of inlineJS)assert.doesNotThrow(()=>new Function(js),
+ 'JavaScript principal da interface deve ser sintaticamente válido');
 const receiptCacheHeaders=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
 assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121g')&&
  source.includes('/assets/recebimento-manual.css?v=20261121f'),
