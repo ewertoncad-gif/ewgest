@@ -1981,7 +1981,17 @@
         <option value="IMBIRIBEIRA">IMBIRIBEIRA</option>
       </select>
       <p class="hint">A fábrica será registrada nesta liberação para apurar o prazo até a saída da produção.</p>
-      <div class="releaseMirrorIntro">
+      <label for="releaseComponent">4. Qual parte da esquadria está sendo liberada?</label>
+      <select id="releaseComponent" required>
+        <option value="">Selecione a parte</option>
+        <option value="completo">Esquadria completa (100%)</option>
+        <option value="marco">Somente o marco (50%)</option>
+        <option value="folhas">Conjunto das folhas (50%)</option>
+      </select>
+      <p id="releaseComponentBalance" class="hint" role="status"></p>
+      <p class="hint">Marco = 100% da parte; folhas = 100% da parte. Somados são 200% e, divididos por 2, representam 100% da esquadria.</p>
+      <p class="hint"><strong>Liberação somente técnica.</strong> Não movimenta nem baixa materiais. O almoxarife registra a saída física ao entregar à produção.</p>
+      <div class="releaseMirrorIntro hidden">
         <h3>4. Como deseja registrar a relação de materiais?</h3>
         <label class="releaseMethod"><input name="releaseMethod" type="radio" value="manual"> Preencher o espelho de materiais manualmente</label>
         <label class="releaseMethod"><input name="releaseMethod" type="radio" value="sem"> Somente liberação técnica (sem lista de materiais)</label>
@@ -2598,7 +2608,7 @@ async function loadPanel(){
       typologyOrigins=[];typologyOriginReady=false;
     }
   }
-  releaseHistory=somenteRomaneios?[]:await apiGet('liberacoes_corte',{select:'esquadria_id,quantidade,data_liberacao,fabrica',cancelado_em:'is.null',order:'data_liberacao.desc'});
+  releaseHistory=somenteRomaneios?[]:await apiGet('liberacoes_corte',{select:'esquadria_id,quantidade,data_liberacao,fabrica,tipo_componente',cancelado_em:'is.null',order:'data_liberacao.desc'});
   try{
     const [config,history]=await Promise.all([
       apiGet('esquadrias_saida_config',{select:'esquadria_id,folhas_por_unidade'}),
@@ -2640,7 +2650,31 @@ async function loadPanel(){
     setView('dashboard');
   }
 }
-function totals(list){return list.reduce((a,x)=>{const q=Number(x.quantidade)||0;const liberadas=Number(x.qtd_liberada)||0;a.total+=area(x,q);a.released+=area(x,liberadas);a.made+=area(x,x.qtd_fabricada);a.unitsTotal+=q;a.unitsReleased+=liberadas;return a;},{total:0,released:0,made:0,unitsTotal:0,unitsReleased:0});}
+// Componentes liberados: marco 50%, conjunto das folhas 50%, completo 100%.
+ function releaseParts(item){
+  const partes={completo:0,marco:0,folhas:0};
+  for(const h of releaseHistory){
+   if(h.esquadria_id!==item.id)continue;
+   const tipo=['completo','marco','folhas'].includes(h.tipo_componente)?h.tipo_componente:'completo';
+   partes[tipo]+=Math.max(0,Number(h.quantidade)||0);
+  }
+  const qtd=Math.max(0,Number(item.quantidade)||0);
+  const marcos=Math.min(qtd,partes.completo+partes.marco);
+  const folhas=Math.min(qtd,partes.completo+partes.folhas);
+  const equivalente=Math.min(qtd,partes.completo+(partes.marco+partes.folhas)/2);
+  return {...partes,marcos,folhas,equivalente,
+   saldoCompleto:Math.max(0,qtd-Math.max(marcos,folhas)),
+   saldoMarco:Math.max(0,qtd-marcos),
+   saldoFolhas:Math.max(0,qtd-folhas)};
+ }
+ function totals(list){return list.reduce((a,x)=>{
+  const q=Number(x.quantidade)||0,liberadas=Number(x.qtd_liberada)||0;
+  a.total+=area(x,q);
+  a.released+=area(x,releaseParts(x).equivalente);
+  a.made+=area(x,x.qtd_fabricada);
+  a.unitsTotal+=q;a.unitsReleased+=liberadas;
+  return a;
+ },{total:0,released:0,made:0,unitsTotal:0,unitsReleased:0});}
 function renderUnitCounters(prefix,t){node(prefix+"UnitsTotal").textContent=t.unitsTotal.toLocaleString("pt-BR");node(prefix+"UnitsReleased").textContent=t.unitsReleased.toLocaleString("pt-BR");node(prefix+"UnitsPending").textContent=(t.unitsTotal-t.unitsReleased).toLocaleString("pt-BR");}
 // Somente conjuntos completos (inclusive marco + todas as folhas) contam como enviados.
  // Saídas parciais continuam registradas, mas não superestimam a área entregue.
@@ -2663,7 +2697,10 @@ function progressoExpedicao(list){
       Math.min(m.marco,Math.floor(m.folha/per)):0;
     const enviadas=Math.min(q,Math.max(0,m.completo+recombinadas));
     unidadesEnviadas+=enviadas;
-    areaEnviada+=area(item,enviadas);
+    // Marco e conjunto das folhas recebem 50% cada no progresso parcial.
+    const equivalentes=Math.min(q,m.completo+m.marco/2+
+      (Number.isInteger(per)&&per>0?m.folha/per/2:0));
+    areaEnviada+=area(item,equivalentes);
   }
   return {disponivel:true,areaEnviada,unidadesEnviadas,unidadesTotais};
 }
@@ -2846,9 +2883,11 @@ function shipmentStats(item){
     else if(h.tipo==='marco')frames+=q;
     else if(h.tipo==='folha')leaves+=q;
   }
+  const partes=releaseParts(item);
   const released=Number(item.qtd_liberada)||0;
-  const maxLeaves=per===null?null:released*per;
-  return {frames,leaves,events,last,per,released,maxLeaves};
+  const maxLeaves=per===null?null:partes.folhas*per;
+  return {frames,leaves,events,last,per,released,maxLeaves,
+   marcosLiberados:partes.marcos,folhasLiberadas:partes.folhas};
 }
 function suggestedLeaves(item) {
   const match=String(item.descricao||'').match(/(\d{1,2})\s*FOLHA/i);
@@ -2858,9 +2897,10 @@ function suggestedLeaves(item) {
 
 function romaneioSaldoCompleto(item){
   const a=shipmentStats(item);
-  const marco=Math.max(0,a.released-a.frames);
-  return a.per===null?marco:Math.max(0,Math.min(marco,
-    Math.floor(Math.max(0,a.maxLeaves-a.leaves)/a.per)));
+  const marco=Math.max(0,a.marcosLiberados-a.frames);
+  const folhas=Math.max(0,a.folhasLiberadas-
+    (a.per?Math.floor(a.leaves/a.per):0));
+  return Math.max(0,Math.min(marco,folhas));
 }
 function renderResumoRomaneios(obraId){
   const cabecalhos=romaneios.filter(r=>r.obra_id===obraId);
@@ -3051,11 +3091,11 @@ function ehMaximArRomaneio(item){
 function romaneioSaldoPorTipo(item,tipo,folhas){
   const a=shipmentStats(item);
   const per=a.per||Number(folhas)||suggestedLeaves(item)||null;
-  const marcos=Math.max(0,a.released-a.frames);
-  const folhasRestantes=per?Math.max(0,a.released*per-a.leaves):null;
+  const marcos=Math.max(0,a.marcosLiberados-a.frames);
+  const folhasRestantes=per?Math.max(0,a.folhasLiberadas*per-a.leaves):null;
   if(tipo==='marco')return marcos;
   if(tipo==='folha')return folhasRestantes;
-  if(!per)return marcos; // Somente prévia. Confirmar folhas/unidade é obrigatório.
+  if(!per)return Math.max(0,Math.min(marcos,a.folhasLiberadas)); // Composição pendente.
   return Math.max(0,Math.min(marcos,Math.floor(folhasRestantes/per)));
 }
 function buscarEsquadriasRomaneio(row){
