@@ -691,13 +691,10 @@
     <button id="navRomaneios" class="workspaceLink" type="button"><span class="navSymbol">▤</span> Romaneios e expedição</button>
     <button id="navEnviarNotas" class="workspaceLink hidden" type="button"><span class="navSymbol">▧</span> Enviar notas fiscais</button>
     <div class="workspaceNavCaption workspaceNavCaptionSecond">ADMINISTRAÇÃO</div>
-    <button id="navTypologies" class="workspaceLink hidden" type="button"><span class="navSymbol">▦</span> Banco de tipologias</button>
-    <button id="navManufacturers" class="workspaceLink hidden" type="button"><span class="navSymbol">◫</span> Fabricantes</button>
-    <button id="navMaterials" class="workspaceLink hidden" type="button"><span class="navSymbol">▥</span> Banco de materiais</button>
+    <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
     <button id="navFinanceiro" class="workspaceLink hidden" type="button"><span class="navSymbol">◈</span> Financeiro das obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
-    <button id="navUsers" class="workspaceLink hidden" type="button"><span class="navSymbol">♙</span> Usuários</button>
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <div class="workspaceNavFooter">EWGEST <strong>· v44.9</strong><small>Gestão em movimento</small></div>
   </aside>
@@ -1129,6 +1126,33 @@
       </div>
     </section>
 
+    <section id="cadastros" class="hidden">
+      <div class="head"><div><h1>Cadastros do sistema</h1>
+        <p class="muted">Cadastros compartilhados entre as obras.</p></div></div>
+      <div class="cadastrosGrid">
+        <button id="navMaterials" type="button" class="cadastrosTile"><strong>Perfis</strong><span>Materiais, cores e acabamentos</span></button>
+        <button id="navAccessories" type="button" class="cadastrosTile"><strong>Acessórios</strong><span>Códigos, variações e unidades</span></button>
+        <button id="navTypologies" type="button" class="cadastrosTile"><strong>Tipologias</strong><span>Tipos de esquadrias e abreviações</span></button>
+        <button id="navManufacturers" type="button" class="cadastrosTile"><strong>Fabricantes</strong><span>Catálogo de fabricantes</span></button>
+        <button id="cadastroJumpFornecedores" type="button" class="cadastrosTile"><strong>Fornecedores</strong><span>Notas e materiais</span></button>
+        <button id="cadastroJumpGalpoes" type="button" class="cadastrosTile"><strong>Galpões</strong><span>Locais de armazenamento</span></button>
+        <button id="navUsers" type="button" class="cadastrosTile"><strong>Usuários</strong><span>Acessos e permissões</span></button>
+      </div>
+      <div class="cadastrosListGrid">
+        <div class="section panel" id="cadastroFornecedores">
+          <h2>Fornecedores</h2><form id="cadastroFornecedorForm" class="cadastrosNovoForm">
+            <label>Nome ou razão social <input id="cadastroFornecedorNome" maxlength="180" required placeholder="Ex.: MEGA NORDESTE"></label>
+            <button type="submit" class="btn primary">Cadastrar fornecedor</button>
+          </form><div id="cadastroFornecedorList" class="cadastrosList"></div>
+        </div>
+        <div class="section panel" id="cadastroGalpoes">
+          <h2>Galpões</h2><form id="cadastroGalpaoForm" class="cadastrosNovoForm">
+            <label>Nome do galpão <input id="cadastroGalpaoNome" maxlength="80" required placeholder="Ex.: AFOGADOS"></label>
+            <button type="submit" class="btn primary">Cadastrar galpão</button>
+          </form><div id="cadastroGalpaoList" class="cadastrosList"></div>
+        </div>
+      </div><p id="cadastrosMessage" class="feedback" role="status"></p>
+    </section>
     <section id="stock" class="hidden">
       <div class="head"><div>
         <h1>Estoque por obra</h1>
