@@ -1498,7 +1498,8 @@ assert.ok(planSQL.includes('ADD COLUMN IF NOT EXISTS barras_planejadas jsonb')&&
  !/INSERT INTO public\.ew_estoque_obras_movimentos/.test(planSQL),
  'SQL do plano de barras não deve movimentar estoque físico nem remover histórico');
 assert.doesNotThrow(()=>new Function(receiveScript),'Recebimento manual deve ter JavaScript sintaticamente válido');
-assert.ok(source.includes('Entrada manual de materiais e notas')&&
+assert.ok(source.includes('<section id="recebimento"')&&
+ source.includes('Recebimento de materiais')&&
  source.includes('id="finManualRows"')&&source.includes('id="finManualLocal"')&&
  source.includes('id="finManualAdd"')&&source.includes('id="finManualSum"')&&
  source.includes('id="finCostTotal" type="text" inputmode="decimal"'),
