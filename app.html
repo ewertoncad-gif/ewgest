@@ -6161,15 +6161,23 @@ function cemMontarPayload(r){
   // Plano de compra OBAPROV: NUMBARRAS é a quantidade de BARRAS comerciais,
   // não o número de cortes OBCALCP, nem entrada de estoque físico.
   const barrasPorPerfilCor=new Map();
+  const perfisDaObra=new Set((r.perfCatalog||[]).map(x=>cemNome(x.CODPERF)));
   for(const b of r.barrasAproveitamento||[]){
-    const codigo=cemNome(b.CODPERF),cor=cemNome(b.CODTRATEXT||b.CODTRAT)||'NÃO INFORMADO';
+    const codigo=cemNome(b.CODPERF);
+    // Não incluir barras de perfis de outros cálculos/itens no mesmo ZIP.
+    if(!perfisDaObra.has(codigo))continue;
+    const cor=cemNome(b.CODTRATEXT||b.CODTRAT)||'NÃO INFORMADO';
     const comprimento=Number(b.BARRA),quantidade=Number(b.NUMBARRAS);
-    if(!codigo||!Number.isSafeInteger(comprimento)||comprimento<100||comprimento>20000||
-       !Number.isSafeInteger(quantidade)||quantidade<=0)continue;
+    if(!Number.isSafeInteger(comprimento)||comprimento<100||comprimento>20000||
+       !Number.isSafeInteger(quantidade)||quantidade<=0||quantidade>1000000)
+      throw new Error('Plano de barras do CEM inválido para o perfil '+codigo+
+       '. Confira NUMBARRAS e BARRA antes de importar.');
     const key=codigo+'|'+cor;
     if(!barrasPorPerfilCor.has(key))barrasPorPerfilCor.set(key,new Map());
     const medidas=barrasPorPerfilCor.get(key);
-    medidas.set(comprimento,(medidas.get(comprimento)||0)+quantidade);
+    const total=(medidas.get(comprimento)||0)+quantidade;
+    if(total>1000000)throw new Error('Quantidade de barras acima do limite para '+codigo+'.');
+    medidas.set(comprimento,total);
   }
   const embalagensCEM=new Map();
   for(const row of r.acessoriosObra||[]){
@@ -6208,8 +6216,10 @@ function cemMontarPayload(r){
         variacoes:[...(porCodigo.get(codigo)||new Map()).values()].map(v=>{
           if(tipo!=='perfil')return v;
           const map=barrasPorPerfilCor.get(codigo+'|'+cemNome(v.cor));
-          // []: ZIP não trouxe plano para essa variação. Nunca estimar pelos cortes.
-          return {...v,barras_planejadas:[...(map||new Map()).entries()]
+          // Ausência de OBAPROV não deve apagar um plano gravado previamente:
+          // omitimos a chave em vez de enviar []. Nunca estimar pelos cortes.
+          if(!map?.size)return v;
+          return {...v,barras_planejadas:[...map.entries()]
             .sort((a,b)=>a[0]-b[0])
             .map(([comprimento_mm,quantidade])=>({comprimento_mm,quantidade}))};
         })};
