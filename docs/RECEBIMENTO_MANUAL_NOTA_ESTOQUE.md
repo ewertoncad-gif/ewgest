@@ -110,3 +110,5 @@ O banco `ewgest-restauracao-teste` possui estruturas simuladas criadas exclusiva
 **Limite das obras antigas:** nem todas preservaram `BARRA/NUMBARRAS`. Não é possível reconstruir o plano com base nas quantidades ou nos tamanhos dos cortes; é necessário **reanalisar o ZIP original** no módulo Importar arquivo técnico e importar somente perfis/acessórios para a mesma obra, sem excluí-la.
 
 **Status de publicação:** proposta pendente de revisão, homologação do SQL e autorização antes de alterar banco de produção. A alteração de frontend aceita o esquema antigo (`select: '*'`) e não gera lançamentos de estoque por si só.
+
+**Segurança adicional de reimportação (revisão 21/11):** se um ZIP não contiver `OBAPROV` para determinada variação, o payload **omite** o campo `barras_planejadas` e a função preserva o último planejamento daquela variação. Dados inválidos de OBAPROV dos perfis da obra interrompem a importação, sem gravar quantidades parciais. Somente um novo plano válido substitui os comprimentos/quantidades anteriores; sem plano nunca estimar barras pelos cortes.
