@@ -6228,6 +6228,14 @@ async function abrirMateriais(){
 function matSelecionarTipo(tipo){
   if(!['perfil','acessorio'].includes(tipo))return;
   matTipo=tipo;
+  const perfil=tipo==='perfil';
+  node('matPageTitle').textContent=perfil?'Banco de perfis':'Banco de acessórios';
+  node('matPageSubtitle').textContent=perfil
+   ?'Perfis, cores e acabamentos utilizados nas obras.'
+   :'Acessórios, unidades e variações utilizados nas obras.';
+  node('matNovoHeader').textContent=perfil?'+ Cadastrar perfil':'+ Cadastrar acessório';
+  node('matStatPerfis').classList.toggle('hidden',!perfil);
+  node('matStatAcessorios').classList.toggle('hidden',perfil);
   for(const [id,t] of [['matTabPerfil','perfil'],['matTabAcessorio','acessorio']]){
     const on=t===tipo;node(id).classList.toggle('active',on);node(id).setAttribute('aria-pressed',String(on));
   }
@@ -6236,7 +6244,7 @@ function matSelecionarTipo(tipo){
 function renderMateriais(){
   node('matCountPerfis').textContent=matPerfis.length.toLocaleString('pt-BR');
   node('matCountAcessorios').textContent=matAcessorios.length.toLocaleString('pt-BR');
-  node('matCountVariacoes').textContent=matVariacoes.length.toLocaleString('pt-BR');
+  node('matCountVariacoes').textContent=matVariacoes.filter(v=>v.tipo===matTipo).length.toLocaleString('pt-BR');
   const search=node('matPesquisa').value.trim().toLocaleUpperCase('pt-BR');
   const itens=matEntries().filter(x=>
     [x.codigo,x.descricao,x.fabricante,x.linha,x.prenativo].some(v=>String(v||'').toLocaleUpperCase('pt-BR').includes(search)));
