@@ -62,6 +62,11 @@ begin
     where o.empresa_id=p_empresa_id and o.obra_id=p_obra_id)
  then raise exception 'Obra sem orçamento vinculado.';end if;
  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_operacao_id::text,541889));
+ -- Serializar por número da nota, fornecedor e categoria além do UUID da operação:
+ -- duas sessões usando UUIDs diferentes não devem duplicar a mesma NF.
+ perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+   p_empresa_id::text||'|'||p_obra_id::text||'|'||p_categoria||'|'||
+   lower(btrim(coalesce(p_fornecedor,'')))||'|'||lower(btrim(p_numero_documento)),541890));
  select * into v_old from public.ew_obra_despesas d
    where d.empresa_id=p_empresa_id and d.operacao_id=p_operacao_id;
  if found then
@@ -126,6 +131,11 @@ begin
     and l.obra_id=p_obra_id and l.excluido_em is null)
  then raise exception 'Obra sem orçamento ou estoque ativo.';end if;
  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_operacao_id::text,541889));
+ -- Serializar por número da nota, fornecedor e categoria além do UUID da operação:
+ -- duas sessões usando UUIDs diferentes não devem duplicar a mesma NF.
+ perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+   p_empresa_id::text||'|'||p_obra_id::text||'|'||p_categoria||'|'||
+   lower(btrim(coalesce(p_fornecedor,'')))||'|'||lower(btrim(p_numero_documento)),541890));
  select * into v_previous from public.ew_obra_despesas d
   where d.empresa_id=p_empresa_id and d.operacao_id=p_operacao_id;
  if found then
