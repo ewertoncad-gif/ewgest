@@ -237,3 +237,295 @@ $f$;
 revoke all on function public.ew_estornar_recebimento_nfe(uuid,uuid,text,uuid) from public;
 revoke execute on function public.ew_estornar_recebimento_nfe(uuid,uuid,text,uuid) from anon;
 grant execute on function public.ew_estornar_recebimento_nfe(uuid,uuid,text,uuid) to authenticated;
+
+-- Mantém indicadores de Recebimento corretos após estorno (não contar entradas anuladas).
+CREATE OR REPLACE FUNCTION public.ew_quantidades_recebidas_obra(p_empresa_id uuid, p_obra_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare v_uid uuid:=auth.uid(); v_result jsonb;
+begin
+ perform public.ew_exigir_sessao_atual();
+ if v_uid is null or not exists (
+  select 1 from public.usuarios_empresas u where u.usuario_id=v_uid
+    and u.empresa_id=p_empresa_id and u.perfil in ('almoxarife','administrador')
+ ) or not exists (
+  select 1 from public.obras o where o.id=p_obra_id and o.empresa_id=p_empresa_id
+ ) then
+  raise exception 'Acesso não autorizado ao recebimento.';
+ end if;
+ select coalesce(jsonb_agg(jsonb_build_object(
+   'variacao_id',r.variacao_id,'comprimento_mm',r.comprimento_mm,
+   'unidade',r.unidade,'quantidade',r.quantidade
+ )), '[]'::jsonb)
+ into v_result from (
+  select n.variacao_id,n.comprimento_mm,n.unidade,sum(n.quantidade) quantidade
+  from public.ew_nfe_recebimentos n
+  join public.ew_obra_despesas_itens i on i.id=n.despesa_item_id and i.empresa_id=n.empresa_id
+  join public.ew_obra_despesas d on d.id=i.despesa_id and d.empresa_id=n.empresa_id
+  where n.empresa_id=p_empresa_id and n.obra_id=p_obra_id and d.status='aprovada' and n.estornado_em is null
+  group by n.variacao_id,n.comprimento_mm,n.unidade
+ ) r;
+ return coalesce(v_result,'[]'::jsonb);
+end
+$function$
+;
+-- Bloquear rotinas genéricas que poderiam burlar o estorno auditado da NF-e.
+CREATE OR REPLACE FUNCTION public.ew_estornar_movimento_obra(p_obra_id uuid, p_movimento_id uuid, p_motivo text, p_operacao_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+ v_uid uuid := auth.uid();
+ v_obra public.obras%rowtype;
+ v_original public.ew_estoque_obras_movimentos%rowtype;
+ v_audit public.ew_auditoria_operacoes%rowtype;
+ v_ver jsonb;
+ v_mov public.ew_estoque_obras_movimentos%rowtype;
+ v_motivo text := btrim(coalesce(p_motivo,''));
+ v_saldo numeric;
+ v_n integer := 0;
+ v_par integer;
+ v_soma numeric;
+ v_materials integer;
+ v_locais integer;
+ v_originais jsonb := '[]'::jsonb;
+begin
+ perform public.ew_exigir_sessao_atual();
+ if v_uid is null or p_obra_id is null or p_movimento_id is null or p_operacao_id is null then
+  raise exception 'Obra, movimento, operação e usuário são obrigatórios.';
+ end if;
+ if length(v_motivo) not between 5 and 400 then
+  raise exception 'Informe motivo com 5 a 400 caracteres.';
+ end if;
+ perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_obra_id::text,977124));
+ select * into v_obra from public.obras where id=p_obra_id for update;
+ if not found or v_obra.arquivada_em is not null then
+  raise exception 'Obra não encontrada ou já arquivada.';
+ end if;
+ if not exists (
+  select 1 from public.usuarios_empresas ue
+  join public.usuarios_login ul
+   on ul.usuario_id=ue.usuario_id and ul.empresa_id=ue.empresa_id
+  where ue.usuario_id=v_uid and ue.empresa_id=v_obra.empresa_id
+   and ue.perfil in ('administrador','gerenciador')
+   and ul.perfil=ue.perfil and ul.ativo and ul.excluido_em is null
+ ) then raise exception 'Somente ADM e Gerenciador podem realizar estornos.'; end if;
+ select * into v_audit from public.ew_auditoria_operacoes where operacao_id=p_operacao_id;
+ if found then
+  if v_audit.acao <> 'ESTORNAR_ESTOQUE'
+   or v_audit.obra_id is distinct from p_obra_id or v_audit.usuario_id <> v_uid
+   or v_audit.referencia_id is distinct from p_movimento_id then
+   raise exception 'Identificador de operação já usado em outro estorno.';
+  end if;
+  return jsonb_build_object('repetida',true,
+   'estornados',v_audit.detalhes->'movimentos_estornados','historico_preservado',true);
+ end if;
+ select * into v_original from public.ew_estoque_obras_movimentos
+ where id=p_movimento_id and obra_id=p_obra_id for update;
+ if not found then raise exception 'Movimentação não encontrada nesta obra.'; end if;
+ if v_original.origem='ESTORNO' and v_original.observacao like 'Estorno do recebimento NF%' then
+  raise exception 'Estorno de recebimento NF-e não pode ser revertido pela função genérica.';
+ end if;
+ if exists(select 1 from public.ew_nfe_recebimentos n where n.movimento_id=v_original.id) then
+  raise exception 'Movimento vinculado à NF-e: use Estornar recebimento na tela Recebimento.';
+ end if;
+ if v_original.estorno_de_id is not null then
+  raise exception 'Uma contrapartida de estorno não pode ser cancelada novamente.';
+ end if;
+ if exists(select 1 from public.ew_estoque_obras_movimentos e
+  where e.estorno_de_id=p_movimento_id) then
+  raise exception 'Esta movimentação já foi estornada.';
+ end if;
+ v_ver := public.ew_inspecionar_reversao_obra(p_obra_id);
+ if exists (
+  select 1 from pg_catalog.jsonb_array_elements_text(v_ver->'motivos') as x(motivo)
+  where x.motivo not like 'Estorne as movimentações do estoque%'
+ ) then
+  raise exception 'Cancele romaneios, saídas e liberações e resolva outras pendências antes do estorno individual.';
+ end if;
+ -- Transferência entre galpões é uma operação única de duas pernas.
+ if v_original.transferencia_id is not null then
+  if v_original.origem<>'TRANSFERENCIA' then
+   raise exception 'Movimento de transferência possui origem inconsistente.';
+  end if;
+  select count(*),coalesce(sum(m.quantidade_delta),0),
+   count(distinct (m.variacao_id::text||'|'||coalesce(m.comprimento_mm::text,'')||'|'||m.unidade)),
+   count(distinct m.local_estoque)
+  into v_par,v_soma,v_materials,v_locais
+  from public.ew_estoque_obras_movimentos m
+  where m.obra_id=p_obra_id and m.transferencia_id=v_original.transferencia_id;
+  if v_par<>2 or v_soma<>0 or v_materials<>1 or v_locais<>2 then
+   raise exception 'Transferência incompleta ou inconsistente. Não é seguro estornar uma perna isoladamente.';
+  end if;
+ end if;
+ -- Toda a obra é serializada pelo mesmo bloqueio da reversão total.
+ perform 1 from public.ew_estoque_obras_movimentos m
+ where m.obra_id=p_obra_id
+  and (m.id=p_movimento_id or
+   (v_original.transferencia_id is not null
+    and m.transferencia_id=v_original.transferencia_id))
+ order by m.id for update;
+ for v_mov in
+  select * from public.ew_estoque_obras_movimentos m
+  where m.obra_id=p_obra_id
+   and (m.id=p_movimento_id or
+    (v_original.transferencia_id is not null
+     and m.transferencia_id=v_original.transferencia_id))
+  order by m.id
+ loop
+  if v_mov.estorno_de_id is not null or exists(
+   select 1 from public.ew_estoque_obras_movimentos s where s.estorno_de_id=v_mov.id
+  ) then raise exception 'Uma das movimentações já foi estornada. Recarregue o histórico.'; end if;
+  select coalesce(sum(m.quantidade_delta),0) into v_saldo
+  from public.ew_estoque_obras_movimentos m
+  where m.obra_id=p_obra_id and m.variacao_id=v_mov.variacao_id
+   and m.comprimento_mm is not distinct from v_mov.comprimento_mm
+   and m.unidade=v_mov.unidade and m.local_estoque=v_mov.local_estoque;
+  if v_saldo-v_mov.quantidade_delta<0 then
+   raise exception 'Estorno individual deixaria saldo negativo em % (% %). Desfaça antes as movimentações posteriores dependentes.',
+    v_mov.local_estoque,v_saldo,v_mov.unidade;
+  end if;
+ end loop;
+ for v_mov in
+  select * from public.ew_estoque_obras_movimentos m
+  where m.obra_id=p_obra_id
+   and (m.id=p_movimento_id or
+    (v_original.transferencia_id is not null
+     and m.transferencia_id=v_original.transferencia_id))
+  order by m.id
+ loop
+  insert into public.ew_estoque_obras_movimentos (
+   empresa_id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,
+   origem,operacao_id,observacao,usuario_id,local_estoque,estorno_de_id
+  ) values (
+   v_mov.empresa_id,v_mov.obra_id,v_mov.variacao_id,v_mov.comprimento_mm,
+   v_mov.unidade,-v_mov.quantidade_delta,'ESTORNO',pg_catalog.gen_random_uuid(),
+   left('Estorno individual: '||v_motivo,500),v_uid,v_mov.local_estoque,v_mov.id
+  );
+  v_n:=v_n+1;
+  v_originais:=v_originais||jsonb_build_array(jsonb_build_object(
+   'movimento_id',v_mov.id,'origem',v_mov.origem,'quantidade',v_mov.quantidade_delta,
+   'variacao_id',v_mov.variacao_id,'comprimento_mm',v_mov.comprimento_mm,
+   'unidade',v_mov.unidade,'galpao',v_mov.local_estoque,
+   'usuario_original',v_mov.usuario_id,'registrado_em',v_mov.criado_em,
+   'transferencia_id',v_mov.transferencia_id
+  ));
+ end loop;
+ insert into public.ew_auditoria_operacoes (
+  empresa_id,obra_id,obra_nome,obra_codigo,usuario_id,acao,
+  referencia_id,operacao_id,motivo,detalhes
+ ) values (
+  v_obra.empresa_id,p_obra_id,v_obra.nome,v_obra.codigo,v_uid,'ESTORNAR_ESTOQUE',
+  p_movimento_id,p_operacao_id,v_motivo,
+  jsonb_build_object('modo','individual','movimentos_estornados',v_n,
+   'movimentos_originais',v_originais)
+ );
+ return jsonb_build_object('repetida',false,'estornados',v_n,
+  'historico_preservado',true);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ew_estornar_estoque_obra(p_obra_id uuid, p_motivo text, p_operacao_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare v_uid uuid:=auth.uid();v_ob public.obras%rowtype;
+ v_motivo text:=btrim(coalesce(p_motivo,''));v_n int;v_audit public.ew_auditoria_operacoes%rowtype;
+ v_originais jsonb;v_status jsonb;
+begin
+ perform public.ew_exigir_sessao_atual();
+ if p_operacao_id is null then raise exception 'Identificador de operação obrigatório.';end if;
+ if length(v_motivo) not between 5 and 400 then
+  raise exception 'Informe motivo de 5 a 400 caracteres.';end if;
+ perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_obra_id::text,977124));
+ select * into v_ob from public.obras where id=p_obra_id for update;
+ if not found or v_ob.arquivada_em is not null then raise exception 'Obra inexistente ou arquivada.';end if;
+ v_status:=public.ew_inspecionar_reversao_obra(p_obra_id);
+ select * into v_audit from public.ew_auditoria_operacoes where operacao_id=p_operacao_id;
+ if found then
+  if v_audit.acao<>'ESTORNAR_ESTOQUE' or v_audit.obra_id<>p_obra_id or v_audit.usuario_id<>v_uid
+   then raise exception 'Identificador de operação já utilizado.';end if;
+  return jsonb_build_object('repetida',true,'estornados',
+    v_audit.detalhes->'movimentos_estornados','historico_preservado',true);
+ end if;
+ if (v_status->'resumo'->>'romaneios')::int>0
+   or (v_status->'resumo'->>'saidas_producao')::int>0
+   or (v_status->'resumo'->>'liberacoes')::int>0
+   or (v_status->'resumo'->>'lotes_cem')::int>0
+   or (v_status->'resumo'->>'planos_liberados')::int>0
+   or (v_status->'resumo'->>'unidades_liberadas')::int>0
+   or (v_status->'resumo'->>'fabricadas')::int>0
+ then raise exception 'Cancele romaneios, saídas e liberações antes de estornar o estoque.';end if;
+ -- Reverter estoque inteiro com NF vinculada pode desfazer uma devolução
+ -- física sem atualizar o histórico da nota. Exigir fluxo específico.
+ if exists(select 1 from public.ew_nfe_recebimentos n where n.obra_id=p_obra_id) then
+  raise exception 'A obra contém recebimentos de NF-e. Use o estorno por recebimento; não zere o estoque inteiro.';
+ end if;
+ -- Uma transferência ENTRE OBRAS não pode ser revertida em apenas uma
+ -- das obras. Ela deve ser estornada atomicamente nas duas pontas.
+ IF EXISTS (
+  SELECT 1 FROM public.ew_estoque_obras_movimentos m
+  WHERE m.obra_id=p_obra_id AND m.origem='TRANSFERENCIA'
+    AND m.transferencia_id IS NOT NULL
+    AND EXISTS (
+     SELECT 1 FROM public.ew_estoque_obras_movimentos outra
+     WHERE outra.transferencia_id=m.transferencia_id
+       AND outra.origem='TRANSFERENCIA' AND outra.obra_id<>m.obra_id
+    )
+    AND NOT EXISTS (
+     SELECT 1 FROM public.ew_estoque_obras_movimentos est
+     WHERE est.estorno_de_id=m.id
+    )
+ ) THEN
+  RAISE EXCEPTION 'Há transferência ativa entre obras. Estorne as duas pontas pelo histórico de movimentações antes de estornar o estoque inteiro.';
+ END IF;
+ perform 1 from public.ew_estoque_obras_movimentos m
+  where m.obra_id=p_obra_id order by m.id for update;
+ if exists(select 1 from public.ew_estoque_obras_movimentos m where m.obra_id=p_obra_id
+   group by m.variacao_id,m.comprimento_mm,m.unidade,m.local_estoque
+   having sum(m.quantidade_delta)<0) then
+  raise exception 'Saldo negativo em galpão. Concilie o estoque antes do estorno.';end if;
+ -- Registra em detalhes cada movimento que será revertido.
+ select count(*),
+  coalesce(jsonb_agg(jsonb_build_object('id',m.id,'origem',m.origem,
+   'quantidade',m.quantidade_delta,'local',m.local_estoque,
+   'unidade',m.unidade,'comprimento_mm',m.comprimento_mm,
+   'variacao_id',m.variacao_id,'criado_em',m.criado_em,'usuario_original',m.usuario_id)),
+   '[]'::jsonb)
+ into v_n,v_originais from public.ew_estoque_obras_movimentos m
+ where m.obra_id=p_obra_id and m.estorno_de_id is null
+   and not exists (select 1 from public.ew_estoque_obras_movimentos x where x.estorno_de_id=m.id);
+ if v_n=0 then
+  if (v_status->'resumo'->>'saldos_nao_zerados')::int>0 then
+   raise exception 'Não existem movimentos pendentes, mas há saldos diferentes de zero.';end if;
+  return jsonb_build_object('repetida',false,'estornados',0,'historico_preservado',true);
+ end if;
+ insert into public.ew_estoque_obras_movimentos (
+  empresa_id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,
+  origem,operacao_id,observacao,usuario_id,local_estoque,estorno_de_id)
+ select m.empresa_id,m.obra_id,m.variacao_id,m.comprimento_mm,m.unidade,
+  -m.quantidade_delta,'ESTORNO',gen_random_uuid(),left('Estorno para reimportação: '||v_motivo,500),
+  v_uid,m.local_estoque,m.id
+ from public.ew_estoque_obras_movimentos m
+ where m.obra_id=p_obra_id and m.estorno_de_id is null
+   and not exists (select 1 from public.ew_estoque_obras_movimentos x where x.estorno_de_id=m.id);
+ if exists(select 1 from public.ew_estoque_obras_movimentos m
+ where m.obra_id=p_obra_id
+ group by m.variacao_id,m.comprimento_mm,m.unidade,m.local_estoque
+ having sum(m.quantidade_delta)<>0) then
+  raise exception 'A operação não zerou todos os saldos. Nenhum estorno foi confirmado.';end if;
+ insert into public.ew_auditoria_operacoes
+  (empresa_id,obra_id,obra_nome,obra_codigo,usuario_id,acao,operacao_id,motivo,detalhes)
+ values(v_ob.empresa_id,v_ob.id,v_ob.nome,v_ob.codigo,v_uid,'ESTORNAR_ESTOQUE',
+  p_operacao_id,v_motivo,jsonb_build_object('movimentos_estornados',v_n,
+   'movimentos_originais',v_originais));
+ return jsonb_build_object('repetida',false,'estornados',v_n,'historico_preservado',true);
+end;$function$
+;
