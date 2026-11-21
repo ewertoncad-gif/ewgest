@@ -792,8 +792,8 @@
                   <select id="finCostCategory" required>
                     <option value="aluminio">Alumínio — perfis</option>
                     <option value="acessorios">Componentes — acessórios</option>
-                    <option value="vidros">Vidros — somente despesa</option>
-                    <option value="outros">Outros insumos — somente despesa</option>
+                    <option value="vidros">Vidros</option>
+                    <option value="outros">Outros insumos</option>
                   </select>
                 </label>
                 <label>Valor total da nota (R$) *
@@ -839,6 +839,20 @@
                 </table></div>
                 <p id="finManualDetail" class="hint finManualDetail"></p>
                 <p class="finSumStatus" id="finManualSum" aria-live="polite"></p>
+              </div>
+              <div id="finMiscBlock" class="hidden">
+                <div class="cemBudgetActions">
+                  <strong>Itens recebidos — vidros e outros insumos</strong>
+                  <button id="finMiscAdd" class="btn secondary" type="button">+ Adicionar item</button>
+                </div>
+                <p class="hint">Registre a descrição, quantidade, unidade e valor de cada item recebido. Estes itens entram no histórico financeiro da obra. O estoque físico de vidros e outros insumos ainda não possui catálogo próprio: nenhuma quantidade será criada no estoque automaticamente.</p>
+                <div class="finTableWrap">
+                  <table class="finTable finMiscTable">
+                    <thead><tr><th>Descrição do item</th><th>Quantidade</th><th>Unidade</th><th>Valor do item (R$)</th><th>Ação</th></tr></thead>
+                    <tbody id="finMiscRows"></tbody>
+                  </table>
+                </div>
+                <p id="finMiscSum" class="finSumStatus" aria-live="polite"></p>
               </div>
               <p id="finManualHint" class="hint"></p>
               <label>Observações <textarea id="finCostNotes" maxlength="1000" rows="2"></textarea></label>
