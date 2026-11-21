@@ -92,7 +92,7 @@ jobs:
           curl --fail --silent --show-error --location --max-time 20 \
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/assets/entregas-producao.css?verify=${GITHUB_SHA}" -o "$css"
-          grep -Fq 'v46.1' "$html"
+          grep -Fq 'v46.2' "$html"
           grep -Fq 'id="entregasProducaoPanel"' "$html"
           grep -Fq 'Estornar recebimento' "$html"
           grep -Fq 'ew_confirmar_entrega_producao' "$js"
@@ -116,7 +116,7 @@ jobs:
           curl --fail --silent --show-error --location --max-time 20 \
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/assets/romaneios-transferencia.css?verify=${GITHUB_SHA}" -o "$css"
-          grep -Fq 'v46.1' "$html"
+          grep -Fq 'v46.2' "$html"
           grep -Fq 'Transferência entre galpões' "$html"
           grep -Fq 'id="romTransfSection"' "$html"
           grep -Fq 'ew_romaneios_transferencia_juntar' "$js"
@@ -145,7 +145,7 @@ jobs:
           curl --fail --silent --show-error --location --max-time 20 \
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/assets/cadastros-pages.css?verify=${GITHUB_SHA}" -o "$css"
-          grep -Fq 'v46.1' "$html"
+          grep -Fq 'v46.2' "$html"
           grep -Fq 'id="fornecedoresPage"' "$html"
           grep -Fq 'id="galpoesPage"' "$html"
           grep -Fq 'id="insumosPage"' "$html"
@@ -173,7 +173,7 @@ jobs:
           curl --fail --silent --show-error --location --max-time 20 \
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/assets/recebimento-manual.js?verify=${GITHUB_SHA}" -o "$receipt"
-          grep -Fq 'v46.1' "$html"
+          grep -Fq 'v46.2' "$html"
           grep -Fq 'id="unidadesPage"' "$html"
           grep -Fq 'id="navUnidades"' "$html"
           grep -Fq 'ew_unidades_medida_gerenciar' "$units"
@@ -189,7 +189,7 @@ jobs:
           curl --fail --silent --show-error --location --max-time 20 \
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/app.html?verify=${GITHUB_SHA}" -o "$html"
-          grep -Fq 'v46.1' "$html"
+          grep -Fq 'v46.2' "$html"
           grep -Fq 'id="stockTransferQty" type="number" min="1" step="1"' "$html"
           grep -Fq 'id="stockObraTransferQty" type="number" min="1" step="1"' "$html"
           grep -Fq 'function stockTransferPrepararQuantidade' "$html"
@@ -209,7 +209,7 @@ jobs:
           curl --fail --silent --show-error --location --max-time 20 \
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/assets/recebimento-manual.js?verify=${GITHUB_SHA}" -o "$js"
-          grep -Fq 'v46.1' "$html"
+          grep -Fq 'v46.2' "$html"
           grep -Fq 'recebimento-manual.js?v=20261121j' "$html"
           grep -Fq 'function unidadeContavel(unidade)' "$js"
           grep -Fq "contavel?'type=\"number\" inputmode=\"numeric\" min=\"1\"" "$js"
@@ -228,7 +228,7 @@ jobs:
           curl --fail --silent --show-error --location --max-time 20 \
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/assets/recebimento-manual.js?verify=${GITHUB_SHA}" -o "$js"
-          grep -Fq 'v46.1' "$html"
+          grep -Fq 'v46.2' "$html"
           grep -Fq 'recebimento-manual.js?v=20261121k' "$html"
           grep -Fq 'step="any"' "$js"
           grep -Fq "r.quantidade=category==='acessorios'&&r.material?'1':''" "$js"
@@ -251,7 +251,7 @@ jobs:
           curl --fail --silent --show-error --location --max-time 20 \
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/assets/insumos-fisicos.js?verify=${GITHUB_SHA}" -o "$insumos"
-          grep -Fq 'v46.1' "$html"
+          grep -Fq 'v46.2' "$html"
           grep -Fq 'function ewUnidadeEmMetroInteiro(unidade)' "$html"
           grep -Fq 'recebimento-manual.js?v=20261121l' "$html"
           grep -Fq 'insumos-fisicos.js?v=20261121d' "$html"
@@ -272,10 +272,30 @@ jobs:
           curl --fail --silent --show-error --location --max-time 20 \
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/assets/romaneios-transferencia.js?verify=${GITHUB_SHA}" -o "$js"
-          grep -Fq 'v46.1' "$html"
+          grep -Fq 'v46.2' "$html"
           grep -Fq '<select id="romTransfMotorista" required>' "$html"
           grep -Fq '<select id="romTransfPlaca" required>' "$html"
           grep -Fq 'romaneios-transferencia.js?v=20261121b' "$html"
           grep -Fq "apiGet('romaneios_motoristas'" "$js"
           grep -Fq "apiGet('romaneios_veiculos'" "$js"
           echo 'PUBLICACAO CONFIRMADA: romaneios v46.1 com motorista e placa cadastrados.'
+
+      - name: Conferir emissao e impressao de romaneios de transferencia v46.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          html="$(mktemp)"
+          js="$(mktemp)"
+          trap 'rm -f "$html" "$js"' EXIT
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/app.html?verify=${GITHUB_SHA}" -o "$html"
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/assets/romaneios-transferencia.js?verify=${GITHUB_SHA}" -o "$js"
+          grep -Fq 'v46.2' "$html"
+          grep -Fq 'romaneios-transferencia.js?v=20261121c' "$html"
+          grep -Fq 'Emitir e imprimir</button>' "$js"
+          grep -Fq 'Imprimir / reimprimir</button>' "$js"
+          grep -Fq 'janela.print()' "$js"
+          echo 'PUBLICACAO CONFIRMADA: v46.2 com emissao e impressao de romaneios.'

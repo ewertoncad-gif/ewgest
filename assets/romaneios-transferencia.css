@@ -24,3 +24,6 @@
 #romTransfEditStatus{min-height:18px;margin-top:9px}
 @media(max-width:800px){.romTransfFields{grid-template-columns:1fr 1fr}.romTransfExtra{grid-template-columns:1fr 1fr}.romTransfExtra label:nth-child(2){grid-column:1/-1}}
 @media(max-width:520px){.romTransfFields{grid-template-columns:1fr}.romTransfExtra{grid-template-columns:1fr}.romTransfExtra label:nth-child(2){grid-column:auto}}
+
+.romTransfDocMessage{font-size:12px;line-height:1.45;margin:9px 0 0;color:#49627e}
+.romTransfDocMessage:empty{display:none}
