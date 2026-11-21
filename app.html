@@ -1116,6 +1116,17 @@
         <p id="manufacturerPageMessage" class="hint" role="status" aria-live="polite"></p>
         <h2 style="margin-top:25px">Fabricantes cadastrados</h2>
         <div id="manufacturerList"></div>
+        <div id="manufacturerManagePanel" class="section panel hidden">
+          <h3 id="manufacturerManageTitle">Editar fabricante</h3>
+          <label>Nome do fabricante <input id="manufacturerManageName" maxlength="80"></label>
+          <div class="topactions" style="margin-top:10px">
+            <button id="manufacturerManageSave" type="button" class="btn primary">Salvar alteração</button>
+            <button id="manufacturerManageDelete" type="button" class="btn secondary">Excluir fabricante</button>
+            <button id="manufacturerManageCancel" type="button" class="btn secondary">Cancelar</button>
+          </div>
+          <p class="hint">Fabricantes vinculados a tipologias ou materiais não podem ser renomeados ou excluídos.</p>
+          <p id="manufacturerManageFeedback" class="feedback" role="status"></p>
+        </div>
       </div>
       <p class="notice">A criação de fabricantes não altera tipologias existentes. Para mudar o fabricante de uma tipologia, abra-a no Banco de tipologias.</p>
     </section>
@@ -1734,6 +1745,7 @@
       <div id="matVarError" class="feedback" role="alert"></div>
       <div class="modalbuttons">
         <button type="button" class="btn secondary" id="matVarCancel">Cancelar</button>
+        <button type="button" class="btn secondary hidden" id="matVarDelete">Excluir variação</button>
         <button type="submit" class="btn primary" id="matVarSave">Salvar variação</button>
       </div>
     </form>
@@ -2050,6 +2062,7 @@
       <div class="modalbuttons">
         <button id="typologyEditCancel" type="button" class="btn secondary">Cancelar</button>
         <button id="typologyEditPrevious" type="button" class="btn secondary hidden">Voltar</button>
+        <button id="typologyEditDelete" type="button" class="btn secondary hidden">Excluir tipologia</button>
         <button id="typologyEditSave" type="submit" class="btn primary">Continuar</button>
       </div>
     </form>
@@ -5367,6 +5380,7 @@ function openTypologyEdit(id) {
   if(!typology)return;
   editingTypology=typology;
   editingPendingItem=null;
+  node('typologyEditDelete').classList.toggle('hidden',!isFullAdminUser());
   const origins=typologyOrigins.filter(x=>x.tipologia_id===id);
   const originalCodes=[...new Set(origins.map(x=>x.codigo_origem))];
   node('typologyEditTitle').textContent='Editar tipologia · '+typology.codigo;
@@ -5586,6 +5600,7 @@ function closeTypologyEdit() {
   node('typologyEditOverlay').classList.add('hidden');
   editingTypology=null;
   editingPendingItem=null;
+  node('typologyEditDelete').classList.add('hidden');
   typologyEditingStep=1;
 }
 
@@ -5765,12 +5780,106 @@ function renderManufacturers() {
   host.innerHTML=list.length?list.map(f=>{
     const count=typologyCatalog.filter(t=>t.fabricante===f.nome).length;
     return '<div class="manufacturerLine"><strong>'+escapeHTML(f.nome)+'</strong>'+
-      '<span>'+count+' tipologia(s) vinculada(s)</span></div>';
+      '<span>'+count+' tipologia(s) vinculada(s)</span>'+
+      (isFullAdminUser()?'<button type="button" class="btn secondary" data-manufacturer-manage="'+escapeHTML(f.id)+'">Editar / excluir</button>':'')+
+      '</div>';
   }).join(''):'<div class="empty">Nenhum fabricante cadastrado.</div>';
+  host.querySelectorAll('[data-manufacturer-manage]').forEach(b=>
+    b.addEventListener('click',()=>abrirGerenciamentoFabricante(b.dataset.manufacturerManage)));
   if(manufacturerLoadError){
     node('manufacturerPageMessage').textContent='Não foi possível consultar o cadastro de fabricantes: '+manufacturerLoadError;
   }
 }
+
+/* Exclusão técnica: nunca apagar materiais já usados em obra, NF, estoque
+ * ou cadastros dependentes. O backend sempre valida o vínculo sob transação. */
+async function excluirCadastroTecnico(tipo,id,identificador){
+ if(!isFullAdminUser()||!currentCompany)return false;
+ if(!window.confirm('Excluir '+identificador+'?\nA exclusão só será permitida se não houver nenhum vínculo com obras, estoque, notas ou cadastros.'))return false;
+ try{
+  await ensureSession();
+  await request('/rest/v1/rpc/ew_excluir_cadastro_tecnico_sem_vinculo',{
+   method:'POST',token:session.access_token,
+   body:{p_empresa_id:currentCompany.id,p_tipo:tipo,p_id:id}
+  });
+  return true;
+ }catch(e){
+  const mensagem='Exclusão não realizada: '+e.message;
+  if(tipo==='tipologia')node('typologyEditError').textContent=mensagem;
+  else if(tipo==='fabricante')node('manufacturerManageFeedback').textContent=mensagem;
+  else node('matMessage').textContent=mensagem;
+  return false;
+ }
+}
+let manufacturerManaging=null;
+function abrirGerenciamentoFabricante(id){
+ if(!isFullAdminUser())return;
+ const item=manufacturerCatalog.find(f=>f.id===id);if(!item)return;
+ manufacturerManaging={id,nome:item.nome};
+ node('manufacturerManageTitle').textContent='Editar fabricante · '+item.nome;
+ node('manufacturerManageName').value=item.nome;
+ node('manufacturerManageFeedback').textContent='';
+ node('manufacturerManagePanel').classList.remove('hidden');
+}
+function fecharGerenciamentoFabricante(){
+ manufacturerManaging=null;node('manufacturerManagePanel').classList.add('hidden');
+}
+async function atualizarGerenciamentoFabricante(excluir=false){
+ if(!isFullAdminUser()||!manufacturerManaging)return;
+ const item=manufacturerManaging;
+ const nome=node('manufacturerManageName').value.trim().toLocaleUpperCase('pt-BR');
+ if(!excluir&&(nome.length<2||nome.length>80)){
+  node('manufacturerManageFeedback').textContent='Informe nome entre 2 e 80 caracteres.';return;
+ }
+ if(excluir){
+  if(!await excluirCadastroTecnico('fabricante',item.id,item.nome))return;
+ }else{
+  if(nome===item.nome){fecharGerenciamentoFabricante();return;}
+  if(!window.confirm('Alterar fabricante '+item.nome+' para '+nome+'? Somente cadastros sem vínculos podem ser renomeados.'))return;
+  try{
+   await ensureSession();
+   await request('/rest/v1/rpc/ew_renomear_fabricante_sem_vinculo',{
+    method:'POST',token:session.access_token,
+    body:{p_empresa_id:currentCompany.id,p_id:item.id,p_novo_nome:nome}
+   });
+  }catch(e){
+   node('manufacturerManageFeedback').textContent='Alteração não realizada: '+e.message;return;
+  }
+ }
+ try{
+  manufacturerCatalog=await apiGet('fabricantes',{
+    select:'id,empresa_id,nome',empresa_id:'eq.'+currentCompany.id,order:'nome.asc'
+  });
+  refreshManufacturerSuggestions();
+  fecharGerenciamentoFabricante();
+  renderManufacturers();
+  node('manufacturerPageMessage').textContent=excluir?'Fabricante não vinculado excluído.':'Fabricante atualizado.';
+ }catch(e){
+  node('manufacturerManageFeedback').textContent='Operação confirmada; não foi possível atualizar a lista: '+e.message;
+ }
+}
+node('manufacturerManageSave').addEventListener('click',()=>atualizarGerenciamentoFabricante(false));
+node('manufacturerManageDelete').addEventListener('click',()=>atualizarGerenciamentoFabricante(true));
+node('manufacturerManageCancel').addEventListener('click',fecharGerenciamentoFabricante);
+node('typologyEditDelete').addEventListener('click',async()=>{
+ if(!editingTypology||!isFullAdminUser())return;
+ const {id,codigo}=editingTypology;
+ if(await excluirCadastroTecnico('tipologia',id,codigo)){
+  typologyCatalog=typologyCatalog.filter(t=>t.id!==id);
+  closeTypologyEdit();
+  renderTypologiesAdmin();
+  node('typologyAdminMessage').textContent='Tipologia sem vínculos excluída.';
+ }
+});
+node('matVarDelete').addEventListener('click',async()=>{
+ if(!matVarOriginal||!isFullAdminUser())return;
+ const v=matVarOriginal;
+ if(await excluirCadastroTecnico('variacao',v.id,
+  (matVarSelected?.codigo||'material')+' · '+(v.cor||v.acabamento||'variação'))){
+   matVarClose();await carregarMateriais();
+   node('matMessage').textContent='Variação sem vínculos excluída.';
+ }
+});
 function openManufacturersPage(){
   if(!adminCanManageManufacturers())return;
   renderManufacturers();
@@ -6019,10 +6128,17 @@ function renderMateriais(){
       '</div></div><div class="materialRowActions">'+
       '<button type="button" class="btn secondary" data-mat-edit="'+escapeHTML(x.id)+'">Editar</button>'+
       '<button type="button" class="btn secondary" data-mat-new-var="'+escapeHTML(x.id)+'">+ Cor / acabamento</button>'+
+      (isFullAdminUser()?'<button type="button" class="btn secondary" data-mat-delete="'+escapeHTML(x.id)+'">Excluir</button>':'')+
       '</div></div>';
   }).join('');
   container.querySelectorAll('[data-mat-edit]').forEach(b=>b.addEventListener('click',()=>abrirEdicaoMaterial(b.dataset.matEdit)));
   container.querySelectorAll('[data-mat-new-var]').forEach(b=>b.addEventListener('click',()=>abrirVariacaoMaterial(b.dataset.matNewVar)));
+  container.querySelectorAll('[data-mat-delete]').forEach(b=>b.addEventListener('click',async()=>{
+    const m=matEntries().find(x=>x.id===b.dataset.matDelete);
+    if(!m)return;
+    const ok=await excluirCadastroTecnico(matTipo,b.dataset.matDelete,m.codigo);
+    if(ok){await carregarMateriais();node('matMessage').textContent='Cadastro excluído sem comprometer vínculos.';}
+  }));
   container.querySelectorAll('[data-mat-var-edit]').forEach(b=>b.addEventListener('click',()=>editarVariacaoMaterial(b.dataset.matVarEdit)));
 }
 function abrirEdicaoMaterial(id=null){
@@ -6114,6 +6230,7 @@ function abrirVariacaoMaterial(id){
   node('matVarForm').reset();node('matVarAcabamento').value='';
   node('matVarCor').value='';node('matVarCodigoCor').value='';node('matVarObservacoes').value='';
   node('matVarTitle').textContent='Nova variação de cor / acabamento';
+  node('matVarDelete').classList.add('hidden');
   node('matVarSubtitle').textContent=matVarSelected.codigo+' · '+matVarSelected.descricao;
   node('matVarError').textContent='';node('matVarOverlay').classList.remove('hidden');node('matVarAcabamento').focus();
 }
@@ -6125,6 +6242,7 @@ function editarVariacaoMaterial(id){
   matVarSelected=matEntries().find(x=>x.id===(matTipo==='perfil'?v.perfil_id:v.acessorio_id))||null;
   if(!matVarSelected)return;
   matVarOriginal=v;node('matVarForm').reset();
+  node('matVarDelete').classList.toggle('hidden',!isFullAdminUser());
   node('matVarTitle').textContent='Editar variação';
   node('matVarSubtitle').textContent=matVarSelected.codigo+' · '+matVarSelected.descricao;
   node('matVarAcabamento').value=v.acabamento||'';
