@@ -712,7 +712,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v45.9</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.0</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -3870,7 +3870,7 @@ function releaseAddRow(variationId=''){
     '</select></label>'+
     '<label>Galpão previsto para retirada<select class="relLocation" required><option value="">Escolha o galpão</option>'+releaseStockLocations.map(x=>'<option value="'+escapeHTML(x)+'">'+escapeHTML(x)+'</option>').join('')+'</select></label>'+
     '<label class="relLengthLabel">Barra (mm)<input class="relLength" type="number" min="100" max="20000" step="1" placeholder="6000"></label>'+
-    '<label>Quantidade<input class="relQty" type="number" min="0.001" step="0.001" placeholder="0" required></label>'+
+    '<label>Quantidade<input class="relQty" type="number" min="0.001" step="any" placeholder="Qtd." required></label>'+
     '<button type="button" class="btn secondary relRemove">Remover</button></div>'+
     '<div class="releaseMirrorLineStatus">Selecione o material e informe a quantidade.</div>';
   node('releaseMirrorRows').append(row);
@@ -3896,6 +3896,11 @@ function releaseAtualizarLinha(row){
   const length=isBar?Number(len.value):null;
   const unit=isBar?'BARRA':v?.tipo==='acessorio'?
     releaseUnidadeAcessorio(matAcessorios.find(a=>a.id===v.acessorio_id)?.unidade_item):'';
+  const quantidadeCampo=row.querySelector('.relQty');
+  const quantInteira=isBar||ewUnidadeEmMetroInteiro(unit);
+  quantidadeCampo.min=quantInteira?'1':'0.001';
+  quantidadeCampo.step=quantInteira?'1':'any';
+  quantidadeCampo.inputMode=quantInteira?'numeric':'decimal';
   const localSelect=row.querySelector('.relLocation');
   if(v&&!localSelect.value){
     const comSaldo=releaseStockLocations.filter(x=>
@@ -3911,6 +3916,9 @@ function releaseAtualizarLinha(row){
     ' · disponível na obra: '+matFormat(saldo,3)+
     (qty>0?' · quantidade planejada: '+matFormat(qty,3):'')+
     (qty>saldo?' · quantidade maior que o saldo!':'');
+}
+function ewUnidadeEmMetroInteiro(unidade){
+ return ['MT','M','METRO','METROS'].includes(String(unidade||'').trim().toUpperCase());
 }
 function releaseUnidadeAcessorio(value){
   const v=cemNome(value);
@@ -3928,9 +3936,11 @@ function releaseColetarMateriais(){
     const length=isBar?Number(row.querySelector('.relLength').value):null;
     const unit=isBar?'BARRA':releaseUnidadeAcessorio(
       matAcessorios.find(a=>a.id===variation.acessorio_id)?.unidade_item);
-    if(!Number.isFinite(qty)||qty<=0||(isBar&&(!Number.isSafeInteger(qty)||
-       !Number.isSafeInteger(length)||length<100||length>20000)))
-      throw new Error('Informe quantidades válidas e, para perfis, barras inteiras com comprimento.');
+    if(!Number.isFinite(qty)||qty<=0||qty>1000000||
+       Math.abs(qty*1000-Math.round(qty*1000))>0.00001||
+       ((isBar||ewUnidadeEmMetroInteiro(unit))&&!Number.isSafeInteger(qty))||
+       (isBar&&(!Number.isSafeInteger(length)||length<100||length>20000)))
+      throw new Error('Informe quantidade válida. Perfis exigem barras inteiras e acessórios em MT exigem metros inteiros (1, 2, 3...).');
     const location=row.querySelector('.relLocation').value;
     if(!releaseStockLocations.includes(location))throw new Error('Selecione o galpão do material.');
     const key=[variation.id,length??'',unit,location].join('|');
@@ -7560,7 +7570,7 @@ function finRenderRecebimentos(){
       materials.map(m=>'<option value="'+escapeHTML(m.id)+'"'+(suggested===m.id?' selected':'')+'>'+
         escapeHTML(m.codigo+' — '+m.descricao)+'</option>').join('')+'</select></label>'+
       '<label>Cor / variação<select class="finReceiveVariation"><option value="">Selecione o material primeiro</option></select></label>'+
-      '<label>Quantidade recebida (física) <input class="finReceiveQty" type="number" min="0.001" step="0.001" placeholder="Confirme a quantidade"></label>'+
+      '<label>Quantidade recebida (física) <input class="finReceiveQty" type="number" min="1" step="1" placeholder="Confirme a quantidade"></label>'+
       '<label>Unidade de estoque <input class="finReceiveUnit" readonly placeholder="Unidade do item"></label>'+
       '<label class="finReceiveBar">Comprimento da barra (mm) <input class="finReceiveLength" type="number" min="100" max="20000" step="1" placeholder="Ex.: 6000"></label>'+
       '<label>Galpão / local<select class="finReceiveLocal">'+optsGalpoes+'</select></label></div>'+
@@ -7587,7 +7597,7 @@ function finRenderRecebimentos(){
     if(arr.length===1)variant.value=arr[0].id;
     lengthField.classList.toggle('hidden',tipo!=='perfil');
     if(tipo==='perfil'){
-      unit.value='BARRA';qty.value='';
+      unit.value='BARRA';qty.value='';qty.min='1';qty.step='1';qty.inputMode='numeric';
       row.querySelector('.finReceiveHint').textContent=
         'Para perfil, informe o número REAL de barras recebidas e o comprimento comercial. A NF pode usar metros, kg ou outras unidades.';
     }else{
@@ -7598,11 +7608,17 @@ function finRenderRecebimentos(){
       const quantidade=Number(row.dataset.invoiceQty);
       const fator=Number(material?.quantidade_por_embalagem);
       unit.value=releaseUnidadeAcessorio(base||'');
+      const inteira=['PC','UN','PR','CJ','CX'].includes(unit.value)||ewUnidadeEmMetroInteiro(unit.value);
+      qty.min=inteira?'1':'0.001';
+      qty.step=inteira?'1':'any';
+      qty.inputMode=inteira?'numeric':'decimal';
       let proposed=null;
       if(base&&src===base)proposed=quantidade;
       else if(pack&&src===pack&&fator>0)proposed=quantidade*fator;
-      qty.value=proposed!==null&&Number.isFinite(proposed)?Number(proposed.toFixed(3)):'';
-      row.querySelector('.finReceiveHint').textContent=proposed!==null?
+      const sugestaoValida=proposed!==null&&Number.isFinite(proposed)&&(!inteira||Number.isSafeInteger(proposed));
+      qty.value=sugestaoValida?Number(proposed.toFixed(3)):'';
+      row.querySelector('.finReceiveHint').textContent=proposed!==null&&!sugestaoValida?
+        'A conversão da NF resultou em quantidade fracionada para '+unit.value+'. Confira e informe uma quantidade inteira antes de salvar.':sugestaoValida?
         'Sugestão convertida da NF: '+quantidade+' '+src+' → '+qty.value+' '+unit.value+
           '. Confira a quantidade física recebida antes de confirmar.':
         'Não foi possível converter automaticamente a unidade da NF. Informe a quantidade física na unidade do item.';
@@ -7652,8 +7668,8 @@ async function finConfirmarRecebimento(row){
  const info=row.querySelector('.finReceiveError');
  if(!materialId||!variationId||!local||!row.querySelector('.finReceiveQty').value.trim()||
    !Number.isFinite(qty)||qty<=0||qty>1000000||Math.abs(qty*1000-Math.round(qty*1000))>0.00001||
-   tipo==='perfil'&&(!lengthText||!Number.isSafeInteger(length)||length<100||length>20000||
-     !Number.isSafeInteger(qty))){
+   ((tipo==='perfil'||ewUnidadeEmMetroInteiro(unit))&&!Number.isSafeInteger(qty))||
+   tipo==='perfil'&&(!lengthText||!Number.isSafeInteger(length)||length<100||length>20000)){
   info.textContent='Selecione o material e sua cor, informe a quantidade recebida, o galpão e o comprimento da barra quando necessário.';return;
  }
  const item=finState.approvedItems.find(i=>i.id===itemId),original=item?.perfil_id||item?.acessorio_id||'';
@@ -8327,7 +8343,8 @@ function stockQtyOpen(variationId,length='',unit='',local='IMBIRIBEIRA'){
   node('stockQtyLengthLabel').classList.toggle('hidden',!isBar);
   node('stockQtyLength').disabled=!isBar;
   node('stockQtyLength').value=isBar?(mmOrNull(length)||mmOrNull(item.mat.comprimento_comercial_mm)||''):'';
-  node('stockQtyNew').step=isBar?'1':'0.001';
+  node('stockQtyNew').step=isBar||ewUnidadeEmMetroInteiro(stockQtySelected.unidade)?'1':'0.001';
+  node('stockQtyNew').inputMode=isBar||ewUnidadeEmMetroInteiro(stockQtySelected.unidade)?'numeric':'decimal';
   node('stockQuantityInfo').textContent=item.mat.codigo+' · '+item.mat.descricao+
     ' · '+item.v.cor+' · '+(works.find(w=>w.id===node('stockWork').value)?.nome||'obra selecionada');
   node('stockQuantityOverlay').classList.remove('hidden');
@@ -8362,11 +8379,14 @@ async function stockQtySubmit(e){
   const novo=Number(node('stockQtyNew').value);
   const err=node('stockQtyError');
   if((isBar&&!length)||!node('stockQtyNew').value.trim()||
-    !Number.isFinite(novo)||novo<0||(isBar&&!Number.isSafeInteger(novo))){
+    !Number.isFinite(novo)||novo<0||((isBar||ewUnidadeEmMetroInteiro(item.unidade))&&!Number.isSafeInteger(novo))){
     err.textContent='Informe o comprimento e a nova quantidade. Perfis exigem número inteiro de barras.';return;
   }
   const atual=stockQtyAvailable(item,length,item.unidade,item.local_estoque);
   const delta=Number((novo-atual.saldo).toFixed(3));
+  if(ewUnidadeEmMetroInteiro(item.unidade)&&!Number.isSafeInteger(delta)){
+   err.textContent='O ajuste de estoque em MT exige metros inteiros. Confira o saldo histórico.';return;
+  }
   if(delta===0){err.textContent='O saldo não mudou. Informe uma quantidade diferente da atual.';return;}
   const motivo=node('stockQtyReason').value.trim();
   if(motivo.length<5){err.textContent='Informe um motivo de pelo menos cinco caracteres.';return;}
@@ -8472,16 +8492,18 @@ node('stockTransferPickForm').addEventListener('submit',e=>{
 });
 let stockTransferSelected=null,stockTransferOperationId=null;
 // Perfis são contados por barras inteiras; acessórios podem usar até três casas decimais.
-function stockTransferPrepararQuantidade(id,tipo,saldo){
- const barra=tipo==='perfil',campo=node(id),saldoDisponivel=Number(saldo);
- campo.min=barra?'1':'0.001';
- campo.step=barra?'1':'0.001';
+function stockTransferPrepararQuantidade(id,tipo,saldo,unidade){
+ const barra=tipo==='perfil',inteira=barra||ewUnidadeEmMetroInteiro(unidade),
+   campo=node(id),saldoDisponivel=Number(saldo);
+ campo.min=inteira?'1':'0.001';
+ campo.step=inteira?'1':'any';
  campo.max=String(saldoDisponivel);
- campo.inputMode=barra?'numeric':'decimal';
- campo.value=barra?'1':String(Number(Math.min(1,saldoDisponivel).toFixed(3)));
+ campo.inputMode=inteira?'numeric':'decimal';
+ campo.value=inteira?(saldoDisponivel>=1?'1':''):String(Number(Math.min(1,saldoDisponivel).toFixed(3)));
  const label=node(id+'Label');
  if(label)label.firstChild.textContent=barra?
   'Quantidade para transferir (barras inteiras) ':
+  ewUnidadeEmMetroInteiro(unidade)?'Quantidade para transferir (metros inteiros) ':
   'Quantidade para transferir ';
 }
 function stockTransferOpen(variationId,length='',unit='',local='IMBIRIBEIRA'){
@@ -8500,7 +8522,7 @@ function stockTransferOpen(variationId,length='',unit='',local='IMBIRIBEIRA'){
  node('stockTransferSource').value=local;
  node('stockTransferInfo').textContent=item.mat.codigo+' · '+item.mat.descricao+
    ' · '+(comprimento?comprimento+' mm · ':'')+'Saldo em '+local+': '+matFormat(saldo,3)+' '+unit;
- stockTransferPrepararQuantidade('stockTransferQty',item.v.tipo,saldo);
+ stockTransferPrepararQuantidade('stockTransferQty',item.v.tipo,saldo,unit);
  node('stockTransferError').textContent='';
  node('stockTransferOverlay').classList.remove('hidden');
 }
@@ -8515,8 +8537,8 @@ node('stockTransferForm').addEventListener('submit',async e=>{
  const qty=Number(node('stockTransferQty').value),dest=node('stockTransferTarget').value,
     motivo=node('stockTransferReason').value.trim(),isBar=selected.item.v.tipo==='perfil';
  if(!dest||dest===selected.local||!Number.isFinite(qty)||qty<=0||qty>selected.saldo||
-   qty>1000000||(isBar&&!Number.isSafeInteger(qty))||
-   (!isBar&&Math.abs(qty*1000-Math.round(qty*1000))>0.00001)||
+   qty>1000000||((isBar||ewUnidadeEmMetroInteiro(selected.unit))&&!Number.isSafeInteger(qty))||
+   (!isBar&&!ewUnidadeEmMetroInteiro(selected.unit)&&Math.abs(qty*1000-Math.round(qty*1000))>0.00001)||
    motivo.length<5||motivo.length>500){
   node('stockTransferError').textContent='Informe destino diferente, quantidade válida até o saldo disponível e motivo (5 a 500 caracteres). Perfis exigem barras inteiras.';return;
  }
@@ -8563,7 +8585,7 @@ function stockObraTransferOpen(variacaoId,comprimento='',unidade='',local=''){
  node('stockObraTransferToLocal').innerHTML='<option value="">Selecione o galpão de destino</option>'+
   stockLocaisFisicos.map(g=>'<option value="'+escapeHTML(g)+'">'+escapeHTML(g)+'</option>').join('');
  if(stockLocaisFisicos.includes(local))node('stockObraTransferToLocal').value=local;
- stockTransferPrepararQuantidade('stockObraTransferQty',item.v.tipo,disponivel);
+ stockTransferPrepararQuantidade('stockObraTransferQty',item.v.tipo,disponivel,unidade);
  node('stockObraTransferInfo').textContent=item.mat.codigo+' · '+item.mat.descricao+
   ' · '+item.v.cor+(tamanho?' · '+tamanho.toLocaleString('pt-BR')+' mm':'')+
   ' · Disponível: '+matFormat(disponivel,item.v.tipo==='perfil'?0:3)+' '+unidade;
@@ -8589,8 +8611,8 @@ node('stockObraTransferForm').addEventListener('submit',async event=>{
  if(!destino||destino===sel.origem||!ativos.has(destino)||
    !stockLocaisFisicos.includes(localDestino)||!Number.isFinite(quantidade)||
    quantidade<=0||quantidade>sel.saldo||quantidade>1000000||
-   (barra&&!Number.isSafeInteger(quantidade))||
-   (!barra&&Math.abs(quantidade*1000-Math.round(quantidade*1000))>0.00001)||
+   ((barra||ewUnidadeEmMetroInteiro(sel.unidade))&&!Number.isSafeInteger(quantidade))||
+    (!barra&&!ewUnidadeEmMetroInteiro(sel.unidade)&&Math.abs(quantidade*1000-Math.round(quantidade*1000))>0.00001)||
    motivo.length<5||motivo.length>350){
   erro.textContent='Selecione obra e galpão válidos, quantidade disponível e motivo (5 a 350 caracteres).';return;
  }
@@ -10153,9 +10175,9 @@ restaurarSessaoSalva().catch(e=>{
 
 </script>
 <script src="/assets/orcamento-niveis.js?v=20261120c"></script>
-<script src="/assets/recebimento-manual.js?v=20261121k"></script>
+<script src="/assets/recebimento-manual.js?v=20261121l"></script>
 <script src="/assets/cadastros-hub.js?v=20261121c"></script>
-<script src="/assets/insumos-fisicos.js?v=20261121c"></script>
+<script src="/assets/insumos-fisicos.js?v=20261121d"></script>
 <script src="/assets/entregas-producao.js?v=20261121a"></script>
 <script src="/assets/romaneios-transferencia.js?v=20261121a"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>

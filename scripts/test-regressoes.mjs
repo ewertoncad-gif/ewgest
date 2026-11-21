@@ -41,7 +41,7 @@ assert.ok(inlineJS.length>=1,'Script principal da interface deve estar no HTML')
 for(const js of inlineJS)assert.doesNotThrow(()=>new Function(js),
  'JavaScript principal da interface deve ser sintaticamente válido');
 const receiptCacheHeaders=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
-assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121k')&&
+assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121l')&&
  source.includes('/assets/recebimento-manual.css?v=20261121g'),
  'O recebimento precisa de URLs versionadas para evitar assets antigos após deploy');
 assert.match(receiptCacheHeaders,/\/assets\/recebimento-manual\.js\s+Content-Type: text\/javascript; charset=utf-8\s+Cache-Control: no-store/,
@@ -1546,7 +1546,7 @@ assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
  !source.includes('<label>XML da nota fiscal (NF-e)')&&
  source.includes('id="finCostCategory" required'),
  'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
-assert.ok(source.includes('recebimento-manual.js?v=20261121k')&&
+assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
  source.includes('recebimento-manual.css?v=20261121g')&&receiveCSS.includes('.finManualTable'),
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
@@ -1770,8 +1770,11 @@ const fixtureMT={...fixture,acessorios:fixture.acessorios.map(a=>
  a.id==='a1'?{...a,unidade_item:'MT'}:a)};
 const normalizeAccessoryMT=normalizeFixture(fixtureMT,'acessorios');
 assert.equal(normalizeAccessoryMT({material:'a1',variacao:'va1',comprimento:'',
- quantidade:'2.5',valor:'R$ 100,00'},0).quantidade,2.5,
- 'Acessório medido em MT continua aceitando fracionamento');
+ quantidade:'2',valor:'R$ 100,00'},0).quantidade,2,
+ 'Metro inteiro deve ser aceito no recebimento de acessórios');
+assert.throws(()=>normalizeAccessoryMT({material:'a1',variacao:'va1',comprimento:'',
+ quantidade:'2.5',valor:'R$ 100,00'},0),/exigem quantidade inteira/,
+ 'Acessório medido em MT não permite meio metro');
 
 assert.deepEqual(perfil.getMaterials().map(x=>x.id),['p1'],
  'Não mostrar perfis externos à obra');
@@ -1885,7 +1888,7 @@ assert.doesNotThrow(()=>new Function(insumosClient),'O script do estoque físico
 assert.ok(source.includes('id="finMiscBlock"')&&source.includes('id="finMiscRows"')&&
  source.includes('id="finMiscSum"')&&source.includes('id="insumosStockPanel"')&&
  source.includes('id="insumosTransferForm"')&&source.includes('id="cadastroInsumosForm"')&&
- source.includes('insumos-fisicos.js?v=20261121c')&&
+ source.includes('insumos-fisicos.js?v=20261121d')&&
  receiveScript.includes('function miscNormalized(){')&&
  receiveScript.includes('function miscUpdateSum(){')&&
  receiveScript.includes("byId('finMiscRows').replaceChildren()")&&
@@ -2067,7 +2070,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v45.9')&&
+assert.ok(source.includes('v46.0')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2207,7 +2210,7 @@ assert.ok(receiveScript.includes("window.ewUnidadesMedida?.lista()")&&
  receiveScript.includes("window.ewUnidadesMedida?.ativa(r.unidade)")&&
  receiveScript.includes("window.ewRecebimentoAtualizarUnidades=")&&
  insumosClient.includes("window.ewUnidadesMedida?.nome(codigo)")&&
- source.includes('insumos-fisicos.js?v=20261121c'),
+ source.includes('insumos-fisicos.js?v=20261121d'),
  'Unidades novas devem entrar no cadastro, NF e saldos do estoque');
 for(const token of [
  'create table if not exists public.ew_unidades_medida',
@@ -2230,16 +2233,16 @@ assert.ok(unidadesSQL.includes("u.codigo=v_unit and u.ativo")&&
 // EWGEST v45.7 — transferir perfis em barras inteiras, nunca 0,001 barra.
 assert.ok(source.includes('id="stockTransferQty" type="number" min="1" step="1"')&&
  source.includes('id="stockObraTransferQty" type="number" min="1" step="1"')&&
- source.includes("function stockTransferPrepararQuantidade(id,tipo,saldo)")&&
- source.includes("campo.min=barra?'1':'0.001'")&&
- source.includes("campo.step=barra?'1':'0.001'")&&
- source.includes("campo.value=barra?'1':String(Number(Math.min(1,saldoDisponivel).toFixed(3)))")&&
- source.includes("stockTransferPrepararQuantidade('stockTransferQty',item.v.tipo,saldo)")&&
- source.includes("stockTransferPrepararQuantidade('stockObraTransferQty',item.v.tipo,disponivel)")&&
+ source.includes("function stockTransferPrepararQuantidade(id,tipo,saldo,unidade)")&&
+ source.includes("campo.min=inteira?'1':'0.001'")&&
+ source.includes("campo.step=inteira?'1':'any'")&&
+ source.includes("campo.value=inteira?(saldoDisponivel>=1?'1':''):String(Number(Math.min(1,saldoDisponivel).toFixed(3)))")&&
+ source.includes("stockTransferPrepararQuantidade('stockTransferQty',item.v.tipo,saldo,unit)")&&
+ source.includes("stockTransferPrepararQuantidade('stockObraTransferQty',item.v.tipo,disponivel,unidade)")&&
  source.includes("'Quantidade para transferir (barras inteiras) '")&&
  source.includes("campo.max=String(saldoDisponivel)")&&
- source.includes("(!isBar&&Math.abs(qty*1000-Math.round(qty*1000))>0.00001)")&&
- source.includes("(barra&&!Number.isSafeInteger(quantidade))")&&
+ source.includes("(!isBar&&!ewUnidadeEmMetroInteiro(selected.unit)&&Math.abs(qty*1000-Math.round(qty*1000))>0.00001)")&&
+ source.includes("((barra||ewUnidadeEmMetroInteiro(sel.unidade))&&!Number.isSafeInteger(quantidade))")&&
  source.includes("node('stockTransferPickTitle').textContent=mode==='local'?")&&
  source.includes("'Transferência entre galpões':'Transferência entre obras'"),
  'Transferencias devem iniciar em 1 barra e respeitar saldo; acessorios continuam fracionaveis');
@@ -2253,10 +2256,10 @@ assert.ok(!source.includes('id="stockTransferQty" type="number" min="0.001" step
 // EWGEST v45.8 — acessórios em PC/UN/PR/CJ/CX não podem ser fracionados em NF.
 const countableMigration=readFileSync(fileURLToPath(new URL(
  '../database/proposals/20261121_recebimento_quantidades_contaveis_v458.sql',import.meta.url)),'utf8');
-assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121k'),
+assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121l'),
  'Novas regras de quantidade devem invalidar o cache do JS anterior');
 for(const marker of [
- "const unidadesContaveis=new Set(['PC','UN','PR','CJ','CX'])",
+ "const unidadesContaveis=new Set(['PC','UN','PR','CJ','CX','MT'])",
  "const auto=autoBarLength(row),unit=unitFor(row.material),contavel=",
  "contavel?'type=\"number\" inputmode=\"numeric\" min=\"1\" max=\"1000000\" step=\"1\"'",
  "r.quantidade=category==='acessorios'&&r.material?'1':''",
@@ -2272,9 +2275,9 @@ assert.ok(contaveisInicio>0&&contaveisFim>contaveisInicio,
  'Funções de unidade contável devem existir');
 const unidadeValidadores=new Function(receiveScript.slice(contaveisInicio,contaveisFim)+
  '\nreturn {unidadeContavel,validarQuantidadeContavel};')();
-for(const unidade of ['PC','UN','PR','CJ','CX'])
+for(const unidade of ['PC','UN','PR','CJ','CX','MT'])
  assert.equal(unidadeValidadores.unidadeContavel(unidade),true,'Unidade contável '+unidade);
-for(const unidade of ['MT','KG','L','ML','M2'])
+for(const unidade of ['KG','L','ML','M2'])
  assert.equal(unidadeValidadores.unidadeContavel(unidade),false,'Unidade fracionável '+unidade);
 for(const qtd of ['1','2','15','1000000'])
  assert.equal(unidadeValidadores.validarQuantidadeContavel(qtd),true,'Quantidade inteira '+qtd);
@@ -2299,8 +2302,8 @@ assert.ok(
  receiveScript.includes("item.quantidade='1';")&&
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
-assert.ok(source.includes('recebimento-manual.js?v=20261121k')&&
- source.includes('EWGEST <strong>· v45.9</strong>'),
+assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
+ source.includes('EWGEST <strong>· v46.0</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2311,5 +2314,37 @@ for(const t of ['0.5','1.25','2.75','0.001','1.005'])
  assert.equal(testarDecimais(t),true,'Permitir medição fracionada '+t);
 for(const t of ['0','-1','2.1234','0.0001','1000001'])
  assert.equal(testarDecimais(t),false,'Impedir medição inválida '+t);
+
+
+// EWGEST v46.0 — MT inteiro de ponta a ponta (NF, estoque, transferência e produção).
+const mtMigration=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261121_metro_inteiro_v460.sql',import.meta.url)),'utf8');
+for(const token of [
+ 'ew_validar_mt_despesa_item','ew_despesa_mt_inteiro',
+ 'ew_validar_mt_movimento_material','ew_movimento_material_mt_inteiro',
+ 'ew_validar_mt_movimento_insumo','ew_movimento_insumo_mt_inteiro',
+ 'new.estorno_de_id is null','metros inteiros'
+])assert.ok(mtMigration.includes(token),'Protecao MT no banco ausente: '+token);
+assert.ok(source.includes('function ewUnidadeEmMetroInteiro(unidade)')&&
+ source.includes("quantInteira=isBar||ewUnidadeEmMetroInteiro(unit)")&&
+ source.includes("((isBar||ewUnidadeEmMetroInteiro(unit))&&!Number.isSafeInteger(qty))")&&
+ source.includes("((tipo==='perfil'||ewUnidadeEmMetroInteiro(unit))&&!Number.isSafeInteger(qty))")&&
+ source.includes("stockTransferPrepararQuantidade('stockTransferQty',item.v.tipo,saldo,unit)")&&
+ source.includes("stockTransferPrepararQuantidade('stockObraTransferQty',item.v.tipo,disponivel,unidade)")&&
+ source.includes("ewUnidadeEmMetroInteiro(stockQtySelected.unidade)?'1':'0.001'")&&
+ source.includes('step="any" placeholder="Qtd."'),
+ 'Interface de liberacao, entrada fisica, ajustes e transferencias deve exigir MT inteiro');
+assert.ok(insumosClient.includes("'PR','MT'].includes(row.unidade)")&&
+ insumosClient.includes("'PR','MT'].includes(item.unidade)")&&
+ receiveScript.includes("new Set(['PC','UN','PR','CJ','CX','MT'])"),
+ 'Recebimento/transferencia de insumos em MT devem exigir inteiros');
+const helperStart=source.indexOf('function ewUnidadeEmMetroInteiro(unidade){');
+const helperEnd=source.indexOf('function releaseUnidadeAcessorio(value){',helperStart);
+const validarMT=new Function(source.slice(helperStart,helperEnd)+
+ '\nreturn ewUnidadeEmMetroInteiro;')();
+for(const code of ['MT','M','METRO','METROS'])assert.equal(validarMT(code),true);
+for(const code of ['KG','M2','L','UN'])assert.equal(validarMT(code),false);
+assert.equal(unidadeValidadores.unidadeContavel('MT'),true,'MT usa inteiros no formulário de notas');
+assert.equal(unidadeValidadores.unidadeContavel('KG'),false,'KG continua aceitando frações');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');

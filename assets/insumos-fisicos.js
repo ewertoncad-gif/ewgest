@@ -182,8 +182,9 @@
   const row=id===''?null:saldos[Number(id)],field=byId('insumosTransferQty');
   if(!row)return;
   field.max=String(row.saldo);
-  field.step=['PC','UN','CX','CJ','PR'].includes(row.unidade)?'1':'0.001';
+  field.step=['PC','UN','CX','CJ','PR','MT'].includes(row.unidade)?'1':'0.001';
   field.min=field.step;
+  field.value=Number(row.saldo)>=1?'1':'';
   field.title='Saldo na origem: '+fmt(row.saldo)+' '+row.unidade;
   transferOp=null;
  }
@@ -197,7 +198,7 @@
   if(!item){aviso('insumosTransferStatus','Selecione o material de origem.');return;}
   if(!Number.isFinite(qty)||qty<=0||qty>Number(item.saldo)||
    Math.abs(qty*1000-Math.round(qty*1000))>0.00001||
-   (['PC','UN','CX','CJ','PR'].includes(item.unidade)&&!Number.isInteger(qty))){
+   (['PC','UN','CX','CJ','PR','MT'].includes(item.unidade)&&!Number.isInteger(qty))){
    aviso('insumosTransferStatus','Quantidade inválida ou superior ao saldo.');return;
   }
   if(!destinoObra||!destinoLocal||(destinoObra===origemObra&&destinoLocal===item.galpao)){
