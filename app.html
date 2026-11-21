@@ -7570,7 +7570,7 @@ function finRenderRecebimentos(){
       materials.map(m=>'<option value="'+escapeHTML(m.id)+'"'+(suggested===m.id?' selected':'')+'>'+
         escapeHTML(m.codigo+' — '+m.descricao)+'</option>').join('')+'</select></label>'+
       '<label>Cor / variação<select class="finReceiveVariation"><option value="">Selecione o material primeiro</option></select></label>'+
-      '<label>Quantidade recebida (física) <input class="finReceiveQty" type="number" min="0.001" step="0.001" placeholder="Confirme a quantidade"></label>'+
+      '<label>Quantidade recebida (física) <input class="finReceiveQty" type="number" min="1" step="1" placeholder="Confirme a quantidade"></label>'+
       '<label>Unidade de estoque <input class="finReceiveUnit" readonly placeholder="Unidade do item"></label>'+
       '<label class="finReceiveBar">Comprimento da barra (mm) <input class="finReceiveLength" type="number" min="100" max="20000" step="1" placeholder="Ex.: 6000"></label>'+
       '<label>Galpão / local<select class="finReceiveLocal">'+optsGalpoes+'</select></label></div>'+
@@ -7597,7 +7597,7 @@ function finRenderRecebimentos(){
     if(arr.length===1)variant.value=arr[0].id;
     lengthField.classList.toggle('hidden',tipo!=='perfil');
     if(tipo==='perfil'){
-      unit.value='BARRA';qty.value='';
+      unit.value='BARRA';qty.value='';qty.min='1';qty.step='1';qty.inputMode='numeric';
       row.querySelector('.finReceiveHint').textContent=
         'Para perfil, informe o número REAL de barras recebidas e o comprimento comercial. A NF pode usar metros, kg ou outras unidades.';
     }else{
@@ -7608,11 +7608,17 @@ function finRenderRecebimentos(){
       const quantidade=Number(row.dataset.invoiceQty);
       const fator=Number(material?.quantidade_por_embalagem);
       unit.value=releaseUnidadeAcessorio(base||'');
+      const inteira=['PC','UN','PR','CJ','CX'].includes(unit.value)||ewUnidadeEmMetroInteiro(unit.value);
+      qty.min=inteira?'1':'0.001';
+      qty.step=inteira?'1':'any';
+      qty.inputMode=inteira?'numeric':'decimal';
       let proposed=null;
       if(base&&src===base)proposed=quantidade;
       else if(pack&&src===pack&&fator>0)proposed=quantidade*fator;
-      qty.value=proposed!==null&&Number.isFinite(proposed)?Number(proposed.toFixed(3)):'';
-      row.querySelector('.finReceiveHint').textContent=proposed!==null?
+      const sugestaoValida=proposed!==null&&Number.isFinite(proposed)&&(!inteira||Number.isSafeInteger(proposed));
+      qty.value=sugestaoValida?Number(proposed.toFixed(3)):'';
+      row.querySelector('.finReceiveHint').textContent=proposed!==null&&!sugestaoValida?
+        'A conversão da NF resultou em quantidade fracionada para '+unit.value+'. Confira e informe uma quantidade inteira antes de salvar.':sugestaoValida?
         'Sugestão convertida da NF: '+quantidade+' '+src+' → '+qty.value+' '+unit.value+
           '. Confira a quantidade física recebida antes de confirmar.':
         'Não foi possível converter automaticamente a unidade da NF. Informe a quantidade física na unidade do item.';
