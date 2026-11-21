@@ -47,7 +47,10 @@ BEGIN
  WHERE id=p_origem_obra_id AND empresa_id=p_empresa_id AND arquivada_em IS NULL;
  SELECT codigo INTO v_destino_codigo FROM public.obras
  WHERE id=p_destino_obra_id AND empresa_id=p_empresa_id AND arquivada_em IS NULL;
- IF NOT FOUND OR v_origem_codigo IS NULL OR v_destino_codigo IS NULL OR
+ IF NOT EXISTS (SELECT 1 FROM public.obras
+   WHERE id=p_origem_obra_id AND empresa_id=p_empresa_id AND arquivada_em IS NULL) OR
+  NOT EXISTS (SELECT 1 FROM public.obras
+   WHERE id=p_destino_obra_id AND empresa_id=p_empresa_id AND arquivada_em IS NULL) OR
   NOT EXISTS (SELECT 1 FROM public.ew_estoques_locais
    WHERE empresa_id=p_empresa_id AND obra_id=p_origem_obra_id AND excluido_em IS NULL) OR
   NOT EXISTS (SELECT 1 FROM public.ew_estoques_locais
