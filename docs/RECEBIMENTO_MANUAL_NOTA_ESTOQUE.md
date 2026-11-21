@@ -63,3 +63,18 @@ O banco `ewgest-restauracao-teste` possui estruturas simuladas criadas exclusiva
 - Contagens antes/depois da migração: **4 obras**, **0 despesas**, **0 recebimentos** e **634 movimentos** de estoque. A migração não inseriu materiais nem alterou saldos.
 - A função anterior de cancelamento foi salva em `database/rollback/20261120_cancelamento_despesa_antes_entrada_manual.sql`. Não representa backup físico completo.
 - Ainda é necessária validação visual da Cloudflare e teste controlado com nota real conferida pelo operador; não foi feito lançamento de NF em produção durante a implantação.
+
+## Ajuste da interface — plano de barras do CEM (20/11/2026)
+
+**Status: em desenvolvimento, aguardando revisão e publicação.** PR da branch `fix/recebimento-barras-cem-20261120`.
+
+- A coluna **Barra (mm)** é apenas informativa. O usuário não escolhe medida comercial nem digita comprimento de perfil.
+- Código, cor e comprimento são resolvidos pelo item da obra e pelo histórico de barras importadas do CEM; havendo duas medidas, cada combinação aparece como uma opção própria no seletor de materiais.
+- A necessidade em barras vem de `NUMBARRAS`, agrupada por variação e comprimento. Quantidades recebidas por NF são consultadas separadamente em `ew_nfe_recebimentos`.
+- Os indicadores são calculados **depois** de definir a medida selecionada; não exibem traços por simples ordem de execução.
+- Sem barra planejada, a tela mostra **Não importado** e impede registrar o perfil com medida inventada. Isso não altera nem apaga estoque ou notas.
+
+**Limitação verificada em leitura somente no banco de produção:** há obras com vínculos em `ew_cem_obras_materiais` sem movimentos `IMPORTACAO_CEM` de barras. A importação técnica conserva dados de cortes, mas não um cadastro próprio persistente do plano de barras. É necessária uma segunda correção estrutural para armazenar `NUMBARRAS`/`BARRA` por obra, perfil, cor e comprimento **sem gerar estoque físico**. Os registros antigos que não guardaram essas medidas precisam ser confrontados com o ZIP original, pois não é correto inferi-las dos cortes ou de tamanhos genéricos.
+
+**Banco de dados:** nenhuma alteração de esquema ou saldos nesta correção de interface.
+**Testes:** validação local das rotinas puras para medida importada e medida ausente; regressões completas do repositório e teste em navegador permanecem dependentes do CI e homologação.
