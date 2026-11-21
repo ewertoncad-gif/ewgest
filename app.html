@@ -685,6 +685,7 @@
   <link rel="stylesheet" href="/assets/orcamento-niveis.css?v=20261120c">
   <link rel="stylesheet" href="/assets/recebimento-manual.css?v=20261121g">
 <link rel="stylesheet" href="/assets/insumos-fisicos.css?v=20261121a">
+<link rel="stylesheet" href="/assets/entregas-producao.css?v=20261121a">
 </head>
 <body>
 <div class="wrap">
@@ -709,7 +710,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v45.2</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v45.3</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -785,6 +786,12 @@
       </div>
           <div id="finPendingPanel" class="section panel hidden"></div>
           <div id="finReceivePanel" class="section panel hidden"></div>
+        <div id="entregasProducaoPanel" class="section panel hidden">
+          <h2>Entregas de materiais à produção</h2>
+          <p class="hint">Após o técnico liberar e imprimir o relatório, o almoxarife confere o documento e registra a entrega física. Só essa confirmação baixa o estoque; gerar a liberação não movimenta materiais.</p>
+          <p id="entregasProducaoStatus" class="feedback" role="status"></p>
+          <div id="entregasProducaoLista"></div>
+        </div>
           <div class="section panel" id="finExpensePanel">
             <h2>Recebimento de materiais</h2>
             <p class="hint">Selecione o material, a cor ou variação, a quantidade física e o galpão. Ao confirmar, o EWGEST registra o valor da nota no Financeiro e dá entrada física somente nos materiais efetivamente recebidos. Não é necessário enviar XML.</p>
@@ -1866,9 +1873,9 @@
       </select>
       <p class="hint">A fábrica será registrada nesta liberação para apurar o prazo até a saída da produção.</p>
       <div class="releaseMirrorIntro">
-        <h3>4. Como deseja liberar e descontar os materiais?</h3>
+        <h3>4. Como deseja registrar a relação de materiais?</h3>
         <label class="releaseMethod"><input name="releaseMethod" type="radio" value="manual"> Preencher o espelho de materiais manualmente</label>
-        <label class="releaseMethod"><input name="releaseMethod" type="radio" value="sem"> Somente liberação técnica (sem baixa de estoque)</label>
+        <label class="releaseMethod"><input name="releaseMethod" type="radio" value="sem"> Somente liberação técnica (sem lista de materiais)</label>
       </div>
       <div id="releaseMirrorPanel" class="hidden">
         <div id="releaseCemArea" class="hidden">
@@ -1878,7 +1885,7 @@
           <p class="hint">O ZIP completo da obra não informa automaticamente as barras comerciais do plano otimizado. Revise os materiais e informe as barras utilizadas.</p>
         </div>
         <h3>Espelho editável da liberação</h3>
-        <p class="hint">Obra, esquadria e quantidade estão acima. Confira os materiais e os saldos antes de confirmar; cada perfil será baixado em barras inteiras.</p>
+        <p class="hint">Obra, esquadria e quantidade estão acima. Confira a relação de materiais da liberação em barras inteiras. A baixa física ocorrerá quando o almoxarife entregar o material à produção.</p>
         <p id="releaseMirrorMessage" class="hint" role="status"></p>
         <div id="releaseCemPreview" class="hidden"></div>
         <div id="releaseMirrorRows" class="releaseMirrorRows"></div>
@@ -1905,10 +1912,10 @@
       <h3>Espelho editável de esquadrias</h3>
       <p class="hint">A relação vem do arquivo, mas a associação com os itens da obra, a quantidade e a inclusão devem ser confirmadas antes da liberação.</p>
       <div id="releaseBatchItems" class="cemTableWrap"></div>
-      <h3>Materiais a descontar do estoque</h3>
+      <h3>Materiais previstos para entrega à produção</h3>
       <p class="hint">Os perfis são calculados a partir das <strong>barras comerciais</strong> informadas na exportação, não das peças cortadas. Escolha o cadastro e o galpão para cada material. É possível alterar a quantidade ou desmarcar linhas; materiais sem correspondência serão ignorados até a conferência.</p>
       <div id="releaseBatchMaterials" class="cemTableWrap"></div>
-      <button id="releaseBatchAddMaterial" type="button" class="btn secondary" style="margin-top:9px">+ Adicionar material à baixa</button>
+      <button id="releaseBatchAddMaterial" type="button" class="btn secondary" style="margin-top:9px">+ Adicionar material ao relatório</button>
       <p id="releaseBatchSummary" class="hint" role="status"></p>
     </div>
     <div id="releaseBatchError" class="feedback" role="alert"></div>
@@ -3751,7 +3758,7 @@ function releaseAddRow(variationId=''){
     '<option value="">Selecione um material</option>'+
     releaseMirrorData.map(v=>'<option value="'+escapeHTML(v.id)+'">'+escapeHTML(releaseVariacaoLabel(v))+'</option>').join('')+
     '</select></label>'+
-    '<label>Galpão do estoque<select class="relLocation" required><option value="">Escolha o galpão</option>'+releaseStockLocations.map(x=>'<option value="'+escapeHTML(x)+'">'+escapeHTML(x)+'</option>').join('')+'</select></label>'+
+    '<label>Galpão previsto para retirada<select class="relLocation" required><option value="">Escolha o galpão</option>'+releaseStockLocations.map(x=>'<option value="'+escapeHTML(x)+'">'+escapeHTML(x)+'</option>').join('')+'</select></label>'+
     '<label class="relLengthLabel">Barra (mm)<input class="relLength" type="number" min="100" max="20000" step="1" placeholder="6000"></label>'+
     '<label>Quantidade<input class="relQty" type="number" min="0.001" step="0.001" placeholder="0" required></label>'+
     '<button type="button" class="btn secondary relRemove">Remover</button></div>'+
@@ -3790,9 +3797,9 @@ function releaseAtualizarLinha(row){
   const status=row.querySelector('.releaseMirrorLineStatus');
   status.classList.toggle('stockInsufficient',Boolean(v&&qty>saldo));
   status.textContent=!v?'Selecione um material.':
-    'Estoque em '+(localSelect.value||'galpão não selecionado')+' · '+unit+(isBar?' · '+(length||'—')+' mm':'')+
+    'Estoque disponível em '+(localSelect.value||'galpão não selecionado')+' · '+unit+(isBar?' · '+(length||'—')+' mm':'')+
     ' · disponível na obra: '+matFormat(saldo,3)+
-    (qty>0?' · após baixa: '+matFormat(saldo-qty,3):'')+
+    (qty>0?' · quantidade planejada: '+matFormat(qty,3):'')+
     (qty>saldo?' · quantidade maior que o saldo!':'');
 }
 function releaseUnidadeAcessorio(value){
@@ -3819,12 +3826,10 @@ function releaseColetarMateriais(){
     const key=[variation.id,length??'',unit,location].join('|');
     if(seen.has(key))throw new Error('Material repetido no espelho. Agrupe as quantidades na mesma linha.');
     seen.add(key);
-    if(qty>(releaseMirrorSaldo.get(key)||0))throw new Error(
-      'Saldo insuficiente para '+releaseVariacaoLabel(variation)+'. Disponível: '+
-      matFormat(releaseMirrorSaldo.get(key)||0,3)+' '+unit+'.');
+    // Materiais planejados não debitam estoque. O almoxarife confere saldo na entrega.
     arr.push({variacao_id:variation.id,comprimento_mm:length,unidade:unit,quantidade:qty,local_estoque:location});
   }
-  if(!arr.length)throw new Error('Adicione pelo menos um material ou escolha a opção sem baixa.');
+  if(!arr.length)throw new Error('Adicione materiais ou escolha liberação sem materiais.');
   return arr;
 }
 async function releaseMetodoAtualizar(){
@@ -3834,7 +3839,7 @@ async function releaseMetodoAtualizar(){
   const semBaixa=type==='sem'||!type;
   node('releaseMirrorRows').querySelectorAll('input,select').forEach(input=>input.disabled=semBaixa);
   if(!semBaixa)node('releaseMirrorRows').querySelectorAll('.releaseMirrorLine').forEach(releaseAtualizarLinha);
-  node('releaseSave').textContent=type==='sem'?'Confirmar liberação sem baixa':'Conferir e confirmar liberação';
+  node('releaseSave').textContent=type==='sem'?'Confirmar liberação técnica':'Conferir e liberar sem baixar o estoque';
   if(type&&type!=='sem'&&!releaseCatalogReady){
     node('releaseMirrorMessage').textContent='Carregando materiais vinculados à empresa…';
     try{await ensureSession();await releaseCarregarCatalogo();}
@@ -3873,8 +3878,8 @@ async function releaseLerCem(){
       '<h3>Acessórios calculados</h3>'+
       (totalAcc.length?cemLinhas(totalAcc,'acessorio'):'<p>Sem acessórios.</p>')+
       '<p class="hint">O ZIP contém os quantitativos de cálculo, mas <strong>não confirma quantas barras comerciais foram utilizadas no plano otimizado.</strong> '+
-      'Revise o espelho editável abaixo e informe as barras e acessórios que devem ser baixados.</p></div>';
-    node('releaseMirrorMessage').textContent='Arquivo CEM conferido como referência. A baixa será feita somente com as quantidades digitadas e confirmadas por você.';
+      'Revise o espelho editável abaixo e informe as barras e acessórios previstos para a entrega posterior.</p></div>';
+    node('releaseMirrorMessage').textContent='Arquivo CEM conferido como referência. Essas quantidades serão registradas no relatório. O almoxarife dará baixa quando entregar os materiais.';
   }catch(e){node('releaseMirrorMessage').textContent='Não foi possível usar o arquivo: '+e.message;
     node('releaseCemPreview').classList.add('hidden');}
   finally{btn.disabled=false;}
@@ -4034,9 +4039,9 @@ node('releaseForm').addEventListener('submit',async event=>{
     }
   }catch(err){node('releaseError').textContent=err.message;return;}
   const aviso='Confirma a liberação de '+qty+' unidade(s) de '+selectedItem.codigo+
-    ' para '+fabrica+'?\n'+(materiais.length?'Serão baixadas '+materiais.length+' linha(s) de materiais do saldo da obra.':
-      'Esta liberação NÃO dará baixa de materiais.')+
-    '\nO registro será feito de uma só vez e não poderá ser duplicado.';
+    ' para '+fabrica+'?\n'+(materiais.length?'Serão listadas '+materiais.length+' linha(s) para entrega futura pelo almoxarife. Sem baixa agora.':
+      'Esta liberação não terá materiais a entregar.')+
+    '\nA baixa só ocorrerá quando o almoxarife confirmar a entrega física.';
   if(!window.confirm(aviso))return;
   const button=node('releaseSave');button.disabled=true;button.textContent='Registrando…';
   node('releaseError').textContent='';
@@ -7132,7 +7137,7 @@ const finMoney=n=>Number(n||0).toLocaleString('pt-BR',{style:'currency',currency
 async function abrirRecebimento(prefer=null){
  if(!(isAlmoxarife()||isFullAdminUser())||!currentCompany)return;
  const sel=node('recebimentoWork');
- const anterior=prefer||sel.value||selectedWork?.id||'';
+ const anterior=prefer||sel.value||'';
  sel.innerHTML='<option value="">Escolha a obra</option>'+works.map(w=>
   '<option value="'+escapeHTML(w.id)+'">'+escapeHTML((w.codigo||'')+' · '+w.nome)+'</option>').join('');
  if(works.some(w=>w.id===anterior))sel.value=anterior;
@@ -7144,9 +7149,13 @@ async function carregarRecebimento(){
  const obraId=node('recebimentoWork').value;
  const msg=node('recebimentoMessage');
  node('finExpensePanel').classList.add('hidden');
- if(isAlmoxarife())for(const id of ['finPendingPanel','finReceivePanel']){
+ // Não manter notas de outra obra enquanto a seleção estiver vazia/carregando.
+ for(const id of ['finPendingPanel','finReceivePanel']) {
    node(id).classList.add('hidden');node(id).replaceChildren();
  }
+ node('entregasProducaoPanel').classList.add('hidden');
+ node('entregasProducaoLista').replaceChildren();
+ finState=null;
  finCostOpId=null;
  if(!obraId){msg.textContent='Selecione uma obra para iniciar o recebimento.';return;}
  msg.textContent='Consultando materiais previstos e recebidos…';
@@ -7154,6 +7163,7 @@ async function carregarRecebimento(){
   if(isFullAdminUser()){
    finOptionsObras(obraId);
    await finLoad();
+   if(node('recebimentoWork').value!==obraId)return;
    if(!finState){msg.textContent=node('finMessage').textContent||'Não foi possível carregar os materiais da obra.';return;}
   }else{
    await ensureSession();
@@ -7175,10 +7185,12 @@ async function carregarRecebimento(){
    node('finExpenseForm').reset();
    window.ewRecebimentoManualInit();
   }
+  if(node('recebimentoWork').value!==obraId)return;
   node('finSupplierAdd').classList.toggle('hidden',!isFullAdminUser());
   node('finWarehouseAdd').classList.toggle('hidden',!isFullAdminUser());
   node('finExpensePanel').classList.remove('hidden');
   msg.textContent='Informe apenas materiais efetivamente recebidos. Os valores digitados não dão acesso ao orçamento da obra.';
+  if(window.ewCarregarEntregasProducao)await window.ewCarregarEntregasProducao(obraId);
  }catch(e){msg.textContent='Não foi possível carregar o recebimento: '+e.message;}
 }
 function finOptionsObras(prefer){
@@ -7220,6 +7232,7 @@ async function finLoad(){
    apiGet('ew_estoque_obras_movimentos',{select:'variacao_id,comprimento_mm,quantidade_delta,origem',empresa_id:empresa,obra_id:obra,origem:'eq.IMPORTACAO_CEM',unidade:'eq.BARRA',limit:'3000'}),
    apiGet('ew_fornecedores',{select:'id,nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'1000'})
   ]);
+  if(node('finWork').value!==obraId)return;
   if(!b?.length){node('finMessage').textContent='Esta obra ainda não possui orçamento cadastrado. As novas importações agora exigem essa etapa.';return;}
   const invoiceIds=(fat||[]).map(x=>x.id),romaneioIds=(roms||[]).filter(x=>x.status==='emitido'&&!x.cancelado_em).map(x=>x.id);
   const pendentes=(c||[]).filter(x=>x.status==='pendente'),pendingIds=pendentes.map(x=>x.id);
@@ -7234,7 +7247,7 @@ async function finLoad(){
    approvedIds.length?apiGet('ew_obra_despesas_itens',{
      select:'id,despesa_id,codigo_fornecedor,descricao,unidade,quantidade,valor_unitario,valor_total,perfil_id,acessorio_id',
      empresa_id:empresa,despesa_id:'in.('+approvedIds.join(',')+')',limit:'10000'}):[],
-   apiGet('ew_nfe_recebimentos',{select:'id,despesa_item_id,variacao_id,quantidade,unidade,comprimento_mm,local_estoque,criado_em',
+   apiGet('ew_nfe_recebimentos',{select:'id,despesa_item_id,variacao_id,quantidade,unidade,comprimento_mm,local_estoque,criado_em,estornado_em,estorno_motivo,estorno_detalhes',
      empresa_id:empresa,obra_id:obra,limit:'10000'})
   ]);
   const shipped=new Map();
@@ -7296,7 +7309,11 @@ function finRenderResumo(){
 
 function finRenderPendentes(){
  const box=node('finPendingPanel'),state=finState;
- if(!isFullAdminUser()||!state.pendentes.length){box.classList.add('hidden');box.innerHTML='';return;}
+ const selected=node('recebimentoWork').value;
+ if(!isFullAdminUser()||!state||!selected||state.obraId!==selected||
+    node('recebimento').classList.contains('hidden')||!state.pendentes.length){
+   box.classList.add('hidden');box.innerHTML='';return;
+ }
  box.classList.remove('hidden');
  box.innerHTML='<h2>NF-e pendentes do almoxarifado ('+state.pendentes.length+')</h2>'+
   '<p class="hint">Confira os itens, valores e a obra. Vincule perfis e acessórios do catálogo quando houver correspondência segura. Somente após a aprovação o gasto será descontado.</p>'+
@@ -7373,8 +7390,15 @@ async function finRevisarNota(id,acao){
 
 function finRenderRecebimentos(){
  const el=node('finReceivePanel'),x=finState;
- if(!isFullAdminUser()||!x){el.classList.add('hidden');return;}
- const recebidos=new Map(x.stockReceipts.map(r=>[r.despesa_item_id,r]));
+ const selected=node('recebimentoWork').value;
+ if(!isFullAdminUser()||!x||!selected||x.obraId!==selected||
+    node('recebimento').classList.contains('hidden')){
+   el.classList.add('hidden');el.replaceChildren();return;
+ }
+ const recebidos=new Map(x.stockReceipts.filter(r=>!r.estornado_em)
+  .map(r=>[r.despesa_item_id,r]));
+ const estornados=new Map(x.stockReceipts.filter(r=>r.estornado_em)
+  .map(r=>[r.despesa_item_id,r]));
  const rows=x.approvedItems.filter(i=>x.aprovadas.some(d=>d.id===i.despesa_id));
  if(!rows.length){el.classList.add('hidden');return;}
  el.classList.remove('hidden');
@@ -7393,16 +7417,23 @@ function finRenderRecebimentos(){
       cemNome(m.codigo)===cemNome(i.codigo_fornecedor)).length===1?
       materials.find(m=>cemNome(m.codigo)===cemNome(i.codigo_fornecedor)).id:'');
     const received=recebidos.get(i.id);
+    const anteriorEstornado=estornados.get(i.id);
     if(received)return '<div class="finReceiveRow" data-receive-item="'+escapeHTML(i.id)+'">'+
        '<strong>'+escapeHTML(i.codigo_fornecedor)+' — '+escapeHTML(i.descricao)+'</strong>'+
        '<p class="hint">NF '+escapeHTML(invoice.numero_documento)+' · Recebido: '+
        Number(received.quantidade).toLocaleString('pt-BR',{maximumFractionDigits:3})+
        ' '+escapeHTML(received.unidade)+' · '+escapeHTML(received.local_estoque)+
-       (received.comprimento_mm?' · '+received.comprimento_mm+' mm':'')+'</p></div>';
+       (received.comprimento_mm?' · '+received.comprimento_mm+' mm':'')+
+       ' · Galpão informado na entrada (o saldo pode ter sido transferido)</p>'+
+       '<button type="button" class="btn secondary finReceiveUndo" data-receipt-id="'+escapeHTML(received.id)+'">Estornar recebimento</button>'+
+       '</div>';
     return '<div class="finReceiveRow" data-receive-item="'+escapeHTML(i.id)+
       '" data-receive-type="'+tipo+'" data-invoice-unit="'+escapeHTML(i.unidade||'')+
       '" data-invoice-qty="'+Number(i.quantidade)+'">'+
       '<strong>'+escapeHTML(i.codigo_fornecedor)+' — '+escapeHTML(i.descricao)+'</strong>'+
+      (anteriorEstornado?'<p class="hint">Entrada anterior estornada: '+
+        escapeHTML(anteriorEstornado.estorno_motivo||'consulte o histórico')+
+        '. A nota financeira permanece aprovada.</p>':'')+
       '<p class="hint">NF '+escapeHTML(invoice.numero_documento)+' · '+escapeHTML(invoice.fornecedor)+
       ' · '+Number(i.quantidade).toLocaleString('pt-BR',{maximumFractionDigits:3})+
       ' '+escapeHTML(i.unidade||'')+' · Preço real unitário: '+finMoney(i.valor_unitario)+'</p>'+
@@ -7419,6 +7450,8 @@ function finRenderRecebimentos(){
       '<button type="button" class="btn secondary finReceiveSubmit">Confirmar entrada física deste item</button>'+
       '<p class="feedback finReceiveError" role="status"></p></div>';
    }).join('');
+ el.querySelectorAll('.finReceiveUndo').forEach(b=>
+   b.addEventListener('click',()=>finEstornarRecebimentoFisico(b.dataset.receiptId)));
  el.querySelectorAll('.finReceiveRow[data-receive-type]').forEach(row=>{
    const mat=row.querySelector('.finReceiveMaterial');
    const qty=row.querySelector('.finReceiveQty');
@@ -7461,6 +7494,32 @@ function finRenderRecebimentos(){
    update();
    row.querySelector('.finReceiveSubmit').addEventListener('click',()=>finConfirmarRecebimento(row));
  });
+}
+async function finEstornarRecebimentoFisico(recebimentoId){
+ if(!isFullAdminUser()||!finState||!node('recebimentoWork').value)return;
+ const motivo=window.prompt('Motivo do estorno da entrada física da NF-e (mínimo 5 caracteres):','');
+ if(motivo===null)return;
+ if(motivo.trim().length<5||motivo.trim().length>400){
+   node('recebimentoMessage').textContent='Informe motivo de 5 a 400 caracteres.';return;
+ }
+ if(!window.confirm('Estornar somente a ENTRADA FÍSICA do material?\n\nA despesa da NF-e continua aprovada. O sistema procurará o saldo no galpão original e nos demais galpões DA MESMA OBRA; não permitirá estorno de material com baixa para produção.'))return;
+ const op=crypto.randomUUID(),obra=finState.obraId;
+ const b=[...node('finReceivePanel').querySelectorAll('.finReceiveUndo')].find(x=>x.dataset.receiptId===recebimentoId);
+ if(b){b.disabled=true;b.textContent='Estornando…';}
+ try{
+   await ensureSession();
+   const result=await request('/rest/v1/rpc/ew_estornar_recebimento_nfe',{
+     method:'POST',token:session.access_token,timeoutMs:45000,
+     body:{p_empresa_id:currentCompany.id,p_recebimento_id:recebimentoId,
+       p_motivo:motivo.trim(),p_operacao_id:op}});
+   if(node('recebimentoWork').value!==obra)return;
+   await carregarRecebimento();
+   node('recebimentoMessage').textContent=result?.ja_estornado?
+    'Este recebimento já havia sido estornado; nenhum saldo foi alterado.':
+    'Recebimento físico estornado com histórico e galpões registrados. A nota financeira permanece aprovada.';
+ }catch(e){
+   node('recebimentoMessage').textContent='Estorno não realizado: '+e.message;
+ }finally{if(b){b.disabled=false;b.textContent='Estornar recebimento';}}
 }
 async function finConfirmarRecebimento(row){
  if(!finState||!isFullAdminUser())return;
@@ -7511,7 +7570,7 @@ async function finConfirmarRecebimento(row){
 function finRenderHistorico(){
  const x=finState;
  const despesasComEstoque=new Set(
-  x.approvedItems.filter(i=>x.stockReceipts.some(r=>r.despesa_item_id===i.id))
+  x.approvedItems.filter(i=>x.stockReceipts.some(r=>r.despesa_item_id===i.id&&!r.estornado_em))
    .map(i=>i.despesa_id));
  const rows=[
  ...x.despesas.map(d=>({id:d.id,kind:'despesa',date:d.data_documento||d.criado_em?.slice(0,10)||'',grupo:'Despesa',tipo:d.categoria,
@@ -9535,7 +9594,7 @@ function releaseBatchCollect(){
   if(usadosMat.has(key))throw new Error('Material repetido no mesmo galpão. Agrupe as quantidades.');
   usadosMat.add(key);
   const saldo=releaseMirrorSaldo.get(key)||0;
-  if(q>saldo)throw new Error('Saldo insuficiente para '+codigo+' em '+local+'. Disponível: '+matFormat(saldo,3)+' '+unit+'.');
+  // O estoque será validado apenas na entrega física pelo almoxarife.
   materiais.push({variacao_id:v.id,comprimento_mm:length,unidade:unit,quantidade:q,local_estoque:local});
  }
  return {itens,materiais};
@@ -9550,8 +9609,8 @@ function releaseBatchSummaryUpdate(){
   const excluded=[...node('releaseBatchMaterials').querySelectorAll('.batchMatRow')].filter(
     tr=>!tr.querySelector('.batchMatEnabled').checked).length;
   status.textContent=itens.length+' esquadria(s) · '+un+' unidade(s) · '+materiais.length+
-   ' linha(s) de material selecionadas para baixa · '+excluded+' linha(s) não descontadas.'+
-   (materiais.length?'':' ATENÇÃO: será uma liberação técnica sem baixa de estoque.');
+   ' linha(s) de material selecionadas para o relatório · '+excluded+' linha(s) fora do relatório.'+
+   (materiais.length?'':' Será uma liberação sem materiais a entregar.');
   node('releaseBatchConfirm').disabled=!(dateOk&&['IMBIRIBEIRA','AFOGADOS'].includes(fabrica));
  }catch(e){status.textContent='Espelho pendente: '+e.message;node('releaseBatchConfirm').disabled=true;}
 }
@@ -9584,7 +9643,7 @@ async function releaseBatchAnalyze(){
    perfis=dados.perfis;acessorios=dados.acessorios;
   }
   node('releaseBatchMaterials').innerHTML='<table class="cemTable stockCemMirrorTable"><thead><tr>'+
-    '<th>Baixar</th><th>Tipo</th><th>Código</th><th>Cor cadastrada</th><th>Barra mm</th><th>Quantidade</th><th>Galpão</th><th>Saldo no galpão</th>'+
+    '<th>Incluir</th><th>Tipo</th><th>Código</th><th>Cor cadastrada</th><th>Barra mm</th><th>Quantidade</th><th>Galpão</th><th>Saldo no galpão</th>'+
     '</tr></thead><tbody id="releaseBatchMatBody">'+
     perfis.map(x=>releaseBatchMaterialRow(x,'perfil')).join('')+
     acessorios.map(x=>releaseBatchMaterialRow(x,'acessorio')).join('')+'</tbody></table>';
@@ -9639,9 +9698,9 @@ node('releaseBatchConfirm').addEventListener('click',async()=>{
  const qtd=draft.itens.reduce((n,x)=>n+x.quantidade,0);
  if(!window.confirm('Confirma liberação de '+qtd+' unidade(s) distribuída(s) em '+
    draft.itens.length+' esquadria(s) para '+fabrica+'?\n'+
-   (draft.materiais.length?'Serão baixadas '+draft.materiais.length+' linha(s) de material nos galpões escolhidos.':
-     'ATENÇÃO: nenhum material será descontado do estoque.')+
-   '\nATENÇÃO: '+[...node('releaseBatchMaterials').querySelectorAll('.batchMatRow')].filter(tr=>!tr.querySelector('.batchMatEnabled').checked).length+' linha(s) de material do arquivo NÃO serão descontadas.'+
+   (draft.materiais.length?'Serão listadas '+draft.materiais.length+' linha(s) para entrega posterior pelo almoxarife. Sem baixa agora.':
+     'Esta liberação não terá materiais pendentes de entrega.')+
+   '\nATENÇÃO: '+[...node('releaseBatchMaterials').querySelectorAll('.batchMatRow')].filter(tr=>!tr.querySelector('.batchMatEnabled').checked).length+' linha(s) de material fora do relatório.'+
    '\nEsta confirmação é indivisível e fica no histórico.'))return;
  const btn=node('releaseBatchConfirm');btn.disabled=true;
  node('releaseBatchError').textContent='';
@@ -9654,7 +9713,7 @@ node('releaseBatchConfirm').addEventListener('click',async()=>{
      p_arquivo_nome:releaseBatchFileName,p_operacao_id:releaseBatchOperationId}});
   const obraId=releaseBatchWorkId;releaseBatchClose();
   node('detailError').textContent=response.repetida?'Este lote já havia sido registrado; não houve duplicação.':
-    'Lote confirmado: '+qtd+' unidade(s) · '+draft.itens.length+' esquadria(s) · '+draft.materiais.length+' baixa(s).';
+    'Lote confirmado: '+qtd+' unidade(s) · '+draft.itens.length+' esquadria(s) · '+draft.materiais.length+' linha(s) aguardando entrega à produção.';
   try{
    await loadPanel();
    const w=works.find(w=>w.id===obraId);
@@ -9966,5 +10025,6 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/recebimento-manual.js?v=20261121h"></script>
 <script src="/assets/cadastros-hub.js?v=20261121b"></script>
 <script src="/assets/insumos-fisicos.js?v=20261121a"></script>
+<script src="/assets/entregas-producao.js?v=20261121a"></script>
 </body>
 </html>
