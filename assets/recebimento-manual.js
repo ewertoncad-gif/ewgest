@@ -214,7 +214,7 @@
     '<td><input class="finManualQty" '+(category==='aluminio'?
      'type="text" inputmode="numeric" pattern="[0-9]*" maxlength="7" title="Somente barras inteiras: 1, 2, 3..."':
      (contavel?'type="number" inputmode="numeric" min="1" max="1000000" step="1"':
-      'type="number" inputmode="decimal" min="0.001" max="1000000" step="0.001"'))+
+      'type="number" inputmode="decimal" min="0.001" max="1000000" step="any"'))+
     ' required placeholder="Qtd." value="'+escapeHTML(row.quantidade)+'" aria-label="Recebendo agora '+(i+1)+'"></td>'+
     '<td class="hint">'+escapeHTML(unit||'—')+'</td>'+
     '<td><input class="finManualSubtotal" type="text" inputmode="decimal" required placeholder="R$ 0,00" value="'+escapeHTML(row.valor)+'" aria-label="Subtotal do material '+(i+1)+'"></td>'+
@@ -228,7 +228,7 @@
  }
 
  function miscReset(){
-  miscRows=[{descricao:'',quantidade:'',unidade:'PC',valor:''}];
+  miscRows=[{descricao:'',quantidade:'1',unidade:'PC',valor:''}];
   miscRender();
  }
  function miscRender(){
@@ -240,7 +240,7 @@
   body.innerHTML=miscRows.map((m,i)=>'<tr data-misc-row="'+i+'">'+
    '<td><input class="finMiscDescription" list="insumoCatalogoSugestoes" required maxlength="500" placeholder="Descrição e medidas do vidro ou insumo" value="'+escapeHTML(m.descricao)+'"></td>'+
    '<td><input class="finMiscQty" type="number" inputmode="'+(unidadeContavel(m.unidade)?'numeric':'decimal')+
-    '" min="'+(unidadeContavel(m.unidade)?'1':'0.001')+'" max="1000000" step="'+(unidadeContavel(m.unidade)?'1':'0.001')+
+    '" min="'+(unidadeContavel(m.unidade)?'1':'0.001')+'" max="1000000" step="'+(unidadeContavel(m.unidade)?'1':'any')+
     '" required placeholder="Qtd." value="'+escapeHTML(m.quantidade)+'"></td>'+
    '<td><select class="finMiscUnit">'+units.map(u=>'<option value="'+escapeHTML(u.codigo)+'"'+(u.codigo===m.unidade?' selected':'')+'>'+escapeHTML(u.codigo+' — '+u.nome)+'</option>').join('')+'</select></td>'+
    '<td><input class="finMiscAmount" inputmode="decimal" required placeholder="R$ 0,00" value="'+escapeHTML(m.valor)+'"></td>'+
@@ -592,7 +592,7 @@
 
  byId('finMiscAdd').addEventListener('click',()=>{
   if(miscRows.length>=100){byId('finCostMessage').textContent='Limite de 100 itens por nota.';return;}
-  miscRows.push({descricao:'',quantidade:'',unidade:'PC',valor:''});miscRender();
+  miscRows.push({descricao:'',quantidade:'1',unidade:'PC',valor:''});miscRender();
  });
  byId('finMiscRows').addEventListener('input',event=>{
   const tr=event.target.closest('[data-misc-row]');if(!tr)return;
@@ -608,8 +608,8 @@
    item.unidade=event.target.value;
    if(unidadeContavel(item.unidade)&&item.quantidade&&
        !validarQuantidadeContavel(item.quantidade)){
-    item.quantidade='';
-    byId('finCostMessage').textContent='A unidade selecionada exige quantidade inteira; informe a nova quantidade.';
+    item.quantidade='1';
+    byId('finCostMessage').textContent='A unidade selecionada exige quantidade inteira; quantidade ajustada para 1.';
    }
    miscRender();
   }
@@ -623,7 +623,7 @@
  byId('finMiscRows').addEventListener('click',event=>{
   const btn=event.target.closest('[data-misc-remove]');if(!btn)return;
   miscRows.splice(Number(btn.dataset.miscRemove),1);
-  if(!miscRows.length)miscRows=[{descricao:'',quantidade:'',unidade:'PC',valor:''}];
+  if(!miscRows.length)miscRows=[{descricao:'',quantidade:'1',unidade:'PC',valor:''}];
   miscRender();
  });
  byId('finManualRows').addEventListener('change',event=>{
@@ -636,7 +636,7 @@
    r.variacao=selected?.v.id||'';
    r.selectionKey=selected?.value||'';
    r.comprimento=selected?.length?String(selected.length):'';
-   r.quantidade=category==='acessorios'&&r.material&&unidadeContavel(unitFor(r.material))?'1':'';r.valor='';
+   r.quantidade=category==='acessorios'&&r.material?'1':'';r.valor='';
    renderRows();
   }
  });

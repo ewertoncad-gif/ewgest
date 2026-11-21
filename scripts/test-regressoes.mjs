@@ -41,7 +41,7 @@ assert.ok(inlineJS.length>=1,'Script principal da interface deve estar no HTML')
 for(const js of inlineJS)assert.doesNotThrow(()=>new Function(js),
  'JavaScript principal da interface deve ser sintaticamente válido');
 const receiptCacheHeaders=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
-assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121j')&&
+assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121k')&&
  source.includes('/assets/recebimento-manual.css?v=20261121g'),
  'O recebimento precisa de URLs versionadas para evitar assets antigos após deploy');
 assert.match(receiptCacheHeaders,/\/assets\/recebimento-manual\.js\s+Content-Type: text\/javascript; charset=utf-8\s+Cache-Control: no-store/,
@@ -1546,7 +1546,7 @@ assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
  !source.includes('<label>XML da nota fiscal (NF-e)')&&
  source.includes('id="finCostCategory" required'),
  'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
-assert.ok(source.includes('recebimento-manual.js?v=20261121j')&&
+assert.ok(source.includes('recebimento-manual.js?v=20261121k')&&
  source.includes('recebimento-manual.css?v=20261121g')&&receiveCSS.includes('.finManualTable'),
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
@@ -2067,7 +2067,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v45.8')&&
+assert.ok(source.includes('v45.9')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2253,15 +2253,15 @@ assert.ok(!source.includes('id="stockTransferQty" type="number" min="0.001" step
 // EWGEST v45.8 — acessórios em PC/UN/PR/CJ/CX não podem ser fracionados em NF.
 const countableMigration=readFileSync(fileURLToPath(new URL(
  '../database/proposals/20261121_recebimento_quantidades_contaveis_v458.sql',import.meta.url)),'utf8');
-assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121j'),
+assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121k'),
  'Novas regras de quantidade devem invalidar o cache do JS anterior');
 for(const marker of [
  "const unidadesContaveis=new Set(['PC','UN','PR','CJ','CX'])",
  "const auto=autoBarLength(row),unit=unitFor(row.material),contavel=",
  "contavel?'type=\"number\" inputmode=\"numeric\" min=\"1\" max=\"1000000\" step=\"1\"'",
- "r.quantidade=category==='acessorios'&&r.material&&unidadeContavel(unitFor(r.material))?'1':''",
+ "r.quantidade=category==='acessorios'&&r.material?'1':''",
  "category==='acessorios'&&unidadeContavel(unitFor(row.material))&&!validarQuantidadeContavel(rawQty)",
- "unidadeContavel(m.unidade)?'1':'0.001'",
+ "unidadeContavel(m.unidade)?'1':'any'",
  "if(unidadeContavel(item.unidade)&&item.quantidade&&",
 ]){
  assert.ok(receiveScript.includes(marker),'Recebimento deve tratar unidades contáveis: '+marker);
@@ -2287,5 +2287,29 @@ assert.ok(countableMigration.includes("v_unidade in ('PC','UN','PR','CJ','CX') a
  countableMigration.includes('ew_registrar_recebimento_manual_financeiro')&&
  !/update public\.ew_estoque_obras_movimentos/i.test(countableMigration),
  'As duas RPCs de recebimento devem validar inteiros sem regravar o estoque');
+
+
+// EWGEST v45.9 — evitar incremento de milésimos no controle por metros/quilos.
+assert.ok(
+ receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"any\"'")&&
+ receiveScript.includes("r.quantidade=category==='acessorios'&&r.material?'1':'';r.valor=''")&&
+ receiveScript.includes("miscRows=[{descricao:'',quantidade:'1',unidade:'PC',valor:''}]")&&
+ receiveScript.includes("miscRows.push({descricao:'',quantidade:'1',unidade:'PC',valor:''})")&&
+ receiveScript.includes("unidadeContavel(m.unidade)?'1':'any'")&&
+ receiveScript.includes("item.quantidade='1';")&&
+ !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
+ 'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
+assert.ok(source.includes('recebimento-manual.js?v=20261121k')&&
+ source.includes('EWGEST <strong>· v45.9</strong>'),
+ 'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
+const testarDecimais=(text)=>{
+ const n=Number(text);
+ return text.trim()!==''&&Number.isFinite(n)&&n>0&&n<=1000000&&
+  Math.abs(n*1000-Math.round(n*1000))<=0.00001;
+};
+for(const t of ['0.5','1.25','2.75','0.001','1.005'])
+ assert.equal(testarDecimais(t),true,'Permitir medição fracionada '+t);
+for(const t of ['0','-1','2.1234','0.0001','1000001'])
+ assert.equal(testarDecimais(t),false,'Impedir medição inválida '+t);
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
