@@ -2490,4 +2490,47 @@ assert.ok(!transferenciaHTML.includes('Total M²:')&&
  transferTransport.includes("imprimirBtn.addEventListener('click',()=>janela.print())"),
  'Impressão de transferência deve usar template comum, e não layout genérico');
 
+
+// EWGEST v46.4: marco equivale a 50%, conjunto das folhas 50%, sem movimentar estoque.
+const componentMigration=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261121_liberacao_por_partes_v464.sql',import.meta.url)),'utf8');
+for(const token of [
+ 'tipo_componente text not null default',
+ 'ew_registrar_liberacao_componente',
+ 'ew_liberar_plano_corte_componente',
+ 'marcos_liberados','conjuntos_folhas_liberados',
+ 'v_marcos_liberados','v_folhas_liberadas',
+ 'ew_cancelar_liberacoes_obra',
+ 'CORRIGIR_ESCOPO_LIBERACAO',
+ 'TESTE-TREINAMENTO'
+])assert.ok(componentMigration.includes(token),
+ 'Proteção de liberação/saída por componentes ausente: '+token);
+assert.ok(!/insert into public\.ew_estoque_obras_movimentos/i.test(componentMigration)&&
+ !/insert into public\.ew_insumos_movimentos/i.test(componentMigration),
+ 'Liberação parcial não pode movimentar estoque');
+assert.ok(source.includes('id="releaseComponent" required')&&
+ source.includes("p_materiais:[],p_fonte:'SEM_BAIXA'")&&
+ source.includes('p_componente:componente')&&
+ source.includes("const exibidos=shipping?list.filter(x=>Number(x.qtd_liberada)>0):list;")&&
+ source.includes('groupRenderedItems(exibidos)')&&
+ source.includes('Nenhuma esquadria liberada para fabricação nesta obra.'),
+ 'Saída somente exibe liberadas; nova liberação não baixa estoque');
+const componentStart=source.indexOf('function releaseParts(item){');
+const componentEnd=source.indexOf('function renderUnitCounters(',componentStart);
+assert.ok(componentStart>0&&componentEnd>componentStart);
+const componentCode=source.slice(componentStart,componentEnd);
+const history=[{esquadria_id:'ea2',quantidade:1,tipo_componente:'marco'}];
+const calculo=new Function('history',
+ 'const releaseHistory=history;'+
+ 'const area=(item,q)=>Number(item.largura_mm)*Number(item.altura_mm)*q/1000000;'+
+ componentCode+'\nreturn {releaseParts,totals};')(history);
+const esq={id:'ea2',quantidade:5,qtd_liberada:1,largura_mm:1200,altura_mm:1150,qtd_fabricada:0};
+assert.ok(Math.abs(calculo.totals([esq]).released-0.69)<0.000001,
+ 'EA2 marco = 0,69m² (50% de 1,38m²)');
+assert.equal(calculo.releaseParts(esq).saldoFolhas,5);
+history.push({esquadria_id:'ea2',quantidade:1,tipo_componente:'folhas'});
+assert.ok(Math.abs(calculo.totals([esq]).released-1.38)<0.000001,
+ '1 marco + 1 conjunto de folhas = 1,38m²');
+assert.equal(calculo.releaseParts(esq).saldoMarco,4);
+
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
