@@ -1,0 +1,239 @@
+-- EWGEST #38 — estorno físico de NF-e aprovada, preservando a nota e o histórico.
+-- Estoques são fungíveis no nível (obra, variação, comprimento, unidade, galpão).
+-- Impede estorno se houver consumo de produção após o recebimento. Transferências
+-- entre galpões da MESMA obra são permitidas, com conferência do saldo atual.
+alter table public.ew_nfe_recebimentos
+ add column if not exists estornado_em timestamptz,
+ add column if not exists estornado_por uuid references auth.users(id),
+ add column if not exists estorno_motivo text,
+ add column if not exists estorno_operacao_id uuid,
+ add column if not exists estorno_detalhes jsonb;
+-- Permite receber novamente uma NF-e cujo recebimento anterior foi estornado,
+-- sem apagar a linha original nem seu vínculo com o movimento de estoque.
+alter table public.ew_nfe_recebimentos
+ drop constraint if exists ew_nfe_recebimentos_despesa_item_id_key;
+create unique index if not exists ew_nfe_recebimento_item_ativo_unico
+ on public.ew_nfe_recebimentos(despesa_item_id) where estornado_em is null;
+create unique index if not exists ew_nfe_recebimento_estorno_operacao_unica
+ on public.ew_nfe_recebimentos(estorno_operacao_id)
+ where estorno_operacao_id is not null;
+
+CREATE OR REPLACE FUNCTION public.ew_receber_item_nfe(p_empresa_id uuid, p_despesa_item_id uuid, p_variacao_id uuid, p_quantidade numeric, p_unidade text, p_comprimento_mm integer, p_local_estoque text, p_operacao_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+DECLARE
+ v_uid uuid:=auth.uid();v_despesa public.ew_obra_despesas%ROWTYPE;
+ v_item public.ew_obra_despesas_itens%ROWTYPE;
+ v_variacao public.ew_materiais_variacoes%ROWTYPE;
+ v_recebido uuid;v_mov jsonb;v_id uuid;v_unidade text:=upper(btrim(coalesce(p_unidade,'')));
+ v_local text:=upper(btrim(coalesce(p_local_estoque,'')));
+ v_unidade_cadastro text;v_unidade_embalagem text;v_fator_embalagem numeric;
+ v_unidade_nf text;v_limite_fisico numeric;
+BEGIN
+ PERFORM public.ew_exigir_sessao_atual();
+ IF v_uid IS NULL OR p_empresa_id IS NULL OR p_operacao_id IS NULL OR
+   NOT EXISTS(SELECT 1 FROM public.usuarios_empresas ue WHERE
+     ue.usuario_id=v_uid AND ue.empresa_id=p_empresa_id AND ue.perfil='administrador')
+ THEN RAISE EXCEPTION 'Somente ADM confirma entradas físicas provenientes de NF-e.';END IF;
+ IF p_despesa_item_id IS NULL OR p_variacao_id IS NULL OR
+   p_quantidade IS NULL OR p_quantidade<=0 OR p_quantidade>1000000 OR
+   p_quantidade<>round(p_quantidade,3)
+ THEN RAISE EXCEPTION 'Item ou quantidade de recebimento inválidos.';END IF;
+ PERFORM pg_catalog.pg_advisory_xact_lock(
+   pg_catalog.hashtextextended(p_despesa_item_id::text,912423));
+ SELECT id INTO v_recebido FROM public.ew_nfe_recebimentos WHERE despesa_item_id=p_despesa_item_id AND estornado_em IS NULL;
+ IF v_recebido IS NOT NULL THEN RETURN jsonb_build_object('id',v_recebido,'ja_recebido',true);END IF;
+ SELECT * INTO v_item FROM public.ew_obra_despesas_itens
+ WHERE id=p_despesa_item_id AND empresa_id=p_empresa_id FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Item de nota não encontrado nesta empresa.';END IF;
+ SELECT * INTO v_despesa FROM public.ew_obra_despesas
+ WHERE id=v_item.despesa_id AND empresa_id=p_empresa_id FOR UPDATE;
+ IF NOT FOUND OR v_despesa.status<>'aprovada' OR v_despesa.categoria NOT IN ('aluminio','acessorios') OR
+   v_despesa.origem<>'nfe_xml' OR v_despesa.chave_nfe IS NULL
+ THEN RAISE EXCEPTION 'A NF-e deve estar aprovada e classificada como alumínio ou acessórios.';END IF;
+ SELECT * INTO v_variacao FROM public.ew_materiais_variacoes
+ WHERE id=p_variacao_id AND empresa_id=p_empresa_id;
+ IF NOT FOUND OR
+   (v_despesa.categoria='aluminio' AND
+     (v_variacao.tipo<>'perfil' OR v_item.perfil_id IS DISTINCT FROM v_variacao.perfil_id)) OR
+   (v_despesa.categoria='acessorios' AND
+     (v_variacao.tipo<>'acessorio' OR v_item.acessorio_id IS DISTINCT FROM v_variacao.acessorio_id))
+ THEN RAISE EXCEPTION 'Variação incompatível com o item da NF-e. Vincule o material correto antes de receber.';END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.ew_estoques_locais WHERE
+   empresa_id=p_empresa_id AND obra_id=v_despesa.obra_id AND excluido_em IS NULL)
+ THEN RAISE EXCEPTION 'Estoque da obra inexistente ou arquivado.';END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.ew_locais_fisicos WHERE
+   empresa_id=p_empresa_id AND nome=v_local AND ativo)
+ THEN RAISE EXCEPTION 'Selecione um galpão válido.';END IF;
+ v_unidade_nf:=upper(btrim(coalesce(v_item.unidade,'')));
+ IF v_variacao.tipo='perfil' THEN
+   IF v_unidade<>'BARRA' OR p_comprimento_mm NOT BETWEEN 100 AND 20000 OR
+      p_quantidade<>trunc(p_quantidade)
+   THEN RAISE EXCEPTION 'Perfis exigem quantidade inteira em BARRA e comprimento comercial em mm.';END IF;
+   IF v_unidade_nf IN ('BARRA','BR') AND p_quantidade>v_item.quantidade
+   THEN RAISE EXCEPTION 'Quantidade recebida maior que o número de barras da NF-e.';END IF;
+   IF v_unidade_nf IN ('MT','M') AND p_quantidade*p_comprimento_mm/1000>v_item.quantidade+0.0001
+   THEN RAISE EXCEPTION 'Metros em barras ultrapassam os metros registrados na NF-e.';END IF;
+ ELSE
+   SELECT upper(btrim(unidade_item)),upper(btrim(unidade_embalagem)),quantidade_por_embalagem
+   INTO v_unidade_cadastro,v_unidade_embalagem,v_fator_embalagem
+   FROM public.ew_acessorios
+   WHERE id=v_variacao.acessorio_id AND empresa_id=p_empresa_id;
+   IF v_unidade_cadastro IN ('PEÇA','PECA','PÇ','PÇS') THEN v_unidade_cadastro:='PC';END IF;
+   IF v_unidade_cadastro IN ('PAR','PARES') THEN v_unidade_cadastro:='PR';END IF;
+   IF v_unidade_cadastro IN ('METRO','M') THEN v_unidade_cadastro:='MT';END IF;
+   IF v_unidade_cadastro='UNIDADE' THEN v_unidade_cadastro:='UN';END IF;
+   IF p_comprimento_mm IS NOT NULL OR v_unidade<>v_unidade_cadastro
+   THEN RAISE EXCEPTION 'Unidade do recebimento deve ser a unidade do item (%). Converta embalagens antes.',v_unidade_cadastro;END IF;
+   IF v_unidade_nf=v_unidade_cadastro THEN v_limite_fisico:=v_item.quantidade;
+   ELSIF v_unidade_nf=v_unidade_embalagem AND coalesce(v_fator_embalagem,0)>0
+   THEN v_limite_fisico:=v_item.quantidade*v_fator_embalagem;
+   ELSIF v_unidade_nf='UN' AND v_unidade_cadastro='PC'
+   THEN v_limite_fisico:=v_item.quantidade;
+   ELSE RAISE EXCEPTION 'Unidade da NF-e (%) não é compatível com a unidade do item (%) nem tem conversão cadastrada.',
+     v_unidade_nf,v_unidade_cadastro;
+   END IF;
+   IF p_quantidade>v_limite_fisico+0.001
+   THEN RAISE EXCEPTION 'Recebimento excede a quantidade da NF-e convertida: % %.',v_limite_fisico,v_unidade_cadastro;END IF;
+ END IF;
+ -- A movimentação e o vínculo à NF-e são atômicos: erro reverte as duas inserções.
+ v_mov:=public.ew_movimentar_estoque_obra_local(
+   p_empresa_id,v_despesa.obra_id,p_variacao_id,p_comprimento_mm,v_unidade,
+   p_quantidade,'COMPRA','Recebimento confirmado da NF-e '||left(v_despesa.numero_documento,75),
+   p_operacao_id,v_local);
+ IF coalesce((v_mov->>'repetida')::boolean,false) OR (v_mov->>'id') IS NULL
+ THEN RAISE EXCEPTION 'Operação de estoque já utilizada; confira o histórico antes de repetir.';END IF;
+ INSERT INTO public.ew_nfe_recebimentos(
+   empresa_id,obra_id,despesa_item_id,variacao_id,comprimento_mm,
+   unidade,quantidade,local_estoque,movimento_id,usuario_id)
+ VALUES(p_empresa_id,v_despesa.obra_id,p_despesa_item_id,p_variacao_id,p_comprimento_mm,
+   v_unidade,p_quantidade,v_local,(v_mov->>'id')::uuid,v_uid) RETURNING id INTO v_id;
+ RETURN jsonb_build_object('id',v_id,'obra_id',v_despesa.obra_id,'movimento_id',v_mov->>'id',
+   'quantidade',p_quantidade,'unidade',v_unidade,'ja_recebido',false);
+END;
+$function$
+;
+
+create or replace function public.ew_estornar_recebimento_nfe(
+ p_empresa_id uuid,p_recebimento_id uuid,p_motivo text,p_operacao_id uuid
+) returns jsonb language plpgsql security definer set search_path=''
+as $f$
+declare
+ v_user uuid:=auth.uid();
+ v_rec public.ew_nfe_recebimentos%rowtype;
+ v_original public.ew_estoque_obras_movimentos%rowtype;
+ v_obra public.obras%rowtype;
+ v_local record;
+ v_motivo text:=btrim(coalesce(p_motivo,''));
+ v_disponivel numeric:=0;
+ v_restante numeric;
+ v_baixas integer;
+ v_abatido numeric;
+ v_mov uuid;
+ v_locais jsonb:='[]'::jsonb;
+ v_primeiro boolean:=true;
+begin
+ perform public.ew_exigir_sessao_atual();
+ if v_user is null or p_empresa_id is null or p_recebimento_id is null or p_operacao_id is null
+  or not exists(select 1 from public.usuarios_empresas ue
+    join public.usuarios_login ul on ul.usuario_id=ue.usuario_id and ul.empresa_id=ue.empresa_id
+    where ue.usuario_id=v_user and ue.empresa_id=p_empresa_id
+      and ue.perfil='administrador' and ul.perfil='administrador'
+      and ul.ativo and ul.excluido_em is null)
+ then raise exception 'Somente o ADM pode estornar recebimentos de NF-e.';end if;
+ if char_length(v_motivo) not between 5 and 400 then raise exception 'Informe motivo de 5 a 400 caracteres.';end if;
+ perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_recebimento_id::text,912425));
+ select * into v_rec from public.ew_nfe_recebimentos n
+  where n.id=p_recebimento_id and n.empresa_id=p_empresa_id for update;
+ if not found then raise exception 'Recebimento não encontrado na empresa.';end if;
+ if v_rec.estornado_em is not null then
+   if v_rec.estorno_operacao_id=p_operacao_id then
+     return jsonb_build_object('ja_estornado',true,'recebimento_id',v_rec.id,
+       'locais',coalesce(v_rec.estorno_detalhes,'[]'::jsonb));
+   end if;
+   raise exception 'Recebimento já estornado anteriormente. Consulte o histórico.';
+ end if;
+ if exists(select 1 from public.ew_nfe_recebimentos n
+  where n.estorno_operacao_id=p_operacao_id and n.id<>p_recebimento_id)
+ then raise exception 'Identificador usado em outro estorno.';end if;
+ select * into v_obra from public.obras o where o.id=v_rec.obra_id
+  and o.empresa_id=p_empresa_id and o.arquivada_em is null for update;
+ if not found then raise exception 'Obra não encontrada ou arquivada.';end if;
+ select * into v_original from public.ew_estoque_obras_movimentos m
+  where m.id=v_rec.movimento_id and m.empresa_id=p_empresa_id
+   and m.obra_id=v_rec.obra_id for update;
+ if not found or v_original.quantidade_delta<>v_rec.quantidade
+    or v_original.variacao_id<>v_rec.variacao_id
+    or v_original.comprimento_mm is distinct from v_rec.comprimento_mm
+    or v_original.unidade<>v_rec.unidade
+    or v_original.origem<>'COMPRA'
+ then raise exception 'O recebimento original não confere com a movimentação de compra.';end if;
+ if exists(select 1 from public.ew_estoque_obras_movimentos m where m.estorno_de_id=v_original.id)
+ then raise exception 'Movimento original já possui estorno associado. Revisão manual necessária.';end if;
+ perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+   v_rec.obra_id::text||'|'||v_rec.variacao_id::text||'|'||
+   coalesce(v_rec.comprimento_mm::text,'-')||'|'||v_rec.unidade,34777));
+ -- Sem identificação de lote por NF, qualquer baixa de consumo posterior da MESMA
+ -- variação/medida/unidade impede declarar o lote recebido como ainda não utilizado.
+ -- Transferência de galpão não é consumo.
+ select count(*) into v_baixas from public.ew_estoque_obras_movimentos m
+ where m.empresa_id=p_empresa_id and m.obra_id=v_rec.obra_id
+   and m.variacao_id=v_rec.variacao_id
+   and m.comprimento_mm is not distinct from v_rec.comprimento_mm
+   and m.unidade=v_rec.unidade and m.quantidade_delta<0
+   and m.criado_em>=v_rec.criado_em
+   and m.origem in ('PLANO_CORTE','PLANO_CORTE_LOTE','SAIDA_MANUAL','AJUSTE');
+ if v_baixas>0 then raise exception
+  'Estorno bloqueado: há baixa de produção/consumo após esta NF. O estoque não rastreia lote por nota; confira a entrega e faça reconciliação autorizada.';end if;
+ select coalesce(sum(q.saldo),0) into v_disponivel from (
+   select sum(m.quantidade_delta) saldo from public.ew_estoque_obras_movimentos m
+   where m.empresa_id=p_empresa_id and m.obra_id=v_rec.obra_id
+    and m.variacao_id=v_rec.variacao_id
+    and m.comprimento_mm is not distinct from v_rec.comprimento_mm
+    and m.unidade=v_rec.unidade
+   group by m.local_estoque having sum(m.quantidade_delta)>0
+ ) q;
+ if v_disponivel<v_rec.quantidade then
+  raise exception 'Saldo disponível na obra insuficiente (% %). Se transferido para outra obra, devolva antes do estorno.',
+   v_disponivel,v_rec.unidade;end if;
+ v_restante:=v_rec.quantidade;
+ for v_local in
+  select m.local_estoque,sum(m.quantidade_delta) as saldo
+  from public.ew_estoque_obras_movimentos m
+  where m.empresa_id=p_empresa_id and m.obra_id=v_rec.obra_id
+   and m.variacao_id=v_rec.variacao_id
+   and m.comprimento_mm is not distinct from v_rec.comprimento_mm
+   and m.unidade=v_rec.unidade
+  group by m.local_estoque having sum(m.quantidade_delta)>0
+  order by (m.local_estoque=v_rec.local_estoque) desc,m.local_estoque
+ loop
+  exit when v_restante<=0;
+  v_abatido:=least(v_local.saldo,v_restante);
+  insert into public.ew_estoque_obras_movimentos
+   (empresa_id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,
+    origem,operacao_id,observacao,usuario_id,local_estoque,estorno_de_id)
+  values(p_empresa_id,v_rec.obra_id,v_rec.variacao_id,v_rec.comprimento_mm,
+    v_rec.unidade,-v_abatido,'ESTORNO',gen_random_uuid(),
+    left('Estorno do recebimento NF (sem cancelar a despesa): '||v_motivo,500),
+    v_user,v_local.local_estoque,case when v_primeiro then v_original.id else null end)
+  returning id into v_mov;
+  v_primeiro:=false;
+  v_locais:=v_locais||jsonb_build_array(jsonb_build_object(
+    'galpao',v_local.local_estoque,'quantidade',v_abatido,'movimento_id',v_mov));
+  v_restante:=v_restante-v_abatido;
+ end loop;
+ if v_restante<>0 then raise exception 'Não foi possível completar o estorno físico.';end if;
+ update public.ew_nfe_recebimentos
+ set estornado_em=now(),estornado_por=v_user,estorno_motivo=v_motivo,
+  estorno_operacao_id=p_operacao_id,estorno_detalhes=v_locais
+ where id=v_rec.id and empresa_id=p_empresa_id and estornado_em is null;
+ return jsonb_build_object('ja_estornado',false,'recebimento_id',v_rec.id,
+  'quantidade_estornada',v_rec.quantidade,'unidade',v_rec.unidade,
+  'locais',v_locais,'despesa_preservada',true);
+end
+$f$;
+revoke all on function public.ew_estornar_recebimento_nfe(uuid,uuid,text,uuid) from public;
+revoke execute on function public.ew_estornar_recebimento_nfe(uuid,uuid,text,uuid) from anon;
+grant execute on function public.ew_estornar_recebimento_nfe(uuid,uuid,text,uuid) to authenticated;
