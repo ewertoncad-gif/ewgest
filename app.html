@@ -1444,6 +1444,41 @@
     </form>
   </div>
 </div>
+<div id="stockObraTransferOverlay" class="modaloverlay hidden" role="presentation">
+ <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockObraTransferTitle">
+  <h2 id="stockObraTransferTitle">Transferir material para outra obra</h2>
+  <p class="hint" id="stockObraTransferInfo"></p>
+  <form id="stockObraTransferForm">
+   <label>Obra de origem <input id="stockObraTransferFrom" readonly></label>
+   <label>Galpão de origem <input id="stockObraTransferFromLocal" readonly></label>
+   <label>Obra de destino <select id="stockObraTransferTarget" required></select></label>
+   <label>Galpão de destino <select id="stockObraTransferToLocal" required></select></label>
+   <label>Quantidade para transferir <input id="stockObraTransferQty" type="number" min="0.001" step="1" required></label>
+   <label>Motivo <textarea id="stockObraTransferReason" minlength="5" maxlength="350" rows="2" required placeholder="Ex.: Remanejamento de material entre obras"></textarea></label>
+   <p class="hint">O EWGEST baixa o saldo da origem e credita o destino na mesma operação, com histórico em ambas as obras.</p>
+   <p id="stockObraTransferError" class="feedback" role="alert"></p>
+   <div class="modalbuttons">
+    <button id="stockObraTransferCancel" type="button" class="btn secondary">Cancelar</button>
+    <button id="stockObraTransferSave" type="submit" class="btn primary">Confirmar transferência</button>
+   </div>
+  </form>
+ </div>
+</div>
+<div id="stockCreateEmptyOverlay" class="modaloverlay hidden" role="presentation">
+ <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockCreateEmptyTitle">
+  <h2 id="stockCreateEmptyTitle">Criar estoque vazio de uma obra</h2>
+  <p class="hint">O cadastro cria a obra e habilita seu estoque. Nenhuma quantidade física é lançada.</p>
+  <form id="stockCreateEmptyForm">
+   <label>Nome da nova obra <input id="stockCreateEmptyName" maxlength="180" required placeholder="Ex.: CASA MOSER"></label>
+   <label>Código da obra (opcional) <input id="stockCreateEmptyCode" maxlength="80" placeholder="Ex.: ALU-3200-GVG-PE"></label>
+   <p id="stockCreateEmptyError" class="feedback" role="alert"></p>
+   <div class="modalbuttons">
+    <button id="stockCreateEmptyCancel" type="button" class="btn secondary">Cancelar</button>
+    <button id="stockCreateEmptySave" type="submit" class="btn primary">Criar estoque vazio</button>
+   </div>
+  </form>
+ </div>
+</div>
 <div id="stockQuantityOverlay" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockQuantityTitle">
     <h2 id="stockQuantityTitle">Ajustar quantidade da obra</h2>
