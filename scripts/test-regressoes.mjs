@@ -2070,7 +2070,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.0')&&
+assert.ok(source.includes('v46.1')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2118,8 +2118,8 @@ assert.ok(source.includes('id="stockTransferPickLocal">Transferência entre galp
  source.includes('id="romTransfSection"')&&
  source.includes('id="romTransfMerge"')&&
  source.includes('id="romTransfExtras"')&&
- source.includes('romaneios-transferencia.css?v=20261121a')&&
- source.includes('romaneios-transferencia.js?v=20261121a')&&
+ source.includes('romaneios-transferencia.css?v=20261121b')&&
+ source.includes('romaneios-transferencia.js?v=20261121b')&&
  source.includes("if(window.ewTransferRomaneiosReload)window.ewTransferRomaneiosReload()"),
  'Transferencia entre galpoes deve ter romaneio na guia de expedicao');
 for(const token of [
@@ -2303,7 +2303,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.0</strong>'),
+ source.includes('EWGEST <strong>· v46.1</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2346,5 +2346,39 @@ for(const code of ['MT','M','METRO','METROS'])assert.equal(validarMT(code),true)
 for(const code of ['KG','M2','L','UN'])assert.equal(validarMT(code),false);
 assert.equal(unidadeValidadores.unidadeContavel('MT'),true,'MT usa inteiros no formulário de notas');
 assert.equal(unidadeValidadores.unidadeContavel('KG'),false,'KG continua aceitando frações');
+
+
+// EWGEST v46.1 — no romaneio de transferencia motorista e placa sao selecionados,
+// nunca digitados: os dois cadastros ja existem para os romaneios de obra.
+const transferTransport=readFileSync(fileURLToPath(new URL(
+ '../assets/romaneios-transferencia.js',import.meta.url)),'utf8');
+const transferTransportCSS=readFileSync(fileURLToPath(new URL(
+ '../assets/romaneios-transferencia.css',import.meta.url)),'utf8');
+assert.doesNotThrow(()=>new Function(transferTransport),
+ 'Romaneios de transferencia: script JavaScript valido');
+for(const [id,placeholder] of [
+ ['romTransfMotorista','Selecione um motorista cadastrado'],
+ ['romTransfPlaca','Selecione uma placa cadastrada']
+]){
+ assert.ok(source.includes('<select id="'+id+'" required>')&&source.includes(placeholder),
+  'Motorista e placa devem ser seletores obrigatorios de cadastro: '+id);
+ assert.ok(!source.includes('<input id="'+id+'"'),
+  'O romaneio de transferencia nao deve solicitar digitacao livre: '+id);
+}
+assert.ok(transferTransport.includes("apiGet('romaneios_motoristas'")&&
+ transferTransport.includes("apiGet('romaneios_veiculos'")&&
+ transferTransport.includes("ativo:'eq.true'")&&
+ transferTransport.includes("empresa_id:'eq.'+empresa()")&&
+ transferTransport.includes("selecionarTransporte('romTransfMotorista',motoristas,'nome',motoristaAtual)")&&
+ transferTransport.includes("selecionarTransporte('romTransfPlaca',veiculos,'placa',placaAtual)")&&
+ transferTransport.includes("!motoristas.some(x=>x.nome===motorista)")&&
+ transferTransport.includes("!veiculos.some(x=>x.placa===placa)")&&
+ transferTransport.includes("if(editVersion!==version||editId!==id)return")&&
+ transferTransport.includes("void carregarTransporteEdicao(id,version,d.motorista||'',d.placa||'')"),
+ 'Romaneios de transferencia precisam carregar cadastros ativos, preservar valores validos e bloquear texto livre');
+assert.ok(source.includes('romaneios-transferencia.js?v=20261121b')&&
+ source.includes('romaneios-transferencia.css?v=20261121b')&&
+ transferTransportCSS.includes('.romTransfFields select'),
+ 'O deploy da versao 46.1 precisa atualizar o cache e o estilo do seletor');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
