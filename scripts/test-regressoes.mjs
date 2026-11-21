@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const source=readFileSync(fileURLToPath(new URL('../app.html',import.meta.url)),'utf8');
 const receiptCacheHeaders=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
-assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121d')&&
- source.includes('/assets/recebimento-manual.css?v=20261121d'),
+assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121e')&&
+ source.includes('/assets/recebimento-manual.css?v=20261121e'),
  'O recebimento precisa de URLs versionadas para evitar assets antigos após deploy');
 assert.match(receiptCacheHeaders,/\/assets\/recebimento-manual\.js\s+Content-Type: text\/javascript; charset=utf-8\s+Cache-Control: no-store/,
  'Cloudflare não deve manter o JavaScript de recebimento em cache');
@@ -1497,8 +1497,8 @@ assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
  !source.includes('<label>XML da nota fiscal (NF-e)')&&
  source.includes('id="finCostCategory" required'),
  'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
-assert.ok(source.includes('recebimento-manual.js?v=20261121d')&&
- source.includes('recebimento-manual.css?v=20261121d')&&receiveCSS.includes('.finManualTable'),
+assert.ok(source.includes('recebimento-manual.js?v=20261121e')&&
+ source.includes('recebimento-manual.css?v=20261121e')&&receiveCSS.includes('.finManualTable'),
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
  receiveScript.includes('p_itens:items')&&receiveScript.includes('finCostOpId ||= crypto.randomUUID()')&&
@@ -1679,6 +1679,42 @@ const fixture={
  ]
 };
 const perfil=mockResolver(fixture,'aluminio');
+// Entrando agora (perfis): aceitar apenas barras inteiras positivas.
+// Uma quantidade como "3,001" jamais pode virar "3001" ao digitar ou lançar a nota.
+const naturalStart=receiveScript.indexOf(' function isNaturalBarQuantity(value){');
+const naturalEnd=receiveScript.indexOf(' function stockCategory(){',naturalStart);
+assert.ok(naturalStart>=0&&naturalEnd>naturalStart,'Validação de quantidade natural encontrada');
+const isNaturalBarQuantity=new Function(receiveScript.slice(naturalStart,naturalEnd)+
+ '\nreturn isNaturalBarQuantity;')();
+for(const val of ['1','3','42','1000000','0003']){
+ assert.equal(isNaturalBarQuantity(val),true,'Barra inteira permitida: '+val);
+}
+for(const val of ['','0','-2','+3','3,001','3.001','1e3','2.5','1000001','abc']){
+ assert.equal(isNaturalBarQuantity(val),false,'Quantidade inválida rejeitada: '+val);
+}
+assert.ok(receiveScript.includes('type="text" inputmode="numeric" pattern="[0-9]*" maxlength="7"')&&
+ receiveScript.includes("if(category==='aluminio'&&!/^[0-9]*$/.test(value))")&&
+ receiveScript.includes("event.target.value=r.quantidade||''")&&
+ receiveScript.includes("if(category==='aluminio'&&!isNaturalBarQuantity(rawQty))"),
+ 'Entrada de barras deve impedir decimais já na digitação e confirmar regra no envio');
+const normalizeEnd=receiveScript.indexOf(' async function submit(',resolverStart);
+assert.ok(normalizeEnd>resolverEnd,'Validador da NF encontrado');
+const normalizeFixture=new Function('state','selectedCategory',
+ 'let finState=state,category=selectedCategory; const cents=()=>10000;\n'+
+ receiveScript.slice(naturalStart,normalizeEnd)+
+ '\nreturn normalizeItem;');
+const normalizeBar=normalizeFixture(fixture,'aluminio');
+const validRow={material:'p1',variacao:'v1',comprimento:'6000',quantidade:'3',valor:'R$ 100,00'};
+assert.equal(normalizeBar(validRow,0).quantidade,3,'3 barras entram como 3 barras');
+for(const invalid of ['0','-1','3,001','3.001','1e3','2.5']){
+ assert.throws(()=>normalizeBar({...validRow,quantidade:invalid},0),
+  /Quantidade de barras:/,'NF não deve aceitar '+invalid);
+}
+const normalizeAccessory=normalizeFixture(fixture,'acessorios');
+assert.equal(normalizeAccessory({material:'a1',variacao:'va1',comprimento:'',
+ quantidade:'2.5',valor:'R$ 100,00'},0).quantidade,2.5,
+ 'Não alterar acessório medido em unidade fracionável');
+
 assert.deepEqual(perfil.getMaterials().map(x=>x.id),['p1'],
  'Não mostrar perfis externos à obra');
 assert.deepEqual(perfil.getVariations('p1').map(x=>x.id),['v1'],
