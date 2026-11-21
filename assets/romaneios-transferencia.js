@@ -10,6 +10,12 @@ let editVersion=0,motoristas=[],veiculos=[],transporteCarregado=false;
 function empresa(){return typeof currentCompany!=='undefined'&&currentCompany?currentCompany.id:null;}
 function dataHoje(){const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');}
 function erro(v){el('romTransfStatus').textContent=String(v||'');}
+function avisoDocumento(id,message){
+ erro(message);
+ const lista=el('romTransfList');
+ const alvo=lista&&[...lista.querySelectorAll('[data-t-status]')].find(n=>n.dataset.tStatus===id);
+ if(alvo)alvo.textContent=String(message||'');
+}
 function rota(d){return d.origem+' → '+d.destino;}
 function obra(id){return (typeof works!=='undefined'&&works||[]).find(w=>w.id===id)?.nome||'Obra '+String(id||'').slice(0,8);}
 function ativo(d){return d.status==='RASCUNHO'||d.status==='EMITIDO';}
@@ -41,7 +47,7 @@ function render(){
  (d.status==='RASCUNHO'?'<button type="button" class="btn secondary" data-t-edit="'+esc(d.id)+'">Editar / incluir itens</button>':'')+
  (d.status==='RASCUNHO'?'<button type="button" class="btn primary" data-t-emit="'+esc(d.id)+'">Emitir e imprimir</button>':'')+
  (emitted?'<button type="button" class="btn secondary" data-t-print="'+esc(d.id)+'">Imprimir / reimprimir</button>':'')+
- '</div></div>';
+ '</div><p class="romTransfDocMessage" data-t-status="'+esc(d.id)+'" role="status"></p></div>';
  }).join('');
  box.querySelectorAll('[data-t-view]').forEach(x=>x.addEventListener('click',()=>visualizar(x.dataset.tView)));
  box.querySelectorAll('[data-t-edit]').forEach(x=>x.addEventListener('click',()=>editar(x.dataset.tEdit)));
@@ -192,10 +198,10 @@ async function emitir(id){
  if(!d.motorista||!d.placa){
   editar(id);
   el('romTransfEditTitle').textContent='Complete o transporte antes de emitir '+d.numero;
-  erro('O romaneio continua em rascunho. Selecione motorista e placa, salve e depois clique em Emitir e imprimir.');
+  avisoDocumento(id,'O romaneio continua em rascunho. Selecione motorista e placa, salve e depois clique em Emitir e imprimir.');
   return;
  }
- if(estaEstornado(d)){erro('Há transferência estornada neste romaneio. Não é possível emitir.');return;}
+ if(estaEstornado(d)){avisoDocumento(id,'Há transferência estornada neste romaneio. Não é possível emitir.');return;}
  if(!window.confirm('Emitir e imprimir '+d.numero+'? Após emitir, o documento será bloqueado para edição. A operação não movimenta estoque novamente.'))return;
  // A guia deve ser aberta durante o clique, ANTES da chamada assíncrona.
  // Abrir depois do await pode ser bloqueado pelo navegador.
@@ -212,7 +218,7 @@ async function emitir(id){
  }catch(e){
   busy=false;
   if(aba&&!aba.closed)aba.close();
-  erro('Não foi possível emitir '+d.numero+'. Ele permanece em rascunho. '+e.message);
+  avisoDocumento(id,'Não foi possível emitir '+d.numero+'. Ele permanece em rascunho. '+e.message);
   return;
  }
  // O banco já confirmou a emissão. Manter o botão de reimprimir disponível
@@ -226,7 +232,7 @@ async function emitir(id){
   erro(d.numero+' emitido, mas ocorreu um erro ao preparar a impressão. Use Imprimir / reimprimir. '+e.message);
  }
  await carregar();
- erro(abriu?
+ avisoDocumento(id,abriu?
   d.numero+' emitido. A prévia e o comando de impressão foram abertos em outra guia. O botão Imprimir / reimprimir permanece disponível.':
   d.numero+' emitido. Não foi possível abrir a impressão automaticamente; use o botão Imprimir / reimprimir e autorize novas guias se necessário.');
 }
@@ -241,7 +247,7 @@ function imprimir(id,janelaReservada=null){
  }
  const janela=janelaReservada||window.open('about:blank','_blank');
  if(!janela||janela.closed){
-  erro('O navegador bloqueou a nova guia. Permita pop-ups para o EWGEST e clique em Imprimir / reimprimir.');
+  avisoDocumento(id,'O navegador bloqueou a nova guia. Permita pop-ups para o EWGEST e clique em Imprimir / reimprimir.');
   return false;
  }
  const conteudo=(d.itens||[]).map(itemResumo).join('');
