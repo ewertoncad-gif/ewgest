@@ -2046,4 +2046,49 @@ assert.ok(!/DELETE\s+FROM\s+public\.ew_estoque_obras_movimentos/i.test(transferS
  !/UPDATE\s+public\.ew_estoque_obras_movimentos/i.test(transferSQL),
  'Transferência deve registrar deltas de saída/entrada, nunca reescrever histórico');
 
+
+// EWGEST v45.3 — GN096 só aparece após selecionar obra; estorno NF e
+// entrega física do almoxarife são etapas distintas da liberação técnica.
+const releaseDelayedSQL=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261121_liberacao_sem_baixa_ate_entrega.sql',import.meta.url)),'utf8');
+const deliverySQL=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261121_entrega_producao_almoxarife.sql',import.meta.url)),'utf8');
+const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261121_estorno_recebimento_nfe.sql',import.meta.url)),'utf8');
+const deliveryClient=readFileSync(fileURLToPath(new URL(
+ '../assets/entregas-producao.js',import.meta.url)),'utf8');
+assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
+assert.ok(source.includes('v45.3')&&
+ source.includes('id="entregasProducaoPanel"')&&
+ source.includes('entregas-producao.js?v=20261121a')&&
+ source.includes('entregas-producao.css?v=20261121a')&&
+ source.includes("const anterior=prefer||sel.value||'';")&&
+ source.includes("if(!obraId){msg.textContent='Selecione uma obra para iniciar o recebimento.';return;}")&&
+ source.includes("el.classList.add('hidden');el.replaceChildren();return;")&&
+ source.includes("x.obraId!==selected")&&
+ source.includes("state.obraId!==selected"),
+ 'Notas aprovadas/pedidas GN096 não podem aparecer sem seleção explícita da obra');
+assert.ok(source.includes('finReceiveUndo')&&
+ source.includes("ew_estornar_recebimento_nfe")&&
+ source.includes('estornado_em,estorno_motivo,estorno_detalhes')&&
+ receiptUndoSQL.includes('ew_estornar_recebimento_nfe')&&
+ receiptUndoSQL.includes('estorno_detalhes')&&
+ receiptUndoSQL.includes("m.origem in ('PLANO_CORTE','PLANO_CORTE_LOTE','SAIDA_MANUAL','AJUSTE')")&&
+ receiptUndoSQL.includes('m.local_estoque')&&
+ receiptUndoSQL.includes('n.estornado_em is null')&&
+ receiptUndoSQL.includes('Recebimento NF-e não pode ser revertido'),
+ 'Estorno de NF mantém histórico, aceita galpão alterado e bloqueia baixa de produção');
+assert.ok(releaseDelayedSQL.includes('ew_liberar_plano_corte_revisado')&&
+ releaseDelayedSQL.includes('ew_liberar_lote_cem')&&
+ releaseDelayedSQL.includes("'linhas_baixadas',0")&&
+ !/insert into public\.ew_estoque_obras_movimentos/i.test(releaseDelayedSQL)&&
+ deliverySQL.includes('ew_entregas_pendentes_producao')&&
+ deliverySQL.includes('ew_confirmar_entrega_producao')&&
+ deliverySQL.includes("'PLANO_CORTE_LOTE'")&&
+ deliverySQL.includes('v_stock<v_qty')&&
+ deliverySQL.includes('p_operacao_id')&&
+ deliveryClient.includes('entregaRelatorioCheck')&&
+ deliveryClient.includes('ew_confirmar_entrega_producao'),
+ 'Liberação gera relação impressa sem baixa; só entrega física de almoxarife baixa estoque');
+
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
