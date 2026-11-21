@@ -706,8 +706,12 @@ assert.ok(source.includes('id="releaseBatchOpen"')&&source.includes('id="release
  source.includes("'/rest/v1/rpc/ew_liberar_lote_cem'")&&source.includes('function releaseBatchCollect()'),
  'Liberação em lote CEM deve ter espelho editável, validação e confirmação única');
 assert.ok(source.includes('id="stockFactoryFilter"')&&source.includes('id="stockManualFactory"')&&
- source.includes('data-stock-transfer=')&&source.includes("'/rest/v1/rpc/ew_transferir_estoque_obra'"),
- 'Estoque controlado, transferível e filtrável por local físico');
+ source.includes('id="stockTransferPickLocal"')&&source.includes('id="stockTransferPickWork"')&&
+ source.includes("stockTransferOpen(candidate.item.v.id")&&
+ source.includes("stockObraTransferOpen(candidate.item.v.id")&&
+ source.includes("'/rest/v1/rpc/ew_transferir_estoque_obra'")&&
+ !source.includes('<th>Galpão</th><th>Ação</th>'),
+ 'Estoque transferível com seletor centralizado e tabela sem coluna Ação');
 assert.ok(source.includes('const obrasParaRomaneio=works.filter'),
  'Romaneios escondem obra de estoque arquivado sem esquadrias e sem histórico');
 assert.ok(source.includes("'/rest/v1/rpc/ew_liberar_plano_corte_revisado'"),
