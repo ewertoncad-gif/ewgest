@@ -8753,6 +8753,9 @@ function stockReverseHistoryRender(id){
   const titulo=stockReverseDescricaoMaterial(m);
   const estornado=m.estorno_de_id?'Contrapartida de estorno':
    estornados.has(m.id)?'Estornado':'Não estornado';
+  const entreObras=m.origem==='TRANSFERENCIA'&&m.transferencia_id&&
+   estoqueObraMovimentos.some(x=>x.transferencia_id===m.transferencia_id&&
+    x.origem==='TRANSFERENCIA'&&x.obra_id!==m.obra_id);
   const qtd=Number(m.quantidade_delta);
   const data=new Date(m.criado_em);
   const quando=Number.isFinite(data.getTime())?data.toLocaleString('pt-BR'):'Data indisponível';
@@ -8762,7 +8765,8 @@ function stockReverseHistoryRender(id){
   ].filter(Boolean).join(' · ');
   const botao=!m.estorno_de_id&&!estornados.has(m.id)?
    '<button type="button" class="btn secondary" data-stock-reverse-item="'+escapeHTML(m.id)+
-   '" '+(stockReverseReady?'':'disabled')+'>Estornar lançamento</button>':'';
+   '" '+(stockReverseReady?'':'disabled')+'>'+(entreObras?
+    'Estornar transferência entre obras':'Estornar lançamento')+'</button>':'';
   return '<div class="stockReverseHistoryRow"><div><strong>'+escapeHTML(titulo.cabecalho)+'</strong>'+
    '<div class="hint">'+escapeHTML(titulo.detalhes)+'</div>'+
    '<div class="hint">'+escapeHTML(extras)+'</div>'+
@@ -8786,8 +8790,12 @@ async function stockReverseIndividual(movimentoId){
   estado.textContent='Informe um motivo de 5 a 400 caracteres para o lançamento.';return;
  }
  const detalhe=stockReverseDescricaoMaterial(mov);
- const transferencia=mov.transferencia_id?
-  '\\nAs duas partes da transferência entre galpões serão estornadas juntas.':'';
+ const entreObras=mov.origem==='TRANSFERENCIA'&&mov.transferencia_id&&
+  estoqueObraMovimentos.some(x=>x.transferencia_id===mov.transferencia_id&&
+   x.origem==='TRANSFERENCIA'&&x.obra_id!==mov.obra_id);
+ const transferencia=entreObras?
+  '\\nA saída e a entrada em ambas as obras serão estornadas juntas. O destino precisa ter saldo para devolver o material.':
+  mov.transferencia_id?'\\nAs duas partes da transferência entre galpões serão estornadas juntas.':'';
  const efeito=Number(mov.quantidade_delta)>0?'diminuirá':'aumentará';
  if(!window.confirm('Tem certeza que deseja estornar esta movimentação?\\n\\n'+
   detalhe.cabecalho+' · '+detalhe.detalhes+'\\nObra: '+obra.nome+
@@ -8802,10 +8810,15 @@ async function stockReverseIndividual(movimentoId){
  estado.textContent='Estornando o lançamento selecionado e registrando a auditoria…';
  try{
   await ensureSession();
-  const result=await request('/rest/v1/rpc/ew_estornar_movimento_obra',{
-   method:'POST',token:session.access_token,timeoutMs:60000,
-   body:{p_obra_id:id,p_movimento_id:movimentoId,p_motivo:motivo,
-    p_operacao_id:crypto.randomUUID()}});
+  const endpoint=entreObras?'/rest/v1/rpc/ew_estornar_transferencia_entre_obras':
+   '/rest/v1/rpc/ew_estornar_movimento_obra';
+  const payload=entreObras?
+   {p_empresa_id:currentCompany.id,p_transferencia_id:mov.transferencia_id,
+    p_motivo:motivo,p_operacao_id:crypto.randomUUID()}:
+   {p_obra_id:id,p_movimento_id:movimentoId,p_motivo:motivo,
+    p_operacao_id:crypto.randomUUID()};
+  const result=await request(endpoint,{
+   method:'POST',token:session.access_token,timeoutMs:60000,body:payload});
   await abrirEstoque();
   stockManageRender();
   await stockReverseRevisar(id);
