@@ -7974,6 +7974,126 @@ node('stockTransferForm').addEventListener('submit',async e=>{
  }catch(error){node('stockTransferError').textContent='Não foi possível transferir: '+error.message;}
  finally{btn.disabled=false;}
 });
+/* Transferir entre OBRAS: uma saída e uma entrada na mesma transação SQL. */
+let stockObraTransferSelected=null,stockObraTransferOperationId=null;
+function stockObraTransferOpen(variacaoId,comprimento='',unidade='',local=''){
+ if(!matIsAdmin()||!currentCompany)return;
+ const origem=node('stockWork').value;
+ if(!origem||stockLocais.some(l=>l.obra_id===origem&&l.excluido_em))return;
+ const item=estoqueDados().find(x=>x.v.id===variacaoId);
+ if(!item)return;
+ const tamanho=item.v.tipo==='perfil'?mmOrNull(comprimento):null;
+ const disponivel=stockQtyAvailable(item,tamanho,unidade,local).saldo;
+ if(!(disponivel>0)){
+  node('stockMessage').textContent='Este material não tem saldo disponível neste galpão.';return;
+ }
+ const ativos=new Set(stockLocais.filter(l=>!l.excluido_em).map(l=>l.obra_id));
+ const destinos=works.filter(w=>w.id!==origem&&ativos.has(w.id));
+ if(!destinos.length){
+  node('stockMessage').textContent='Não existe outra obra com estoque ativo para receber material.';return;
+ }
+ stockObraTransferSelected={item,origem,comprimento:tamanho,unidade,local,saldo:disponivel};
+ stockObraTransferOperationId=crypto.randomUUID();
+ node('stockObraTransferForm').reset();
+ node('stockObraTransferFrom').value=works.find(w=>w.id===origem)?.nome||'Obra selecionada';
+ node('stockObraTransferFromLocal').value=local;
+ node('stockObraTransferTarget').innerHTML='<option value="">Selecione a obra de destino</option>'+
+  destinos.map(w=>'<option value="'+escapeHTML(w.id)+'">'+escapeHTML(w.nome+' · '+(w.codigo||''))+'</option>').join('');
+ node('stockObraTransferToLocal').innerHTML='<option value="">Selecione o galpão de destino</option>'+
+  stockLocaisFisicos.map(g=>'<option value="'+escapeHTML(g)+'">'+escapeHTML(g)+'</option>').join('');
+ if(stockLocaisFisicos.includes(local))node('stockObraTransferToLocal').value=local;
+ node('stockObraTransferQty').max=String(disponivel);
+ node('stockObraTransferQty').step=item.v.tipo==='perfil'?'1':'0.001';
+ node('stockObraTransferInfo').textContent=item.mat.codigo+' · '+item.mat.descricao+
+  ' · '+item.v.cor+(tamanho?' · '+tamanho.toLocaleString('pt-BR')+' mm':'')+
+  ' · Disponível: '+matFormat(disponivel,item.v.tipo==='perfil'?0:3)+' '+unidade;
+ node('stockObraTransferError').textContent='';
+ node('stockObraTransferOverlay').classList.remove('hidden');
+ node('stockObraTransferTarget').focus();
+}
+function stockObraTransferClose(){
+ node('stockObraTransferOverlay').classList.add('hidden');
+ stockObraTransferSelected=null;stockObraTransferOperationId=null;
+}
+node('stockObraTransferCancel').addEventListener('click',stockObraTransferClose);
+node('stockObraTransferForm').addEventListener('submit',async event=>{
+ event.preventDefault();
+ const sel=stockObraTransferSelected;
+ if(!sel||!matIsAdmin())return;
+ const destino=node('stockObraTransferTarget').value,localDestino=node('stockObraTransferToLocal').value,
+  quantidade=Number(node('stockObraTransferQty').value),
+  motivo=node('stockObraTransferReason').value.trim(),
+  barra=sel.item.v.tipo==='perfil',
+  erro=node('stockObraTransferError');
+ const ativos=new Set(stockLocais.filter(x=>!x.excluido_em).map(x=>x.obra_id));
+ if(!destino||destino===sel.origem||!ativos.has(destino)||
+   !stockLocaisFisicos.includes(localDestino)||!Number.isFinite(quantidade)||
+   quantidade<=0||quantidade>sel.saldo||quantidade>1000000||
+   (barra&&!Number.isSafeInteger(quantidade))||
+   (!barra&&Number(quantidade.toFixed(3))!==quantidade)||
+   motivo.length<5||motivo.length>350){
+  erro.textContent='Selecione obra e galpão válidos, quantidade disponível e motivo (5 a 350 caracteres).';return;
+ }
+ const destinoNome=works.find(w=>w.id===destino)?.nome||'obra de destino';
+ if(!window.confirm('Transferir '+quantidade+' '+sel.unidade+' para '+destinoNome+
+  '?\nSaída da obra de origem: '+sel.local+
+  '\nEntrada na obra de destino: '+localDestino+
+  '\nA movimentação será registrada em ambas.'))return;
+ const btn=node('stockObraTransferSave');
+ btn.disabled=true;erro.textContent='Registrando transferência…';
+ try{
+  await ensureSession();
+  const result=await request('/rest/v1/rpc/ew_transferir_estoque_entre_obras',{
+   method:'POST',token:session.access_token,timeoutMs:60000,
+   body:{
+    p_empresa_id:currentCompany.id,
+    p_origem_obra_id:sel.origem,p_destino_obra_id:destino,
+    p_variacao_id:sel.item.v.id,p_comprimento_mm:sel.comprimento,
+    p_unidade:sel.unidade,p_quantidade:quantidade,
+    p_origem_local:sel.local,p_destino_local:localDestino,
+    p_observacao:motivo,p_operacao_id:stockObraTransferOperationId
+   }
+  });
+  const origem=sel.origem;
+  stockObraTransferClose();
+  await abrirEstoque();
+  node('stockWork').value=origem;renderEstoque();
+  node('stockMessage').textContent=result?.repetida?
+   'Esta transferência já havia sido registrada; não houve duplicação.':
+   'Transferência concluída para '+destinoNome+': '+quantidade+' '+sel.unidade+
+    '. Baixa e entrada registradas com o mesmo identificador.';
+ }catch(e){erro.textContent='Não foi possível transferir: '+e.message+
+   '. Antes de tentar novamente, confira o saldo e o histórico.';}
+ finally{btn.disabled=false;}
+});
+
+/* Criar estoque de outra obra sem lançar material ou criar saldos fictícios. */
+function stockCreateEmptyClose(){node('stockCreateEmptyOverlay').classList.add('hidden');}
+node('stockCreateEmptyCancel').addEventListener('click',stockCreateEmptyClose);
+node('stockCreateEmptyForm').addEventListener('submit',async event=>{
+ event.preventDefault();
+ if(!matIsAdmin()||!currentCompany)return;
+ const nome=node('stockCreateEmptyName').value.trim(),codigo=node('stockCreateEmptyCode').value.trim();
+ const erro=node('stockCreateEmptyError');
+ if(nome.length<3||nome.length>180||codigo.length>80){
+  erro.textContent='Nome obrigatório (3 a 180 caracteres), código de até 80 caracteres.';return;
+ }
+ const btn=node('stockCreateEmptySave');btn.disabled=true;
+ try{
+  await ensureSession();
+  const obra=await request('/rest/v1/rpc/ew_criar_obra_estoque',{
+   method:'POST',token:session.access_token,
+   body:{p_empresa_id:currentCompany.id,p_nome:nome,p_codigo:codigo}
+  });
+  works.push({...obra,situacao:'Em andamento'});
+  stockCreateEmptyClose();
+  await abrirEstoque();
+  node('stockWork').value=obra.id;renderEstoque();
+  node('stockMessage').textContent='Estoque vazio da obra '+obra.nome+
+   ' criado. Nenhum material foi lançado. Para receber, utilize Financeiro ou transferência.';
+ }catch(e){erro.textContent='Não foi possível criar o estoque: '+e.message;}
+ finally{btn.disabled=false;}
+});
 node('stockQtyLength').addEventListener('change',stockQtyUpdate);
 node('stockQtyCancel').addEventListener('click',stockQtyClose);
 node('stockQuantityForm').addEventListener('submit',stockQtySubmit);
@@ -8262,13 +8382,11 @@ async function stockManualSubmit(event){
  }catch(e){error.textContent='Não foi possível concluir: '+e.message;}
  finally{btn.disabled=false;}
 }
-node('stockNewManual').addEventListener('click',()=>stockManualOpen());
 node('stockCreateAnother').addEventListener('click',()=>{
-  stockManualOpen();
-  node('stockManualTitle').textContent='Criar estoque de outra obra';
-  node('stockManualWork').value='';
-  node('stockCreateWorkPanel').classList.remove('hidden');
-  node('stockNewWorkName').focus();
+ node('stockCreateEmptyForm').reset();
+ node('stockCreateEmptyError').textContent='';
+ node('stockCreateEmptyOverlay').classList.remove('hidden');
+ node('stockCreateEmptyName').focus();
 });
 node('stockManualCancel').addEventListener('click',stockManualClose);
 node('stockManualForm').addEventListener('submit',stockManualSubmit);
