@@ -1853,10 +1853,32 @@ assert.ok(receiveScript.includes('function hojeLocalISO(){')&&
  receiveScript.includes("if(!byId('finCostDate').value)byId('finCostDate').value=hojeLocalISO()")&&
  !receiveScript.includes('new Date().toISOString().slice(0,10)'),
  'Data deve vir preenchida no dia local e continuar editável');
-assert.ok(receiveScript.includes("byId('finCostTotal').readOnly=hasStock;")&&
+assert.ok(receiveScript.includes("byId('finCostTotal').readOnly=true;")&&
+ receiveScript.includes("byId('finMiscBlock').classList.toggle('hidden',hasStock)")&&
  receiveScript.includes("totalField.value=soma>0?finMoney(soma/100):''")&&
  !receiveScript.includes('rows.length===1&&note!==null'),
  'Valor da NF de materiais deve vir da soma dos itens sem substituir um valor de linha');
+
+// Vidros e outros insumos são discriminados sem inventar saldo de estoque.
+const miscSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_recebimento_itens_vidros_outros.sql',import.meta.url)),'utf8');
+const techSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_exclusao_cadastros_tecnicos.sql',import.meta.url)),'utf8');
+assert.ok(source.includes('id="finMiscBlock"')&&source.includes('id="finMiscRows"')&&
+ source.includes('id="finMiscSum"')&&
+ receiveScript.includes('function miscNormalized(){')&&
+ receiveScript.includes('function miscUpdateSum(){')&&
+ receiveScript.includes("'/rest/v1/rpc/ew_receber_despesa_com_itens_almox'")&&
+ receiveScript.includes('p_itens:items')&&
+ miscSQL.includes('insert into public.ew_obra_despesas_itens')&&
+ !/insert into public\.ew_estoque_obras_movimentos/i.test(miscSQL),
+ 'Vidros e outros insumos devem guardar itens da NF, sem criar estoque físico inexistente');
+assert.ok(techSQL.includes('ew_excluir_cadastro_tecnico_sem_vinculo')&&
+ techSQL.includes('ew_obra_despesas_itens')&&
+ techSQL.includes('ew_materiais_variacoes')&&
+ techSQL.includes('ew_estoque_obras_movimentos')&&
+ source.includes('data-mat-delete')&&source.includes('id="matVarDelete"')&&
+ source.includes('id="typologyEditDelete"')&&
+ source.includes('id="manufacturerManagePanel"'),
+ 'Exclusão de cadastros técnicos exige ausência de vínculo em obras, estoque e histórico');
 
 const subtotalStart=receiveScript.indexOf(' function updateSum(){');
 const subtotalEnd=receiveScript.indexOf(' function renderForm(){',subtotalStart);
