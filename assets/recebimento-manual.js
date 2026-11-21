@@ -80,12 +80,9 @@
  function autoBarLength(row){
   if(category!=='aluminio'||!row.material||!row.variacao)return null;
   const selecionado=selectOptions().find(x=>x.value===row.selectionKey);
-  if(selecionado?.length)return selecionado.length;
-  const p=finState?.perfis.find(x=>x.id===row.material);
-  const cadastrado=Number(p?.comprimento_comercial_mm);
-  if(Number.isSafeInteger(cadastrado)&&cadastrado>=100&&cadastrado<=20000)return cadastrado;
-  const sizes=[...new Set(plannedBarRows(row.variacao).map(x=>Number(x.comprimento_mm)))];
-  return sizes.length===1?sizes[0]:null;
+  // Somente o plano de barras do CEM específico desta obra define a medida.
+  // O comprimento comercial genérico do cadastro não substitui esse dado.
+  return selecionado?.length??null;
  }
  function quantityData(row){
   if(!row.material||!row.variacao)
@@ -98,8 +95,12 @@
    // quantidade de barras necessárias. A comparação é BARRA X BARRA
    // com o mesmo código, cor, comprimento e obra.
    const length=Number(row.comprimento);
-   if(!Number.isSafeInteger(length)||length<100||length>20000)
-    return {needed:'—',received:'—',pending:'—',note:'Confira o tamanho comercial da barra.'};
+   if(!Number.isSafeInteger(length)||length<100||length>20000){
+    const receivedTotal=registered.filter(x=>x.unidade==='BARRA')
+     .reduce((sum,x)=>sum+Number(x.quantidade||0),0);
+    return {needed:'Não importado',received:barLabel(receivedTotal),pending:'—',
+     note:'O plano de barras (NUMBARRAS/BARRA) não consta para esta cor/perfil nesta obra. Confira a importação técnica; não é permitido escolher um tamanho manual.'};
+   }
    const planned=plannedBarRows(row.variacao)
     .filter(x=>Number(x.comprimento_mm)===length);
    const hasPlan=planned.length>0;
@@ -149,8 +150,7 @@
  function renderRows(){
   const body=byId('finManualRows');
   if(!finState){body.innerHTML='';return;}
-  const opts=selectOptions(),sizes=(finState.comprimentosComerciais||[])
-   .map(Number).filter(n=>Number.isSafeInteger(n)&&n>=100&&n<=20000);
+  const opts=selectOptions();
   body.innerHTML=rows.map((row,i)=>{
    const options='<option value="">'+(opts.length?'Selecione material da obra':'Nenhum material vinculado à obra')+'</option>'+
     opts.map(({mat,v,length,value})=>'<option value="'+escapeHTML(value)+'"'+(row.selectionKey===value?' selected':'')+'>'+
@@ -159,22 +159,17 @@
         ' · BARRAS NÃO IMPORTADAS'):'') )+'</option>').join('');
    const variation=opts.find(x=>x.value===row.selectionKey)?.v;
    const color=variation?[variation.cor,variation.acabamento].filter(Boolean).join(' / '):'—';
-   const auto=autoBarLength(row),unit=unitFor(row.material),q=quantityData(row);
-   if(auto&&!row.comprimento)row.comprimento=String(auto);
+   const auto=autoBarLength(row),unit=unitFor(row.material);
+   // Definir a medida antes dos indicadores de necessidade e recebimento.
+   if(auto)row.comprimento=String(auto);
+   else if(category==='aluminio')row.comprimento='';
+   const q=quantityData(row);
    let lengthField='<span class="finManualEmpty">—</span>';
    if(category==='aluminio'){
-    if(auto){
-     lengthField='<input type="number" class="finManualLength" readonly value="'+auto+
-      '" aria-label="Comprimento comercial cadastrado" title="Comprimento identificado no cadastro ou na importação">';
-    }else if(sizes.length){
-     lengthField='<select class="finManualLength" aria-label="Escolher tamanho da barra não informado no CEM" required>'+
-      '<option value="">Informe a barra</option>'+
-      [...new Set(sizes)].map(n=>'<option value="'+n+'"'+(String(n)===String(row.comprimento)?' selected':'')+'>'+
-       Number(n).toLocaleString('pt-BR')+' mm</option>').join('')+'</select>';
-    }else{
-     lengthField='<input class="finManualLength" type="number" min="100" max="20000" step="1" required '+
-      'placeholder="Não consta do CEM" value="'+escapeHTML(row.comprimento)+'">';
-    }
+    lengthField=auto?
+     '<span class="finManualReadonly" aria-label="Comprimento importado do CEM">'+
+       escapeHTML(Number(auto).toLocaleString('pt-BR')+' mm')+'</span>':
+     '<span class="finManualMissing" title="Sem plano de barras do CEM para este perfil, cor e obra">Não importado</span>';
    }
    const stats=html=>'<td class="finManualStat">'+html+'</td>';
    return '<tr data-manual-row="'+i+'">'+
@@ -192,7 +187,7 @@
   }).join('');
   const message=byId('finManualDetail');
   if(message)message.textContent=category==='aluminio'?
-   'Necessário: barras e tamanhos registrados pelo CEM para esta obra. Já recebido: barras das notas fiscais. Falta receber: diferença entre barras da mesma cor e comprimento. Sem plano de barras importado, a necessidade fica como não informada.':
+   'Comprimento e necessidade são lidos do plano de barras do CEM (NUMBARRAS/BARRA), nunca dos cortes. Já recebido: entradas físicas por NF. Sem plano importado, a medida fica pendente e a nota não pode registrar esse perfil.':
    'Necessário, recebido e falta receber são calculados na unidade de cada acessório, quando compatível.';
   updateSum();
  }
@@ -250,9 +245,13 @@
    throw new Error('Quantidade física inválida na linha '+(i+1)+'.');
   if(amount===null||amount<0)throw new Error('Subtotal do material inválido na linha '+(i+1)+'.');
   const length=category==='aluminio'?Number(row.comprimento):null;
-  if(category==='aluminio'&&(!Number.isSafeInteger(qty)||!String(row.comprimento).trim()||
-      !Number.isSafeInteger(length)||length<100||length>20000))
-    throw new Error('Perfil exige barras inteiras e comprimento entre 100 e 20.000 mm na linha '+(i+1)+'.');
+  if(category==='aluminio'){
+   if(!Number.isSafeInteger(qty))
+    throw new Error('Perfis exigem quantidades inteiras de barras na linha '+(i+1)+'.');
+   if(!Number.isSafeInteger(length)||length<100||length>20000||
+      !plannedBarRows(row.variacao).some(x=>Number(x.comprimento_mm)===length))
+    throw new Error('Sem plano de barras do CEM para este perfil/cor nesta obra. Confira a importação antes de registrar a nota (linha '+(i+1)+').');
+  }
   return {variacao_id:variacao.id,quantidade:qty,comprimento_mm:length,valor_total:amount/100};
  }
  async function submit(event){
@@ -409,16 +408,12 @@
    r.comprimento=selected?.length?String(selected.length):String(autoBarLength(r)||'');
    r.quantidade='';r.valor='';
    renderRows();
-  }else if(event.target.matches('.finManualLength')){
-   r.comprimento=event.target.value;
-   renderRows();
   }
  });
  byId('finManualRows').addEventListener('input',event=>{
   const tr=event.target.closest('[data-manual-row]');if(!tr)return;
   const r=rows[Number(tr.dataset.manualRow)];if(!r)return;
   if(event.target.matches('.finManualQty'))r.quantidade=event.target.value;
-  if(event.target.matches('.finManualLength'))r.comprimento=event.target.value;
   if(event.target.matches('.finManualSubtotal')){r.valor=event.target.value;updateSum();}
  });
  byId('finManualRows').addEventListener('focusout',event=>{
