@@ -58,3 +58,16 @@
 #finExpensePanel .finRegistryActions{display:flex;gap:8px;align-items:center}
 #finExpensePanel #finRegistryMessage{width:100%;margin:0}
 #finCostTotal[readonly]{background:var(--color-bg-subtle,#f0f5fa);cursor:default}
+
+/* Recebimento discriminado de vidros e outros insumos (sem inventário físico fictício). */
+#finMiscBlock{margin-top:20px}
+.finMiscTable{min-width:740px;table-layout:fixed}
+.finMiscTable th:first-child,.finMiscTable td:first-child{width:38%}
+.finMiscTable input,.finMiscTable select{width:100%;min-width:0}
+.finMiscTable .finMiscQty,.finMiscTable .finMiscAmount{text-align:right;font-variant-numeric:tabular-nums}
+#finMiscSum{font-weight:650;margin:12px 0}
+@media(max-width:780px){
+ .finMiscTable{min-width:700px}
+ #recebimento .finFormRows{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+ #recebimento #finExpensePanel{min-width:0}
+}

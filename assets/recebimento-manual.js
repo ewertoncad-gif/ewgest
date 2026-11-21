@@ -3,7 +3,7 @@
  * Estoque + despesa são registrados pelo servidor em uma única transação.
  */
 (function(){
- let rows=[],category='aluminio';
+ let rows=[],miscRows=[],category='aluminio';
  const byId=id=>node(id);
  const cents=s=>{
   let t=String(s??'').trim().replace(/^\s*R\$\s*/i,'').replace(/\s/g,'');
@@ -219,6 +219,45 @@
    'Necessário, recebido e falta receber são calculados na unidade de cada acessório, quando compatível.';
   updateSum();
  }
+
+ function miscReset(){
+  miscRows=[{descricao:'',quantidade:'',unidade:'PC',valor:''}];
+  miscRender();
+ }
+ function miscRender(){
+  const body=byId('finMiscRows');if(!body)return;
+  const units=['PC','UN','M2','MT','KG','CX','CJ','PR'];
+  body.innerHTML=miscRows.map((m,i)=>'<tr data-misc-row="'+i+'">'+
+   '<td><input class="finMiscDescription" required maxlength="500" placeholder="Descrição do vidro ou insumo" value="'+escapeHTML(m.descricao)+'"></td>'+
+   '<td><input class="finMiscQty" type="number" inputmode="decimal" min="0.001" max="1000000" step="0.001" required placeholder="Qtd." value="'+escapeHTML(m.quantidade)+'"></td>'+
+   '<td><select class="finMiscUnit">'+units.map(u=>'<option value="'+u+'"'+(u===m.unidade?' selected':'')+'>'+(u==='M2'?'m²':u)+'</option>').join('')+'</select></td>'+
+   '<td><input class="finMiscAmount" inputmode="decimal" required placeholder="R$ 0,00" value="'+escapeHTML(m.valor)+'"></td>'+
+   '<td><button type="button" class="btn secondary" data-misc-remove="'+i+'">Remover</button></td>'+
+   '</tr>').join('');
+  miscUpdateSum();
+ }
+ function miscUpdateSum(){
+  const centsList=miscRows.map(x=>cents(x.valor));
+  const total=centsList.reduce((a,v)=>a+(v||0),0);
+  byId('finCostTotal').value=total>0?finMoney(total/100):'';
+  byId('finMiscSum').textContent='Total da nota: '+finMoney(total/100)+
+   (centsList.every(v=>v!==null)&&total>0?' · Soma conferida':' · Preencha as linhas');
+ }
+ function miscNormalized(){
+  if(!miscRows.length||miscRows.length>100)throw Error('Informe de 1 a 100 itens.');
+  return miscRows.map((r,i)=>{
+   const descricao=r.descricao.trim(),quantidade=Number(r.quantidade),centavos=cents(r.valor);
+   if(descricao.length<2||descricao.length>500)throw Error('Descrição inválida no item '+(i+1)+'.');
+   if(!String(r.quantidade).trim()||!Number.isFinite(quantidade)||quantidade<=0||quantidade>1000000||
+    Math.abs(quantidade*1000-Math.round(quantidade*1000))>0.00001)
+    throw Error('Quantidade inválida no item '+(i+1)+'.');
+   if(!['PC','UN','M2','MT','KG','CX','CJ','PR'].includes(r.unidade))throw Error('Unidade inválida no item '+(i+1)+'.');
+   if(centavos===null||centavos<0)throw Error('Subtotal inválido no item '+(i+1)+'.');
+   const total=centavos/100;
+   return {codigo:'',descricao,unidade:r.unidade,quantidade,
+     valor_unitario:Math.round(total/quantidade*1e6)/1e6,valor_total:total};
+  });
+ }
  function updateSum(){
   const totalField=byId('finCostTotal');
   const valores=rows.map(r=>cents(r.valor));
@@ -243,14 +282,14 @@
   category=byId('finCostCategory').value;
   const hasStock=stockCategory();
   byId('finManualStockBlock').classList.toggle('hidden',!hasStock);
+  byId('finMiscBlock').classList.toggle('hidden',hasStock);
   byId('finManualLocalLabel').classList.toggle('hidden',!hasStock);
   byId('finManualLocal').required=hasStock;
-  byId('finCostVendor').required=hasStock;
-  byId('finCostDate').required=hasStock;
-  byId('finCostSubmit').textContent=hasStock?'Registrar nota e entrada no estoque':'Registrar despesa sem movimentar estoque';
-  byId('finCostTotal').readOnly=hasStock;
-  byId('finCostTotal').title=hasStock?
-   'Calculado automaticamente pela soma dos valores dos itens.':'Informe o valor total da despesa.';
+  byId('finCostVendor').required=true;
+  byId('finCostDate').required=true;
+  byId('finCostSubmit').textContent=hasStock?'Registrar nota e entrada no estoque':'Registrar itens e nota (sem entrada em estoque)';
+  byId('finCostTotal').readOnly=true;
+  byId('finCostTotal').title='Calculado automaticamente pela soma dos valores dos itens.';
   const list=hasStock?getMaterials():[];
   byId('finManualAdd').disabled=hasStock&&!list.length;
   byId('finCostSubmit').disabled=hasStock&&!list.length;
@@ -258,8 +297,18 @@
    (list.length?
     'Somente materiais cadastrados nesta obra aparecem na lista. Necessidade: quantitativos do CEM. Já recebido: entradas físicas registradas por nota. Confirme quantidade e galpão antes de gravar.':
     'Esta obra não possui materiais desta categoria vinculados à sua lista técnica. Não é possível dar entrada por este formulário.'):
-   'Esta categoria será registrada somente como despesa. Não haverá movimentação física de estoque: o catálogo atual permite recebimento automático de perfis e acessórios.';
-  resetRows();
+   'Vidros e outros insumos são discriminados na nota, sem saldo físico automático enquanto não existir catálogo próprio destes materiais.';
+  // Campos obrigatórios ocultos continuam participando da validação HTML.
+  // Desmontar as linhas inativas evita bloquear a nota pela categoria anterior.
+  if(hasStock){
+   byId('finMiscRows').replaceChildren();
+   miscRows=[];
+   resetRows();
+  }else{
+   byId('finManualRows').replaceChildren();
+   rows=[];
+   miscReset();
+  }
  }
  function hojeLocalISO(){
   const now=new Date(),pad=n=>String(n).padStart(2,'0');
@@ -360,7 +409,7 @@
  }
  async function submit(event){
   event.preventDefault();
-  if(!finState||!isFullAdminUser())return;
+  if(!finState||!(isFullAdminUser()||isAlmoxarife()))return;
   const el=byId('finCostMessage'),btn=byId('finCostSubmit');
   const note=cents(byId('finCostTotal').value);
   if(note===null||note<=0){el.textContent='Informe o valor total da nota com centavos válidos.';return;}
@@ -378,6 +427,12 @@
     items=rows.map(normalizeItem);
     const sum=items.reduce((v,item)=>v+Math.round(item.valor_total*100),0);
     if(sum!==note)throw new Error('A soma dos itens deve ser igual ao valor total da nota.');
+   }else{
+    if(!vendor||!(finState.fornecedores||[]).some(f=>f.nome===vendor))
+     throw Error('Selecione um fornecedor cadastrado.');
+    items=miscNormalized();
+    if(items.reduce((a,i)=>a+Math.round(i.valor_total*100),0)!==note)
+     throw Error('A soma dos itens não confere com o valor total da nota.');
    }
   }catch(e){el.textContent=e.message;return;}
   const medidasForaPlano=hasStock&&category==='aluminio'?rows.filter(r=>
@@ -400,20 +455,22 @@
     p_data_documento:byId('finCostDate').value||null,
     p_observacoes:byId('finCostNotes').value.trim(),p_operacao_id:finCostOpId};
    if(hasStock){
-    response=await request('/rest/v1/rpc/ew_registrar_recebimento_manual_financeiro',{
+    response=await request(isAlmoxarife()?
+    '/rest/v1/rpc/ew_receber_materiais_almox':'/rest/v1/rpc/ew_registrar_recebimento_manual_financeiro',{
      method:'POST',token:session.access_token,timeoutMs:120000,
      body:{...common,p_local_estoque:location,p_itens:items}
     });
    }else{
-    response=await request('/rest/v1/rpc/ew_registrar_despesa_financeira',{
+    response=await request(isAlmoxarife()?
+     '/rest/v1/rpc/ew_receber_despesa_com_itens_almox':'/rest/v1/rpc/ew_registrar_despesa_financeira',{
      method:'POST',token:session.access_token,timeoutMs:90000,
-     body:{...common,p_origem:'manual',p_chave_nfe:null,p_itens:[]}
+     body:isAlmoxarife()?{...common,p_itens:items}:{...common,p_origem:'manual',p_chave_nfe:null,p_itens:items}
     });
    }
    const repeated=Boolean(response?.ja_registrado);
    finCostOpId=null;
-   await finLoad();
-   byId('finMessage').textContent=repeated?
+   await carregarRecebimento();
+   byId('recebimentoMessage').textContent=repeated?
     'Este lançamento já constava registrado; o estoque não foi duplicado.':
     hasStock?'Nota registrada e materiais recebidos: o estoque físico da obra foi atualizado.':
     'Despesa registrada sem movimentação de estoque.';
@@ -497,6 +554,7 @@
   initForm();
  };
  byId('finExpenseForm').removeEventListener('submit',finRegistrarCusto);
+ if(typeof window!=='undefined')window.ewRecebimentoManualInit=initForm;
  byId('finExpenseForm').addEventListener('submit',submit);
  byId('finCostCategory').addEventListener('change',()=>{
   category=byId('finCostCategory').value;
@@ -511,6 +569,35 @@
  byId('finManualAdd').addEventListener('click',()=>{
   if(rows.length>=100){byId('finCostMessage').textContent='Limite de 100 materiais por nota.';return;}
   rows.push({material:'',variacao:'',comprimento:'',quantidade:'',valor:''});renderRows();
+ });
+
+ byId('finMiscAdd').addEventListener('click',()=>{
+  if(miscRows.length>=100){byId('finCostMessage').textContent='Limite de 100 itens por nota.';return;}
+  miscRows.push({descricao:'',quantidade:'',unidade:'PC',valor:''});miscRender();
+ });
+ byId('finMiscRows').addEventListener('input',event=>{
+  const tr=event.target.closest('[data-misc-row]');if(!tr)return;
+  const item=miscRows[Number(tr.dataset.miscRow)];if(!item)return;
+  if(event.target.matches('.finMiscDescription'))item.descricao=event.target.value;
+  if(event.target.matches('.finMiscQty'))item.quantidade=event.target.value;
+  if(event.target.matches('.finMiscAmount')){item.valor=event.target.value;miscUpdateSum();}
+ });
+ byId('finMiscRows').addEventListener('change',event=>{
+  const tr=event.target.closest('[data-misc-row]');if(!tr)return;
+  const item=miscRows[Number(tr.dataset.miscRow)];
+  if(item&&event.target.matches('.finMiscUnit'))item.unidade=event.target.value;
+ });
+ byId('finMiscRows').addEventListener('focusout',event=>{
+  const tr=event.target.closest('[data-misc-row]');
+  if(!tr||!event.target.matches('.finMiscAmount'))return;
+  moneyInput(event);
+  miscRows[Number(tr.dataset.miscRow)].valor=event.target.value;miscUpdateSum();
+ });
+ byId('finMiscRows').addEventListener('click',event=>{
+  const btn=event.target.closest('[data-misc-remove]');if(!btn)return;
+  miscRows.splice(Number(btn.dataset.miscRemove),1);
+  if(!miscRows.length)miscRows=[{descricao:'',quantidade:'',unidade:'PC',valor:''}];
+  miscRender();
  });
  byId('finManualRows').addEventListener('change',event=>{
   const tr=event.target.closest('[data-manual-row]');if(!tr)return;

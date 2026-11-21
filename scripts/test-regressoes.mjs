@@ -2,9 +2,47 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const source=readFileSync(fileURLToPath(new URL('../app.html',import.meta.url)),'utf8');
+// Issue #31 — Recebimento separado do Financeiro e operação por perfil.
+const recebimentoSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_recebimento_almoxarife_seguro.sql',import.meta.url)),'utf8');
+const cadastroSeguroSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_cadastros_dependencias.sql',import.meta.url)),'utf8');
+const receiptIdx=source.indexOf('<section id="recebimento"');
+const financeIdx=source.indexOf('<section id="financeiro"');
+const receiptFormIdx=source.indexOf('id="finExpensePanel"');
+assert.ok(receiptIdx>0&&financeIdx>receiptIdx&&receiptFormIdx>receiptIdx&&receiptFormIdx<financeIdx,
+ 'O formulário de recebimento deve pertencer à tela Recebimento, não ao Financeiro');
+assert.ok(source.includes('id="navRecebimento"')&&source.includes("['navRecebimento','recebimento']")&&
+ source.includes("node('navRecebimento').classList.toggle('hidden',!(isAlmoxarife()||isFullAdminUser()))"),
+ 'Menu Recebimento liberado por perfil, sem exibir o Financeiro ao almoxarife');
+const recebimentoLoader=source.slice(source.indexOf('async function carregarRecebimento(){'),
+ source.indexOf('function finOptionsObras(prefer){'));
+assert.ok(recebimentoLoader.includes("if(isFullAdminUser()){")&&
+ recebimentoLoader.includes('apiGet(\'ew_cem_obras_materiais\'')&&
+ recebimentoLoader.includes('rpc/ew_quantidades_recebidas_obra')&&
+ !recebimentoLoader.includes("apiGet('ew_obra_despesas'")&&
+ !recebimentoLoader.includes("apiGet('ew_obra_orcamento'"),
+ 'Almoxarife consulta materiais e quantidades, sem buscar despesas ou orçamento');
+assert.ok(recebimentoSQL.includes("u.perfil='almoxarife'")&&
+ recebimentoSQL.includes("perform public.ew_exigir_sessao_atual()")&&
+ recebimentoSQL.includes('insert into public.ew_obra_despesas')&&
+ recebimentoSQL.includes('insert into public.ew_estoque_obras_movimentos')&&
+ recebimentoSQL.includes('insert into public.ew_nfe_recebimentos')&&
+ recebimentoSQL.includes('revoke execute on function public.ew_receber_materiais_almox')&&
+ recebimentoSQL.includes('from anon;'),
+ 'RPC do almoxarife insere nota e estoque na mesma transação e bloqueia anon');
+assert.ok(source.includes('id="cadastroEditPanel"')&&
+ cadastroSeguroSQL.includes('from public.ew_estoque_obras_movimentos')&&
+ cadastroSeguroSQL.includes('from public.ew_obra_despesas')&&
+ cadastroSeguroSQL.includes("raise exception 'Cadastro em uso"),
+ 'Cadastros auxiliaries: edição e exclusão preservam notas e movimentações');
+// Validar também a sintaxe do aplicativo principal (não apenas fragments).
+const inlineJS=[...source.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)]
+ .map(x=>x[1]);
+assert.ok(inlineJS.length>=1,'Script principal da interface deve estar no HTML');
+for(const js of inlineJS)assert.doesNotThrow(()=>new Function(js),
+ 'JavaScript principal da interface deve ser sintaticamente válido');
 const receiptCacheHeaders=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
-assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121f')&&
- source.includes('/assets/recebimento-manual.css?v=20261121f'),
+assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121h')&&
+ source.includes('/assets/recebimento-manual.css?v=20261121g'),
  'O recebimento precisa de URLs versionadas para evitar assets antigos após deploy');
 assert.match(receiptCacheHeaders,/\/assets\/recebimento-manual\.js\s+Content-Type: text\/javascript; charset=utf-8\s+Cache-Control: no-store/,
  'Cloudflare não deve manter o JavaScript de recebimento em cache');
@@ -612,7 +650,7 @@ for(const token of ['ew_perfis','ew_acessorios','ew_materiais_variacoes',
   assert.ok(source.includes(token),'Cadastro de materiais deve conter '+token);
 }
 assert.ok(source.includes('Quantidade necessária')&&source.includes('Em estoque')&&
- source.includes('Comprimento da barra')&&source.includes('data-stock-work-transfer')&&
+ source.includes('Comprimento da barra')&&source.includes('id="stockTransferPickWork"')&&
  !source.includes('data-stock-adjust')&&!source.includes('data-stock-open-new'),
  'Estoque mostra planejamento, saldo e transferência, sem cadastro direto de quantidade');
 assert.ok(source.includes('async function abrirEstoque()')&&source.includes('async function registrarMovimentoEstoque(e)'),
@@ -706,8 +744,12 @@ assert.ok(source.includes('id="releaseBatchOpen"')&&source.includes('id="release
  source.includes("'/rest/v1/rpc/ew_liberar_lote_cem'")&&source.includes('function releaseBatchCollect()'),
  'Liberação em lote CEM deve ter espelho editável, validação e confirmação única');
 assert.ok(source.includes('id="stockFactoryFilter"')&&source.includes('id="stockManualFactory"')&&
- source.includes('data-stock-transfer=')&&source.includes("'/rest/v1/rpc/ew_transferir_estoque_obra'"),
- 'Estoque controlado, transferível e filtrável por local físico');
+ source.includes('id="stockTransferPickLocal"')&&source.includes('id="stockTransferPickWork"')&&
+ source.includes("stockTransferOpen(candidate.item.v.id")&&
+ source.includes("stockObraTransferOpen(candidate.item.v.id")&&
+ source.includes("'/rest/v1/rpc/ew_transferir_estoque_obra'")&&
+ !source.includes('<th>Galpão</th><th>Ação</th>'),
+ 'Estoque transferível com seletor centralizado e tabela sem coluna Ação');
 assert.ok(source.includes('const obrasParaRomaneio=works.filter'),
  'Romaneios escondem obra de estoque arquivado sem esquadrias e sem histórico');
 assert.ok(source.includes("'/rest/v1/rpc/ew_liberar_plano_corte_revisado'"),
@@ -1494,7 +1536,8 @@ assert.ok(planSQL.includes('ADD COLUMN IF NOT EXISTS barras_planejadas jsonb')&&
  !/INSERT INTO public\.ew_estoque_obras_movimentos/.test(planSQL),
  'SQL do plano de barras não deve movimentar estoque físico nem remover histórico');
 assert.doesNotThrow(()=>new Function(receiveScript),'Recebimento manual deve ter JavaScript sintaticamente válido');
-assert.ok(source.includes('Entrada manual de materiais e notas')&&
+assert.ok(source.includes('<section id="recebimento"')&&
+ source.includes('Recebimento de materiais')&&
  source.includes('id="finManualRows"')&&source.includes('id="finManualLocal"')&&
  source.includes('id="finManualAdd"')&&source.includes('id="finManualSum"')&&
  source.includes('id="finCostTotal" type="text" inputmode="decimal"'),
@@ -1503,8 +1546,8 @@ assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
  !source.includes('<label>XML da nota fiscal (NF-e)')&&
  source.includes('id="finCostCategory" required'),
  'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
-assert.ok(source.includes('recebimento-manual.js?v=20261121f')&&
- source.includes('recebimento-manual.css?v=20261121f')&&receiveCSS.includes('.finManualTable'),
+assert.ok(source.includes('recebimento-manual.js?v=20261121h')&&
+ source.includes('recebimento-manual.css?v=20261121g')&&receiveCSS.includes('.finManualTable'),
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
  receiveScript.includes('p_itens:items')&&receiveScript.includes('finCostOpId ||= crypto.randomUUID()')&&
@@ -1816,10 +1859,34 @@ assert.ok(receiveScript.includes('function hojeLocalISO(){')&&
  receiveScript.includes("if(!byId('finCostDate').value)byId('finCostDate').value=hojeLocalISO()")&&
  !receiveScript.includes('new Date().toISOString().slice(0,10)'),
  'Data deve vir preenchida no dia local e continuar editável');
-assert.ok(receiveScript.includes("byId('finCostTotal').readOnly=hasStock;")&&
+assert.ok(receiveScript.includes("byId('finCostTotal').readOnly=true;")&&
+ receiveScript.includes("byId('finMiscBlock').classList.toggle('hidden',hasStock)")&&
  receiveScript.includes("totalField.value=soma>0?finMoney(soma/100):''")&&
  !receiveScript.includes('rows.length===1&&note!==null'),
  'Valor da NF de materiais deve vir da soma dos itens sem substituir um valor de linha');
+
+// Vidros e outros insumos são discriminados sem inventar saldo de estoque.
+const miscSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_recebimento_itens_vidros_outros.sql',import.meta.url)),'utf8');
+const techSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_exclusao_cadastros_tecnicos.sql',import.meta.url)),'utf8');
+assert.ok(source.includes('id="finMiscBlock"')&&source.includes('id="finMiscRows"')&&
+ source.includes('id="finMiscSum"')&&
+ receiveScript.includes('function miscNormalized(){')&&
+ receiveScript.includes('function miscUpdateSum(){')&&
+ receiveScript.includes("byId('finMiscRows').replaceChildren()")&&
+ receiveScript.includes("byId('finManualRows').replaceChildren()")&&
+ receiveScript.includes("'/rest/v1/rpc/ew_receber_despesa_com_itens_almox'")&&
+ receiveScript.includes('p_itens:items')&&
+ miscSQL.includes('insert into public.ew_obra_despesas_itens')&&
+ !/insert into public\.ew_estoque_obras_movimentos/i.test(miscSQL),
+ 'Vidros e outros insumos devem guardar itens da NF, sem criar estoque físico inexistente');
+assert.ok(techSQL.includes('ew_excluir_cadastro_tecnico_sem_vinculo')&&
+ techSQL.includes('ew_obra_despesas_itens')&&
+ techSQL.includes('ew_materiais_variacoes')&&
+ techSQL.includes('ew_estoque_obras_movimentos')&&
+ source.includes('data-mat-delete')&&source.includes('id="matVarDelete"')&&
+ source.includes('id="typologyEditDelete"')&&
+ source.includes('id="manufacturerManagePanel"'),
+ 'Exclusão de cadastros técnicos exige ausência de vínculo em obras, estoque e histórico');
 
 const subtotalStart=receiveScript.indexOf(' function updateSum(){');
 const subtotalEnd=receiveScript.indexOf(' function renderForm(){',subtotalStart);
@@ -1898,14 +1965,14 @@ for(const id of ['navCadastros','cadastros','navAccessories','cadastroFornecedor
  'navTypologies','navManufacturers','navUsers']){
  assert.ok(source.includes('id="'+id+'"'),'Cadastro central faltando '+id);
 }
-assert.ok(source.includes('cadastros-hub.js?v=20261121a')&&
+assert.ok(source.includes('cadastros-hub.js?v=20261121b')&&
  source.includes("['navCadastros','cadastros']")&&
  cadastroHubJS.includes("apiGet('ew_fornecedores'")&&
  cadastroHubJS.includes("apiGet('ew_locais_fisicos'")&&
  cadastroHubJS.includes('cadastrarGalpaoEmpresa(nome)'),
  'Um único menu de cadastros reutiliza fornecedores e galpões já cadastrados');
-assert.ok(source.includes('data-stock-work-transfer')&&
- source.includes('Transferir entre obras')&&
+assert.ok(source.includes('id="stockTransferPickWork"')&&
+ source.includes("stockObraTransferOpen(candidate.item.v.id")&&
  source.includes('id="stockObraTransferOverlay"')&&
  source.includes('id="stockObraTransferTarget"')&&
  source.includes('id="stockObraTransferToLocal"')&&
