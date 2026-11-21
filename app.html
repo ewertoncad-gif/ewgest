@@ -7689,11 +7689,26 @@ function renderEstoque(){
       grupos.get(k).quantidade+=Number(mov.quantidade_delta);
     }
     if(grupos.size){
-      for(const v of grupos.values())if(!node('stockFactoryFilter').value||node('stockFactoryFilter').value===v.local_estoque)linhas.push({...item,...v});
-    }else if(!node('stockFactoryFilter').value){
-      const length=v.tipo==='perfil'?mmOrNull(mat.comprimento_comercial_mm):null;
-      const unit=v.tipo==='perfil'?'BARRA':releaseUnidadeAcessorio(mat.unidade_item||link?.unidade_prevista);
-      linhas.push({...item,comprimento:length,unidade:unit,local_estoque:'',quantidade:null,informado:false});
+      for(const grupo of grupos.values()){
+       if(!node('stockFactoryFilter').value||node('stockFactoryFilter').value===grupo.local_estoque)
+        linhas.push({...item,...grupo});
+      }
+    }
+    if(!node('stockFactoryFilter').value){
+      // Mostrar também barras planejadas que ainda não tiveram movimento.
+      // Cada comprimento do plano é uma necessidade separada.
+      const medidas=v.tipo==='perfil'&&Array.isArray(link?.barras_planejadas)?
+       link.barras_planejadas.map(b=>Number(b.comprimento_mm))
+        .filter(n=>Number.isSafeInteger(n)&&n>=100&&n<=20000):[];
+      for(const mm of new Set(medidas)){
+       if(![...grupos.values()].some(g=>g.unidade==='BARRA'&&g.comprimento===mm)){
+        linhas.push({...item,comprimento:mm,unidade:'BARRA',local_estoque:'',quantidade:0,informado:false});
+       }
+      }
+      if(!grupos.size&&!medidas.length){
+       const unit=v.tipo==='perfil'?'BARRA':releaseUnidadeAcessorio(mat.unidade_item||link?.unidade_prevista);
+       linhas.push({...item,comprimento:null,unidade:unit,local_estoque:'',quantidade:0,informado:false});
+      }
     }
   }
   if(node('stockFactoryFilter').value){
