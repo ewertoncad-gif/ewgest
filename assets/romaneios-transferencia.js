@@ -39,8 +39,8 @@ function render(){
  '</div><div class="romTransfBtns">'+
  '<button type="button" class="btn secondary" data-t-view="'+esc(d.id)+'">Consultar</button>'+
  (d.status==='RASCUNHO'?'<button type="button" class="btn secondary" data-t-edit="'+esc(d.id)+'">Editar / incluir itens</button>':'')+
- (d.status==='RASCUNHO'?'<button type="button" class="btn primary" data-t-emit="'+esc(d.id)+'">Emitir</button>':'')+
- (emitted?'<button type="button" class="btn secondary" data-t-print="'+esc(d.id)+'">Imprimir</button>':'')+
+ (d.status==='RASCUNHO'?'<button type="button" class="btn primary" data-t-emit="'+esc(d.id)+'">Emitir e imprimir</button>':'')+
+ (emitted?'<button type="button" class="btn secondary" data-t-print="'+esc(d.id)+'">Imprimir / reimprimir</button>':'')+
  '</div></div>';
  }).join('');
  box.querySelectorAll('[data-t-view]').forEach(x=>x.addEventListener('click',()=>visualizar(x.dataset.tView)));
@@ -188,24 +188,62 @@ async function juntar(){
 }
 async function emitir(id){
  const d=docs.find(x=>x.id===id);
- if(!d||busy)return;
- if(!d.motorista||!d.placa){erro('Edite o romaneio e preencha motorista e placa antes de emitir.');editar(id);return;}
+ if(!d||busy||d.status!=='RASCUNHO')return;
+ if(!d.motorista||!d.placa){
+  editar(id);
+  el('romTransfEditTitle').textContent='Complete o transporte antes de emitir '+d.numero;
+  erro('O romaneio continua em rascunho. Selecione motorista e placa, salve e depois clique em Emitir e imprimir.');
+  return;
+ }
  if(estaEstornado(d)){erro('Há transferência estornada neste romaneio. Não é possível emitir.');return;}
- if(!window.confirm('Emitir '+d.numero+'? Após emitir, o documento será bloqueado para edição. O estoque não será movimentado novamente.'))return;
+ if(!window.confirm('Emitir e imprimir '+d.numero+'? Após emitir, o documento será bloqueado para edição. A operação não movimenta estoque novamente.'))return;
+ // A guia deve ser aberta durante o clique, ANTES da chamada assíncrona.
+ // Abrir depois do await pode ser bloqueado pelo navegador.
+ const aba=window.open('about:blank','_blank');
+ if(aba){
+  try{
+   aba.document.title='Preparando romaneio '+d.numero;
+   aba.document.body.textContent='Emitindo '+d.numero+'… A prévia de impressão será aberta após a confirmação.';
+  }catch(e){/* A emissão também funciona sem esta mensagem provisória. */}
+ }
  busy=true;
  try{
   await rpc('ew_romaneio_transferencia_emitir',{p_empresa_id:empresa(),p_documento_id:id});
-  busy=false;await carregar();erro('Romaneio '+d.numero+' emitido. Utilize Imprimir para abrir o documento.');
- }catch(e){busy=false;erro('Falha ao emitir: '+e.message);}
-}
-function imprimir(id){
- const d=docs.find(x=>x.id===id);
- if(!d||d.status!=='EMITIDO')return;
- if(estaEstornado(d)){
-  if(!window.confirm('Este romaneio contém transferência estornada. Imprimir apenas para consulta histórica, com aviso de estorno?'))return;
+ }catch(e){
+  busy=false;
+  if(aba&&!aba.closed)aba.close();
+  erro('Não foi possível emitir '+d.numero+'. Ele permanece em rascunho. '+e.message);
+  return;
  }
- const janela=window.open('about:blank','_blank');
- if(!janela){erro('O navegador bloqueou a nova guia de impressão. Permita pop-ups deste site.');return;}
+ // O banco já confirmou a emissão. Manter o botão de reimprimir disponível
+ // mesmo se a atualização da listagem falhar.
+ d.status='EMITIDO';
+ busy=false;
+ render();
+ let abriu=false;
+ try{abriu=imprimir(id,aba);}catch(e){
+  if(aba&&!aba.closed)aba.close();
+  erro(d.numero+' emitido, mas ocorreu um erro ao preparar a impressão. Use Imprimir / reimprimir. '+e.message);
+ }
+ await carregar();
+ erro(abriu?
+  d.numero+' emitido. A prévia e o comando de impressão foram abertos em outra guia. O botão Imprimir / reimprimir permanece disponível.':
+  d.numero+' emitido. Não foi possível abrir a impressão automaticamente; use o botão Imprimir / reimprimir e autorize novas guias se necessário.');
+}
+function imprimir(id,janelaReservada=null){
+ const d=docs.find(x=>x.id===id);
+ if(!d||d.status!=='EMITIDO')return false;
+ if(estaEstornado(d)){
+  if(!window.confirm('Este romaneio contém transferência estornada. Imprimir apenas para consulta histórica, com aviso de estorno?')){
+   if(janelaReservada&&!janelaReservada.closed)janelaReservada.close();
+   return false;
+  }
+ }
+ const janela=janelaReservada||window.open('about:blank','_blank');
+ if(!janela||janela.closed){
+  erro('O navegador bloqueou a nova guia. Permita pop-ups para o EWGEST e clique em Imprimir / reimprimir.');
+  return false;
+ }
  const conteudo=(d.itens||[]).map(itemResumo).join('');
  const copia=(via)=>'<section class="via"><header><div><strong>EWGEST</strong><small>Gestão técnica de esquadrias</small></div>'+
  '<div><strong>ROMANEIO DE TRANSFERÊNCIA</strong><p>'+esc(d.numero)+' · '+esc(via)+'ª VIA</p></div></header>'+
@@ -218,10 +256,15 @@ function imprimir(id){
  '<small>Documento logístico de movimentação já registrada. A impressão não altera o estoque.</small></section>';
  janela.document.open();
  janela.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>'+esc(d.numero)+
- '</title><style>@page{size:A4;margin:11mm}body{font:12px Arial;color:#152c46} .via{break-inside:avoid;border-bottom:1px dashed #abb7c4;padding-bottom:16px;margin-bottom:24px}header{display:flex;justify-content:space-between;border-bottom:2px solid #15385b;padding-bottom:10px}header strong{display:block;font-size:16px}header small{display:block}p{line-height:1.5}table{width:100%;border-collapse:collapse;margin:14px 0}th,td{text-align:left;border:1px solid #9eafbd;padding:6px}th{background:#e9f0f7}.ass{display:flex;justify-content:space-between;margin:44px 0 18px}.ass span{width:42%;border-top:1px solid;text-align:center;padding-top:7px}.alert{font-weight:bold;background:#ffe4e4;padding:10px}</style></head><body>'+
+ '</title><style>@page{size:A4;margin:11mm}body{font:12px Arial;color:#152c46} .via{break-inside:avoid;border-bottom:1px dashed #abb7c4;padding-bottom:16px;margin-bottom:24px}header{display:flex;justify-content:space-between;border-bottom:2px solid #15385b;padding-bottom:10px}header strong{display:block;font-size:16px}header small{display:block}p{line-height:1.5}table{width:100%;border-collapse:collapse;margin:14px 0}th,td{text-align:left;border:1px solid #9eafbd;padding:6px}th{background:#e9f0f7}.ass{display:flex;justify-content:space-between;margin:44px 0 18px}.ass span{width:42%;border-top:1px solid;text-align:center;padding-top:7px}.alert{font-weight:bold;background:#ffe4e4;padding:10px}.printbar{padding:12px;margin-bottom:12px;background:#f3f7fb;border:1px solid #a9bcd0}.printbar button{background:#1868bf;color:white;border:0;border-radius:5px;padding:10px 18px;cursor:pointer}@media print{.printbar{display:none}}</style></head><body>'+
+ '<div class="printbar"><button type="button" id="imprimirRomaneio">Imprimir romaneio</button> '+esc(d.numero)+'</div>'+
  copia(1)+copia(2)+'</body></html>');
  janela.document.close();
- janela.focus();janela.print();
+ const botao=janela.document.getElementById('imprimirRomaneio');
+ if(botao)botao.addEventListener('click',()=>janela.print());
+ janela.focus();
+ try{janela.print();}catch(e){/* A prévia mantém o botão manual Imprimir romaneio. */}
+ return true;
 }
 function visualizar(id){
  const d=docs.find(x=>x.id===id);
