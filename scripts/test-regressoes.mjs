@@ -2058,7 +2058,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v45.3')&&
+assert.ok(source.includes('v45.4')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2090,5 +2090,50 @@ assert.ok(releaseDelayedSQL.includes('ew_liberar_plano_corte_revisado')&&
  deliveryClient.includes('entregaRelatorioCheck')&&
  deliveryClient.includes('ew_confirmar_entrega_producao'),
  'Liberação gera relação impressa sem baixa; só entrega física de almoxarife baixa estoque');
+
+
+
+// EWGEST v45.4 — romaneios automaticos sem rebaixa ao imprimir/agrupar.
+const transferDocsSQL=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261121_romaneios_transferencias_galpoes_v454.sql',import.meta.url)),'utf8');
+const transferDocsJS=readFileSync(fileURLToPath(new URL(
+ '../assets/romaneios-transferencia.js',import.meta.url)),'utf8');
+const transferDocsCSS=readFileSync(fileURLToPath(new URL(
+ '../assets/romaneios-transferencia.css',import.meta.url)),'utf8');
+assert.doesNotThrow(()=>new Function(transferDocsJS),
+ 'Novo script de romaneios entre galpoes deve ser JavaScript valido');
+assert.ok(source.includes('id="stockTransferPickLocal">Transferência entre galpões')&&
+ source.includes('id="romTransfSection"')&&
+ source.includes('id="romTransfMerge"')&&
+ source.includes('id="romTransfExtras"')&&
+ source.includes('romaneios-transferencia.css?v=20261121a')&&
+ source.includes('romaneios-transferencia.js?v=20261121a')&&
+ source.includes("if(window.ewTransferRomaneiosReload)window.ewTransferRomaneiosReload()"),
+ 'Transferencia entre galpoes deve ter romaneio na guia de expedicao');
+for(const token of [
+ 'ew_gerar_romaneio_de_transferencia','after insert on public.ew_estoque_obras_movimentos',
+ "new.origem<>'TRANSFERENCIA'","new.quantidade_delta>=0",
+ 'transferencia_id uuid unique','romaneios_numero_seq',
+ "tipo in ('TRANSFERENCIA','AVULSO')","status in ('RASCUNHO','EMITIDO','AGRUPADO','CANCELADO')",
+ 'ew_romaneios_transferencia_juntar','ew_romaneio_transferencia_emitir',
+ 'ew_romaneio_transferencia_salvar','ew_romaneios_transferencia_listar',
+ 'ew_exigir_sessao_atual','enable row level security',
+ "revoke all on public.ew_romaneios_transferencia",
+ 'e.estorno_de_id in'
+]){
+ assert.ok(transferDocsSQL.includes(token),'Romaneio de transferencia sem requisito de seguranca: '+token);
+}
+assert.ok(!/insert into public\.ew_estoque_obras_movimentos/i.test(transferDocsSQL)&&
+ !/update public\.ew_estoque_obras_movimentos/i.test(transferDocsSQL)&&
+ !/delete from public\.ew_estoque_obras_movimentos/i.test(transferDocsSQL),
+ 'Gerar, editar, agrupar e imprimir romaneios de transferencia nunca deve movimentar estoque');
+assert.ok(transferDocsJS.includes('data-t-edit')&&
+ transferDocsJS.includes('data-t-print')&&
+ transferDocsJS.includes('data-t-view')&&
+ transferDocsJS.includes('data-transf-pick')&&
+ transferDocsJS.includes('romTransfAddExtra')&&
+ transferDocsJS.includes('Avulso (sem movimentação de estoque)')&&
+ transferDocsCSS.includes('.romTransfExtra'),
+ 'Edicao e impressao de transferencia devem preservar itens avulsos e aviso sem baixa');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');

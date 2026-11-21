@@ -1,0 +1,26 @@
+/* EWGEST v45.4 — romaneios de transferencia entre galpoes. */
+#romTransfSection{margin-top:24px}
+#romTransfSection .romTransfActions{display:flex;flex-wrap:wrap;gap:10px;margin:13px 0}
+#romTransfSection .romTransfDoc{border:1px solid #d8e5f1;border-radius:12px;background:#f9fbfe;padding:15px;margin:11px 0}
+#romTransfSection .romTransfDoc.grouped{opacity:.65}
+.romTransfDocHead{display:flex;gap:12px;align-items:center;justify-content:space-between}
+.romTransfPick{display:flex;align-items:center;gap:9px;margin:0!important;font-weight:700}
+.romTransfPick input{width:18px;height:18px;margin:0}
+.romTransfState{font-size:11px;color:#315c86;background:#e6f2ff;border-radius:7px;padding:5px 9px}
+.romTransfMeta{line-height:1.6;margin:9px 0;color:#516f8e;font-size:13px}
+.romTransfWarning{color:#aa3030}
+.romTransfBtns{display:flex;gap:8px;flex-wrap:wrap}
+.romTransfBtns button{padding:9px 13px;font-size:12px}
+.romTransfEditDialog{width:min(100%,990px);max-height:93vh;overflow:auto}
+.romTransfFields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.romTransfFields label,.romTransfExtra label{margin:0}
+.romTransfFields input,.romTransfFields textarea,.romTransfExtra input{width:100%;margin-top:7px}
+.romTransfWide{grid-column:1/-1}
+.romTransfExtra{display:grid;grid-template-columns:125px minmax(220px,1fr) 100px 85px auto;align-items:end;gap:9px;margin:11px 0}
+#romTransfLinked,#romTransfViewContent{overflow-x:auto;margin-top:12px}
+#romTransfLinked table,#romTransfViewContent table{width:100%;border-collapse:collapse;font-size:12px}
+#romTransfLinked th,#romTransfLinked td,#romTransfViewContent th,#romTransfViewContent td{padding:8px;border-bottom:1px solid #d9e3ee;text-align:left}
+#romTransfStatus{min-height:20px;margin-top:9px}
+#romTransfEditStatus{min-height:18px;margin-top:9px}
+@media(max-width:800px){.romTransfFields{grid-template-columns:1fr 1fr}.romTransfExtra{grid-template-columns:1fr 1fr}.romTransfExtra label:nth-child(2){grid-column:1/-1}}
+@media(max-width:520px){.romTransfFields{grid-template-columns:1fr}.romTransfExtra{grid-template-columns:1fr}.romTransfExtra label:nth-child(2){grid-column:auto}}
