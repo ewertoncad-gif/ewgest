@@ -398,6 +398,15 @@ revoke all on function public.ew_liberar_plano_corte_componente(uuid,integer,dat
 grant execute on function public.ew_registrar_liberacao_componente(uuid,integer,date,text,text) to authenticated;
 grant execute on function public.ew_liberar_plano_corte_componente(uuid,integer,date,text,jsonb,text,text,uuid,text) to authenticated;
 
+-- Registra a retificação com uma ação de auditoria específica.
+alter table public.ew_auditoria_operacoes
+ drop constraint if exists ew_auditoria_operacoes_acao_check;
+alter table public.ew_auditoria_operacoes
+ add constraint ew_auditoria_operacoes_acao_check check (acao in (
+ 'CANCELAR_ROMANEIO','CANCELAR_SAIDAS_AVULSAS','CANCELAR_LIBERACOES',
+ 'ESTORNAR_ESTOQUE','ARQUIVAR_OBRA','CORRIGIR_ESCOPO_LIBERACAO'
+));
+
 -- Correção pontual de QA, explicitamente identificada: EA2 do TESTE-TREINAMENTO.
 -- Usuário declarou ter liberado SOMENTE o marco e já houve 1 marco expedido.
 -- Não muda quantidade liberada nem movimentações. Não é aplicada a outras obras.
