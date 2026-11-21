@@ -712,7 +712,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v45.9</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.0</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -7668,8 +7668,8 @@ async function finConfirmarRecebimento(row){
  const info=row.querySelector('.finReceiveError');
  if(!materialId||!variationId||!local||!row.querySelector('.finReceiveQty').value.trim()||
    !Number.isFinite(qty)||qty<=0||qty>1000000||Math.abs(qty*1000-Math.round(qty*1000))>0.00001||
-   tipo==='perfil'&&(!lengthText||!Number.isSafeInteger(length)||length<100||length>20000||
-     !Number.isSafeInteger(qty))){
+   ((tipo==='perfil'||ewUnidadeEmMetroInteiro(unit))&&!Number.isSafeInteger(qty))||
+   tipo==='perfil'&&(!lengthText||!Number.isSafeInteger(length)||length<100||length>20000)){
   info.textContent='Selecione o material e sua cor, informe a quantidade recebida, o galpão e o comprimento da barra quando necessário.';return;
  }
  const item=finState.approvedItems.find(i=>i.id===itemId),original=item?.perfil_id||item?.acessorio_id||'';
@@ -8343,7 +8343,8 @@ function stockQtyOpen(variationId,length='',unit='',local='IMBIRIBEIRA'){
   node('stockQtyLengthLabel').classList.toggle('hidden',!isBar);
   node('stockQtyLength').disabled=!isBar;
   node('stockQtyLength').value=isBar?(mmOrNull(length)||mmOrNull(item.mat.comprimento_comercial_mm)||''):'';
-  node('stockQtyNew').step=isBar?'1':'0.001';
+  node('stockQtyNew').step=isBar||ewUnidadeEmMetroInteiro(stockQtySelected.unidade)?'1':'0.001';
+  node('stockQtyNew').inputMode=isBar||ewUnidadeEmMetroInteiro(stockQtySelected.unidade)?'numeric':'decimal';
   node('stockQuantityInfo').textContent=item.mat.codigo+' · '+item.mat.descricao+
     ' · '+item.v.cor+' · '+(works.find(w=>w.id===node('stockWork').value)?.nome||'obra selecionada');
   node('stockQuantityOverlay').classList.remove('hidden');
@@ -8378,11 +8379,14 @@ async function stockQtySubmit(e){
   const novo=Number(node('stockQtyNew').value);
   const err=node('stockQtyError');
   if((isBar&&!length)||!node('stockQtyNew').value.trim()||
-    !Number.isFinite(novo)||novo<0||(isBar&&!Number.isSafeInteger(novo))){
+    !Number.isFinite(novo)||novo<0||((isBar||ewUnidadeEmMetroInteiro(item.unidade))&&!Number.isSafeInteger(novo))){
     err.textContent='Informe o comprimento e a nova quantidade. Perfis exigem número inteiro de barras.';return;
   }
   const atual=stockQtyAvailable(item,length,item.unidade,item.local_estoque);
   const delta=Number((novo-atual.saldo).toFixed(3));
+  if(ewUnidadeEmMetroInteiro(item.unidade)&&!Number.isSafeInteger(delta)){
+   err.textContent='O ajuste de estoque em MT exige metros inteiros. Confira o saldo histórico.';return;
+  }
   if(delta===0){err.textContent='O saldo não mudou. Informe uma quantidade diferente da atual.';return;}
   const motivo=node('stockQtyReason').value.trim();
   if(motivo.length<5){err.textContent='Informe um motivo de pelo menos cinco caracteres.';return;}
@@ -10171,9 +10175,9 @@ restaurarSessaoSalva().catch(e=>{
 
 </script>
 <script src="/assets/orcamento-niveis.js?v=20261120c"></script>
-<script src="/assets/recebimento-manual.js?v=20261121k"></script>
+<script src="/assets/recebimento-manual.js?v=20261121l"></script>
 <script src="/assets/cadastros-hub.js?v=20261121c"></script>
-<script src="/assets/insumos-fisicos.js?v=20261121c"></script>
+<script src="/assets/insumos-fisicos.js?v=20261121d"></script>
 <script src="/assets/entregas-producao.js?v=20261121a"></script>
 <script src="/assets/romaneios-transferencia.js?v=20261121a"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>
