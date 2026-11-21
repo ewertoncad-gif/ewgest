@@ -56,13 +56,23 @@
    category==='aluminio'?v.tipo==='perfil'&&v.perfil_id===matId:
    v.tipo==='acessorio'&&v.acessorio_id===matId));
  }
- // OBAPROV do CEM já informa NUMBARRAS e BARRA (mm). A importação
- // guarda essas linhas com origem IMPORTACAO_CEM. São quantidades planejadas,
- // não recebimentos físicos, mesmo quando a importação foi estornada depois.
+ // Preferir plano da obra persistido em ew_cem_obras_materiais. Apenas
+ // obras antigas (coluna NULL) utilizam o histórico técnico IMPORTACAO_CEM.
+ // Mesmo [] é autoritativo: não somar o plano com estoque inicial.
  function plannedBarRows(variationId=''){
-  return (finState?.barrasCem||[]).filter(x=>(!variationId||x.variacao_id===variationId)&&
+  const modern=(finState?.materiaisObra||[]).filter(m=>m.tipo==='perfil'&&
+   (!variationId||m.variacao_id===variationId)&&Array.isArray(m.barras_planejadas));
+  const modernIds=new Set(modern.map(m=>m.variacao_id));
+  const planned=modern.flatMap(m=>m.barras_planejadas.map(b=>({
+   variacao_id:m.variacao_id,comprimento_mm:Number(b.comprimento_mm),
+   quantidade_delta:Number(b.quantidade)}))).filter(b=>
+    Number.isSafeInteger(b.comprimento_mm)&&b.comprimento_mm>=100&&
+    b.comprimento_mm<=20000&&Number.isSafeInteger(b.quantidade_delta)&&b.quantidade_delta>0);
+  const legacy=(finState?.barrasCem||[]).filter(x=>
+   (!variationId||x.variacao_id===variationId)&&!modernIds.has(x.variacao_id)&&
    Number.isSafeInteger(Number(x.comprimento_mm))&&Number(x.comprimento_mm)>=100&&
    Number(x.comprimento_mm)<=20000&&Number(x.quantidade_delta)>0);
+  return [...planned,...legacy];
  }
  function selectOptions(){
   return getMaterials().flatMap(mat=>getVariations(mat.id).flatMap(v=>{
