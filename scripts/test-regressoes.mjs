@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const source=readFileSync(fileURLToPath(new URL('../app.html',import.meta.url)),'utf8');
 const receiptCacheHeaders=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
-assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121e')&&
- source.includes('/assets/recebimento-manual.css?v=20261121e'),
+assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121f')&&
+ source.includes('/assets/recebimento-manual.css?v=20261121f'),
  'O recebimento precisa de URLs versionadas para evitar assets antigos após deploy');
 assert.match(receiptCacheHeaders,/\/assets\/recebimento-manual\.js\s+Content-Type: text\/javascript; charset=utf-8\s+Cache-Control: no-store/,
  'Cloudflare não deve manter o JavaScript de recebimento em cache');
@@ -1497,8 +1497,8 @@ assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
  !source.includes('<label>XML da nota fiscal (NF-e)')&&
  source.includes('id="finCostCategory" required'),
  'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
-assert.ok(source.includes('recebimento-manual.js?v=20261121e')&&
- source.includes('recebimento-manual.css?v=20261121e')&&receiveCSS.includes('.finManualTable'),
+assert.ok(source.includes('recebimento-manual.js?v=20261121f')&&
+ source.includes('recebimento-manual.css?v=20261121f')&&receiveCSS.includes('.finManualTable'),
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
  receiveScript.includes('p_itens:items')&&receiveScript.includes('finCostOpId ||= crypto.randomUUID()')&&
@@ -1799,5 +1799,86 @@ assert.ok(!receiveScript.includes('<td><select class="finManualVariation"'),
 assert.ok(receiveScript.includes('finManualReadonly')&&receiveCSS.includes('.finManualStat')&&
  source.includes('<th>Necessário</th><th>Já recebido</th><th>Falta receber</th>'),
  'Manter cor e barras em colunas visíveis');
+
+// Gestão financeira: NF somada pelos valores dos materiais, sem dupla digitação.
+assert.ok(source.includes('id="finSupplierAdd"')&&source.includes('id="finWarehouseAdd"')&&
+ source.includes('<select id="finCostVendor"')&&source.includes('finRegistryPanel')&&
+ source.includes("apiGet('ew_fornecedores'")&&
+ source.includes("async function cadastrarGalpaoEmpresa(nome)"),
+ 'Financeiro deve cadastrar fornecedores e reutilizar galpões da empresa');
+assert.ok(receiveScript.includes('function hojeLocalISO(){')&&
+ receiveScript.includes("if(!byId('finCostDate').value)byId('finCostDate').value=hojeLocalISO()")&&
+ !receiveScript.includes('new Date().toISOString().slice(0,10)'),
+ 'Data deve vir preenchida no dia local e continuar editável');
+assert.ok(receiveScript.includes("byId('finCostTotal').readOnly=hasStock;")&&
+ receiveScript.includes("totalField.value=soma>0?finMoney(soma/100):''")&&
+ !receiveScript.includes('rows.length===1&&note!==null'),
+ 'Valor da NF de materiais deve vir da soma dos itens sem substituir um valor de linha');
+
+const subtotalStart=receiveScript.indexOf(' function updateSum(){');
+const subtotalEnd=receiveScript.indexOf(' function renderForm(){',subtotalStart);
+assert.ok(subtotalStart>=0&&subtotalEnd>subtotalStart,'Rotina de total automático localizada');
+const camposSimulados={
+ finCostTotal:{value:''},
+ finManualSum:{textContent:'',classList:{toggle() {}}}
+};
+const toCentsTest=v=>{
+ if(!v)return null;
+ const n=Number(String(v).replace(/^R\$\s*/,'').replace(/\./g,'').replace(',','.'));
+ return Number.isFinite(n)?Math.round(n*100):null;
+};
+const autoTotal=new Function('itens','fields','cents','finMoney',
+ 'let rows=itens; const byId=id=>fields[id];const stockCategory=()=>true;\n'+
+ receiveScript.slice(subtotalStart,subtotalEnd)+
+ '\nreturn updateSum;');
+const totalRows=[{valor:'R$ 525,50'},{valor:''}];
+const totalUpdater=autoTotal(totalRows,camposSimulados,toCentsTest,
+ n=>'R$ '+n.toFixed(2).replace('.',','));
+totalUpdater();
+assert.equal(camposSimulados.finCostTotal.value,'R$ 525,50',
+ 'Uma linha já deve alimentar o valor total da NF');
+totalRows[1].valor='R$ 150,00';totalUpdater();
+assert.equal(camposSimulados.finCostTotal.value,'R$ 675,50',
+ 'Duas linhas devem atualizar valor total automaticamente');
+totalRows.splice(0,1);totalUpdater();
+assert.equal(camposSimulados.finCostTotal.value,'R$ 150,00',
+ 'Remover linha deve reduzir valor total da nota');
+
+const fornecedorSQL=readFileSync(fileURLToPath(
+ new URL('../database/proposals/20261121_cadastro_fornecedores.sql',import.meta.url)),'utf8');
+assert.ok(fornecedorSQL.includes('CREATE TABLE IF NOT EXISTS public.ew_fornecedores')&&
+ fornecedorSQL.includes('ENABLE ROW LEVEL SECURITY')&&
+ fornecedorSQL.includes('FOR INSERT TO authenticated')&&
+ fornecedorSQL.includes("ue.perfil='administrador'")&&
+ fornecedorSQL.includes('GRANT SELECT,INSERT,UPDATE')&&
+ !fornecedorSQL.includes('SECURITY DEFINER'),
+ 'Fornecedor precisa de cadastro por empresa, RLS e escrita ADM');
+
+const stockFunctionStart=source.indexOf('function stockNecessidade(item){');
+const stockFunctionEnd=source.indexOf('function renderEstoque(){',stockFunctionStart);
+assert.ok(stockFunctionStart>=0&&stockFunctionEnd>stockFunctionStart,
+ 'Função da necessidade de estoque disponível');
+const estoqueNecessidade=new Function('releaseUnidadeAcessorio','escapeHTML',
+ source.slice(stockFunctionStart,stockFunctionEnd)+'\nreturn stockNecessidade;')(
+ unidade=>unidade,valor=>valor);
+const stockProfile={
+ v:{tipo:'perfil'},mat:{},comprimento:6000,
+ link:{quantidade_prevista:10,comprimento_total_m:11.5,
+  barras_planejadas:[{comprimento_mm:6000,quantidade:2},{comprimento_mm:6500,quantidade:1}]},
+ perWork:[{comprimento_mm:6000,unidade:'BARRA',quantidade_delta:1}]
+};
+const estoqueBar=estoqueNecessidade(stockProfile);
+assert.equal(estoqueBar.necessaria,'2 barras',
+ 'GN096: necessidade de 2 barras de 6000 mm, não 11,5 m/10 cortes');
+assert.equal(estoqueBar.texto,'Recebimento parcial','1 de 2 barras é parcial');
+assert.equal(estoqueNecessidade({...stockProfile,comprimento:6500}).necessaria,'1 barra',
+ 'Outro comprimento tem necessidade independente');
+assert.equal(estoqueNecessidade({...stockProfile,link:{
+ quantidade_prevista:10,comprimento_total_m:11.5,barras_planejadas:null}}).necessaria,
+ 'Não importado','Não inventar barras quando só há informação de cortes');
+assert.ok(source.includes('const medidas=v.tipo')&&
+ source.includes('barras_planejadas.map(b=>Number(b.comprimento_mm))')&&
+ !source.includes('m em cortes'),
+ 'Estoque também deve listar tamanhos planejados sem saldo físico e não mostrar cortes como necessidade');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
