@@ -687,6 +687,7 @@
 <link rel="stylesheet" href="/assets/insumos-fisicos.css?v=20261121a">
 <link rel="stylesheet" href="/assets/entregas-producao.css?v=20261121a">
 <link rel="stylesheet" href="/assets/romaneios-transferencia.css?v=20261121a">
+<link rel="stylesheet" href="/assets/cadastros-pages.css?v=20261121a">
 </head>
 <body>
 <div class="wrap">
@@ -711,7 +712,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v45.4</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v45.5</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -1056,7 +1057,7 @@
     </section>
 
     <section id="users" class="hidden">
-      <div class="head"><div>
+      <div class="head"><div><button type="button" class="btn secondary cadastrosBack">← Voltar para cadastros</button>
         <button id="userAccessHistoryToggle" class="btn secondary" type="button">Histórico de acessos</button>
         <button id="userOperationsToggle" class="btn secondary" type="button" style="margin-left:8px">Relatório de operações</button>
         <h1>Cadastro de usuários</h1>
@@ -1167,7 +1168,7 @@
       </div>
     </section>
     <section id="manufacturers" class="hidden">
-      <div class="head"><div>
+      <div class="head"><div><button type="button" class="btn secondary cadastrosBack">← Voltar para cadastros</button>
         <h1>Cadastro de fabricantes</h1>
         <div class="muted">Cadastro mestre disponível somente ao administrador. Os fabricantes são usados para filtrar e organizar as tipologias.</div>
       </div></div>
@@ -1200,18 +1201,18 @@
 
     <section id="materials" class="hidden">
       <div class="head">
-        <div><h1>Banco de materiais</h1>
-          <p class="muted">Cadastros técnicos compartilhados entre as obras: perfis, acessórios, acabamentos e cores.</p>
+        <div><button type="button" class="btn secondary cadastrosBack">← Voltar para cadastros</button><h1 id="matPageTitle">Banco de perfis</h1>
+          <p class="muted" id="matPageSubtitle">Perfis, cores e acabamentos utilizados nas obras.</p>
         </div>
         <button class="btn primary" id="matNovoHeader" type="button">+ Cadastrar material</button>
       </div>
       <div class="materialsSummary">
-        <div class="stat"><div class="label">Perfis cadastrados</div><div class="number" id="matCountPerfis">—</div></div>
-        <div class="stat"><div class="label">Acessórios cadastrados</div><div class="number" id="matCountAcessorios">—</div></div>
+        <div class="stat" id="matStatPerfis"><div class="label">Perfis cadastrados</div><div class="number" id="matCountPerfis">—</div></div>
+        <div class="stat" id="matStatAcessorios"><div class="label">Acessórios cadastrados</div><div class="number" id="matCountAcessorios">—</div></div>
         <div class="stat"><div class="label">Variações de cor / acabamento</div><div class="number" id="matCountVariacoes">—</div></div>
       </div>
       <div class="section panel">
-        <div class="materialTabs" role="group" aria-label="Selecionar módulo">
+        <div class="materialTabs hidden" role="group" aria-label="Seleção interna de catálogo">
           <button type="button" class="btn secondary active" id="matTabPerfil">Perfis</button>
           <button type="button" class="btn secondary" id="matTabAcessorio">Acessórios</button>
         </div>
@@ -1230,47 +1231,38 @@
     </section>
 
     <section id="cadastros" class="hidden">
-      <div class="head"><div><h1>Cadastros do sistema</h1>
-        <p class="muted">Cadastros compartilhados entre as obras.</p></div></div>
-      <div class="cadastrosGrid">
-        <button id="navMaterials" type="button" class="cadastrosTile"><strong>Perfis</strong><span>Materiais, cores e acabamentos</span></button>
-        <button id="navAccessories" type="button" class="cadastrosTile"><strong>Acessórios</strong><span>Códigos, variações e unidades</span></button>
-        <button id="navTypologies" type="button" class="cadastrosTile"><strong>Tipologias</strong><span>Tipos de esquadrias e abreviações</span></button>
+      <div class="head"><div>
+        <h1>Cadastros do sistema</h1>
+        <p class="muted">Selecione a categoria para consultar, cadastrar ou editar seus registros.</p>
+      </div></div>
+      <div class="cadastrosGrid" aria-label="Categorias de cadastros">
+        <button id="navMaterials" type="button" class="cadastrosTile"><strong>Perfis</strong><span>Códigos, cores e acabamentos</span></button>
+        <button id="navAccessories" type="button" class="cadastrosTile"><strong>Acessórios</strong><span>Códigos, unidades e variações</span></button>
+        <button id="navTypologies" type="button" class="cadastrosTile"><strong>Tipologias</strong><span>Esquadrias e abreviações</span></button>
         <button id="navManufacturers" type="button" class="cadastrosTile"><strong>Fabricantes</strong><span>Catálogo de fabricantes</span></button>
-        <button id="cadastroJumpFornecedores" type="button" class="cadastrosTile"><strong>Fornecedores</strong><span>Notas e materiais</span></button>
-        <button id="cadastroJumpGalpoes" type="button" class="cadastrosTile"><strong>Galpões</strong><span>Locais de armazenamento</span></button>
-        <button id="cadastroGerenciarEstoque" type="button" class="cadastrosTile"><strong>Administração de estoques</strong><span>Históricos, saldos e estornos</span></button>
-        <button id="cadastroInsumosJump" type="button" class="cadastrosTile"><strong>Vidros e outros insumos</strong><span>Catálogo físico e unidades</span></button>
+        <button id="cadastroJumpFornecedores" type="button" class="cadastrosTile"><strong>Fornecedores</strong><span>Fornecedores das notas fiscais</span></button>
+        <button id="cadastroJumpGalpoes" type="button" class="cadastrosTile"><strong>Galpões</strong><span>Imbiribeira, Afogados, Olinda e outros</span></button>
+        <button id="navVidros" type="button" class="cadastrosTile"><strong>Vidros</strong><span>Catálogo e unidades dos vidros</span></button>
+        <button id="navOutrosInsumos" type="button" class="cadastrosTile"><strong>Outros insumos</strong><span>Catálogo de insumos diversos</span></button>
         <button id="navUsers" type="button" class="cadastrosTile"><strong>Usuários</strong><span>Acessos e permissões</span></button>
       </div>
-      <div class="cadastrosListGrid">
-        <div class="section panel" id="cadastroFornecedores">
-          <h2>Fornecedores</h2><form id="cadastroFornecedorForm" class="cadastrosNovoForm">
-            <label>Nome ou razão social <input id="cadastroFornecedorNome" maxlength="180" required placeholder="Ex.: MEGA NORDESTE"></label>
-            <button type="submit" class="btn primary">Cadastrar fornecedor</button>
-          </form><div id="cadastroFornecedorList" class="cadastrosList"></div>
-        </div>
-        <div class="section panel" id="cadastroGalpoes">
-          <h2>Galpões</h2><form id="cadastroGalpaoForm" class="cadastrosNovoForm">
-            <label>Nome do galpão <input id="cadastroGalpaoNome" maxlength="80" required placeholder="Ex.: AFOGADOS"></label>
-            <button type="submit" class="btn primary">Cadastrar galpão</button>
-          </form><div id="cadastroGalpaoList" class="cadastrosList"></div>
-        </div>
-      </div>
-      <div class="section panel" id="cadastroInsumos">
-        <h2>Vidros e outros insumos</h2>
-        <p class="hint">Catálogo compartilhado por empresa. Material que já foi recebido, transferido ou estornado não pode ser excluído nem renomeado; o histórico fica preservado.</p>
-        <form id="cadastroInsumosForm" class="cadastrosNovoForm">
-          <div class="finFormRows">
-            <label>Categoria <select id="cadastroInsumosCategory"><option value="vidros">Vidros</option><option value="outros">Outros insumos</option></select></label>
-            <label>Descrição <input id="cadastroInsumosDescription" maxlength="500" required placeholder="Ex.: VIDRO LAMINADO 8MM 1000X1000"></label>
-            <label>Unidade <select id="cadastroInsumosUnit"><option value="PC">Peça (PC)</option><option value="UN">Unidade (UN)</option><option value="M2">m²</option><option value="MT">Metro</option><option value="KG">Quilo</option><option value="CX">Caixa</option><option value="CJ">Conjunto</option><option value="PR">Par</option></select></label>
-          </div>
-          <button type="submit" class="btn primary" id="cadastroInsumosSave">Cadastrar material</button>
-          <button type="button" class="btn secondary hidden" id="cadastroInsumosCancel">Cancelar edição</button>
+      <p id="cadastrosMessage" class="feedback" role="status"></p>
+    </section>
+
+    <section id="fornecedoresPage" class="hidden">
+      <div class="head"><div>
+        <button type="button" class="btn secondary cadastrosBack">← Voltar para cadastros</button>
+        <h1>Cadastro de fornecedores</h1>
+        <p class="muted">Consulte e gerencie fornecedores utilizados no recebimento de notas fiscais.</p>
+      </div></div>
+      <div class="section panel" id="cadastroFornecedores">
+        <h2>Fornecedores cadastrados</h2>
+        <form id="cadastroFornecedorForm" class="cadastrosNovoForm">
+          <label>Nome ou razão social <input id="cadastroFornecedorNome" maxlength="180" required placeholder="Ex.: MEGA NORDESTE"></label>
+          <button type="submit" class="btn primary">Cadastrar fornecedor</button>
         </form>
-        <p id="cadastroInsumosStatus" class="feedback" role="status"></p>
-        <div id="cadastroInsumosList" class="cadastrosList"></div>
+        <div id="cadastroFornecedorList" class="cadastrosList"></div>
+        <p id="cadastroFornecedorMessage" class="feedback" role="status"></p>
       </div>
       <div id="cadastroEditPanel" class="section panel hidden" role="region" aria-labelledby="cadastroEditTitle">
         <h2 id="cadastroEditTitle">Editar cadastro</h2>
@@ -1283,7 +1275,47 @@
         </div>
         <p id="cadastroEditMessage" class="feedback" role="status"></p>
       </div>
-      <p id="cadastrosMessage" class="feedback" role="status"></p>
+    </section>
+
+    <section id="galpoesPage" class="hidden">
+      <div class="head"><div>
+        <button type="button" class="btn secondary cadastrosBack">← Voltar para cadastros</button>
+        <h1>Cadastro de galpões</h1>
+        <p class="muted">Locais físicos de estoque da empresa. Movimentações entre galpões distintos geram romaneios de transferência.</p>
+      </div></div>
+      <div class="section panel" id="cadastroGalpoes">
+        <h2>Galpões cadastrados</h2>
+        <form id="cadastroGalpaoForm" class="cadastrosNovoForm">
+          <label>Nome do galpão <input id="cadastroGalpaoNome" maxlength="80" required placeholder="Ex.: OLINDA"></label>
+          <button type="submit" class="btn primary">Cadastrar galpão</button>
+        </form>
+        <div id="cadastroGalpaoList" class="cadastrosList"></div>
+        <p id="cadastroGalpaoMessage" class="feedback" role="status"></p>
+      </div>
+    </section>
+
+    <section id="insumosPage" class="hidden">
+      <div class="head"><div>
+        <button type="button" class="btn secondary cadastrosBack">← Voltar para cadastros</button>
+        <h1 id="cadastroInsumosTitle">Cadastro de vidros</h1>
+        <p class="muted" id="cadastroInsumosSubtitle">Gerencie os tipos de vidro cadastrados para recebimento e estoque.</p>
+      </div></div>
+      <div class="section panel" id="cadastroInsumos">
+        <p class="hint">Catálogo compartilhado por empresa. Material que já foi recebido, transferido ou estornado não pode ser excluído nem renomeado; o histórico fica preservado.</p>
+        <form id="cadastroInsumosForm" class="cadastrosNovoForm">
+          <div class="finFormRows">
+            <label class="hidden">Categoria
+              <select id="cadastroInsumosCategory"><option value="vidros">Vidros</option><option value="outros">Outros insumos</option></select>
+            </label>
+            <label>Descrição <input id="cadastroInsumosDescription" maxlength="500" required placeholder="Ex.: VIDRO LAMINADO 8MM 1000X1000"></label>
+            <label>Unidade <select id="cadastroInsumosUnit"><option value="PC">Peça (PC)</option><option value="UN">Unidade (UN)</option><option value="M2">m²</option><option value="MT">Metro</option><option value="KG">Quilo</option><option value="CX">Caixa</option><option value="CJ">Conjunto</option><option value="PR">Par</option></select></label>
+          </div>
+          <button type="submit" class="btn primary" id="cadastroInsumosSave">Cadastrar material</button>
+          <button type="button" class="btn secondary hidden" id="cadastroInsumosCancel">Cancelar edição</button>
+        </form>
+        <p id="cadastroInsumosStatus" class="feedback" role="status"></p>
+        <div id="cadastroInsumosList" class="cadastrosList"></div>
+      </div>
     </section>
     <section id="stock" class="hidden">
       <div class="head"><div>
@@ -1294,7 +1326,7 @@
           <button type="button" class="btn primary" id="stockCreateAnother">+ Criar estoque vazio</button>
           <button type="button" class="btn secondary" id="stockTransferPickLocal">Transferência entre galpões</button>
           <button type="button" class="btn secondary" id="stockTransferPickWork">Transferência entre obras</button>
-          <button type="button" class="btn secondary hidden" id="stockManageLocations">Gerenciar estoques</button>
+          <button type="button" class="btn secondary" id="stockManageLocations" title="Consultar movimentos e saldos, estornar lançamentos, arquivar ou restaurar estoques">Gerenciar estoques</button>
           <button type="button" class="btn secondary hidden" id="stockArchivedReview">Saldos e estornos</button>
           <button type="button" class="btn secondary" id="stockRefresh">Atualizar</button>
         </div></div>
@@ -1403,7 +1435,7 @@
       </div>
     </section>
     <section id="typologies" class="hidden">
-      <div class="head"><div>
+      <div class="head"><div><button type="button" class="btn secondary cadastrosBack">← Voltar para cadastros</button>
         <h1>Banco de tipologias</h1>
         <div class="muted">Catálogo técnico, códigos MOD e pendências. Códigos EA de obras antigas permanecem apenas como referências históricas.</div>
       </div></div>
@@ -1553,7 +1585,7 @@
 </div>
 <div id="stockManageOverlay" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockManageTitle" style="max-width:1100px;width:min(96vw,1100px);max-height:92vh">
-    <h2 id="stockManageTitle">Gerenciar estoques e estornos</h2>
+    <h2 id="stockManageTitle">Gerenciar estoques — saldos, histórico e estornos</h2>
     <p class="hint">Estoques arquivados ficam fora do seletor de movimentações, mas permanecem aqui para consulta e conferência dos saldos. É possível estornar lançamentos de uma obra somente após cancelar as operações dependentes. O estorno é total, auditado e não apaga o histórico. A restauração de um estoque é permitida por até 48 horas após seu arquivamento.</p>
     <p id="stockManageStatus" class="hint" role="status"></p>
     <div id="stockManageRecords"></div>
@@ -2306,7 +2338,7 @@ function podeEmitirRomaneio(){return ['administrador','gerenciador','supervisor'
 function setView(view){
   node('startup').classList.add('hidden');
   if(isAlmoxarife()&&!['login','romaneiosPage','recebimento','almoxNotas','myPassword'].includes(view))view='romaneiosPage';
-  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','recebimento','almoxNotas','cadastros','typologies','manufacturers','materials','stock','financeiro','cemImport','users','myPassword'])
+  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','recebimento','almoxNotas','cadastros','fornecedoresPage','galpoesPage','insumosPage','typologies','manufacturers','materials','stock','financeiro','cemImport','users','myPassword'])
     node(id).classList.toggle('hidden',id!==view);
   node('logout').classList.toggle('hidden',view==='login');
   node('myPasswordHeader').classList.toggle('hidden',view==='login');
@@ -2318,7 +2350,7 @@ function setView(view){
       ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navCem','cemImport'],['navUsers','users'],['navManageWorks','manageWorks']]){
     const button=node(id);
     const selecionado=ativo===target||(id==='navCadastros'&&
-      ['materials','typologies','manufacturers','users'].includes(ativo));
+      ['materials','typologies','manufacturers','users','fornecedoresPage','galpoesPage','insumosPage'].includes(ativo));
     button.classList.toggle('active',selecionado);
     if(selecionado)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
   }
@@ -10068,8 +10100,8 @@ restaurarSessaoSalva().catch(e=>{
 </script>
 <script src="/assets/orcamento-niveis.js?v=20261120c"></script>
 <script src="/assets/recebimento-manual.js?v=20261121h"></script>
-<script src="/assets/cadastros-hub.js?v=20261121b"></script>
-<script src="/assets/insumos-fisicos.js?v=20261121a"></script>
+<script src="/assets/cadastros-hub.js?v=20261121c"></script>
+<script src="/assets/insumos-fisicos.js?v=20261121b"></script>
 <script src="/assets/entregas-producao.js?v=20261121a"></script>
 <script src="/assets/romaneios-transferencia.js?v=20261121a"></script>
 </body>
