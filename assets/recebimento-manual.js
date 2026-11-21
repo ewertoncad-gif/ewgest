@@ -498,8 +498,8 @@
    '</p>';
   initForm();
  };
- window.ewRecebimentoManualInit=initForm;
  byId('finExpenseForm').removeEventListener('submit',finRegistrarCusto);
+ if(typeof window!=='undefined')window.ewRecebimentoManualInit=initForm;
  byId('finExpenseForm').addEventListener('submit',submit);
  byId('finCostCategory').addEventListener('change',()=>{
   category=byId('finCostCategory').value;
