@@ -293,7 +293,7 @@ BEGIN
     jsonb_array_length(p_acessorios)>0,v_result,v_uid);
  RETURN v_result;
 END;
-$function$
+$function$;
 
 COMMIT;
 
