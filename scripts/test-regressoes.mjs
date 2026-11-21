@@ -1876,7 +1876,7 @@ assert.doesNotThrow(()=>new Function(insumosClient),'O script do estoque físico
 assert.ok(source.includes('id="finMiscBlock"')&&source.includes('id="finMiscRows"')&&
  source.includes('id="finMiscSum"')&&source.includes('id="insumosStockPanel"')&&
  source.includes('id="insumosTransferForm"')&&source.includes('id="cadastroInsumosForm"')&&
- source.includes('insumos-fisicos.js?v=20261121a')&&
+ source.includes('insumos-fisicos.js?v=20261121b')&&
  receiveScript.includes('function miscNormalized(){')&&
  receiveScript.includes('function miscUpdateSum(){')&&
  receiveScript.includes("byId('finMiscRows').replaceChildren()")&&
@@ -1986,7 +1986,7 @@ for(const id of ['navCadastros','cadastros','navAccessories','cadastroFornecedor
  'navTypologies','navManufacturers','navUsers']){
  assert.ok(source.includes('id="'+id+'"'),'Cadastro central faltando '+id);
 }
-assert.ok(source.includes('cadastros-hub.js?v=20261121b')&&
+assert.ok(source.includes('cadastros-hub.js?v=20261121c')&&
  source.includes("['navCadastros','cadastros']")&&
  cadastroHubJS.includes("apiGet('ew_fornecedores'")&&
  cadastroHubJS.includes("apiGet('ew_locais_fisicos'")&&
@@ -2058,7 +2058,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v45.4')&&
+assert.ok(source.includes('v45.5')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2135,5 +2135,44 @@ assert.ok(transferDocsJS.includes('data-t-edit')&&
  transferDocsJS.includes('Avulso (sem movimentação de estoque)')&&
  transferDocsCSS.includes('.romTransfExtra'),
  'Edicao e impressao de transferencia devem preservar itens avulsos e aviso sem baixa');
+
+
+// EWGEST v45.5 — central de cadastros: destinos separados, sem edicao acidental.
+const paginasCSS=readFileSync(fileURLToPath(new URL(
+ '../assets/cadastros-pages.css',import.meta.url)),'utf8');
+for(const id of [
+ 'fornecedoresPage','galpoesPage','insumosPage','cadastroFornecedorForm',
+ 'cadastroGalpaoForm','cadastroInsumosForm','cadastroInsumosCategory',
+ 'cadastroInsumosTitle','cadastroJumpFornecedores','cadastroJumpGalpoes',
+ 'navVidros','navOutrosInsumos','matPageTitle','matPageSubtitle',
+ 'matStatPerfis','matStatAcessorios','matTabPerfil','matTabAcessorio',
+ 'stockManageLocations','stockManageOverlay'
+])assert.ok(source.includes('id="'+id+'"'),'Faltou elemento de cadastro: '+id);
+assert.ok(source.includes("'fornecedoresPage','galpoesPage','insumosPage'")&&
+ source.includes("'materials','typologies','manufacturers','users','fornecedoresPage','galpoesPage','insumosPage'")&&
+ cadastroHubJS.includes("button.addEventListener('click',abrir)")&&
+ cadastroHubJS.includes("abrirCategoria('fornecedor')")&&
+ cadastroHubJS.includes("abrirCategoria('galpao')")&&
+ source.includes('class="materialTabs hidden"')&&
+ source.includes('class="btn secondary cadastrosBack"')&&
+ source.includes('cadastros-pages.css?v=20261121a'),
+ 'Cadastros devem abrir paginas exclusivas com botao voltar e sem alternancia direta');
+assert.ok(!source.includes('id="cadastroGerenciarEstoque"')&&
+ !source.includes('id="cadastroInsumosJump"')&&
+ !cadastroHubJS.includes("stockManageOpen()")&&
+ source.includes('id="stockManageLocations" title=')&&
+ paginasCSS.includes('#stockManageLocations'),
+ 'Administracao de estoque deve ficar no Estoque, nao como cadastro redundante');
+assert.ok(insumosClient.includes("byId('navVidros').addEventListener('click'")&&
+ insumosClient.includes("byId('navOutrosInsumos').addEventListener('click'")&&
+ insumosClient.includes("categoriaAtual=categoria")&&
+ insumosClient.includes("byId('cadastroInsumosCategory').value=categoriaAtual")&&
+ source.includes('class="hidden">Categoria')&&
+ !insumosClient.includes("byId('cadastroInsumosJump')"),
+ 'Vidros e outros insumos devem ser separadas sem trocar categoria silenciosamente');
+assert.ok(source.includes("node('matPageTitle').textContent=")&&
+ source.includes("node('matStatAcessorios').classList.toggle('hidden',perfil)")&&
+ source.includes("node('matStatPerfis').classList.toggle('hidden',!perfil)"),
+ 'Resumo e titulo de materiais seguem o modulo escolhido');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
