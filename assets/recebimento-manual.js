@@ -104,14 +104,15 @@
    // Não usar cortes, metros lineares ou comprimento total da peça como
    // quantidade de barras necessárias. A comparação é BARRA X BARRA
    // com o mesmo código, cor, comprimento e obra.
+   const availablePlan=plannedBarRows(row.variacao);
+   const hasAnyPlan=availablePlan.length>0;
    const length=Number(row.comprimento);
-   if(!Number.isSafeInteger(length)||length<100||length>20000)
-    return {needed:'Não informado',received:'—',pending:'—',
-     note:'Informe o comprimento efetivamente recebido em milímetros para consultar por medida.'};
-   const planned=plannedBarRows(row.variacao)
-    .filter(x=>Number(x.comprimento_mm)===length);
+   if(!String(row.comprimento).trim()||!Number.isSafeInteger(length)||length<100||length>20000)
+    return {needed:hasAnyPlan?'—':'Não importado',received:'—',pending:'—',
+     note:hasAnyPlan?'Selecione uma medida do plano do CEM.':
+      'Plano de barras ausente nesta obra. Use o ZIP original do CEM; não digite uma medida presumida.'};
+   const planned=availablePlan.filter(x=>Number(x.comprimento_mm)===length);
    const hasPlan=planned.length>0;
-   const hasAnyPlan=plannedBarRows(row.variacao).length>0;
    const expected=planned.reduce((sum,x)=>sum+Number(x.quantidade_delta||0),0);
    const received=registered.filter(x=>x.unidade==='BARRA'&&Number(x.comprimento_mm)===length)
     .reduce((sum,x)=>sum+Number(x.quantidade||0),0);
@@ -177,12 +178,20 @@
     plannedBarRows(row.variacao).some(x=>Number(x.comprimento_mm)===length);
    let lengthField='<span class="finManualEmpty">—</span>';
    if(category==='aluminio'&&row.material){
-    lengthField='<input class="finManualLength" type="number" inputmode="numeric" min="100" max="20000" step="1" required'+
-     ' aria-label="Comprimento real da barra em milímetros"'+
-     ' title="Predefinido pelo CEM quando disponível; altere se a compra chegou em outra medida."'+
-     ' placeholder="Barra (mm)" value="'+escapeHTML(row.comprimento)+'">'+
-     '<small class="finManualLengthHint">'+(isPlanned?'Medida do CEM':validLength?
-      'Fora do plano do CEM':auto?'Confira a medida':'Informe a medida')+'</small>';
+    if(!plannedBarRows(row.variacao).length){
+     lengthField='<div class="finManualMissingPlan">'+
+      '<strong>Plano não importado</strong>'+
+      '<button class="btn secondary" type="button" data-manual-reimport="'+i+
+      '" aria-label="Recuperar comprimento e quantidade de barras do CEM">Recuperar do CEM</button>'+
+      '</div>';
+    }else{
+     lengthField='<input class="finManualLength" type="number" inputmode="numeric" min="100" max="20000" step="1" required'+
+      ' aria-label="Comprimento real da barra em milímetros"'+
+      ' title="Predefinido pelo CEM quando disponível; altere se a compra chegou em outra medida."'+
+      ' placeholder="Barra (mm)" value="'+escapeHTML(row.comprimento)+'">'+
+      '<small class="finManualLengthHint">'+(isPlanned?'Medida do CEM':validLength?
+       'Fora do plano do CEM':'Medida do CEM')+'</small>';
+    }
    }
    const stats=html=>'<td class="finManualStat">'+html+'</td>';
    return '<tr data-manual-row="'+i+'">'+
@@ -200,7 +209,7 @@
   }).join('');
   const message=byId('finManualDetail');
   if(message)message.textContent=category==='aluminio'?
-   'O comprimento vem predefinido do plano do CEM quando disponível, mas pode ser alterado para o tamanho realmente comprado. Necessário/Falta receber vêm do planejamento por medida; Já recebido vem das notas. Medidas diferentes não alteram a necessidade original.':
+   'O comprimento vem do plano de barras da obra importado do CEM. Caso apareça "Plano não importado", use "Recuperar do CEM" com o ZIP original, sem excluir a obra. Após recuperar, o campo virá preenchido e poderá ser alterado se a compra tiver outro comprimento.':
    'Necessário, recebido e falta receber são calculados na unidade de cada acessório, quando compatível.';
   updateSum();
  }
@@ -259,6 +268,8 @@
   if(amount===null||amount<0)throw new Error('Subtotal do material inválido na linha '+(i+1)+'.');
   const length=category==='aluminio'?Number(row.comprimento):null;
   if(category==='aluminio'){
+   if(!plannedBarRows(row.variacao).length)
+    throw new Error('Plano de barras ausente para este perfil na obra. Selecione "Recuperar do CEM" e importe o ZIP original, sem excluir a obra.');
    if(!Number.isSafeInteger(qty))
     throw new Error('Perfis exigem quantidades inteiras de barras na linha '+(i+1)+'.');
    if(!String(row.comprimento).trim()||!Number.isSafeInteger(length)||length<100||length>20000)
@@ -412,6 +423,16 @@
  byId('finManualAdd').addEventListener('click',()=>{
   if(rows.length>=100){byId('finCostMessage').textContent='Limite de 100 materiais por nota.';return;}
   rows.push({material:'',variacao:'',comprimento:'',quantidade:'',valor:''});renderRows();
+ });
+ byId('finManualRows').addEventListener('click',event=>{
+  const button=event.target.closest('[data-manual-reimport]');
+  if(!button)return;
+  const row=rows[Number(button.dataset.manualReimport)];
+  if(!row||!finState){byId('finCostMessage').textContent='Selecione novamente o material.';return;}
+  const mat=getMaterials().find(x=>x.id===row.material);
+  if(!mat){byId('finCostMessage').textContent='Material não identificado nesta obra.';return;}
+  try{cemAbrirRecuperacaoPlano(finState.obraId,mat.codigo,row.variacao);}
+  catch(e){byId('finCostMessage').textContent='Falha ao abrir recuperação do CEM: '+e.message;}
  });
  byId('finManualRows').addEventListener('change',event=>{
   const tr=event.target.closest('[data-manual-row]');if(!tr)return;
