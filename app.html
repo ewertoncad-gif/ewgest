@@ -712,7 +712,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.2</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.3</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -3270,8 +3270,12 @@ function medidaRomaneioEmMetros(medida){
   return convertido.some(x=>x===null)?original:convertido.join(' × ')+' m';
 }
 function construirHTMLRomaneio(header,linhas){
+  // O mesmo layout de expedição também atende transferências físicas entre galpões.
+  // Não alterar a estrutura, a paginação e as logomarcas do romaneio de esquadrias.
+  const transferencia=header.tipo_documento==='TRANSFERENCIA_GALPOES';
   const obra=works.find(w=>w.id===header.obra_id);
-  if(!obra||!linhas?.length)throw new Error('Romaneio sem obra ou itens para imprimir.');
+  if((!obra&&!transferencia)||!linhas?.length)
+    throw new Error('Romaneio sem obra ou itens para imprimir.');
   const itens=linhas.slice().sort((a,b)=>Number(a.sequencia)-Number(b.sequencia));
   // Estima a altura das linhas para não cortar textos longos no A4.
   const descricaoImpressa=i=>i.natureza==='esquadria'&&!i.descricao_impressao_definida?
@@ -3305,15 +3309,22 @@ function construirHTMLRomaneio(header,linhas){
         '<td>'+escapeHTML(linha.codigo||'')+'</td>'+
         '<td class="romaneioDescricao">'+escapeHTML(descricaoImpressa(linha))+'</td>'+
         '<td class="center">'+escapeHTML(medidaRomaneioEmMetros(linha.medida))+'</td>'+
-        '<td class="center">'+Number(linha.quantidade)+'</td>'+
+        '<td class="center">'+(transferencia?
+          Number(linha.quantidade).toLocaleString('pt-BR',{maximumFractionDigits:3}):
+          Number(linha.quantidade))+'</td>'+
         '<td class="center">'+escapeHTML(linha.unidade||'UNID.')+'</td>'+
-        '<td class="right">'+areax+'</td></tr>';
+        '<td class="'+(transferencia?'':'right')+'">'+(transferencia?
+          escapeHTML(linha.obra_origem||'—'):areax)+'</td></tr>';
     }).join('');
     return '<section class="copy '+(compacta?'compact':'full')+'">'+
       (header.status==='cancelado'?'<div class="romaneioCancelPrint">CANCELADO · SAÍDAS ESTORNADAS</div>':'')+
+      (transferencia&&header.transferencia_estornada?
+        '<div class="romaneioCancelPrint">TRANSFERÊNCIA ESTORNADA · DOCUMENTO HISTÓRICO</div>':'')+
       '<div class="heading">'+
         '<div class="brandLogo"><img alt="Artefal" src="data:image/webp;base64,UklGRkACAABXRUJQVlA4IDQCAAAQCwCdASpFACwAPm0ylUikIqIhJnVZWIANiWUAI8A3lpwPfvl8vugJVUjd8+jPvqFKAQlb1zkjiGWGXvmUookG6SVqUlfgsltFOoBDeVSXiuQkpxjQbgNncHmsjEEZIJQwAP7uoKF2dPs56Kx1wn4Ie2UsDaXX3GzIxSpg/9sZqEH1VfJzPOupt3q06rmzfqq26r4aOI6y+iqKPHIVrMXow4Yh+cosbDSsa8Gq4QX+jN3vxrstEkL8barDqKjn6bhjQ/lZv8x8imC1RhQOtNAGbDHXh67urIXTSza33TQfNcBZmhpjw2Z83qS364nCzapiJyqXz4XcrW1VtN52D9EOVFLR95d8iq36l39IbJbKYz6l692htiONuTPPARV5JHmKbuDjDn/M/b/F88ocFFjfDHLbwrsRKYLloyS/1vj2FkHcZiLIMcyZ7v/ThwfEFd9C4eb1udXWLna+RD4cf2bRS4/Qrd404vIT/qdtJcR820gb1L61xPV8WBzEmTk12JY6/2F0kBVrQY/ucDo2miVyV48XRJtOoQSAWRJq96OfBMb9RJTP6KpWTrK1NOb9yJAutJE6FNJ2x2iVKhGdOF3KZBzyW10mI1oItL9yY+lT98S9ZaPVWFF1j52S7tKV0z9hC/so3sgQev7ODSEcQl46QzOpzcl7evDFW+ZvDRZ4pKvTSGzhfOUntmCW4NpFRy297EW3hQ8KM4jP+JfD53qzTnI9XUNVcvRQ1h82SNkyZYAAAAA="></div>'+
-        '<div class="headerTitle"><span><strong>Comprovante de Entrega de Materiais</strong>'+
+        '<div class="headerTitle"><span><strong>'+
+        (transferencia?'Comprovante de Transferência de Materiais':'Comprovante de Entrega de Materiais')+
+        '</strong>'+
           '<small>Via '+numero+(totalPartes>1?' · Página '+parte+'/'+totalPartes:'')+'</small></span>'+
           '<div class="truckSlot"><svg class="headerTruck" viewBox="0 0 72 48" role="img" aria-label="Entrega" xmlns="http://www.w3.org/2000/svg">'+
           '<rect x="10" y="15" width="33" height="21" rx="1.5" fill="#12395d"/>'+
@@ -3327,23 +3338,31 @@ function construirHTMLRomaneio(header,linhas){
         '<div class="docNo"><div><strong>Data:</strong> '+escapeHTML(dataRomaneioFormatada(header.data_saida))+
           '</div><div><strong>Cód.:</strong> '+escapeHTML(header.numero)+'</div></div>'+
         '<div class="brandLogo"><img alt="GVG" src="data:image/webp;base64,UklGRgACAABXRUJQVlA4IPQBAACQDACdASpFACsAPm00lEekIyIhJEuwgA2JaQARTuLl/c/FPcFf2z8iMlvolPEDF385/017A360/8H8sOMrJ/rNpOgKRkZj0oCeTsTyzg4VTA2ahCXwBRHZb7vLW5Lz7ZypnUeoeK2T0+X7VF1AAP7/GkWPqATFx/NH6MkV/vz//4nX//zSH3vidbFz+RDDLSR6dnodCwxj9786d4+7Q/9bs/KGMWnHVL6ht9cwtH8x/m5ONx+VGQBp/HM1y3GdoUVZ1nK+YO4LXBtLrr6Jdlr086+VJR/YmeuzPvL8Yj4So/TqS7T5/mmfCCaxZLz8DvHgvemd5oA2M9sxrAOY92S19yU5eeXlqsvn/XNRTRFC9IMFZZBdPTCQ8MseTwyf9cjdKmPjvyW7jJbQ9017FCA0fRlzS9NhQuC3+N/SB8eWnFTAvcljkxGh+9U2S56LcAidyexmiAgtnn/1EjtlntOKFLiALqLrLA7Yyiz/8lzriZDevUmWV//D447w+9dvdIKZ6uvdRh9hF5k5hFS3imlCXE4zQmeiftko+tFjIGolDO9GjzrXxYq92HQEQ9rU7xnGjEkhy3VWaqIhl/nLlJF8d2rYuXD6/hMnejhmwz/qL/vh2eDF6+96ojPJQnPjEevv7+DnU5y4rPKFUmnr8wnFAAAAAA=="></div></div>'+
-      '<div class="infos"><div><b>CLIENTE:</b> '+escapeHTML(obra.cliente||'Não informado')+
-        '<br><b>OBRA:</b> '+escapeHTML(obra.nome)+'</div>'+
+      '<div class="infos"><div>'+(transferencia?
+         '<b>ORIGEM (GALPÃO):</b> '+escapeHTML(header.origem_galpao||'—')+
+         '<br><b>DESTINO (GALPÃO):</b> '+escapeHTML(header.destino_galpao||'—'):
+         '<b>CLIENTE:</b> '+escapeHTML(obra.cliente||'Não informado')+
+         '<br><b>OBRA:</b> '+escapeHTML(obra.nome))+'</div>'+
         '<div><b>MOTORISTA:</b> '+escapeHTML(header.motorista)+
         '<br><b>PLACA:</b> '+escapeHTML(header.placa)+'</div></div>'+
       '<table><colgroup><col style="width:5%"><col style="width:9%">'+
-        '<col style="width:50%"><col style="width:16%"><col style="width:6%">'+
-        '<col style="width:6%"><col style="width:8%"></colgroup>'+
+        (transferencia?
+          '<col style="width:43%"><col style="width:14%"><col style="width:7%"><col style="width:7%"><col style="width:15%">':
+          '<col style="width:50%"><col style="width:16%"><col style="width:6%"><col style="width:6%"><col style="width:8%">')+
+        '</colgroup>'+
         '<thead><tr><th>Item</th><th>Cód.</th><th>Descrição</th>'+
-        '<th>Medida</th><th>Quant.</th><th>Un.</th><th>M²</th></tr></thead>'+
+        '<th>Medida</th><th>Quant.</th><th>Un.</th><th>'+
+          (transferencia?'Obra origem':'M²')+'</th></tr></thead>'+
         '<tbody>'+rows+'</tbody></table>'+
-      '<div class="total"><strong>Total M²:</strong> '+
-        soma.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>'+
+      '<div class="total"><strong>'+(transferencia?'Itens nesta via:':'Total M²:')+'</strong> '+
+        (transferencia?String(parcelas.length):
+          soma.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}))+'</div>'+
       (header.observacoes?'<div class="notes"><strong>Observações:</strong> '+escapeHTML(header.observacoes)+'</div>':'')+
       (header.status==='cancelado'?'<div class="notes"><strong>Motivo do cancelamento:</strong> '+
         escapeHTML(header.motivo_cancelamento||'Não informado')+'</div>':'')+
       '<div class="signatures"><div>Entregue por:<span></span></div>'+
-         '<div>Solicitado por:<span></span></div><div>Recebido por:<span></span></div></div>'+
+         '<div>'+(transferencia?'Transportado por:':'Solicitado por:')+
+         '<span></span></div><div>Recebido por:<span></span></div></div>'+
       '</section>';
   }
   if(duasVias){
@@ -3399,9 +3418,15 @@ function construirHTMLRomaneio(header,linhas){
     '@media print{body{background:white}.printPage{margin:0}.viewToolbar{display:none!important}}'
   ].join('');
   return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>'+
-    escapeHTML(header.numero)+' · '+escapeHTML(obra.nome)+'</title><style>'+styles+
+    escapeHTML(header.numero)+' · '+escapeHTML(transferencia?
+      header.origem_galpao+' → '+header.destino_galpao:obra.nome)+'</title><style>'+styles+
     '</style></head><body>'+blocos.join('')+'</body></html>';
 }
+
+// Reutiliza o template completo de romaneio de esquadrias (logos, colunas,
+// assinaturas e paginação A4) para os documentos de transporte entre galpões.
+window.ewConstruirHTMLRomaneioTransferencia=(header,linhas)=>
+  construirHTMLRomaneio({...header,tipo_documento:'TRANSFERENCIA_GALPOES'},linhas);
 function abrirRomaneioDocumento(id,{imprimir=false,janelaExistente=null}={}){
   const cabecalho=romaneios.find(r=>r.id===id);
   const linhas=romaneioItens.filter(i=>i.romaneio_id===id);
@@ -10179,7 +10204,7 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/cadastros-hub.js?v=20261121c"></script>
 <script src="/assets/insumos-fisicos.js?v=20261121d"></script>
 <script src="/assets/entregas-producao.js?v=20261121a"></script>
-<script src="/assets/romaneios-transferencia.js?v=20261121c"></script>
+<script src="/assets/romaneios-transferencia.js?v=20261121d"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>
 </body>
 </html>

@@ -250,26 +250,61 @@ function imprimir(id,janelaReservada=null){
   avisoDocumento(id,'O navegador bloqueou a nova guia. Permita pop-ups para o EWGEST e clique em Imprimir / reimprimir.');
   return false;
  }
- const conteudo=(d.itens||[]).map(itemResumo).join('');
- const copia=(via)=>'<section class="via"><header><div><strong>EWGEST</strong><small>Gestão técnica de esquadrias</small></div>'+
- '<div><strong>ROMANEIO DE TRANSFERÊNCIA</strong><p>'+esc(d.numero)+' · '+esc(via)+'ª VIA</p></div></header>'+
- '<p><b>Origem (galpão):</b> '+esc(d.origem)+' &nbsp; <b>Destino (galpão):</b> '+esc(d.destino)+'</p>'+
- '<p><b>Saída:</b> '+esc(d.data)+' &nbsp; <b>Motorista:</b> '+esc(d.motorista)+' &nbsp; <b>Placa:</b> '+esc(d.placa)+'</p>'+
- (estaEstornado(d)?'<div class="alert">DOCUMENTO HISTÓRICO — EXISTE TRANSFERÊNCIA ESTORNADA</div>':'')+
- '<table><thead><tr><th>Código</th><th>Material</th><th>Quantidade</th><th>Origem / status</th></tr></thead><tbody>'+conteudo+
- '</tbody></table><p><b>Observações:</b> '+esc(d.observacoes||'—')+'</p>'+
- '<div class="ass"><span>Conferido / remetente</span><span>Recebido / destino</span></div>'+
- '<small>Documento logístico de movimentação já registrada. A impressão não altera o estoque.</small></section>';
- janela.document.open();
- janela.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>'+esc(d.numero)+
- '</title><style>@page{size:A4;margin:11mm}body{font:12px Arial;color:#152c46} .via{break-inside:avoid;border-bottom:1px dashed #abb7c4;padding-bottom:16px;margin-bottom:24px}header{display:flex;justify-content:space-between;border-bottom:2px solid #15385b;padding-bottom:10px}header strong{display:block;font-size:16px}header small{display:block}p{line-height:1.5}table{width:100%;border-collapse:collapse;margin:14px 0}th,td{text-align:left;border:1px solid #9eafbd;padding:6px}th{background:#e9f0f7}.ass{display:flex;justify-content:space-between;margin:44px 0 18px}.ass span{width:42%;border-top:1px solid;text-align:center;padding-top:7px}.alert{font-weight:bold;background:#ffe4e4;padding:10px}.printbar{padding:12px;margin-bottom:12px;background:#f3f7fb;border:1px solid #a9bcd0}.printbar button{background:#1868bf;color:white;border:0;border-radius:5px;padding:10px 18px;cursor:pointer}@media print{.printbar{display:none}}</style></head><body>'+
- '<div class="printbar"><button type="button" id="imprimirRomaneio">Imprimir romaneio</button> '+esc(d.numero)+'</div>'+
- copia(1)+copia(2)+'</body></html>');
- janela.document.close();
- const botao=janela.document.getElementById('imprimirRomaneio');
- if(botao)botao.addEventListener('click',()=>janela.print());
- janela.focus();
- try{janela.print();}catch(e){/* A prévia mantém o botão manual Imprimir romaneio. */}
+ // Mesma identidade visual do comprovante de entrega de esquadrias:
+ // logos, cabeçalho, tabela, assinaturas e paginação inteligente em duas vias.
+ // A transformação abaixo é APENAS documental: não registra novas saídas.
+ try{
+  if(typeof window.ewConstruirHTMLRomaneioTransferencia!=='function')
+   throw new Error('O modelo de impressão não está disponível. Atualize o EWGEST e tente novamente.');
+  const linhas=(d.itens||[]).map((i,index)=>({
+   sequencia:index+1,
+   natureza:'material',
+   codigo:String(i.codigo||'').trim(),
+   descricao:[i.descricao,i.cor].filter(Boolean).join(' · '),
+   medida:Number(i.comprimento_mm)>0?
+    (Number(i.comprimento_mm)/1000).toLocaleString('pt-BR',
+      {minimumFractionDigits:2,maximumFractionDigits:2})+' m':'',
+   quantidade:Number(i.quantidade),
+   unidade:String(i.unidade||'UN'),
+   obra_origem:i.tipo==='AVULSO'?'Avulso (documental)':obra(i.origem_obra_id)
+  }));
+  if(!linhas.length)throw new Error('Este romaneio não contém materiais.');
+  const html=window.ewConstruirHTMLRomaneioTransferencia({
+   numero:d.numero,
+   obra_id:d.obra_id,
+   data_saida:d.data,
+   origem_galpao:d.origem,
+   destino_galpao:d.destino,
+   motorista:d.motorista,
+   placa:d.placa,
+   observacoes:d.observacoes,
+   transferencia_estornada:estaEstornado(d),
+   status:d.status
+  },linhas);
+  const toolbar='<div class="viewToolbar" role="toolbar" aria-label="Ações do romaneio">'+
+   '<strong>Romaneio '+esc(d.numero)+' · Transferência entre galpões</strong>'+
+   '<div class="viewToolbarActions">'+
+   '<button type="button" id="imprimirRomaneio">Imprimir</button>'+
+   '<button type="button" id="fecharRomaneio">Fechar</button></div></div>';
+  janela.opener=null;
+  janela.document.open();
+  janela.document.write(html.replace('<body>','<body>'+toolbar));
+  janela.document.close();
+  const imprimirBtn=janela.document.getElementById('imprimirRomaneio');
+  const fecharBtn=janela.document.getElementById('fecharRomaneio');
+  if(imprimirBtn)imprimirBtn.addEventListener('click',()=>janela.print());
+  if(fecharBtn)fecharBtn.addEventListener('click',()=>janela.close());
+  janela.focus();
+  // Mesmo intervalo da impressão de esquadrias, para renderizar as logomarcas.
+  try{
+   if(typeof janela.setTimeout==='function')janela.setTimeout(()=>janela.print(),350);
+   else janela.print();
+  }catch(e){/* O botão manual Imprimir continua disponível na prévia. */}
+ }catch(e){
+  avisoDocumento(id,'Não foi possível preparar o romaneio para impressão: '+e.message);
+  if(janela&&!janela.closed)janela.close();
+  return false;
+ }
  return true;
 }
 function visualizar(id){
