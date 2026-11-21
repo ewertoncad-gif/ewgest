@@ -1658,14 +1658,23 @@ assert.ok(unknown.note.includes('não importadas'), 'Ausência de NUMBARRAS/BARR
 assert.equal(noImport.selectOptions()[0].length,null,'Sem barras do CEM não inventar tamanho');
 const noPlanRow=noImport.quantityData({material:'p1',variacao:'v1',selectionKey:'v1|',comprimento:''});
 assert.deepEqual([noPlanRow.needed,noPlanRow.received,noPlanRow.pending],
- ['Não importado','5 barras','—'],
- 'Sem plano de barras, recebido em nota permanece visível sem presumir necessidade');
-assert.ok(!receiveScript.includes('Informe a barra')&&
- !receiveScript.includes('Escolher tamanho da barra não informado no CEM')&&
- !receiveScript.includes('placeholder="Não consta do CEM"'),
- 'Recebimento não deve pedir comprimento manual na falta de plano do CEM');
+ ['Não informado','—','—'],
+ 'Sem comprimento indicado, não somar recebimentos de outras medidas');
+const compraDiferente=perfil.quantityData({material:'p1',variacao:'v1',selectionKey:'v1|6000',comprimento:'5500'});
+assert.deepEqual([compraDiferente.needed,compraDiferente.received,compraDiferente.pending],
+ ['Não planejado','0 barras','—'],
+ 'Compra com medida diferente não altera a necessidade planejada da obra');
+const compraSemPlano=noImport.quantityData({material:'p1',variacao:'v1',selectionKey:'v1|',comprimento:'6000'});
+assert.deepEqual([compraSemPlano.needed,compraSemPlano.received,compraSemPlano.pending],
+ ['Não importado','2 barras','—'],
+ 'Mesmo sem plano persistido, a compra real pode registrar comprimento sem inventar necessidade');
+assert.ok(receiveScript.includes('class="finManualLength" type="number"')&&
+ receiveScript.includes("r.comprimento=event.target.value;")&&
+ receiveScript.includes('avisoMedidas')&&
+ !receiveScript.includes('finManualLength[readonly]'),
+ 'A barra precisa ser editável, preservar o valor informado e avisar quando divergir do CEM');
 assert.equal(noImport.autoBarLength({material:'p1',variacao:'v1',selectionKey:'v1|'}),null,
- 'Sem barra importada e sem cadastro, comprimento permanece não informado');
+ 'Sem barra importada, comprimento deve iniciar vazio e poder ser preenchido na compra');
 const cad=mockResolver({...fixture,barrasCem:[],
  perfis:[{...fixture.perfis[0],comprimento_comercial_mm:5500},fixture.perfis[1]]},'aluminio');
 assert.equal(cad.autoBarLength({material:'p1',variacao:'v1',selectionKey:'v1|'}),null,
