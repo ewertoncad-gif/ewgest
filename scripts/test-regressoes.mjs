@@ -1701,7 +1701,7 @@ const mockResolver=new Function('state','selectedCategory',
 const fixture={
  perfis:[{id:'p1',codigo:'GN097',descricao:'Folha colada',comprimento_comercial_mm:null},
   {id:'p2',codigo:'NAO-DA-OBRA',descricao:'Não vinculado',comprimento_comercial_mm:6000}],
- acessorios:[{id:'a1',codigo:'PARAFUSO',descricao:'Parafuso'},
+ acessorios:[{id:'a1',codigo:'PARAFUSO',descricao:'Parafuso',unidade_item:'PC'},
   {id:'a2',codigo:'ACESS-EXTERNO',descricao:'Não vinculado'}],
  variacoes:[
   {id:'v1',tipo:'perfil',perfil_id:'p1',cor:'ANOD-1002-A13',acabamento:'ANODIZADO',ativo:true},
@@ -1749,7 +1749,7 @@ assert.ok(receiveScript.includes('type="text" inputmode="numeric" pattern="[0-9]
 const normalizeEnd=receiveScript.indexOf(' async function submit(',resolverStart);
 assert.ok(normalizeEnd>resolverEnd,'Validador da NF encontrado');
 const normalizeFixture=new Function('state','selectedCategory',
- 'let finState=state,category=selectedCategory; const cents=()=>10000;\n'+
+ 'let finState=state,category=selectedCategory; const cents=()=>10000; const releaseUnidadeAcessorio=code=>code;\n'+
  receiveScript.slice(naturalStart,normalizeEnd)+
  '\nreturn normalizeItem;');
 const normalizeBar=normalizeFixture(fixture,'aluminio');
@@ -1761,8 +1761,17 @@ for(const invalid of ['0','-1','3,001','3.001','1e3','2.5']){
 }
 const normalizeAccessory=normalizeFixture(fixture,'acessorios');
 assert.equal(normalizeAccessory({material:'a1',variacao:'va1',comprimento:'',
+ quantidade:'2',valor:'R$ 100,00'},0).quantidade,2,
+ 'Peça inteira recebida na unidade PC');
+assert.throws(()=>normalizeAccessory({material:'a1',variacao:'va1',comprimento:'',
+ quantidade:'2.5',valor:'R$ 100,00'},0),/exigem quantidade inteira/,
+ 'Não receber 2,5 peças.');
+const fixtureMT={...fixture,acessorios:fixture.acessorios.map(a=>
+ a.id==='a1'?{...a,unidade_item:'MT'}:a)};
+const normalizeAccessoryMT=normalizeFixture(fixtureMT,'acessorios');
+assert.equal(normalizeAccessoryMT({material:'a1',variacao:'va1',comprimento:'',
  quantidade:'2.5',valor:'R$ 100,00'},0).quantidade,2.5,
- 'Não alterar acessório medido em unidade fracionável');
+ 'Acessório medido em MT continua aceitando fracionamento');
 
 assert.deepEqual(perfil.getMaterials().map(x=>x.id),['p1'],
  'Não mostrar perfis externos à obra');
