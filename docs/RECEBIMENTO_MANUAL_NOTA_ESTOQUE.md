@@ -152,3 +152,9 @@ Não criar botão adicional de recuperação do CEM no Financeiro. Para obras an
 - **Acessórios:** preservam a quantidade prevista na unidade do cadastro (PC, MT, etc.).
 
 **Segurança:** a única migração é aditiva para `ew_fornecedores`; nenhum lançamento de NF, obra, galpão existente ou saldo de estoque deve ser alterado por essa atualização. Conferir RLS e pipeline CI antes de integrar.
+
+### Implantação verificada — cadastro de fornecedores (21/11/2026)
+
+- Migração **`20261121102710_ew_fornecedores_por_empresa_rls_20261121`** aplicada no Supabase de produção, com SQL versionado em `supabase/migrations/`. Tabela `ew_fornecedores` criada vazia, com 3 políticas RLS ativas; `anon` não possui leitura e a equipe autenticada consulta apenas fornecedores de sua empresa; escrita somente para ADM.
+- Validação em banco de testes: CREATE TABLE e RLS em transação revertida, sem permanência da tabela de teste. Consulta de produção antes/depois: **5 obras, 631 materiais, 635 movimentos de estoque, 1 recebimento por NF, 2 galpões** — contagens mantidas; **0 fornecedores cadastrados inicialmente**.
+- A coluna Quantidade necessária do estoque dos perfis é renderizada por medida usando barras planejadas do CEM: não incluir cortes, não somar metragens de aproveitamento e não alterar saldos físicos. Os arquivos de interface são publicados quando a PR for integrada à `main`, e o deploy Cloudflare deverá ser conferido no site.
