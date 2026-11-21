@@ -79,6 +79,8 @@ begin
  if v_entrada.id is null then
   raise exception 'Transferencia sem par de entrada: romaneio nao pode ser gerado.';
  end if;
+ -- Remanejamento entre obras no mesmo galpao nao exige transporte entre predios.
+ if v_entrada.local_estoque is not distinct from new.local_estoque then return new;end if;
  if exists(select 1 from public.ew_romaneios_transferencia_itens
   where transferencia_id=new.transferencia_id) then return new;end if;
  select coalesce(p.codigo,a.codigo,'SEM CODIGO'),
