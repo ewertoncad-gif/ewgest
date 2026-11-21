@@ -1701,7 +1701,7 @@ const normalizeEnd=receiveScript.indexOf(' async function submit(',resolverStart
 assert.ok(normalizeEnd>resolverEnd,'Validador da NF encontrado');
 const normalizeFixture=new Function('state','selectedCategory',
  'let finState=state,category=selectedCategory; const cents=()=>10000;\n'+
- receiveScript.slice(naturalEnd,normalizeEnd)+
+ receiveScript.slice(naturalStart,normalizeEnd)+
  '\nreturn normalizeItem;');
 const normalizeBar=normalizeFixture(fixture,'aluminio');
 const validRow={material:'p1',variacao:'v1',comprimento:'6000',quantidade:'3',valor:'R$ 100,00'};
