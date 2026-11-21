@@ -112,3 +112,14 @@ O banco `ewgest-restauracao-teste` possui estruturas simuladas criadas exclusiva
 **Status de publicação:** proposta pendente de revisão, homologação do SQL e autorização antes de alterar banco de produção. A alteração de frontend aceita o esquema antigo (`select: '*'`) e não gera lançamentos de estoque por si só.
 
 **Segurança adicional de reimportação (revisão 21/11):** se um ZIP não contiver `OBAPROV` para determinada variação, o payload **omite** o campo `barras_planejadas` e a função preserva o último planejamento daquela variação. Dados inválidos de OBAPROV dos perfis da obra interrompem a importação, sem gravar quantidades parciais. Somente um novo plano válido substitui os comprimentos/quantidades anteriores; sem plano nunca estimar barras pelos cortes.
+
+## Implantação comprovada — Supabase produção (21/11/2026)
+
+- Migração aplicada: `20261121004257_cem_barras_planejadas_por_obra_20261121` em `ewgest-producao`, SQL versionado em `supabase/migrations/`; `database/proposals/20261121_plano_barras_cem.sql` é a proposta de revisão.
+- Arquivo de recuperação da **função anterior**: `database/rollback/20261121_importar_materiais_cem_anterior.sql`. Reverter a função não exige apagar a nova coluna; manter a coluna evita perda de planos novos.
+- Antes/depois verificados por consultas somente leitura: **4 obras**, **499 materiais vinculados**, **634 movimentos de estoque**, **0 recebimentos de NF**, **0 despesas** — contagens inalteradas. Todas as 499 linhas existentes permaneceram com `barras_planejadas IS NULL` após a migração.
+- Confirmado: `barras_planejadas` existe; função contém o código de persistência; RLS da tabela e privilégios de leitura/execução do papel autenticado mantidos.
+- Teste funcional de SQL em `ewgest-restauracao-teste` com esquema temporário e dados sintéticos na mesma transação: salvar duas medidas, reimportar substituindo o plano, impedir duplicidade ao repetir identificador de operação e preservar plano na chamada legada sem novo campo. Finalizou com `ROLLBACK`; verificado que **nenhum objeto de teste permaneceu**.
+- O frontend da PR #25 deve ser integrado à `main` para que o novo ZIP envie o plano. Sem essa publicação, o banco já aceita o plano, mas a importação antiga não o fornece.
+- Para obras já registradas com plano NULL, usar **Importar arquivo técnico → Analisar ZIP → Perfis** (e Acessórios somente quando realmente necessário), deixando **Esquadrias desmarcado**. Sem apagar a obra, o fluxo atualizará os vínculos e o planejamento.
+- Homologação final pendente: conferir o deploy Cloudflare e testar a reimportação real com o arquivo original CEM, que não está anexado nesta conversa.
