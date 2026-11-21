@@ -3,7 +3,11 @@
  'use strict';
  const $=id=>node(id);
  let fornecedores=[],galpoes=[];
- function informar(msg){$('cadastrosMessage').textContent=msg;}
+ function informar(msg){
+  for(const id of ['cadastrosMessage','cadastroFornecedorMessage','cadastroGalpaoMessage']){
+   const target=$(id);if(target)target.textContent=msg;
+  }
+ }
  function listaHTML(itens,tipo){
   return itens.length?itens.map(x=>
     '<div class="cadastrosListRow" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'+
@@ -28,9 +32,18 @@
    informar('');
   }catch(e){informar('Não foi possível consultar cadastros: '+e.message);}
  }
- async function abrir(){
+ function abrir(){
   if(!canAdministrate()||!currentCompany)return;
-  setView('cadastros');informar('Carregando cadastros…');
+  fecharEdicao();
+  informar('');
+  setView('cadastros');
+ }
+ async function abrirCategoria(tipo){
+  if(!canAdministrate()||!currentCompany)return;
+  fecharEdicao();
+  const alvo=tipo==='fornecedor'?'fornecedoresPage':'galpoesPage';
+  setView(alvo);
+  informar('Consultando '+(tipo==='fornecedor'?'fornecedores':'galpões')+'…');
   await recarregar();
  }
  async function salvar(event,tipo){
@@ -77,6 +90,8 @@
   $('cadastroEditNome').value=item.nome;
   $('cadastroEditNome').maxLength=tipo==='fornecedor'?180:80;
   $('cadastroEditMessage').textContent='';
+  // O mesmo editor atende fornecedores e galpões sem duplicar formulários.
+  $(tipo==='fornecedor'?'fornecedoresPage':'galpoesPage').appendChild($('cadastroEditPanel'));
   $('cadastroEditPanel').classList.remove('hidden');
   $('cadastroEditPanel').scrollIntoView({behavior:'smooth',block:'nearest'});
  }
@@ -115,21 +130,17 @@
  $('cadastroEditSave').addEventListener('click',()=>salvarEdicao('editar'));
  $('cadastroEditDelete').addEventListener('click',()=>salvarEdicao('excluir'));
  $('cadastroEditCancel').addEventListener('click',fecharEdicao);
- $('cadastroGerenciarEstoque').addEventListener('click',async()=>{
-  if(!matIsAdmin())return;
-  await abrirEstoque();
-  stockManageOpen();
- });
+ // A gestão de saldos/estornos fica exclusivamente na tela Estoque.
  $('navCadastros').addEventListener('click',abrir);
  $('navAccessories').addEventListener('click',async()=>{
   if(!canAdministrate())return;
   matSelecionarTipo('acessorio');
   await abrirMateriais();
  });
- $('cadastroJumpFornecedores').addEventListener('click',()=>
-  $('cadastroFornecedores').scrollIntoView({behavior:'smooth',block:'start'}));
- $('cadastroJumpGalpoes').addEventListener('click',()=>
-  $('cadastroGalpoes').scrollIntoView({behavior:'smooth',block:'start'}));
+ $('cadastroJumpFornecedores').addEventListener('click',()=>abrirCategoria('fornecedor'));
+ $('cadastroJumpGalpoes').addEventListener('click',()=>abrirCategoria('galpao'));
+ document.querySelectorAll('.cadastrosBack').forEach(button=>
+  button.addEventListener('click',abrir));
  $('cadastroFornecedorForm').addEventListener('submit',e=>salvar(e,'fornecedor'));
  $('cadastroGalpaoForm').addEventListener('submit',e=>salvar(e,'galpao'));
 })();
