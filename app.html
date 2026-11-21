@@ -7132,7 +7132,7 @@ const finMoney=n=>Number(n||0).toLocaleString('pt-BR',{style:'currency',currency
 async function abrirRecebimento(prefer=null){
  if(!(isAlmoxarife()||isFullAdminUser())||!currentCompany)return;
  const sel=node('recebimentoWork');
- const anterior=prefer||sel.value||selectedWork?.id||'';
+ const anterior=prefer||sel.value||'';
  sel.innerHTML='<option value="">Escolha a obra</option>'+works.map(w=>
   '<option value="'+escapeHTML(w.id)+'">'+escapeHTML((w.codigo||'')+' · '+w.nome)+'</option>').join('');
  if(works.some(w=>w.id===anterior))sel.value=anterior;
@@ -7144,9 +7144,11 @@ async function carregarRecebimento(){
  const obraId=node('recebimentoWork').value;
  const msg=node('recebimentoMessage');
  node('finExpensePanel').classList.add('hidden');
- if(isAlmoxarife())for(const id of ['finPendingPanel','finReceivePanel']){
+ // Não manter notas de outra obra enquanto a seleção estiver vazia/carregando.
+ for(const id of ['finPendingPanel','finReceivePanel']){
    node(id).classList.add('hidden');node(id).replaceChildren();
  }
+ finState=null;
  finCostOpId=null;
  if(!obraId){msg.textContent='Selecione uma obra para iniciar o recebimento.';return;}
  msg.textContent='Consultando materiais previstos e recebidos…';
@@ -7154,6 +7156,7 @@ async function carregarRecebimento(){
   if(isFullAdminUser()){
    finOptionsObras(obraId);
    await finLoad();
+   if(node('recebimentoWork').value!==obraId)return;
    if(!finState){msg.textContent=node('finMessage').textContent||'Não foi possível carregar os materiais da obra.';return;}
   }else{
    await ensureSession();
@@ -7175,6 +7178,7 @@ async function carregarRecebimento(){
    node('finExpenseForm').reset();
    window.ewRecebimentoManualInit();
   }
+  if(node('recebimentoWork').value!==obraId)return;
   node('finSupplierAdd').classList.toggle('hidden',!isFullAdminUser());
   node('finWarehouseAdd').classList.toggle('hidden',!isFullAdminUser());
   node('finExpensePanel').classList.remove('hidden');
@@ -7220,6 +7224,7 @@ async function finLoad(){
    apiGet('ew_estoque_obras_movimentos',{select:'variacao_id,comprimento_mm,quantidade_delta,origem',empresa_id:empresa,obra_id:obra,origem:'eq.IMPORTACAO_CEM',unidade:'eq.BARRA',limit:'3000'}),
    apiGet('ew_fornecedores',{select:'id,nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'1000'})
   ]);
+  if(node('finWork').value!==obraId)return;
   if(!b?.length){node('finMessage').textContent='Esta obra ainda não possui orçamento cadastrado. As novas importações agora exigem essa etapa.';return;}
   const invoiceIds=(fat||[]).map(x=>x.id),romaneioIds=(roms||[]).filter(x=>x.status==='emitido'&&!x.cancelado_em).map(x=>x.id);
   const pendentes=(c||[]).filter(x=>x.status==='pendente'),pendingIds=pendentes.map(x=>x.id);
@@ -7296,7 +7301,11 @@ function finRenderResumo(){
 
 function finRenderPendentes(){
  const box=node('finPendingPanel'),state=finState;
- if(!isFullAdminUser()||!state.pendentes.length){box.classList.add('hidden');box.innerHTML='';return;}
+ const selected=node('recebimentoWork').value;
+ if(!isFullAdminUser()||!state||!selected||state.obraId!==selected||
+    node('recebimento').classList.contains('hidden')||!state.pendentes.length){
+   box.classList.add('hidden');box.innerHTML='';return;
+ }
  box.classList.remove('hidden');
  box.innerHTML='<h2>NF-e pendentes do almoxarifado ('+state.pendentes.length+')</h2>'+
   '<p class="hint">Confira os itens, valores e a obra. Vincule perfis e acessórios do catálogo quando houver correspondência segura. Somente após a aprovação o gasto será descontado.</p>'+
@@ -7373,7 +7382,11 @@ async function finRevisarNota(id,acao){
 
 function finRenderRecebimentos(){
  const el=node('finReceivePanel'),x=finState;
- if(!isFullAdminUser()||!x){el.classList.add('hidden');return;}
+ const selected=node('recebimentoWork').value;
+ if(!isFullAdminUser()||!x||!selected||x.obraId!==selected||
+    node('recebimento').classList.contains('hidden')){
+   el.classList.add('hidden');el.replaceChildren();return;
+ }
  const recebidos=new Map(x.stockReceipts.map(r=>[r.despesa_item_id,r]));
  const rows=x.approvedItems.filter(i=>x.aprovadas.some(d=>d.id===i.despesa_id));
  if(!rows.length){el.classList.add('hidden');return;}
