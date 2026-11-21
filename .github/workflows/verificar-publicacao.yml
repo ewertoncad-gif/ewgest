@@ -92,7 +92,7 @@ jobs:
           curl --fail --silent --show-error --location --max-time 20 \
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/assets/entregas-producao.css?verify=${GITHUB_SHA}" -o "$css"
-          grep -Fq 'v45.4' "$html"
+          grep -Fq 'v45.5' "$html"
           grep -Fq 'id="entregasProducaoPanel"' "$html"
           grep -Fq 'Estornar recebimento' "$html"
           grep -Fq 'ew_confirmar_entrega_producao' "$js"
@@ -116,9 +116,42 @@ jobs:
           curl --fail --silent --show-error --location --max-time 20 \
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/assets/romaneios-transferencia.css?verify=${GITHUB_SHA}" -o "$css"
-          grep -Fq 'v45.4' "$html"
+          grep -Fq 'v45.5' "$html"
           grep -Fq 'Transferência entre galpões' "$html"
           grep -Fq 'id="romTransfSection"' "$html"
           grep -Fq 'ew_romaneios_transferencia_juntar' "$js"
           grep -Fq '#romTransfSection' "$css"
           echo 'PUBLICACAO CONFIRMADA: v45.4 e romaneios de transferencia disponiveis.'
+
+
+      - name: Conferir paginas individuais de cadastros v45.5
+        shell: bash
+        run: |
+          set -euo pipefail
+          html="$(mktemp)"
+          hub="$(mktemp)"
+          insumos="$(mktemp)"
+          css="$(mktemp)"
+          trap 'rm -f "$html" "$hub" "$insumos" "$css"' EXIT
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/app.html?verify=${GITHUB_SHA}" -o "$html"
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/assets/cadastros-hub.js?verify=${GITHUB_SHA}" -o "$hub"
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/assets/insumos-fisicos.js?verify=${GITHUB_SHA}" -o "$insumos"
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/assets/cadastros-pages.css?verify=${GITHUB_SHA}" -o "$css"
+          grep -Fq 'v45.5' "$html"
+          grep -Fq 'id="fornecedoresPage"' "$html"
+          grep -Fq 'id="galpoesPage"' "$html"
+          grep -Fq 'id="insumosPage"' "$html"
+          grep -Fq 'id="navOutrosInsumos"' "$html"
+          grep -Fq 'cadastrosBack' "$html"
+          grep -Fq 'abrirCategoria' "$hub"
+          grep -Fq 'categoriaAtual' "$insumos"
+          grep -Fq '.cadastrosBack' "$css"
+          echo 'PUBLICACAO CONFIRMADA: cadastros em paginas exclusivas v45.5.'
