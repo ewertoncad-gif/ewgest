@@ -62,4 +62,5 @@ begin
 end
 $func$;
 revoke all on function public.ew_gerenciar_cadastro_auxiliar(uuid,text,uuid,text,text) from public;
+revoke execute on function public.ew_gerenciar_cadastro_auxiliar(uuid,text,uuid,text,text) from anon;
 grant execute on function public.ew_gerenciar_cadastro_auxiliar(uuid,text,uuid,text,text) to authenticated;
