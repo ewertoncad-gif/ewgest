@@ -123,3 +123,16 @@ O banco `ewgest-restauracao-teste` possui estruturas simuladas criadas exclusiva
 - O frontend da PR #25 deve ser integrado à `main` para que o novo ZIP envie o plano. Sem essa publicação, o banco já aceita o plano, mas a importação antiga não o fornece.
 - Para obras já registradas com plano NULL, usar **Importar arquivo técnico → Analisar ZIP → Perfis** (e Acessórios somente quando realmente necessário), deixando **Esquadrias desmarcado**. Sem apagar a obra, o fluxo atualizará os vínculos e o planejamento.
 - Homologação final pendente: conferir o deploy Cloudflare e testar a reimportação real com o arquivo original CEM, que não está anexado nesta conversa.
+
+## Recuperação assistida de plano antigo na tela financeira — 21/11/2026
+
+**Causa reproduzida em banco:** na obra ativa `TESTE-TREINAMENTO` (`ESSENCE CONSTRUÇÕES`), o perfil GN096 tem `quantidade_prevista` em **cortes**, mas `barras_planejadas IS NULL` e não possui movimentos legados `IMPORTACAO_CEM` de barras. A importação original ocorreu antes da migração `20261121004257`; o backend não pode inferir o comprimento ou a necessidade comercial desses cortes. Não copiar necessidades de outras obras com o mesmo perfil.
+
+**Interface corrigida:**
+- Em item cujo plano de barras específico da obra esteja ausente, a coluna Barra (mm) deixa de pedir valor e exibe **Plano não importado → Recuperar do CEM**.
+- Clicar no botão abre **Importar arquivo técnico**, com Esquadrias e Acessórios desmarcados e Perfis selecionado; permite carregar o ZIP original.
+- O processo compara o **código da obra**, o **ID da obra** e o **perfil/cor** da solicitação com os dados analisados. Se o ZIP for de outra obra, ou não contiver `OBAPROV` do perfil/cor, a importação fica bloqueada com erro explicativo.
+- Após importar, retorna ao Financeiro da mesma obra. Comprimento e quantidade serão preenchidos do novo plano, com comprimento ainda editável para compras diferentes.
+- Entrada de NF de perfil **sem plano da obra** fica bloqueada neste formulário até recuperar o ZIP; não haverá comprimento presumido. Não há alteração em recebimento de acessórios, estoque físico, romaneio ou orçamento.
+
+**Limite:** o sistema não armazena o ZIP original, apenas a estrutura processada. A recuperação não ocorre sem selecionar novamente o arquivo no navegador. Nenhuma exclusão de obra é necessária.
