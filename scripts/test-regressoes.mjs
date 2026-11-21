@@ -2,6 +2,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const source=readFileSync(fileURLToPath(new URL('../app.html',import.meta.url)),'utf8');
+const receiptCacheHeaders=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
+assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121a')&&
+ source.includes('/assets/recebimento-manual.css?v=20261121a'),
+ 'O recebimento precisa de URLs versionadas para evitar assets antigos após deploy');
+assert.match(receiptCacheHeaders,/\/assets\/recebimento-manual\.js\s+Content-Type: text\/javascript; charset=utf-8\s+Cache-Control: no-store/,
+ 'Cloudflare não deve manter o JavaScript de recebimento em cache');
+assert.match(receiptCacheHeaders,/\/assets\/recebimento-manual\.css\s+Content-Type: text\/css; charset=utf-8\s+Cache-Control: no-store/,
+ 'Cloudflare não deve manter o CSS de recebimento em cache');
 const start=source.indexOf('function normalizarDescricaoTipologia(t){');
 const end=source.indexOf('function refreshVariationManager(){',start);
 assert.ok(start>=0&&end>start,'Funções de classificação foram localizadas');
@@ -1483,8 +1491,8 @@ assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
  !source.includes('<label>XML da nota fiscal (NF-e)')&&
  source.includes('id="finCostCategory" required'),
  'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
-assert.ok(source.includes('recebimento-manual.js?v=20261120e')&&
- source.includes('recebimento-manual.css?v=20261120d')&&receiveCSS.includes('.finManualTable'),
+assert.ok(source.includes('recebimento-manual.js?v=20261121a')&&
+ source.includes('recebimento-manual.css?v=20261121a')&&receiveCSS.includes('.finManualTable'),
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
  receiveScript.includes('p_itens:items')&&receiveScript.includes('finCostOpId ||= crypto.randomUUID()')&&

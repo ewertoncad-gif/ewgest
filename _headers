@@ -29,3 +29,11 @@
 /assets/orcamento-niveis.css
   Content-Type: text/css; charset=utf-8
   Cache-Control: no-store
+
+/assets/recebimento-manual.js
+  Content-Type: text/javascript; charset=utf-8
+  Cache-Control: no-store
+
+/assets/recebimento-manual.css
+  Content-Type: text/css; charset=utf-8
+  Cache-Control: no-store
