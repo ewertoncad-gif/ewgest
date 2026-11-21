@@ -1872,6 +1872,8 @@ assert.ok(source.includes('id="finMiscBlock"')&&source.includes('id="finMiscRows
  source.includes('id="finMiscSum"')&&
  receiveScript.includes('function miscNormalized(){')&&
  receiveScript.includes('function miscUpdateSum(){')&&
+ receiveScript.includes("byId('finMiscRows').replaceChildren()")&&
+ receiveScript.includes("byId('finManualRows').replaceChildren()")&&
  receiveScript.includes("'/rest/v1/rpc/ew_receber_despesa_com_itens_almox'")&&
  receiveScript.includes('p_itens:items')&&
  miscSQL.includes('insert into public.ew_obra_despesas_itens')&&
