@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const source=readFileSync(fileURLToPath(new URL('../app.html',import.meta.url)),'utf8');
 const receiptCacheHeaders=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
-assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121f')&&
+assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121g')&&
  source.includes('/assets/recebimento-manual.css?v=20261121f'),
  'O recebimento precisa de URLs versionadas para evitar assets antigos após deploy');
 assert.match(receiptCacheHeaders,/\/assets\/recebimento-manual\.js\s+Content-Type: text\/javascript; charset=utf-8\s+Cache-Control: no-store/,
@@ -1508,7 +1508,7 @@ assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
  !source.includes('<label>XML da nota fiscal (NF-e)')&&
  source.includes('id="finCostCategory" required'),
  'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
-assert.ok(source.includes('recebimento-manual.js?v=20261121f')&&
+assert.ok(source.includes('recebimento-manual.js?v=20261121g')&&
  source.includes('recebimento-manual.css?v=20261121f')&&receiveCSS.includes('.finManualTable'),
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
@@ -1903,7 +1903,7 @@ for(const id of ['navCadastros','cadastros','navAccessories','cadastroFornecedor
  'navTypologies','navManufacturers','navUsers']){
  assert.ok(source.includes('id="'+id+'"'),'Cadastro central faltando '+id);
 }
-assert.ok(source.includes('cadastros-hub.js?v=20261121a')&&
+assert.ok(source.includes('cadastros-hub.js?v=20261121b')&&
  source.includes("['navCadastros','cadastros']")&&
  cadastroHubJS.includes("apiGet('ew_fornecedores'")&&
  cadastroHubJS.includes("apiGet('ew_locais_fisicos'")&&
