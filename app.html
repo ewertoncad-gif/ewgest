@@ -2873,20 +2873,20 @@ function applyDetailVisibility(){
 function shipmentStats(item){
   const config=dispatchConfig.find(c=>c.esquadria_id===item.id);
   const per=config?Number(config.folhas_por_unidade):null;
-  let frames=0,leaves=0,events=0,last=null;
+  let frames=0,leaves=0,completas=0,events=0,last=null;
   for(const h of shipmentHistory){
     if(h.esquadria_id!==item.id)continue;
     const q=Number(h.quantidade)||0;
     events++;
     if(!last)last=h;
-    if(h.tipo==='completo'){frames+=q;leaves+=q*(per||0);}
+    if(h.tipo==='completo'){frames+=q;leaves+=q*(per||0);completas+=q;}
     else if(h.tipo==='marco')frames+=q;
     else if(h.tipo==='folha')leaves+=q;
   }
   const partes=releaseParts(item);
   const released=Number(item.qtd_liberada)||0;
   const maxLeaves=per===null?null:partes.folhas*per;
-  return {frames,leaves,events,last,per,released,maxLeaves,
+  return {frames,leaves,completas,events,last,per,released,maxLeaves,
    marcosLiberados:partes.marcos,folhasLiberadas:partes.folhas};
 }
 function suggestedLeaves(item) {
@@ -2899,7 +2899,7 @@ function romaneioSaldoCompleto(item){
   const a=shipmentStats(item);
   const marco=Math.max(0,a.marcosLiberados-a.frames);
   const folhas=Math.max(0,a.folhasLiberadas-
-    (a.per?Math.floor(a.leaves/a.per):0));
+    (a.per?Math.floor(a.leaves/a.per):a.completas));
   return Math.max(0,Math.min(marco,folhas));
 }
 function renderResumoRomaneios(obraId){
@@ -3095,7 +3095,7 @@ function romaneioSaldoPorTipo(item,tipo,folhas){
   const folhasRestantes=per?Math.max(0,a.folhasLiberadas*per-a.leaves):null;
   if(tipo==='marco')return marcos;
   if(tipo==='folha')return folhasRestantes;
-  if(!per)return Math.max(0,Math.min(marcos,a.folhasLiberadas)); // Composição pendente.
+  if(!per)return Math.max(0,Math.min(marcos,a.folhasLiberadas-a.completas)); // Composição pendente.
   return Math.max(0,Math.min(marcos,Math.floor(folhasRestantes/per)));
 }
 function buscarEsquadriasRomaneio(row){
