@@ -86,3 +86,10 @@ O banco `ewgest-restauracao-teste` possui estruturas simuladas criadas exclusiva
 - A coluna **Necessário/Falta receber** é o plano daquela mesma medida, sem substituir pela contagem de cortes. A coluna **Já recebido** usa a soma de entradas por NF da mesma medida. Comprimento não planejado aparece como **Não planejado** (ou **Não importado** se não existe plano da variação) e não compensa o plano de outra medida.
 - O usuário vê advertência antes da confirmação quando a nota inclui comprimento não planejado.
 - Quando a importação anterior não preservou `NUMBARRAS/BARRA`, o sistema **não consegue** pré-preencher essa informação só com os cortes. O campo fica vazio e exige o tamanho real; persistir o plano separadamente continua registrado na issue #22.
+
+## Correção de atualização do frontend — 21/11/2026
+
+- A PR #23 foi integrada à `main`, porém o navegador ainda mostrava o seletor antigo em print de pós-merge. A URL do JavaScript permanecia `/assets/recebimento-manual.js?v=20261120e` desde antes da alteração, e o arquivo não tinha regra de cache específica no Cloudflare Pages.
+- Alteração de implantação: atualizar somente as versões de `recebimento-manual.js` e `recebimento-manual.css` para `20261121a` em `app.html`, e adicionar `Cache-Control: no-store` para esses dois arquivos em `_headers`. Não modifica RPC, dados ou funcionamento dos demais módulos.
+- Os testes automatizados agora impedem reutilizar a versão antiga ou remover a configuração de cache por acidente.
+- Sem acesso autenticado ao painel Cloudflare nem leitura HTTP confiável do site nesse ambiente, o deploy e o comportamento do navegador ainda exigem conferência visual após o merge.
