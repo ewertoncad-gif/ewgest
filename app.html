@@ -686,6 +686,7 @@
   <link rel="stylesheet" href="/assets/recebimento-manual.css?v=20261121g">
 <link rel="stylesheet" href="/assets/insumos-fisicos.css?v=20261121a">
 <link rel="stylesheet" href="/assets/entregas-producao.css?v=20261121a">
+<link rel="stylesheet" href="/assets/romaneios-transferencia.css?v=20261121a">
 </head>
 <body>
 <div class="wrap">
@@ -710,7 +711,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v45.3</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v45.4</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -976,8 +977,51 @@
         <p id="hubRomaneioMessage" role="status" class="hint"></p>
         <h2 style="margin-top:22px">Histórico de romaneios</h2>
         <div id="hubRomaneioList" class="romaneioOverview">Selecione uma obra para consultar seus romaneios.</div>
+        <div class="section" id="romTransfSection">
+          <h2>Romaneios de transferência (galpões)</h2>
+          <p class="hint">Os romaneios são criados automaticamente ao transferir material entre galpões. É possível juntar rascunhos da mesma rota e documentar itens avulsos. A impressão e o agrupamento não movimentam o estoque.</p>
+          <div class="romTransfActions">
+            <button type="button" class="btn secondary" id="romTransfReload">Atualizar transferências</button>
+            <button type="button" class="btn secondary" id="romTransfMerge">Juntar romaneios selecionados</button>
+          </div>
+          <p id="romTransfStatus" class="hint" role="status"></p>
+          <div id="romTransfList" aria-live="polite"><p class="hint">Abra esta guia para consultar transferências entre galpões.</p></div>
+        </div>
       </div>
     </section>
+
+    <div id="romTransfOverlay" class="modaloverlay hidden" role="presentation">
+      <div class="panel modalbox romTransfEditDialog" role="dialog" aria-modal="true" aria-labelledby="romTransfEditTitle">
+        <h2 id="romTransfEditTitle">Editar romaneio de transferência</h2>
+        <p class="hint">A quantidade dos materiais transferidos vem do estoque e não pode ser editada neste documento. Itens avulsos não movimentam estoque.</p>
+        <form id="romTransfEditForm">
+          <div class="romTransfFields">
+            <label>Data de saída <input type="date" id="romTransfDate" required></label>
+            <label>Motorista <input id="romTransfMotorista" maxlength="100" placeholder="Motorista"></label>
+            <label>Placa <input id="romTransfPlaca" maxlength="20" placeholder="Placa"></label>
+            <label class="romTransfWide">Observações <textarea id="romTransfObs" rows="2" maxlength="1500"></textarea></label>
+          </div>
+          <h3>Materiais vinculados às transferências</h3>
+          <div id="romTransfLinked"></div>
+          <h3>Itens avulsos (somente no documento)</h3>
+          <p class="hint">Para transferir material controlado em estoque, execute a transferência antes e depois junte os romaneios.</p>
+          <div id="romTransfExtras"></div>
+          <button type="button" class="btn secondary" id="romTransfAddExtra">+ Adicionar item avulso</button>
+          <p id="romTransfEditStatus" class="feedback" role="status"></p>
+          <div class="modalbuttons">
+            <button type="button" class="btn secondary" id="romTransfClose">Cancelar</button>
+            <button type="submit" class="btn primary">Salvar romaneio</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div id="romTransfViewOverlay" class="modaloverlay hidden" role="presentation">
+      <div class="panel modalbox romTransfEditDialog" role="dialog" aria-modal="true" aria-labelledby="romTransfViewTitle">
+        <h2 id="romTransfViewTitle">Consultar romaneio de transferência</h2>
+        <div id="romTransfViewContent"></div>
+        <div class="modalbuttons"><button type="button" class="btn secondary" id="romTransfViewClose">Fechar</button></div>
+      </div>
+    </div>
     <section id="detail" class="hidden">
       <div class="head"><div><div class="detailnav hidden"><button id="back" class="btn secondary" type="button">← Voltar</button><button id="goHome" class="btn secondary" type="button">⌂ Tela inicial</button><button id="detailFinanceiro" class="btn secondary hidden" type="button">Financeiro da obra</button></div><h1 id="workName"></h1><div id="workMeta" class="muted"></div></div></div>
       <div class="stats">
@@ -1248,7 +1292,7 @@
       </div>
       <div class="stockTopActions">
           <button type="button" class="btn primary" id="stockCreateAnother">+ Criar estoque vazio</button>
-          <button type="button" class="btn secondary" id="stockTransferPickLocal">Transferência de local de estoque</button>
+          <button type="button" class="btn secondary" id="stockTransferPickLocal">Transferência entre galpões</button>
           <button type="button" class="btn secondary" id="stockTransferPickWork">Transferência entre obras</button>
           <button type="button" class="btn secondary hidden" id="stockManageLocations">Gerenciar estoques</button>
           <button type="button" class="btn secondary hidden" id="stockArchivedReview">Saldos e estornos</button>
@@ -3470,6 +3514,7 @@ function abrirAreaRomaneios(){
   renderRomaneioHub();
   node('hubRomaneioMessage').textContent='';
   setView('romaneiosPage');
+  if(window.ewTransferRomaneiosReload)window.ewTransferRomaneiosReload();
 }
 function changeDetailMode(mode) {
   detailMode=mode;
@@ -10026,5 +10071,6 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/cadastros-hub.js?v=20261121b"></script>
 <script src="/assets/insumos-fisicos.js?v=20261121a"></script>
 <script src="/assets/entregas-producao.js?v=20261121a"></script>
+<script src="/assets/romaneios-transferencia.js?v=20261121a"></script>
 </body>
 </html>
