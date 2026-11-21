@@ -45,3 +45,11 @@
 /assets/insumos-fisicos.css
   Content-Type: text/css; charset=utf-8
   Cache-Control: no-store
+
+/assets/entregas-producao.js
+  Content-Type: text/javascript; charset=utf-8
+  Cache-Control: no-store
+
+/assets/entregas-producao.css
+  Content-Type: text/css; charset=utf-8
+  Cache-Control: no-store
