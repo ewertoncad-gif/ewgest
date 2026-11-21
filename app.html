@@ -700,6 +700,7 @@
     <button id="navHome" class="workspaceLink" type="button"><span class="navSymbol">⌂</span> Tela inicial</button>
     <button id="navWorks" class="workspaceLink" type="button"><span class="navSymbol">▦</span> Obras</button>
     <button id="navRomaneios" class="workspaceLink" type="button"><span class="navSymbol">▤</span> Romaneios e expedição</button>
+    <button id="navRecebimento" class="workspaceLink hidden" type="button"><span class="navSymbol">▧</span> Recebimento</button>
     <button id="navEnviarNotas" class="workspaceLink hidden" type="button"><span class="navSymbol">▧</span> Enviar notas fiscais</button>
     <div class="workspaceNavCaption workspaceNavCaptionSecond">ADMINISTRAÇÃO</div>
     <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
@@ -767,25 +768,22 @@
         <p id="almoxNotaMensagem" class="feedback" role="status"></p>
       </div>
     </section>
-    <section id="financeiro" class="hidden">
-      <div class="head"><div><h1>Financeiro das obras</h1>
-        <p class="muted">Faturamento de fabricação e instalação separado dos tetos de gastos de materiais.</p></div></div>
+    <section id="recebimento" class="hidden">
+      <div class="head"><div>
+        <h1>Recebimento</h1>
+        <p class="muted">Conferência de materiais que chegaram à empresa. Informe os itens, suas quantidades e os valores da nota; o EWGEST registra os custos no Financeiro automaticamente.</p>
+      </div></div>
       <div class="section panel">
-        <label for="finWork">Selecione a obra</label>
+        <label for="recebimentoWork">Selecione a obra</label>
         <div class="topactions" style="justify-content:flex-start;margin-top:7px">
-          <select id="finWork" style="min-width:250px;max-width:470px"><option value="">Escolha a obra</option></select>
-          <button class="btn secondary" id="finRefresh" type="button">Atualizar informações</button>
+          <select id="recebimentoWork" style="min-width:250px;max-width:470px"><option value="">Escolha a obra</option></select>
+          <button class="btn secondary" type="button" id="recebimentoRefresh">Atualizar materiais</button>
         </div>
-        <p id="finMessage" class="feedback" role="status"></p>
-        <div id="finContent" class="hidden">
-          <h2>Resumo do orçamento</h2>
-          <div id="finPendingPanel" class="section panel hidden"></div>
-          <div id="finReceivePanel" class="section panel hidden"></div>
-          <div class="finInfo" id="finTotals"></div>
-          <div id="finSummary"></div>
+        <p class="feedback" id="recebimentoMessage" role="status"></p>
+      </div>
           <div class="section panel" id="finExpensePanel">
-            <h2>Entrada manual de materiais e notas</h2>
-            <p class="hint">Selecione o material, a cor ou variação, a quantidade física e o galpão. Ao confirmar, o EWGEST registra a nota e dá entrada no estoque da obra na mesma operação. Não é necessário enviar XML.</p>
+            <h2>Recebimento de materiais</h2>
+            <p class="hint">Selecione o material, a cor ou variação, a quantidade física e o galpão. Ao confirmar, o EWGEST registra o valor da nota no Financeiro e dá entrada física somente nos materiais efetivamente recebidos. Não é necessário enviar XML.</p>
             <form id="finExpenseForm">
               <div class="finFormRows">
                 <label>Categoria *
@@ -848,6 +846,23 @@
             </form>
             <p id="finCostMessage" class="feedback" role="status"></p>
           </div>
+    </section>
+    <section id="financeiro" class="hidden">
+      <div class="head"><div><h1>Financeiro das obras</h1>
+        <p class="muted">Faturamento de fabricação e instalação separado dos tetos de gastos de materiais.</p></div></div>
+      <div class="section panel">
+        <label for="finWork">Selecione a obra</label>
+        <div class="topactions" style="justify-content:flex-start;margin-top:7px">
+          <select id="finWork" style="min-width:250px;max-width:470px"><option value="">Escolha a obra</option></select>
+          <button class="btn secondary" id="finRefresh" type="button">Atualizar informações</button>
+        </div>
+        <p id="finMessage" class="feedback" role="status"></p>
+        <div id="finContent" class="hidden">
+          <h2>Resumo do orçamento</h2>
+          <div id="finPendingPanel" class="section panel hidden"></div>
+          <div id="finReceivePanel" class="section panel hidden"></div>
+          <div class="finInfo" id="finTotals"></div>
+          <div id="finSummary"></div>
           <div class="section panel" id="finBillingPanel">
             <h2>Faturamento por esquadria</h2>
             <p class="hint">Romaneio confirma a saída, mas NÃO gera faturamento. Marque os itens, informe o valor unitário de cada um e registre fabricação ou instalação separadamente. Apenas itens com romaneio completo podem ser faturados nesta etapa.</p>
@@ -1200,7 +1215,7 @@
         <p id="stockArchivedHint" class="hint hidden" role="status"></p>
         <div id="stockMessage" class="feedback" role="status"></div>
         <div id="stockRecords"></div>
-        <p class="hint stockEntryHint">Entradas de material: registre a nota no Financeiro das obras ou transfira de outra obra com saldo disponível. O estoque não permite cadastrar quantidades diretamente.</p>
+        <p class="hint stockEntryHint">Entradas de material: registre a nota no Recebimento ou transfira de outra obra com saldo disponível. O estoque não permite cadastrar quantidades diretamente.</p>
         <div class="stockReportPreview">
           <div class="rowHead"><h3>Resumo para relatórios de estoque</h3>
             <label><input id="stockReportIncludeEmpty" type="checkbox"> Incluir estoques de obras sem esquadrias</label>
@@ -2148,8 +2163,8 @@ document.querySelectorAll('[data-show-password]').forEach(button=>{
 function podeEmitirRomaneio(){return ['administrador','gerenciador','supervisor','almoxarife'].includes(String(membership?.perfil||'').toLowerCase());}
 function setView(view){
   node('startup').classList.add('hidden');
-  if(isAlmoxarife()&&!['login','romaneiosPage','almoxNotas','myPassword'].includes(view))view='romaneiosPage';
-  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','almoxNotas','cadastros','typologies','manufacturers','materials','stock','financeiro','cemImport','users','myPassword'])
+  if(isAlmoxarife()&&!['login','romaneiosPage','recebimento','almoxNotas','myPassword'].includes(view))view='romaneiosPage';
+  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','recebimento','almoxNotas','cadastros','typologies','manufacturers','materials','stock','financeiro','cemImport','users','myPassword'])
     node(id).classList.toggle('hidden',id!==view);
   node('logout').classList.toggle('hidden',view==='login');
   node('myPasswordHeader').classList.toggle('hidden',view==='login');
@@ -2157,7 +2172,7 @@ function setView(view){
   node('workspaceNav').classList.toggle('hidden',!autenticado);
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
   const ativo=view==='detail'?'worksPage':view;
-  for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],['navEnviarNotas','almoxNotas'],['navCadastros','cadastros'],
+  for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],['navRecebimento','recebimento'],['navEnviarNotas','almoxNotas'],['navCadastros','cadastros'],
       ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navCem','cemImport'],['navUsers','users'],['navManageWorks','manageWorks']]){
     const button=node(id);
     const selecionado=ativo===target||(id==='navCadastros'&&
@@ -2310,7 +2325,8 @@ async function loadPanel(){
   node('navHome').classList.toggle('hidden',somenteRomaneios);
   node('navWorks').classList.toggle('hidden',somenteRomaneios);
   node('navRomaneios').classList.toggle('hidden',!podeEmitirRomaneio());
-  node('navEnviarNotas').classList.toggle('hidden',!somenteRomaneios);
+  node('navEnviarNotas').classList.add('hidden'); // Fluxo antigo preservado internamente; nova entrada no Recebimento.
+  node('navRecebimento').classList.toggle('hidden',!(isAlmoxarife()||isFullAdminUser()));
   for(const id of ['navCadastros','navTypologies','navManufacturers','navMaterials','navAccessories','navStock','navCem','navUsers','navManageWorks','navFinanceiro'])node(id).classList.toggle('hidden',!adminNav);
   node('openRomaneioHub').classList.toggle('hidden',!podeEmitirRomaneio()||somenteRomaneios);
   node('topTag').textContent=somenteRomaneios?'Romaneios e expedição':'Gestão de obras · liberações e saídas';
@@ -6903,6 +6919,58 @@ const finCategories=[
  ['fabricacao','Fabricação','receita'],['instalacao','Instalação','receita']
 ];
 const finMoney=n=>Number(n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+
+/* Recebimento tem navegação própria. O almoxarife só busca dados técnicos,
+   fornecedores e quantidades físicas, nunca orçamento, tetos ou faturamentos. */
+async function abrirRecebimento(prefer=null){
+ if(!(isAlmoxarife()||isFullAdminUser())||!currentCompany)return;
+ const sel=node('recebimentoWork');
+ const anterior=prefer||sel.value||selectedWork?.id||'';
+ sel.innerHTML='<option value="">Escolha a obra</option>'+works.map(w=>
+  '<option value="'+escapeHTML(w.id)+'">'+escapeHTML((w.codigo||'')+' · '+w.nome)+'</option>').join('');
+ if(works.some(w=>w.id===anterior))sel.value=anterior;
+ setView('recebimento');
+ await carregarRecebimento();
+}
+async function carregarRecebimento(){
+ if(!(isAlmoxarife()||isFullAdminUser())||!currentCompany)return;
+ const obraId=node('recebimentoWork').value;
+ const msg=node('recebimentoMessage');
+ node('finExpensePanel').classList.add('hidden');
+ finCostOpId=null;
+ if(!obraId){msg.textContent='Selecione uma obra para iniciar o recebimento.';return;}
+ msg.textContent='Consultando materiais previstos e recebidos…';
+ try{
+  if(isFullAdminUser()){
+   finOptionsObras(obraId);
+   await finLoad();
+   if(!finState){msg.textContent=node('finMessage').textContent||'Não foi possível carregar os materiais da obra.';return;}
+  }else{
+   await ensureSession();
+   const empresa='eq.'+currentCompany.id,obra='eq.'+obraId;
+   const [perfis,acessorios,variacoes,materiaisObra,galpoes,fornecedores,quantidades]=await Promise.all([
+    apiGet('ew_perfis',{select:'id,codigo,descricao,fabricante,comprimento_comercial_mm',empresa_id:empresa,limit:'5000'}),
+    apiGet('ew_acessorios',{select:'id,codigo,descricao,fabricante,unidade_item,unidade_embalagem,quantidade_por_embalagem',empresa_id:empresa,limit:'5000'}),
+    apiGet('ew_materiais_variacoes',{select:'id,perfil_id,acessorio_id,tipo,cor,acabamento,ativo',empresa_id:empresa,limit:'10000'}),
+    apiGet('ew_cem_obras_materiais',{select:'id,obra_id,tipo,perfil_id,acessorio_id,variacao_id,quantidade_prevista,unidade_prevista,comprimento_total_m,linhas_calculo,barras_planejadas',empresa_id:empresa,obra_id:obra,limit:'10000'}),
+    apiGet('ew_locais_fisicos',{select:'nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'300'}),
+    apiGet('ew_fornecedores',{select:'id,nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'1000'}),
+    request('/rest/v1/rpc/ew_quantidades_recebidas_obra',{method:'POST',token:session.access_token,
+      body:{p_empresa_id:currentCompany.id,p_obra_id:obraId}})
+   ]);
+   finState={obraId,perfis:perfis||[],acessorios:acessorios||[],variacoes:variacoes||[],
+    materiaisObra:materiaisObra||[],galpoes:(galpoes||[]).filter(x=>x.ativo).map(x=>x.nome),
+    fornecedores:(fornecedores||[]).filter(x=>x.ativo),barrasCem:[],
+    stockReceipts:Array.isArray(quantidades)?quantidades:[]};
+   node('finExpenseForm').reset();
+   window.ewRecebimentoManualInit();
+  }
+  node('finSupplierAdd').classList.toggle('hidden',!isFullAdminUser());
+  node('finWarehouseAdd').classList.toggle('hidden',!isFullAdminUser());
+  node('finExpensePanel').classList.remove('hidden');
+  msg.textContent='Informe apenas materiais efetivamente recebidos. Os valores digitados não dão acesso ao orçamento da obra.';
+ }catch(e){msg.textContent='Não foi possível carregar o recebimento: '+e.message;}
+}
 function finOptionsObras(prefer){
  const select=node('finWork'),before=prefer||select.value||selectedWork?.id||'';
  select.innerHTML='<option value="">Escolha a obra</option>'+works.map(w=>
@@ -6975,7 +7043,7 @@ async function finLoad(){
    fornecedores:(fornecedores||[]).filter(x=>x.ativo).map(x=>({id:x.id,nome:x.nome})),orcamentoNiveis:niveis||[],
    materiaisObra:materiaisObra||[],comprimentosComerciais:(comprimentos||[]).map(x=>x.comprimento_mm),barrasCem:barraCem||[]};
   box.classList.remove('hidden');node('finMessage').textContent='';
-  node('finExpensePanel').classList.toggle('hidden',!isFullAdminUser());
+  node('finExpensePanel').classList.toggle('hidden',false);
   node('finBillingPanel').classList.toggle('hidden',!isFullAdminUser());
   finRenderResumo();finRenderPendentes();finRenderRecebimentos();finRenderFaturaveis();finRenderHistorico();
  }catch(e){node('finMessage').textContent='Não foi possível carregar o financeiro: '+e.message;}
@@ -7546,6 +7614,9 @@ node('almoxNotaArquivo').addEventListener('change',almoxNotaLer);
 node('almoxNotaForm').addEventListener('submit',almoxNotaEnviar);
 
 node('navFinanceiro').addEventListener('click',()=>abrirFinanceiro());
+node('navRecebimento').addEventListener('click',()=>abrirRecebimento());
+node('recebimentoWork').addEventListener('change',()=>carregarRecebimento());
+node('recebimentoRefresh').addEventListener('click',()=>carregarRecebimento());
 node('finWork').addEventListener('change',()=>{finCostOpId=null;finBillingOpId=null;finLoad();});
 node('finRefresh').addEventListener('click',finLoad);
 node('finBillingCategory').addEventListener('change',finRenderFaturaveis);
@@ -7758,7 +7829,7 @@ function renderEstoque(){
   node('stockCounted').textContent=itens.filter(x=>x.perWork.length>0).length.toLocaleString('pt-BR');
   if(!itens.length){
     out.innerHTML='<div class="materialEmpty">Esta obra ainda não possui materiais no estoque. '+
-      'As entradas são feitas pelo Financeiro das obras ou por transferência entre obras.</div>';
+      'As entradas são feitas pelo Recebimento ou por transferência entre obras.</div>';
     return;
   }
   const linhas=[];
