@@ -1873,7 +1873,7 @@
       </select>
       <p class="hint">A fábrica será registrada nesta liberação para apurar o prazo até a saída da produção.</p>
       <div class="releaseMirrorIntro">
-        <h3>4. Como deseja liberar e descontar os materiais?</h3>
+        <h3>4. Como deseja registrar a relação de materiais?</h3>
         <label class="releaseMethod"><input name="releaseMethod" type="radio" value="manual"> Preencher o espelho de materiais manualmente</label>
         <label class="releaseMethod"><input name="releaseMethod" type="radio" value="sem"> Somente liberação técnica (sem lista de materiais)</label>
       </div>
@@ -1885,7 +1885,7 @@
           <p class="hint">O ZIP completo da obra não informa automaticamente as barras comerciais do plano otimizado. Revise os materiais e informe as barras utilizadas.</p>
         </div>
         <h3>Espelho editável da liberação</h3>
-        <p class="hint">Obra, esquadria e quantidade estão acima. Confira os materiais e os saldos antes de confirmar; cada perfil será baixado em barras inteiras.</p>
+        <p class="hint">Obra, esquadria e quantidade estão acima. Confira a relação de materiais da liberação em barras inteiras. A baixa física ocorrerá quando o almoxarife entregar o material à produção.</p>
         <p id="releaseMirrorMessage" class="hint" role="status"></p>
         <div id="releaseCemPreview" class="hidden"></div>
         <div id="releaseMirrorRows" class="releaseMirrorRows"></div>
@@ -1915,7 +1915,7 @@
       <h3>Materiais previstos para entrega à produção</h3>
       <p class="hint">Os perfis são calculados a partir das <strong>barras comerciais</strong> informadas na exportação, não das peças cortadas. Escolha o cadastro e o galpão para cada material. É possível alterar a quantidade ou desmarcar linhas; materiais sem correspondência serão ignorados até a conferência.</p>
       <div id="releaseBatchMaterials" class="cemTableWrap"></div>
-      <button id="releaseBatchAddMaterial" type="button" class="btn secondary" style="margin-top:9px">+ Adicionar material à baixa</button>
+      <button id="releaseBatchAddMaterial" type="button" class="btn secondary" style="margin-top:9px">+ Adicionar material ao relatório</button>
       <p id="releaseBatchSummary" class="hint" role="status"></p>
     </div>
     <div id="releaseBatchError" class="feedback" role="alert"></div>
@@ -3758,7 +3758,7 @@ function releaseAddRow(variationId=''){
     '<option value="">Selecione um material</option>'+
     releaseMirrorData.map(v=>'<option value="'+escapeHTML(v.id)+'">'+escapeHTML(releaseVariacaoLabel(v))+'</option>').join('')+
     '</select></label>'+
-    '<label>Galpão do estoque<select class="relLocation" required><option value="">Escolha o galpão</option>'+releaseStockLocations.map(x=>'<option value="'+escapeHTML(x)+'">'+escapeHTML(x)+'</option>').join('')+'</select></label>'+
+    '<label>Galpão previsto para retirada<select class="relLocation" required><option value="">Escolha o galpão</option>'+releaseStockLocations.map(x=>'<option value="'+escapeHTML(x)+'">'+escapeHTML(x)+'</option>').join('')+'</select></label>'+
     '<label class="relLengthLabel">Barra (mm)<input class="relLength" type="number" min="100" max="20000" step="1" placeholder="6000"></label>'+
     '<label>Quantidade<input class="relQty" type="number" min="0.001" step="0.001" placeholder="0" required></label>'+
     '<button type="button" class="btn secondary relRemove">Remover</button></div>'+
@@ -9643,7 +9643,7 @@ async function releaseBatchAnalyze(){
    perfis=dados.perfis;acessorios=dados.acessorios;
   }
   node('releaseBatchMaterials').innerHTML='<table class="cemTable stockCemMirrorTable"><thead><tr>'+
-    '<th>Baixar</th><th>Tipo</th><th>Código</th><th>Cor cadastrada</th><th>Barra mm</th><th>Quantidade</th><th>Galpão</th><th>Saldo no galpão</th>'+
+    '<th>Incluir</th><th>Tipo</th><th>Código</th><th>Cor cadastrada</th><th>Barra mm</th><th>Quantidade</th><th>Galpão</th><th>Saldo no galpão</th>'+
     '</tr></thead><tbody id="releaseBatchMatBody">'+
     perfis.map(x=>releaseBatchMaterialRow(x,'perfil')).join('')+
     acessorios.map(x=>releaseBatchMaterialRow(x,'acessorio')).join('')+'</tbody></table>';
