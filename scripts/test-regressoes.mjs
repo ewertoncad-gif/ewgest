@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const source=readFileSync(fileURLToPath(new URL('../app.html',import.meta.url)),'utf8');
 const receiptCacheHeaders=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
-assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121a')&&
- source.includes('/assets/recebimento-manual.css?v=20261121a'),
+assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121b')&&
+ source.includes('/assets/recebimento-manual.css?v=20261121b'),
  'O recebimento precisa de URLs versionadas para evitar assets antigos após deploy');
 assert.match(receiptCacheHeaders,/\/assets\/recebimento-manual\.js\s+Content-Type: text\/javascript; charset=utf-8\s+Cache-Control: no-store/,
  'Cloudflare não deve manter o JavaScript de recebimento em cache');
@@ -1481,6 +1481,12 @@ assert.ok(budgetMigration.includes('ENABLE ROW LEVEL SECURITY')&&
 const receiveScript=readFileSync(fileURLToPath(new URL('../assets/recebimento-manual.js',import.meta.url)),'utf8');
 const receiveCSS=readFileSync(fileURLToPath(new URL('../assets/recebimento-manual.css',import.meta.url)),'utf8');
 const receiveSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261120_recebimento_manual_estoque.sql',import.meta.url)),'utf8');
+const planSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_plano_barras_cem.sql',import.meta.url)),'utf8');
+assert.ok(planSQL.includes('ADD COLUMN IF NOT EXISTS barras_planejadas jsonb')&&
+ planSQL.includes('v_barras_plan')&&planSQL.includes('jsonb_array_elements(v_barras_plan)')&&
+ planSQL.includes('barras_planejadas=coalesce(excluded.barras_planejadas')&&
+ !/INSERT INTO public\.ew_estoque_obras_movimentos/.test(planSQL),
+ 'SQL do plano de barras não deve movimentar estoque físico nem remover histórico');
 assert.doesNotThrow(()=>new Function(receiveScript),'Recebimento manual deve ter JavaScript sintaticamente válido');
 assert.ok(source.includes('Entrada manual de materiais e notas')&&
  source.includes('id="finManualRows"')&&source.includes('id="finManualLocal"')&&
@@ -1491,8 +1497,8 @@ assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
  !source.includes('<label>XML da nota fiscal (NF-e)')&&
  source.includes('id="finCostCategory" required'),
  'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
-assert.ok(source.includes('recebimento-manual.js?v=20261121a')&&
- source.includes('recebimento-manual.css?v=20261121a')&&receiveCSS.includes('.finManualTable'),
+assert.ok(source.includes('recebimento-manual.js?v=20261121b')&&
+ source.includes('recebimento-manual.css?v=20261121b')&&receiveCSS.includes('.finManualTable'),
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
  receiveScript.includes('p_itens:items')&&receiveScript.includes('finCostOpId ||= crypto.randomUUID()')&&
@@ -1584,6 +1590,40 @@ const legado=renderResumo({orcamentoNiveis:[],despesas:[],faturas:[],orcamento:{
 assert.equal(legado.legacyCalls,1,'Obras antigas permanecem com resumo legado');
 
 
+// Verificar que o XML OBAPROV se transforma em plano de compra sem usar cortes.
+const cemPayloadStart=source.indexOf('function cemNome(v){');
+const cemPayloadEnd=source.indexOf('function cemNormalizarDescricao(x){',cemPayloadStart);
+assert.ok(cemPayloadStart>=0&&cemPayloadEnd>cemPayloadStart,'Parser do CEM disponível');
+const montarPlanoCem=new Function(source.slice(cemPayloadStart,cemPayloadEnd)+
+ '\nreturn cemMontarPayload;')();
+const amostraPlano=montarPlanoCem({
+ perfCatalog:[{CODPERF:'000633',REF:'HYDRO',DESCRICAO:'TRAVESSA INFERIOR 105'}],
+ profMovs:[{CODPERF:'000633',CODTRATEXT:'ANOD-1002-A13',QTDE:'24',TAM:'1200'}],
+ barrasAproveitamento:[
+  {CODPERF:'000633',CODTRATEXT:'ANOD-1002-A13',NUMBARRAS:'3',BARRA:'6000'},
+  {CODPERF:'000633',CODTRATEXT:'ANOD-1002-A13',NUMBARRAS:'2',BARRA:'6000'},
+  {CODPERF:'000633',CODTRATEXT:'ANOD-1002-A13',NUMBARRAS:'1',BARRA:'6500'}],
+ acesCatalog:[],aceMovs:[],acessoriosObra:[]
+});
+assert.deepEqual(amostraPlano.perfis[0].variacoes[0].barras_planejadas,[
+ {comprimento_mm:6000,quantidade:5},{comprimento_mm:6500,quantidade:1}],
+ 'NUMBARRAS/BARRA agrega barras comerciais por perfil, cor e comprimento, não os 24 cortes');
+const amostraSemPlano=montarPlanoCem({
+ perfCatalog:[{CODPERF:'000633',REF:'HYDRO',DESCRICAO:'TRAVESSA INFERIOR 105'}],
+ profMovs:[{CODPERF:'000633',CODTRATEXT:'ANOD-1002-A13',QTDE:'24',TAM:'1200'}],
+ barrasAproveitamento:[],acesCatalog:[],aceMovs:[],acessoriosObra:[]
+});
+assert.equal(Object.hasOwn(amostraSemPlano.perfis[0].variacoes[0],'barras_planejadas'),false,
+ 'Quando o ZIP não tem OBAPROV, omitir plano para preservar dados anteriores');
+
+assert.throws(()=>montarPlanoCem({
+ perfCatalog:[{CODPERF:'000633',REF:'HYDRO',DESCRICAO:'TRAVESSA INFERIOR 105'}],
+ profMovs:[{CODPERF:'000633',CODTRATEXT:'ANOD-1002-A13',QTDE:'24',TAM:'1200'}],
+ barrasAproveitamento:[{CODPERF:'000633',CODTRATEXT:'ANOD-1002-A13',NUMBARRAS:'invalido',BARRA:'6000'}],
+ acesCatalog:[],aceMovs:[],acessoriosObra:[]
+}),/Plano de barras do CEM inválido/,
+ 'Não aceitar importação de plano de barras com quantidades inválidas');
+
 // Recebimento manual: perfis usam exclusivamente NUMBARRAS/BARRA da
 // importação específica da obra, nunca a contagem de cortes dos croquis.
 assert.ok(source.includes("apiGet('ew_cem_obras_materiais'")&&
@@ -1594,8 +1634,9 @@ assert.ok(source.includes("origem:'eq.IMPORTACAO_CEM'")&&
  source.includes("quantidade_delta,origem'")&&
  source.includes("barrasCem:barraCem||[]")&&
  receiveScript.includes('function plannedBarRows(')&&
- receiveScript.includes('Number(x.quantidade_delta)>0'),
- 'A quantidade de barras é lida do histórico da importação CEM com comprimento e quantidade');
+ receiveScript.includes('Array.isArray(m.barras_planejadas)')&&
+ receiveScript.includes('!modernIds.has(x.variacao_id)'),
+ 'Priorizar barras planejadas na importação da obra, sem somar com histórico legado');
 assert.ok(receiveScript.includes('function quantityData(row)')&&
  !receiveScript.includes("needed:formatQty(cuts)")&&
  !receiveScript.includes("pendingSub:'metro linear"),
@@ -1694,6 +1735,21 @@ assert.deepEqual([acc.needed,acc.received,acc.pending],['58 PC','20 PC','38 PC']
  'Acessórios continuam na unidade real e não dependem do plano de barras');
 const empty=mockResolver({...fixture,materiaisObra:[]},'aluminio');
 assert.deepEqual(empty.getMaterials(),[],'Não exibir catálogo global quando a obra não tem materiais');
+// Se existir plano da obra, ele substitui inteiramente o legado da mesma
+// variação e medida; não ocorre dupla contagem.
+const comPlanoPersistido=mockResolver({...fixture,materiaisObra:[
+ {...fixture.materiaisObra[0],barras_planejadas:[
+  {comprimento_mm:6000,quantidade:7},{comprimento_mm:6500,quantidade:4}]},
+ fixture.materiaisObra[1]]},'aluminio');
+const plannedVsLegacy=comPlanoPersistido.quantityData({
+ material:'p1',variacao:'v1',selectionKey:'v1|6000',comprimento:'6000'});
+assert.deepEqual([plannedVsLegacy.needed,plannedVsLegacy.received,plannedVsLegacy.pending],
+ ['7 barras','2 barras','5 barras'],
+ 'Priorizar o plano técnico de 7 barras e não somar 5 barras do histórico');
+const semPlanoAtual=mockResolver({...fixture,materiaisObra:[
+ {...fixture.materiaisObra[0],barras_planejadas:[]},fixture.materiaisObra[1]]},'aluminio');
+assert.equal(semPlanoAtual.quantityData({material:'p1',variacao:'v1',comprimento:'6000'}).needed,
+ 'Não importado','Plano explícito vazio não herda importação anterior');
 assert.ok(!receiveScript.includes('<td><select class="finManualVariation"'),
  'Cor vem automaticamente do CEM, sem segundo seletor');
 assert.ok(receiveScript.includes('finManualReadonly')&&receiveCSS.includes('.finManualStat')&&

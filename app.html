@@ -672,7 +672,7 @@
 
   </style>
   <link rel="stylesheet" href="/assets/orcamento-niveis.css?v=20261120c">
-  <link rel="stylesheet" href="/assets/recebimento-manual.css?v=20261121a">
+  <link rel="stylesheet" href="/assets/recebimento-manual.css?v=20261121b">
 </head>
 <body>
 <div class="wrap">
@@ -6158,6 +6158,27 @@ function cemVarAcessorio(v){
   return {acabamento:'NÃO INFORMADO',cor:raw&&raw!=='-'?raw:'NÃO INFORMADA',codigo_cor:''};
 }
 function cemMontarPayload(r){
+  // Plano de compra OBAPROV: NUMBARRAS é a quantidade de BARRAS comerciais,
+  // não o número de cortes OBCALCP, nem entrada de estoque físico.
+  const barrasPorPerfilCor=new Map();
+  const perfisDaObra=new Set((r.perfCatalog||[]).map(x=>cemNome(x.CODPERF)));
+  for(const b of r.barrasAproveitamento||[]){
+    const codigo=cemNome(b.CODPERF);
+    // Não incluir barras de perfis de outros cálculos/itens no mesmo ZIP.
+    if(!perfisDaObra.has(codigo))continue;
+    const cor=cemNome(b.CODTRATEXT||b.CODTRAT)||'NÃO INFORMADO';
+    const comprimento=Number(b.BARRA),quantidade=Number(b.NUMBARRAS);
+    if(!Number.isSafeInteger(comprimento)||comprimento<100||comprimento>20000||
+       !Number.isSafeInteger(quantidade)||quantidade<=0||quantidade>1000000)
+      throw new Error('Plano de barras do CEM inválido para o perfil '+codigo+
+       '. Confira NUMBARRAS e BARRA antes de importar.');
+    const key=codigo+'|'+cor;
+    if(!barrasPorPerfilCor.has(key))barrasPorPerfilCor.set(key,new Map());
+    const medidas=barrasPorPerfilCor.get(key);
+    const total=(medidas.get(comprimento)||0)+quantidade;
+    if(total>1000000)throw new Error('Quantidade de barras acima do limite para '+codigo+'.');
+    medidas.set(comprimento,total);
+  }
   const embalagensCEM=new Map();
   for(const row of r.acessoriosObra||[]){
     const codigo=cemNome(row.CODACES),fator=Number(row.EMBALAGEM??0);
@@ -6192,7 +6213,16 @@ function cemMontarPayload(r){
       const codigo=cemNome(tipo==='perfil'?x.CODPERF:x.CODACES);
       const base={codigo,fabricante:cemNome(x.REF),descricao:String(x.DESCRICAO||'').trim(),
         linha:cemNome(x.LINHA),prenativo:tipo==='perfil'?String(x.PRENATP||'').trim():'',
-        variacoes:[...(porCodigo.get(codigo)||new Map()).values()]};
+        variacoes:[...(porCodigo.get(codigo)||new Map()).values()].map(v=>{
+          if(tipo!=='perfil')return v;
+          const map=barrasPorPerfilCor.get(codigo+'|'+cemNome(v.cor));
+          // Ausência de OBAPROV não deve apagar um plano gravado previamente:
+          // omitimos a chave em vez de enviar []. Nunca estimar pelos cortes.
+          if(!map?.size)return v;
+          return {...v,barras_planejadas:[...map.entries()]
+            .sort((a,b)=>a[0]-b[0])
+            .map(([comprimento_mm,quantidade])=>({comprimento_mm,quantidade}))};
+        })};
       if(tipo==='perfil'){
         const peso=Number(x.PESO);
         base.peso_kg_m=Number.isFinite(peso)&&peso>=0?peso:null;
@@ -6805,7 +6835,7 @@ async function finLoad(){
    apiGet('ew_materiais_variacoes',{select:'id,perfil_id,acessorio_id,tipo,cor,acabamento,ativo',empresa_id:empresa,limit:'10000'}),
    apiGet('ew_locais_fisicos',{select:'nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'300'}),
    apiGet('ew_obra_orcamento_niveis',{select:'linha,nivel_nome,empresa_faturamento_nome,categoria_base,valor,percentual,faturar',empresa_id:empresa,obra_id:obra,order:'linha.asc',limit:'100'}),
-   apiGet('ew_cem_obras_materiais',{select:'tipo,perfil_id,acessorio_id,variacao_id,quantidade_prevista,unidade_prevista,comprimento_total_m,linhas_calculo',empresa_id:empresa,obra_id:obra,limit:'10000'}),
+   apiGet('ew_cem_obras_materiais',{select:'*',empresa_id:empresa,obra_id:obra,limit:'10000'}),
    apiGet('ew_comprimentos_comerciais',{select:'comprimento_mm',empresa_id:empresa,order:'comprimento_mm.asc',limit:'100'}),
    apiGet('ew_estoque_obras_movimentos',{select:'variacao_id,comprimento_mm,quantidade_delta,origem',empresa_id:empresa,obra_id:obra,origem:'eq.IMPORTACAO_CEM',unidade:'eq.BARRA',limit:'3000'})
   ]);
@@ -9330,6 +9360,6 @@ restaurarSessaoSalva().catch(e=>{
 
 </script>
 <script src="/assets/orcamento-niveis.js?v=20261120c"></script>
-<script src="/assets/recebimento-manual.js?v=20261121a"></script>
+<script src="/assets/recebimento-manual.js?v=20261121b"></script>
 </body>
 </html>

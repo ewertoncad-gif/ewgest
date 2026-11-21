@@ -93,3 +93,33 @@ O banco `ewgest-restauracao-teste` possui estruturas simuladas criadas exclusiva
 - Alteração de implantação: atualizar somente as versões de `recebimento-manual.js` e `recebimento-manual.css` para `20261121a` em `app.html`, e adicionar `Cache-Control: no-store` para esses dois arquivos em `_headers`. Não modifica RPC, dados ou funcionamento dos demais módulos.
 - Os testes automatizados agora impedem reutilizar a versão antiga ou remover a configuração de cache por acidente.
 - Sem acesso autenticado ao painel Cloudflare nem leitura HTTP confiável do site nesse ambiente, o deploy e o comportamento do navegador ainda exigem conferência visual após o merge.
+
+## Persistência do planejamento de barras — proposta 21/11/2026
+
+**Raiz identificada no banco:** A importação técnica já analisa `OBAPROV.NUMBARRAS` e `OBAPROV.BARRA` no navegador, mas só grava cortes e metragem líquida de `OBCALCP` em `ew_cem_obras_materiais`. Assim, não existe quantidade de barras planejadas nas obras que não fizeram uma importação separada de estoque (que não deve ser necessária).
+
+**Correção preparada no código e em `database/proposals/20261121_plano_barras_cem.sql`:**
+
+- Preservar `barras_planejadas` como JSONB por obra/variação em `ew_cem_obras_materiais`, sem criar nenhuma movimentação de estoque. Cada linha é `{comprimento_mm, quantidade}` do CEM.
+- Agregar `OBAPROV` por código + cor + comprimento; entregar dados como `perfis[].variacoes[].barras_planejadas`.
+- Na função transacional `importar_materiais_cem`, validar os comprimentos (100–20.000 mm), quantidades inteiras positivas e comprimentos não repetidos; gravar o plano na mesma transação de importação técnica.
+- Reimportar perfis de obra existente atualiza os dados técnicos por chave de variação, mas não cria NF, nem movimenta estoque, nem altera esquadrias existentes.
+- No financeiro, preferir o novo plano (inclusive quando a variação tem array explicitamente vazio); caso a obra seja antiga com coluna NULL, manter leitura de `IMPORTACAO_CEM` como compatibilidade. Nunca somar plano novo e histórico antigo.
+- O comprimento comprado na nota fiscal continua editável e independente do comprimento planejado.
+
+**Limite das obras antigas:** nem todas preservaram `BARRA/NUMBARRAS`. Não é possível reconstruir o plano com base nas quantidades ou nos tamanhos dos cortes; é necessário **reanalisar o ZIP original** no módulo Importar arquivo técnico e importar somente perfis/acessórios para a mesma obra, sem excluí-la.
+
+**Status de publicação:** proposta pendente de revisão, homologação do SQL e autorização antes de alterar banco de produção. A alteração de frontend aceita o esquema antigo (`select: '*'`) e não gera lançamentos de estoque por si só.
+
+**Segurança adicional de reimportação (revisão 21/11):** se um ZIP não contiver `OBAPROV` para determinada variação, o payload **omite** o campo `barras_planejadas` e a função preserva o último planejamento daquela variação. Dados inválidos de OBAPROV dos perfis da obra interrompem a importação, sem gravar quantidades parciais. Somente um novo plano válido substitui os comprimentos/quantidades anteriores; sem plano nunca estimar barras pelos cortes.
+
+## Implantação comprovada — Supabase produção (21/11/2026)
+
+- Migração aplicada: `20261121004257_cem_barras_planejadas_por_obra_20261121` em `ewgest-producao`, SQL versionado em `supabase/migrations/`; `database/proposals/20261121_plano_barras_cem.sql` é a proposta de revisão.
+- Arquivo de recuperação da **função anterior**: `database/rollback/20261121_importar_materiais_cem_anterior.sql`. Reverter a função não exige apagar a nova coluna; manter a coluna evita perda de planos novos.
+- Antes/depois verificados por consultas somente leitura: **4 obras**, **499 materiais vinculados**, **634 movimentos de estoque**, **0 recebimentos de NF**, **0 despesas** — contagens inalteradas. Todas as 499 linhas existentes permaneceram com `barras_planejadas IS NULL` após a migração.
+- Confirmado: `barras_planejadas` existe; função contém o código de persistência; RLS da tabela e privilégios de leitura/execução do papel autenticado mantidos.
+- Teste funcional de SQL em `ewgest-restauracao-teste` com esquema temporário e dados sintéticos na mesma transação: salvar duas medidas, reimportar substituindo o plano, impedir duplicidade ao repetir identificador de operação e preservar plano na chamada legada sem novo campo. Finalizou com `ROLLBACK`; verificado que **nenhum objeto de teste permaneceu**.
+- O frontend da PR #25 deve ser integrado à `main` para que o novo ZIP envie o plano. Sem essa publicação, o banco já aceita o plano, mas a importação antiga não o fornece.
+- Para obras já registradas com plano NULL, usar **Importar arquivo técnico → Analisar ZIP → Perfis** (e Acessórios somente quando realmente necessário), deixando **Esquadrias desmarcado**. Sem apagar a obra, o fluxo atualizará os vínculos e o planejamento.
+- Homologação final pendente: conferir o deploy Cloudflare e testar a reimportação real com o arquivo original CEM, que não está anexado nesta conversa.
