@@ -1551,10 +1551,10 @@ assert.ok(source.includes('recebimento-manual.js?v=20261121h')&&
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
  receiveScript.includes('p_itens:items')&&receiveScript.includes('finCostOpId ||= crypto.randomUUID()')&&
- receiveScript.includes('ew_registrar_despesa_financeira')&&
+ receiveScript.includes("'/rest/v1/rpc/ew_insumos_receber'")&&
  receiveScript.includes('const sum=items.reduce')&&
  receiveScript.includes('if(sum!==note)'),
- 'Entrada física exige itens com subtotal correto; despesas sem catálogo permanecem separadas');
+ 'Entrada física exige itens com subtotal correto e RPC específica para vidros/outros');
 assert.ok(receiveScript.includes('A faturar: ')&&
  receiveScript.includes("levels.filter(n=>n.faturar)")&&
  receiveScript.includes('Orçamento por níveis e acompanhamento financeiro')&&
