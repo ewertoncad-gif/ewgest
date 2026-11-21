@@ -165,7 +165,7 @@
    else if(category==='aluminio')row.comprimento='';
    const q=quantityData(row);
    let lengthField='<span class="finManualEmpty">—</span>';
-   if(category==='aluminio'){
+   if(category==='aluminio'&&row.material){
     lengthField=auto?
      '<span class="finManualReadonly" aria-label="Comprimento importado do CEM">'+
        escapeHTML(Number(auto).toLocaleString('pt-BR')+' mm')+'</span>':
