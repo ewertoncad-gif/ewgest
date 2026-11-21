@@ -2,6 +2,10 @@ name: EWGEST - Backup criptografado
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/backup.yml'
   schedule:
     # 04:17 UTC, todos os dias (aprox. 01:17 em Recife)
     - cron: '17 4 * * *'
