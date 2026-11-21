@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const source=readFileSync(fileURLToPath(new URL('../app.html',import.meta.url)),'utf8');
-const headers=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
+const receiptCacheHeaders=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
 assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121a')&&
  source.includes('/assets/recebimento-manual.css?v=20261121a'),
  'O recebimento precisa de URLs versionadas para evitar assets antigos após deploy');
-assert.match(headers,/\/assets\/recebimento-manual\.js\s+Content-Type: text\/javascript; charset=utf-8\s+Cache-Control: no-store/,
+assert.match(receiptCacheHeaders,/\/assets\/recebimento-manual\.js\s+Content-Type: text\/javascript; charset=utf-8\s+Cache-Control: no-store/,
  'Cloudflare não deve manter o JavaScript de recebimento em cache');
-assert.match(headers,/\/assets\/recebimento-manual\.css\s+Content-Type: text\/css; charset=utf-8\s+Cache-Control: no-store/,
+assert.match(receiptCacheHeaders,/\/assets\/recebimento-manual\.css\s+Content-Type: text\/css; charset=utf-8\s+Cache-Control: no-store/,
  'Cloudflare não deve manter o CSS de recebimento em cache');
 const start=source.indexOf('function normalizarDescricaoTipologia(t){');
 const end=source.indexOf('function refreshVariationManager(){',start);
