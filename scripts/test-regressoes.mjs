@@ -1112,7 +1112,7 @@ assert.ok(source.includes("locaisPorObra.get(w.id)?.excluido_em")&&
  'Estoque arquivado permanece consultável, mas não permite transferências');
 assert.ok(source.includes('function stockReverseHistoryRender(id)')&&
  source.includes('async function stockReverseIndividual(movimentoId)')&&
- source.includes("request('/rest/v1/rpc/ew_estornar_movimento_obra'")&&
+ source.includes("'/rest/v1/rpc/ew_estornar_movimento_obra'")&&
  source.includes('data-stock-reverse-item'),
  'Histórico deve oferecer estorno individual pela RPC auditada');
 const estornoUnitMigration=readFileSync(fileURLToPath(new URL(
@@ -1932,6 +1932,28 @@ for(const token of [
 ]){
  assert.ok(transferSQL.includes(token),'Transferência SQL sem proteção: '+token);
 }
+const estornoCrossSQL=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261121_estorno_transferencia_entre_obras.sql',import.meta.url)),'utf8');
+const guardTotalSQL=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261121_guard_estorno_estoque_transferencias_obras.sql',import.meta.url)),'utf8');
+const guardArchiveSQL=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261121_guard_arquivar_estoque_transferencias_obras.sql',import.meta.url)),'utf8');
+assert.ok(estornoCrossSQL.includes('CREATE OR REPLACE FUNCTION public.ew_estornar_transferencia_entre_obras')&&
+ estornoCrossSQL.includes('v_saldo<v_credito.quantidade_delta')&&
+ estornoCrossSQL.includes("'ESTORNO',gen_random_uuid()")&&
+ estornoCrossSQL.includes('v_credito.id')&&
+ estornoCrossSQL.includes('v_debito.id')&&
+ estornoCrossSQL.includes('REVOKE ALL ON FUNCTION'),
+ 'Estorno de transferência entre obras deve reverter ambas as pontas atomicamente e verificar saldo do destino');
+assert.ok(guardTotalSQL.includes('Há transferência ativa entre obras')&&
+ guardArchiveSQL.includes('Existe transferência entre obras ainda ativa')&&
+ guardTotalSQL.includes('est.estorno_de_id=m.id')&&
+ guardArchiveSQL.includes('est.estorno_de_id=m.id'),
+ 'Arquivar ou estornar o estoque inteiro não pode reverter apenas uma ponta de transferência');
+assert.ok(source.includes('Estornar transferência entre obras')&&
+ source.includes("'/rest/v1/rpc/ew_estornar_transferencia_entre_obras'")&&
+ source.includes('p_transferencia_id:mov.transferencia_id'),
+ 'Histórico deve permitir estorno conjunto das duas obras');
 assert.ok(!/DELETE\s+FROM\s+public\.ew_estoque_obras_movimentos/i.test(transferSQL)&&
  !/UPDATE\s+public\.ew_estoque_obras_movimentos/i.test(transferSQL),
  'Transferência deve registrar deltas de saída/entrada, nunca reescrever histórico');
