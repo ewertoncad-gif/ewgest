@@ -93,3 +93,20 @@ O banco `ewgest-restauracao-teste` possui estruturas simuladas criadas exclusiva
 - Alteração de implantação: atualizar somente as versões de `recebimento-manual.js` e `recebimento-manual.css` para `20261121a` em `app.html`, e adicionar `Cache-Control: no-store` para esses dois arquivos em `_headers`. Não modifica RPC, dados ou funcionamento dos demais módulos.
 - Os testes automatizados agora impedem reutilizar a versão antiga ou remover a configuração de cache por acidente.
 - Sem acesso autenticado ao painel Cloudflare nem leitura HTTP confiável do site nesse ambiente, o deploy e o comportamento do navegador ainda exigem conferência visual após o merge.
+
+## Persistência do planejamento de barras — proposta 21/11/2026
+
+**Raiz identificada no banco:** A importação técnica já analisa `OBAPROV.NUMBARRAS` e `OBAPROV.BARRA` no navegador, mas só grava cortes e metragem líquida de `OBCALCP` em `ew_cem_obras_materiais`. Assim, não existe quantidade de barras planejadas nas obras que não fizeram uma importação separada de estoque (que não deve ser necessária).
+
+**Correção preparada no código e em `database/proposals/20261121_plano_barras_cem.sql`:**
+
+- Preservar `barras_planejadas` como JSONB por obra/variação em `ew_cem_obras_materiais`, sem criar nenhuma movimentação de estoque. Cada linha é `{comprimento_mm, quantidade}` do CEM.
+- Agregar `OBAPROV` por código + cor + comprimento; entregar dados como `perfis[].variacoes[].barras_planejadas`.
+- Na função transacional `importar_materiais_cem`, validar os comprimentos (100–20.000 mm), quantidades inteiras positivas e comprimentos não repetidos; gravar o plano na mesma transação de importação técnica.
+- Reimportar perfis de obra existente atualiza os dados técnicos por chave de variação, mas não cria NF, nem movimenta estoque, nem altera esquadrias existentes.
+- No financeiro, preferir o novo plano (inclusive quando a variação tem array explicitamente vazio); caso a obra seja antiga com coluna NULL, manter leitura de `IMPORTACAO_CEM` como compatibilidade. Nunca somar plano novo e histórico antigo.
+- O comprimento comprado na nota fiscal continua editável e independente do comprimento planejado.
+
+**Limite das obras antigas:** nem todas preservaram `BARRA/NUMBARRAS`. Não é possível reconstruir o plano com base nas quantidades ou nos tamanhos dos cortes; é necessário **reanalisar o ZIP original** no módulo Importar arquivo técnico e importar somente perfis/acessórios para a mesma obra, sem excluí-la.
+
+**Status de publicação:** proposta pendente de revisão, homologação do SQL e autorização antes de alterar banco de produção. A alteração de frontend aceita o esquema antigo (`select: '*'`) e não gera lançamentos de estoque por si só.
