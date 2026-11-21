@@ -672,7 +672,7 @@
 
   </style>
   <link rel="stylesheet" href="/assets/orcamento-niveis.css?v=20261120c">
-  <link rel="stylesheet" href="/assets/recebimento-manual.css?v=20261121c">
+  <link rel="stylesheet" href="/assets/recebimento-manual.css?v=20261121d">
 </head>
 <body>
 <div class="wrap">
@@ -4223,7 +4223,7 @@ node('navTypologies').addEventListener('click',()=>node('openTypologies').click(
 node('navManufacturers').addEventListener('click',()=>node('openManufacturers').click());
 node('navMaterials').addEventListener('click',abrirMateriais);
 node('navStock').addEventListener('click',abrirEstoque);
-node('navCem').addEventListener('click',()=>{cemRecuperacaoPlano=null;setView('cemImport');});
+node('navCem').addEventListener('click',()=>setView('cemImport'));
 node('navUsers').addEventListener('click',()=>node('openUsers').click());
 node('hubWorkSelect').addEventListener('change',()=>{
   hubObraId=node('hubWorkSelect').value;
@@ -6636,27 +6636,8 @@ function cemAtualizarNomeArquivo(){
   node('matCemNomeArquivo').textContent=nome;
   node('matCemNomeArquivo').title=nome;
 }
-let cemRecuperacaoPlano=null;
-function cemAbrirRecuperacaoPlano(obraId,perfilCodigo,variacaoId){
-  if(!isFullAdminUser())throw new Error('Apenas ADM pode recuperar o plano de barras.');
-  const obra=works.find(w=>w.id===obraId);
-  const variacao=finState?.variacoes.find(v=>v.id===variacaoId);
-  if(!obra||!variacao||!perfilCodigo)throw new Error('Obra ou perfil não identificados.');
-  // Recuperar exclusivamente o plano desta obra, sem copiar outra obra.
-  cemDescartarRascunho();
-  cemRecuperacaoPlano={obraId,codigoObra:obra.codigo,perfilCodigo,cor:variacao.cor};
-  node('cemFlagEsquadrias').checked=false;
-  node('cemFlagPerfis').checked=true;
-  node('cemFlagAcessorios').checked=false;
-  setView('cemImport');
-  node('matCemResposta').textContent='Recuperação do plano de '+perfilCodigo+' da obra '+
-   obra.codigo+': selecione o ZIP original do CEM e analise antes de confirmar. '+
-   'Serão importados somente perfis; as esquadrias e o estoque físico não serão alterados.';
-  node('matCemArquivo').click();
-}
 function cemDescartarRascunho(){
   // O ZIP analisado é temporário. Nunca apagar obras ou materiais já gravados no banco.
-  cemRecuperacaoPlano=null;
   cemAnaliseGeracao++;
   cemParsed=null;cemOperacaoId=null;
   node('cemQuoteOverlay').classList.add('hidden');
@@ -6684,21 +6665,6 @@ async function matVerificarZip(){
     if(analise!==cemAnaliseGeracao||!session)return;
     const r=cemLerObra(xml);
     r.materiaisPayload=cemMontarPayload(r);
-    // Na recuperação iniciada pelo financeiro, verificar obra e perfil
-    // ANTES de permitir qualquer confirmação de importação.
-    if(cemRecuperacaoPlano){
-      const expected=cemRecuperacaoPlano;
-      if(cemNome(r.codigo)!==cemNome(expected.codigoObra))
-        throw new Error('Este ZIP pertence à obra '+r.codigo+
-         ', mas o plano solicitado é da obra '+expected.codigoObra+'.');
-      const perfil=r.materiaisPayload.perfis.find(p=>cemNome(p.codigo)===cemNome(expected.perfilCodigo));
-      const possuiPlano=perfil?.variacoes.some(v=>
-        cemNome(v.cor)===cemNome(expected.cor)&&
-        Array.isArray(v.barras_planejadas)&&v.barras_planejadas.length>0);
-      if(!possuiPlano)
-        throw new Error('O ZIP não contém barras comerciais do perfil '+expected.perfilCodigo+
-         ' na cor '+expected.cor+' (OBAPROV/NUMBARRAS/BARRA). Revise a exportação no CEM.');
-    }
     r.esquadriasPayload=cemMontarEsquadrias(r);
     cemParsed=r;
     cemRenderPreview();
@@ -6721,8 +6687,6 @@ async function matVerificarZip(){
     const matching=(obrasBanco||[]).filter(x=>cemNome(x.codigo)===cemNome(r.codigo));
     r.obraExistente=matching.length===1?matching[0]:null;
     r.obraDuplicada=matching.length>1;
-    if(cemRecuperacaoPlano&&r.obraExistente?.id!==cemRecuperacaoPlano.obraId)
-      throw new Error('O ZIP analisado não corresponde à obra selecionada no financeiro.');
     r.existentesPerf=new Set((perfisBanco||[]).map(x=>cemNome(x.fabricante)+'|'+cemNome(x.codigo)));
     r.existentesAces=new Set((acessoriosBanco||[]).map(x=>cemNome(x.fabricante)+'|'+cemNome(x.codigo)));
     for(const al of aliasesBanco||[]){
@@ -6819,13 +6783,7 @@ async function cemImportarSelecionados(){
    try{
      await loadPanel();
      if(nova)await abrirFinanceiro(answer.obra_id);
-     else if(cemRecuperacaoPlano&&r.obraExistente?.id===cemRecuperacaoPlano.obraId){
-       const destino=cemRecuperacaoPlano.obraId,perfilRecuperado=cemRecuperacaoPlano.perfilCodigo;
-       cemRecuperacaoPlano=null;
-       await abrirFinanceiro(destino);
-       node('finMessage').textContent='Plano de barras do perfil '+perfilRecuperado+
-        ' atualizado pelo ZIP do CEM. Confira a necessidade e o comprimento predefinido.';
-     }else {setView('cemImport');await carregarMateriais();}
+     else {setView('cemImport');await carregarMateriais();}
    }catch(e){/* Operação concluída; não repetir gravação por falha de atualização da tela. */}
  }catch(e){
    if(analise!==cemAnaliseGeracao||!session)return;
@@ -9402,6 +9360,6 @@ restaurarSessaoSalva().catch(e=>{
 
 </script>
 <script src="/assets/orcamento-niveis.js?v=20261120c"></script>
-<script src="/assets/recebimento-manual.js?v=20261121c"></script>
+<script src="/assets/recebimento-manual.js?v=20261121d"></script>
 </body>
 </html>

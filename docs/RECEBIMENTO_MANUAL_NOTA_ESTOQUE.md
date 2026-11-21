@@ -136,3 +136,7 @@ O banco `ewgest-restauracao-teste` possui estruturas simuladas criadas exclusiva
 - Entrada de NF de perfil **sem plano da obra** fica bloqueada neste formulário até recuperar o ZIP; não haverá comprimento presumido. Não há alteração em recebimento de acessórios, estoque físico, romaneio ou orçamento.
 
 **Limite:** o sistema não armazena o ZIP original, apenas a estrutura processada. A recuperação não ocorre sem selecionar novamente o arquivo no navegador. Nenhuma exclusão de obra é necessária.
+
+## Interface simplificada — 21/11/2026
+
+Não criar botão adicional de recuperação do CEM no Financeiro. Para obras antigas sem plano de barras, mostrar somente **Plano de barras não importado**. A importação já está disponível no menu **Importar arquivo técnico**. Reimportar o ZIP original para a obra existente com somente **Perfis** marcado e Esquadrias/Acessórios desmarcados, sem excluir a obra. Quando o plano for salvo, comprimento predefinido e editável na compra. Não presumir comprimento a partir de cortes ou outras obras. Nenhuma movimentação de estoque físico nesta alteração.
