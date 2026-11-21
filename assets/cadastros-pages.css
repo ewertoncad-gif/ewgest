@@ -15,3 +15,18 @@
  #materials .materialsSummary{grid-template-columns:1fr}
 }
 @media(max-width:430px){#cadastros .cadastrosGrid{grid-template-columns:1fr}}
+
+/* Unidades de medida — V45.6 */
+#unidadesPage .section.panel{max-width:1180px}
+#unidadesPage #unidadeForm{display:flex;flex-wrap:wrap;align-items:end;gap:13px}
+#unidadesPage #unidadeForm label:first-child{flex:0 1 200px}
+#unidadesPage #unidadeForm label:nth-child(2){flex:1 1 280px}
+#unidadesPage #unidadeForm input{width:100%}
+.unidadeLista{display:grid;gap:8px;margin-top:16px}
+.unidadeRow{border:1px solid #dbe5f0;background:#fbfdff;padding:13px 15px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.unidadeRow strong{color:#143a62}
+.unidadeRow small{background:#edf3fa;color:#62778f;border-radius:6px;padding:4px 6px;font-size:11px;margin-left:7px}
+.unidadeRowActions{display:flex;flex-wrap:wrap;gap:8px}
+.unidadeRowActions button{font-size:12px;padding:8px 12px}
+#unidadeEdicao{max-width:1180px}
+@media(max-width:600px){#unidadesPage #unidadeForm label:first-child{flex:1 1 100%}.unidadeRow{align-items:flex-start}}

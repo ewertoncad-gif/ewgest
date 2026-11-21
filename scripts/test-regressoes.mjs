@@ -41,7 +41,7 @@ assert.ok(inlineJS.length>=1,'Script principal da interface deve estar no HTML')
 for(const js of inlineJS)assert.doesNotThrow(()=>new Function(js),
  'JavaScript principal da interface deve ser sintaticamente válido');
 const receiptCacheHeaders=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
-assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121h')&&
+assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121i')&&
  source.includes('/assets/recebimento-manual.css?v=20261121g'),
  'O recebimento precisa de URLs versionadas para evitar assets antigos após deploy');
 assert.match(receiptCacheHeaders,/\/assets\/recebimento-manual\.js\s+Content-Type: text\/javascript; charset=utf-8\s+Cache-Control: no-store/,
@@ -1546,7 +1546,7 @@ assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
  !source.includes('<label>XML da nota fiscal (NF-e)')&&
  source.includes('id="finCostCategory" required'),
  'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
-assert.ok(source.includes('recebimento-manual.js?v=20261121h')&&
+assert.ok(source.includes('recebimento-manual.js?v=20261121i')&&
  source.includes('recebimento-manual.css?v=20261121g')&&receiveCSS.includes('.finManualTable'),
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
@@ -1876,7 +1876,7 @@ assert.doesNotThrow(()=>new Function(insumosClient),'O script do estoque físico
 assert.ok(source.includes('id="finMiscBlock"')&&source.includes('id="finMiscRows"')&&
  source.includes('id="finMiscSum"')&&source.includes('id="insumosStockPanel"')&&
  source.includes('id="insumosTransferForm"')&&source.includes('id="cadastroInsumosForm"')&&
- source.includes('insumos-fisicos.js?v=20261121b')&&
+ source.includes('insumos-fisicos.js?v=20261121c')&&
  receiveScript.includes('function miscNormalized(){')&&
  receiveScript.includes('function miscUpdateSum(){')&&
  receiveScript.includes("byId('finMiscRows').replaceChildren()")&&
@@ -2058,7 +2058,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v45.5')&&
+assert.ok(source.includes('v45.6')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2155,7 +2155,7 @@ assert.ok(source.includes("'fornecedoresPage','galpoesPage','insumosPage'")&&
  cadastroHubJS.includes("abrirCategoria('galpao')")&&
  source.includes('class="materialTabs hidden"')&&
  source.includes('class="btn secondary cadastrosBack"')&&
- source.includes('cadastros-pages.css?v=20261121a'),
+ source.includes('cadastros-pages.css?v=20261121b'),
  'Cadastros devem abrir paginas exclusivas com botao voltar e sem alternancia direta');
 assert.ok(!source.includes('id="cadastroGerenciarEstoque"')&&
  !source.includes('id="cadastroInsumosJump"')&&
@@ -2174,5 +2174,47 @@ assert.ok(source.includes("node('matPageTitle').textContent=")&&
  source.includes("node('matStatAcessorios').classList.toggle('hidden',perfil)")&&
  source.includes("node('matStatPerfis').classList.toggle('hidden',!perfil)"),
  'Resumo e titulo de materiais seguem o modulo escolhido');
+
+
+// EWGEST v45.6 — unidades de medida cadastraveis e integracao com NF.
+const unidadesSQL=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261121_unidades_medida_v456.sql',import.meta.url)),'utf8');
+const unidadesJS=readFileSync(fileURLToPath(new URL(
+ '../assets/unidades-medida.js',import.meta.url)),'utf8');
+assert.doesNotThrow(()=>new Function(unidadesJS),'O cadastro de unidades deve ter JS válido');
+for(const id of ['navUnidades','unidadesPage','unidadeForm','unidadeCodigo','unidadeNome',
+ 'unidadeLista','unidadeMessage','unidadeEdicao','unidadeNovoNome','unidadeEdicaoForm']){
+ assert.ok(source.includes('id="'+id+'"'),'Unidades de medida: falta '+id);
+}
+assert.ok(source.includes('unidades-medida.js?v=20261121a')&&
+ source.includes("'insumosPage','unidadesPage'")&&
+ source.includes("'insumosPage','unidadesPage'].includes(ativo)")&&
+ source.includes('Voltar para cadastros')&&
+ unidadesJS.includes("byId('navUnidades').addEventListener('click',abrir)")&&
+ unidadesJS.includes('window.ewUnidadesMedida={lista,ativa,nome,carregar}')&&
+ unidadesJS.includes('categoria')===false,
+ 'Unidades: menu individual, voltar e lista global, sem mexer em categoria');
+assert.ok(receiveScript.includes("window.ewUnidadesMedida?.lista()")&&
+ receiveScript.includes("window.ewUnidadesMedida?.ativa(r.unidade)")&&
+ receiveScript.includes("window.ewRecebimentoAtualizarUnidades=")&&
+ insumosClient.includes("window.ewUnidadesMedida?.nome(codigo)")&&
+ source.includes('insumos-fisicos.js?v=20261121c'),
+ 'Unidades novas devem entrar no cadastro, NF e saldos do estoque');
+for(const token of [
+ 'create table if not exists public.ew_unidades_medida',
+ 'ew_unidades_codigo_valido','ew_unidades_padrao_nova_empresa',
+ 'ew_insumos_catalogo_unidade_check',
+ 'ew_insumos_catalogo_unidade_fk',
+ 'ew_unidades_medida_listar','ew_unidades_medida_gerenciar',
+ 'ew_insumo_gerenciar_catalogo','ew_insumos_receber',
+ 'ew_receber_despesa_com_itens_almox',
+ 'revoke all on table public.ew_unidades_medida',
+ 'ew_exigir_sessao_atual', 'on update restrict on delete restrict',
+ 'Unidade já usada por material ou nota'
+])assert.ok(unidadesSQL.includes(token),'Faltou proteção no catálogo de unidades: '+token);
+assert.ok(unidadesSQL.includes("u.codigo=v_unit and u.ativo")&&
+ unidadesSQL.includes("u.codigo=p_unidade and u.ativo")&&
+ !/update\s+public\.ew_insumos_movimentos/i.test(unidadesSQL),
+ 'A nova unidade deve servir ao recebimento sem alterar saldo existente');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');

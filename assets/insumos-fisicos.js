@@ -8,6 +8,7 @@
  let catalogo=[],saldos=[],historico=[],carregando=false,editId=null,transferOp=null,categoriaAtual='vidros';
  const tipos={vidros:'Vidros',outros:'Outros insumos'};
  const unidades={PC:'PC',UN:'UN',M2:'m²',MT:'m',KG:'kg',CX:'CX',CJ:'CJ',PR:'PR'};
+ const unidadeRotulo=codigo=>window.ewUnidadesMedida?.nome(codigo)||unidades[codigo]||codigo;
  async function rpc(func,args){
   await ensureSession();
   return request('/rest/v1/rpc/'+func,{
@@ -38,7 +39,7 @@
   const itens=catalogo.filter(x=>x.categoria===filtro);
   host.innerHTML=itens.length?itens.map(x=>
    '<div class="cadastrosListRow insumosCatalogRow">'+
-   '<span><strong>'+esc(x.descricao)+'</strong> · '+esc(unidades[x.unidade]||x.unidade)+
+   '<span><strong>'+esc(x.descricao)+'</strong> · '+esc(unidadeRotulo(x.unidade))+
    (x.ativo?'':' · Inativo')+'</span>'+
    (isFullAdminUser()?'<div><button type="button" class="btn secondary" data-insumo-edit="'+esc(x.id)+'">Editar</button> '+
     '<button type="button" class="btn secondary" data-insumo-delete="'+esc(x.id)+'">Excluir</button></div>':'')+
@@ -128,7 +129,7 @@
    '<div class="stockTableWrap"><table class="stockTable insumosStockTable"><thead><tr>'+
    '<th>Categoria</th><th>Descrição / identificação</th><th>Unidade</th><th>Saldo físico</th><th>Galpão</th></tr></thead><tbody>'+
    rows.map(x=>'<tr><td>'+esc(tipos[x.categoria]||x.categoria)+'</td>'+
-    '<td>'+esc(x.descricao)+'</td><td>'+esc(unidades[x.unidade]||x.unidade)+'</td>'+
+    '<td>'+esc(x.descricao)+'</td><td>'+esc(unidadeRotulo(x.unidade))+'</td>'+
     '<td><strong>'+fmt(x.saldo)+'</strong></td><td>'+esc(x.galpao)+'</td></tr>').join('')+
    '</tbody></table></div>':
    '<p class="hint">Não há saldos de vidros/insumos para os filtros desta obra.</p>';
