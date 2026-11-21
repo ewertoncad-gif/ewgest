@@ -16,7 +16,7 @@ begin
  values(v_obra,v_empresa,'INS-ORIG','OBRA FICTICIA ORIGEM'),
  (v_destino,v_empresa,'INS-DEST','OBRA FICTICIA DESTINO');
  insert into public.usuarios_empresas(empresa_id,usuario_id,perfil)
- values(v_empresa,v_user,'administrador');
+ values(v_empresa,v_user,'almoxarife');
  insert into public.ew_obra_orcamento(empresa_id,obra_id,valor_total,
     aluminio,acessorios,vidros,outros,fabricacao,instalacao,criado_por)
  values(v_empresa,v_obra,1000,0,0,500,500,0,0,v_user);
@@ -38,6 +38,11 @@ begin
  select id into v_insumo from public.ew_insumos_catalogo
   where empresa_id=v_empresa and categoria='vidros';
  if v_insumo is null then raise exception 'Catálogo não criado';end if;
+ v_result:=public.ew_insumos_catalogo_listar(v_empresa);
+ if jsonb_array_length(v_result)<>1 then raise exception 'Catálogo não disponível ao almoxarife';end if;
+ v_result:=public.ew_insumos_saldos_obra(v_empresa,v_obra);
+ if jsonb_array_length(v_result)<>1 or (v_result->0->>'saldo')::numeric<>5
+ then raise exception 'Saldos físicos não disponíveis ao almoxarife';end if;
  select sum(quantidade_delta) into v_saldo from public.ew_insumos_movimentos
   where empresa_id=v_empresa and obra_id=v_obra;
  if v_saldo<>5 then raise exception 'Entrada física esperada 5 PC, recebido %',v_saldo;end if;
@@ -63,6 +68,8 @@ begin
  exception when others then v_erro:=true;end;
  if not v_erro then raise exception 'NF duplicada por número foi aceita';end if;
 
+ update public.usuarios_empresas set perfil='administrador'
+  where empresa_id=v_empresa and usuario_id=v_user;
  v_result:=public.ew_insumos_transferir(v_empresa,v_obra,v_obra,v_insumo,
    'AFOGADOS','IMBIRIBEIRA',2,'Mudança de galpão',v_transfer1);
  if v_result->>'ja_registrado'<>'false' then raise exception 'Transferência não realizada';end if;
