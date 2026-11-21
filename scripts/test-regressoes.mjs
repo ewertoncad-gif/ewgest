@@ -1865,20 +1865,41 @@ assert.ok(receiveScript.includes("byId('finCostTotal').readOnly=true;")&&
  !receiveScript.includes('rows.length===1&&note!==null'),
  'Valor da NF de materiais deve vir da soma dos itens sem substituir um valor de linha');
 
-// Vidros e outros insumos são discriminados sem inventar saldo de estoque.
-const miscSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_recebimento_itens_vidros_outros.sql',import.meta.url)),'utf8');
+// EWGEST #34 — estoque físico de vidros/insumos com contas isoladas por unidade e galpão.
 const techSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_exclusao_cadastros_tecnicos.sql',import.meta.url)),'utf8');
+const insumosSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_insumos_fisicos_recebimento.sql',import.meta.url)),'utf8');
+const insumosCatalogoSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_insumos_fisicos_catalogo.sql',import.meta.url)),'utf8');
+const insumosTransferSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_insumos_fisicos_transferencia_estorno.sql',import.meta.url)),'utf8');
+const insumosGuardasSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_insumos_guardas_integridade.sql',import.meta.url)),'utf8');
+const insumosClient=readFileSync(fileURLToPath(new URL('../assets/insumos-fisicos.js',import.meta.url)),'utf8');
+assert.doesNotThrow(()=>new Function(insumosClient),'O script do estoque físico deve ter sintaxe válida');
 assert.ok(source.includes('id="finMiscBlock"')&&source.includes('id="finMiscRows"')&&
- source.includes('id="finMiscSum"')&&
+ source.includes('id="finMiscSum"')&&source.includes('id="insumosStockPanel"')&&
+ source.includes('id="insumosTransferForm"')&&source.includes('id="cadastroInsumosForm"')&&
+ source.includes('insumos-fisicos.js?v=20261121a')&&
  receiveScript.includes('function miscNormalized(){')&&
  receiveScript.includes('function miscUpdateSum(){')&&
  receiveScript.includes("byId('finMiscRows').replaceChildren()")&&
  receiveScript.includes("byId('finManualRows').replaceChildren()")&&
- receiveScript.includes("'/rest/v1/rpc/ew_receber_despesa_com_itens_almox'")&&
+ receiveScript.includes("'/rest/v1/rpc/ew_insumos_receber'")&&
+ receiveScript.includes('p_local_estoque:location')&&
  receiveScript.includes('p_itens:items')&&
- miscSQL.includes('insert into public.ew_obra_despesas_itens')&&
- !/insert into public\.ew_estoque_obras_movimentos/i.test(miscSQL),
- 'Vidros e outros insumos devem guardar itens da NF, sem criar estoque físico inexistente');
+ receiveScript.includes("byId('finManualLocal').required=true;"),
+ 'NF de vidro/insumo deve ser recebida no estoque físico real por galpão');
+assert.ok(insumosCatalogoSQL.includes('create table if not exists public.ew_insumos_catalogo')&&
+ insumosCatalogoSQL.includes('create table if not exists public.ew_insumos_movimentos')&&
+ insumosCatalogoSQL.includes('enable row level security')&&
+ insumosCatalogoSQL.includes('ew_insumos_saldos_obra')&&
+ insumosSQL.includes('insert into public.ew_obra_despesas_itens')&&
+ insumosSQL.includes('insert into public.ew_insumos_movimentos')&&
+ insumosSQL.includes("p_categoria not in ('vidros','outros')")&&
+ insumosSQL.includes('revoke execute on function public.ew_insumos_receber')&&
+ insumosTransferSQL.includes('v_saldo<p_quantidade')&&
+ insumosTransferSQL.includes('ew_insumos_estornar_transferencia')&&
+ insumosTransferSQL.includes('ew_insumos_cancelar_nota')&&
+ insumosGuardasSQL.includes('saldos_insumos_nao_zerados')&&
+ insumosGuardasSQL.includes("Nota com vidros/outros no estoque"),
+ 'Banco deve manter integridade de saldo, documento, permissões, estorno e exclusão');
 assert.ok(techSQL.includes('ew_excluir_cadastro_tecnico_sem_vinculo')&&
  techSQL.includes('ew_obra_despesas_itens')&&
  techSQL.includes('ew_materiais_variacoes')&&
