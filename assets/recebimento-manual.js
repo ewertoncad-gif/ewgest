@@ -179,11 +179,9 @@
    let lengthField='<span class="finManualEmpty">—</span>';
    if(category==='aluminio'&&row.material){
     if(!plannedBarRows(row.variacao).length){
-     lengthField='<div class="finManualMissingPlan">'+
-      '<strong>Plano não importado</strong>'+
-      '<button class="btn secondary" type="button" data-manual-reimport="'+i+
-      '" aria-label="Recuperar comprimento e quantidade de barras do CEM">Recuperar do CEM</button>'+
-      '</div>';
+     lengthField='<span class="finManualMissingPlan" role="status" '+
+      'title="O plano de barras desta obra não está cadastrado. Atualize os perfis pela opção Importar arquivo técnico do menu.">'+
+      'Plano de barras não importado</span>';
     }else{
      lengthField='<input class="finManualLength" type="number" inputmode="numeric" min="100" max="20000" step="1" required'+
       ' aria-label="Comprimento real da barra em milímetros"'+
@@ -209,7 +207,7 @@
   }).join('');
   const message=byId('finManualDetail');
   if(message)message.textContent=category==='aluminio'?
-   'O comprimento vem do plano de barras da obra importado do CEM. Caso apareça "Plano não importado", use "Recuperar do CEM" com o ZIP original, sem excluir a obra. Após recuperar, o campo virá preenchido e poderá ser alterado se a compra tiver outro comprimento.':
+   'O comprimento é preenchido conforme o plano de barras importado do CEM e pode ser alterado se a compra tiver outro tamanho. Quando aparecer "Plano de barras não importado", atualize somente Perfis em "Importar arquivo técnico" pelo menu, sem excluir a obra.':
    'Necessário, recebido e falta receber são calculados na unidade de cada acessório, quando compatível.';
   updateSum();
  }
@@ -269,7 +267,7 @@
   const length=category==='aluminio'?Number(row.comprimento):null;
   if(category==='aluminio'){
    if(!plannedBarRows(row.variacao).length)
-    throw new Error('Plano de barras ausente para este perfil na obra. Selecione "Recuperar do CEM" e importe o ZIP original, sem excluir a obra.');
+    throw new Error('Plano de barras deste perfil não importado para a obra. Use "Importar arquivo técnico" no menu e atualize somente Perfis com o ZIP original.');
    if(!Number.isSafeInteger(qty))
     throw new Error('Perfis exigem quantidades inteiras de barras na linha '+(i+1)+'.');
    if(!String(row.comprimento).trim()||!Number.isSafeInteger(length)||length<100||length>20000)
@@ -423,16 +421,6 @@
  byId('finManualAdd').addEventListener('click',()=>{
   if(rows.length>=100){byId('finCostMessage').textContent='Limite de 100 materiais por nota.';return;}
   rows.push({material:'',variacao:'',comprimento:'',quantidade:'',valor:''});renderRows();
- });
- byId('finManualRows').addEventListener('click',event=>{
-  const button=event.target.closest('[data-manual-reimport]');
-  if(!button)return;
-  const row=rows[Number(button.dataset.manualReimport)];
-  if(!row||!finState){byId('finCostMessage').textContent='Selecione novamente o material.';return;}
-  const mat=getMaterials().find(x=>x.id===row.material);
-  if(!mat){byId('finCostMessage').textContent='Material não identificado nesta obra.';return;}
-  try{cemAbrirRecuperacaoPlano(finState.obraId,mat.codigo,row.variacao);}
-  catch(e){byId('finCostMessage').textContent='Falha ao abrir recuperação do CEM: '+e.message;}
  });
  byId('finManualRows').addEventListener('change',event=>{
   const tr=event.target.closest('[data-manual-row]');if(!tr)return;
