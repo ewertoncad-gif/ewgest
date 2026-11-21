@@ -2070,7 +2070,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.2')&&
+assert.ok(source.includes('v46.3')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2119,7 +2119,7 @@ assert.ok(source.includes('id="stockTransferPickLocal">Transferência entre galp
  source.includes('id="romTransfMerge"')&&
  source.includes('id="romTransfExtras"')&&
  source.includes('romaneios-transferencia.css?v=20261121c')&&
- source.includes('romaneios-transferencia.js?v=20261121c')&&
+ source.includes('romaneios-transferencia.js?v=20261121d')&&
  source.includes("if(window.ewTransferRomaneiosReload)window.ewTransferRomaneiosReload()"),
  'Transferencia entre galpoes deve ter romaneio na guia de expedicao');
 for(const token of [
@@ -2303,7 +2303,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.2</strong>'),
+ source.includes('EWGEST <strong>· v46.3</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2376,7 +2376,7 @@ assert.ok(transferTransport.includes("apiGet('romaneios_motoristas'")&&
  transferTransport.includes("if(editVersion!==version||editId!==id)return")&&
  transferTransport.includes("void carregarTransporteEdicao(id,version,d.motorista||'',d.placa||'')"),
  'Romaneios de transferencia precisam carregar cadastros ativos, preservar valores validos e bloquear texto livre');
-assert.ok(source.includes('romaneios-transferencia.js?v=20261121c')&&
+assert.ok(source.includes('romaneios-transferencia.js?v=20261121d')&&
  source.includes('romaneios-transferencia.css?v=20261121c')&&
  transferTransportCSS.includes('.romTransfFields select'),
  'O deploy da versao 46.1 precisa atualizar o cache e o estilo do seletor');
@@ -2404,24 +2404,29 @@ assert.ok(emitirSource.indexOf("await rpc('ew_romaneio_transferencia_emitir'")<
 async function simularEmissao(falhar){
  const chamadas=[];
  const doc={id:'d',numero:'RM009',status:'RASCUNHO',motorista:'Motorista QA',
-  placa:'ABC1D23',origem:'AFOGADOS',destino:'IMBIRIBEIRA',data:'2026-11-21',itens:[]};
+  placa:'ABC1D23',origem:'AFOGADOS',destino:'IMBIRIBEIRA',data:'2026-11-21',
+  itens:[{tipo:'TRANSFERENCIA',codigo:'GN096',descricao:'FOLHA COLADA',
+   quantidade:1,unidade:'BARRA',comprimento_mm:6000,origem_obra_id:'obraQA'}]};
  const tab={closed:false,document:{body:{textContent:''},open(){chamadas.push('doc.open');},
   write(){chamadas.push('doc.write');},close(){chamadas.push('doc.close');},
   getElementById(){return {addEventListener(){}}}},
   focus(){},print(){chamadas.push('print');},close(){chamadas.push('tab.close');this.closed=true;}};
  const ctx={docs:[doc],empresa:()=> 'empresaQA',window:{
-   confirm:()=>true,open:()=>{chamadas.push('open');return tab;}},
+   confirm:()=>true,open:()=>{chamadas.push('open');return tab;},
+   ewConstruirHTMLRomaneioTransferencia:()=>{
+    chamadas.push('template');return '<!doctype html><html><body><p>Romaneio QA</p></body></html>';
+   }},
    rpc:async()=>{chamadas.push('rpc');if(falhar)throw Error('Erro QA');},
    render:()=>chamadas.push('render'),
    carregar:async()=>{chamadas.push('refresh')},
    erro:()=>{},avisoDocumento:()=>{},estaEstornado:()=>false,
-   editar:()=>{},esc:x=>String(x??''),num:x=>String(x),
+   editar:()=>{},obra:()=> 'ESSENCE CONSTRUÇÕES',esc:x=>String(x??''),num:x=>String(x),
    itemResumo:()=>'',el:()=>({textContent:''})};
  const harness=new Function('ctx',
   'let docs=ctx.docs,busy=false;const window=ctx.window,empresa=ctx.empresa,'+
   'rpc=ctx.rpc,render=ctx.render,carregar=ctx.carregar,erro=ctx.erro,'+
   'avisoDocumento=ctx.avisoDocumento,estaEstornado=ctx.estaEstornado,'+
-  'editar=ctx.editar,esc=ctx.esc,num=ctx.num,itemResumo=ctx.itemResumo,el=ctx.el;\n'+
+  'editar=ctx.editar,obra=ctx.obra,esc=ctx.esc,num=ctx.num,itemResumo=ctx.itemResumo,el=ctx.el;\n'+
   emitirSource+'\nreturn {emitir,imprimir};')(ctx);
  await harness.emitir('d');
  return {chamadas,doc,tab};
@@ -2435,5 +2440,52 @@ const emissaoFalhou=await simularEmissao(true);
 assert.equal(emissaoFalhou.doc.status,'RASCUNHO');
 assert.ok(emissaoFalhou.tab.closed);
 assert.ok(!emissaoFalhou.chamadas.includes('doc.write'));
+
+
+// v46.3 — transferência usa o exato modelo visual do romaneio de esquadrias.
+const printStart=source.indexOf('function construirHTMLRomaneio(header,linhas){');
+const printEnd=source.indexOf('function abrirRomaneioDocumento(',printStart);
+assert.ok(printStart>0&&printEnd>printStart);
+const factorySource=source.slice(printStart,printEnd);
+for(const phrase of [
+ 'window.ewConstruirHTMLRomaneioTransferencia=','Comprovante de Transferência de Materiais',
+ 'alt="Artefal"','alt="GVG"','printPage two','Transportado por:',
+ "transferencia?'Obra origem':'M²'","header.origem_galpao||'—'",
+ "header.destino_galpao||'—'"
+])assert.ok(factorySource.includes(phrase),'Layout de transferência faltando '+phrase);
+const printWin={};
+const factories=new Function('window','works','escapeHTML','dataRomaneioFormatada',
+ 'medidaRomaneioEmMetros','descricaoCurtaRomaneio',factorySource+
+ '\nreturn [construirHTMLRomaneio,window.ewConstruirHTMLRomaneioTransferencia];')(
+ printWin,[{id:'obraQA',nome:'Obra QA',cliente:'Cliente QA'}],
+ x=>String(x??''),x=>String(x).split('-').reverse().join('/'),
+ x=>String(x??''),x=>String(x??''));
+const printHeader={numero:'RM009',obra_id:'obraQA',data_saida:'2026-11-21',
+ motorista:'IRAN',placa:'ABC1D23',status:'EMITIDO'};
+const printLines=[
+ {sequencia:1,natureza:'material',codigo:'GN096',descricao:'FOLHA COLADA',
+  medida:'6,00 m',quantidade:1,unidade:'BARRA',obra_origem:'ESSENCE CONSTRUÇÕES'},
+ {sequencia:2,natureza:'material',codigo:'GUA0070PTO',descricao:'GUARNIÇÃO PINGADEIRA',
+  medida:'',quantidade:1,unidade:'MT',obra_origem:'ESSENCE CONSTRUÇÕES'}
+];
+const padrão=factories[0](printHeader,printLines);
+const transferenciaHTML=factories[1]({...printHeader,
+ origem_galpao:'AFOGADOS',destino_galpao:'IMBIRIBEIRA'},printLines);
+assert.ok(padrão.includes('Comprovante de Entrega de Materiais')&&
+ padrão.includes('Total M²:')&&padrão.includes('<th>M²</th>')&&
+ !padrão.includes('ORIGEM (GALPÃO):'),'Romaneio de esquadrias deve manter seu modelo');
+for(const token of ['Comprovante de Transferência de Materiais','ORIGEM (GALPÃO):',
+ 'DESTINO (GALPÃO):','AFOGADOS','IMBIRIBEIRA','Obra origem',
+ 'ESSENCE CONSTRUÇÕES','alt="Artefal"','alt="GVG"',
+ 'Transportado por:','Via 1','Via 2']){
+ assert.ok(transferenciaHTML.includes(token),'Romaneio de galpão faltando '+token);
+}
+assert.equal((transferenciaHTML.match(/<div class="printPage two">/g)||[]).length,1,
+ 'Duas vias de poucos itens devem ficar em uma folha A4');
+assert.ok(!transferenciaHTML.includes('Total M²:')&&
+ transferTransport.includes('window.ewConstruirHTMLRomaneioTransferencia({')&&
+ transferTransport.includes("html.replace('<body>','<body>'+toolbar)")&&
+ transferTransport.includes("imprimirBtn.addEventListener('click',()=>janela.print())"),
+ 'Impressão de transferência deve usar template comum, e não layout genérico');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
