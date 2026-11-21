@@ -501,7 +501,7 @@
     .stockFilters select,.stockFilters input{margin-top:7px}
     .stockLegend{display:flex;gap:20px;align-items:center;flex-wrap:wrap;background:#f5f9ff;border:1px solid #dfebf6;padding:13px 16px;border-radius:10px;color:#5b7895;font-size:12px;line-height:1.6;margin:14px 0}
     .stockTableWrap{max-height:610px;overflow:auto;border:1px solid #dce5ef;border-radius:12px}
-    .stockTable{border-collapse:separate;border-spacing:0;width:100%;min-width:1060px;font-size:12px}
+    .stockTable{border-collapse:separate;border-spacing:0;width:100%;min-width:850px;font-size:12px}
     .stockTable th{position:sticky;top:0;background:#e8f1fb;color:#3d648b;border-bottom:1px solid #c9dbec;padding:12px;text-align:left;z-index:1}
     .stockTable td{border-bottom:1px solid #e9eff5;padding:11px;color:#456079;vertical-align:top}
     .stockTable td strong{color:#174879}
@@ -702,11 +702,11 @@
     <button id="navRomaneios" class="workspaceLink" type="button"><span class="navSymbol">▤</span> Romaneios e expedição</button>
     <button id="navEnviarNotas" class="workspaceLink hidden" type="button"><span class="navSymbol">▧</span> Enviar notas fiscais</button>
     <div class="workspaceNavCaption workspaceNavCaptionSecond">ADMINISTRAÇÃO</div>
-    <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
     <button id="navFinanceiro" class="workspaceLink hidden" type="button"><span class="navSymbol">◈</span> Financeiro das obras</button>
-    <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
+    <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
+    <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <div class="workspaceNavFooter">EWGEST <strong>· v44.9</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
@@ -744,8 +744,7 @@
         <div class="stat"><div class="label">A liberar (m²)</div><div class="number" id="pending">—</div></div>
         <div class="stat"><div class="label">Enviada à obra (m²)</div><div class="number" id="sentArea">—</div><div class="hint" id="sentPercent" style="margin-top:5px">—</div></div>
       </div>
-      <div class="section"><h2>Obras cadastradas</h2><div id="works" class="works"></div></div>
-      <p class="notice">Liberações para corte: selecione uma esquadria e informe quantidade e data. Os lançamentos ficam registrados no banco. Confirme medições técnicas antes de usar os totais como medição contratual.</p>
+      <div class="section hidden" aria-hidden="true"><h2>Obras cadastradas</h2><div id="works" class="works"></div></div>
     </section>
     <section id="almoxNotas" class="hidden">
       <div class="head"><div><h1>Enviar notas fiscais</h1>
@@ -942,7 +941,7 @@
       </div>
     </section>
     <section id="detail" class="hidden">
-      <div class="head"><div><div class="detailnav"><button id="back" class="btn secondary" type="button">← Voltar</button><button id="goHome" class="btn secondary" type="button">⌂ Tela inicial</button><button id="detailFinanceiro" class="btn secondary hidden" type="button">Financeiro da obra</button></div><h1 id="workName"></h1><div id="workMeta" class="muted"></div></div></div>
+      <div class="head"><div><div class="detailnav hidden"><button id="back" class="btn secondary" type="button">← Voltar</button><button id="goHome" class="btn secondary" type="button">⌂ Tela inicial</button><button id="detailFinanceiro" class="btn secondary hidden" type="button">Financeiro da obra</button></div><h1 id="workName"></h1><div id="workMeta" class="muted"></div></div></div>
       <div class="stats">
         <div class="stat"><div class="label">Área total</div><div class="number" id="detailTotal">—</div></div>
         <div class="stat"><div class="label">Liberada</div><div class="number" id="detailReleased">—</div></div>
@@ -962,7 +961,7 @@
         </div>
         <h2 id="itemListTitle">Itens da obra</h2>
         
-<div class="itemfilter"><label for="itemSearch">Buscar na lista</label><div class="filterrow"><select id="itemSearchMode" aria-label="Buscar por"><option value="esquadria">Código da esquadria</option><option value="tipologia">Código da tipologia</option></select><input id="itemSearch" type="search" placeholder="Ex.: EA2 ou 2" autocomplete="off" spellcheck="false"><button id="clearItemSearch" type="button" class="btn secondary">Limpar</button></div><div class="displayoptions"><label><input id="showItemDescription" type="checkbox"> Mostrar descrição</label><label><input id="showItemLocation" type="checkbox"> Mostrar localização</label></div><p id="itemFilterCount" class="hint filtercount" role="status" aria-live="polite"></p></div>
+<div class="itemfilter"><label for="itemSearch">Buscar na lista</label><div class="filterrow"><select id="itemSearchMode" aria-label="Buscar por"><option value="esquadria">Código da esquadria</option><option value="tipologia">Código da tipologia</option></select><input id="itemSearch" type="search" placeholder="Ex.: EA2 ou 2" autocomplete="off" spellcheck="false"><button id="clearItemSearch" type="button" class="btn secondary">Limpar</button></div><div class="displayoptions"><label><input id="showItemDescription" type="checkbox" checked> Mostrar descrição</label><label><input id="showItemLocation" type="checkbox"> Mostrar localização</label></div><p id="itemFilterCount" class="hint filtercount" role="status" aria-live="polite"></p></div>
         </div>
         <p id="detailIntro" class="hint">Clique em um item para registrar uma liberação para corte.</p>
         <div id="romaneioOverview" class="romaneioOverview hidden"></div>
@@ -1171,8 +1170,10 @@
       </div>
       <div class="stockTopActions">
           <button type="button" class="btn primary" id="stockCreateAnother">+ Criar estoque vazio</button>
-          <button type="button" class="btn secondary" id="stockManageLocations">Gerenciar estoques</button>
-          <button type="button" class="btn secondary" id="stockArchivedReview">Saldos e estornos</button>
+          <button type="button" class="btn secondary" id="stockTransferPickLocal">Transferência de local de estoque</button>
+          <button type="button" class="btn secondary" id="stockTransferPickWork">Transferência entre obras</button>
+          <button type="button" class="btn secondary hidden" id="stockManageLocations">Gerenciar estoques</button>
+          <button type="button" class="btn secondary hidden" id="stockArchivedReview">Saldos e estornos</button>
           <button type="button" class="btn secondary" id="stockRefresh">Atualizar</button>
         </div></div>
       <div class="materialsSummary">
@@ -1190,7 +1191,7 @@
           <label>Buscar material <input id="stockSearch" type="search" placeholder="Código, descrição ou cor"></label>
         </div>
         <div class="stockTopActions">
-          <button type="button" class="btn secondary" id="stockWorkHistory" disabled>Movimentações da obra</button>
+          <button type="button" class="btn secondary hidden" id="stockWorkHistory" disabled>Movimentações da obra</button>
         </div>
         <div class="stockLegend">
           <span><strong>Necessária:</strong> para perfis, número de barras planejadas no CEM por comprimento; para acessórios, quantidade prevista. <strong>Em estoque:</strong> saldo físico de entradas e saídas.</span>
@@ -1428,6 +1429,23 @@
       </div>
     </div>
     <div class="modalbuttons"><button type="button" class="btn secondary" id="stockManageClose">Fechar</button></div>
+  </div>
+</div>
+<!-- Seleção centralizada: preserva as operações SQL existentes e retira os botões de cada linha. -->
+<div id="stockTransferPickOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockTransferPickTitle">
+    <h2 id="stockTransferPickTitle">Transferência de material</h2>
+    <p class="hint">Selecione um material com saldo físico positivo na obra. A movimentação será registrada com origem, destino, quantidade e motivo.</p>
+    <form id="stockTransferPickForm">
+      <label>Material, cor, comprimento e origem
+        <select id="stockTransferPickMaterial" required></select>
+      </label>
+      <p id="stockTransferPickMessage" class="feedback" role="status"></p>
+      <div class="modalbuttons">
+        <button id="stockTransferPickCancel" class="btn secondary" type="button">Cancelar</button>
+        <button class="btn primary" type="submit">Continuar</button>
+      </div>
+    </form>
   </div>
 </div>
 <div id="stockTransferOverlay" class="modaloverlay hidden" role="presentation">
@@ -3353,7 +3371,7 @@ function renderDetail(w){
   node('tabShip').setAttribute('aria-pressed',String(shipping));
   node('shipmentOverview').classList.toggle('hidden',!shipping);
   node('romaneioActions').classList.toggle('hidden',!shipping);
-  node('releaseBatchActions').classList.toggle('hidden',shipping||!canEdit);
+  node('releaseBatchActions').classList.add('hidden'); // A liberação permanece por item.
   node('openRomaneio').disabled=!canEdit||!dispatchReady||Boolean(romaneioLoadError);
   node('romaneioOverview').classList.toggle('hidden',!shipping);
   node('romaneioHistoryPanel').classList.add('hidden');
@@ -7726,7 +7744,7 @@ function renderEstoque(){
   node('stockArchivedHint').classList.toggle('hidden',!arquivado);
   node('stockArchivedHint').classList.toggle('stockArchivedNotice',arquivado);
   node('stockArchivedHint').textContent=arquivado?
-    'Estoque arquivado: materiais em modo consulta. Para revisar ou estornar lançamentos, clique em Movimentações da obra.':'';
+    'Estoque arquivado: materiais somente para consulta. Histórico e estornos continuam registrados para auditoria.':'';
   if(!obra){
     node('stockPerfCount').textContent='—';
     node('stockAcesCount').textContent='—';
@@ -7785,7 +7803,7 @@ function renderEstoque(){
     (a.comprimento||0)-(b.comprimento||0)||String(a.local_estoque).localeCompare(String(b.local_estoque),'pt-BR'));
   out.innerHTML='<div class="stockTableWrap"><table class="stockTable"><thead><tr>'+
     '<th>Código</th><th>Material / fabricante</th><th>Cor e acabamento</th>'+
-    '<th>Quantidade necessária</th><th>Em estoque</th><th>Situação</th><th>Comprimento da barra</th><th>Galpão</th><th>Ação</th></tr></thead><tbody>'+
+    '<th>Quantidade necessária</th><th>Em estoque</th><th>Situação</th><th>Comprimento da barra</th><th>Galpão</th></tr></thead><tbody>'+
     linhas.map(x=>{
       const unit=x.v.tipo==='perfil'?'barra(s)':escapeHTML(x.unidade);
       const amount=x.informado?
@@ -7803,15 +7821,7 @@ function renderEstoque(){
         '<td><span class="stockReceiveStatus stockReceiveStatus-'+previsto.tom+'">'+escapeHTML(previsto.texto)+'</span>'+
         (previsto.detalhe?'<div class="hint">'+escapeHTML(previsto.detalhe)+'</div>':'')+'</td>'+
         '<td>'+size+'</td><td><strong>'+escapeHTML(x.local_estoque||'—')+'</strong></td>'+
-        '<td class="stockRowActions">'+(arquivado?
-          '<span class="hint">Somente consulta</span>':(x.informado&&x.quantidade>0?
-          '<button type="button" class="btn secondary" data-stock-transfer="'+
-          escapeHTML(x.v.id)+'" data-stock-length="'+(x.comprimento??'')+'" data-stock-unit="'+escapeHTML(x.unidade)+
-          '" data-stock-local="'+escapeHTML(x.local_estoque)+'">Transferir local</button> '+
-          '<button type="button" class="btn secondary" data-stock-work-transfer="'+
-          escapeHTML(x.v.id)+'" data-stock-length="'+(x.comprimento??'')+'" data-stock-unit="'+escapeHTML(x.unidade)+
-          '" data-stock-local="'+escapeHTML(x.local_estoque)+'">Transferir entre obras</button>':
-          '<span class="hint">Sem saldo disponível</span>'))+'</td></tr>';
+        '</tr>';
     }).join('')+'</tbody></table></div>'+
     '<p class="stockFoot">'+linhas.length+' linha(s) de material nesta obra. '+
     'Quando houver barras de comprimentos diferentes, elas aparecerão separadas. '+
@@ -7923,6 +7933,76 @@ async function stockQtySubmit(e){
       '. Antes de repetir, confira se o saldo já foi atualizado.';
   }finally{btn.disabled=false;}
 }
+
+/* Seletor central de transferências: reaproveita fluxos atômicos já existentes. */
+let stockTransferPickCandidates=[],stockTransferPickMode='local';
+function stockTransferPickClose(){
+  node('stockTransferPickOverlay').classList.add('hidden');
+  stockTransferPickCandidates=[];
+}
+function stockTransferPickOpen(mode){
+  if(!matIsAdmin())return;
+  const obra=node('stockWork').value;
+  if(!obra){
+    node('stockMessage').textContent='Selecione uma obra antes de transferir materiais.';
+    return;
+  }
+  if(stockLocais.some(l=>l.obra_id===obra&&l.excluido_em)){
+    node('stockMessage').textContent='O estoque dessa obra está arquivado e não permite transferências.';
+    return;
+  }
+  const candidates=[];
+  for(const item of estoqueDados()){
+    const saldos=new Map();
+    for(const movimento of item.perWork){
+      if(movimento.obra_id!==obra)continue;
+      const local=movimento.local_estoque||'IMBIRIBEIRA';
+      const comprimento=item.v.tipo==='perfil'?mmOrNull(movimento.comprimento_mm):null;
+      const unidade=movimento.unidade;
+      const key=JSON.stringify([comprimento,unidade,local]);
+      if(!saldos.has(key))saldos.set(key,{item,comprimento,unidade,local,saldo:0});
+      saldos.get(key).saldo+=Number(movimento.quantidade_delta||0);
+    }
+    for(const row of saldos.values()){
+      if(row.saldo>0) candidates.push(row);
+    }
+  }
+  candidates.sort((a,b)=>
+    a.item.mat.codigo.localeCompare(b.item.mat.codigo,'pt-BR')||
+    String(a.local).localeCompare(String(b.local),'pt-BR')||
+    Number(a.comprimento||0)-Number(b.comprimento||0));
+  stockTransferPickCandidates=candidates;
+  stockTransferPickMode=mode;
+  node('stockTransferPickTitle').textContent=mode==='local'?
+    'Transferência de local de estoque':'Transferência entre obras';
+  const seletor=node('stockTransferPickMaterial');
+  seletor.replaceChildren(new Option('Selecione o material',''));
+  candidates.forEach((r,i)=>{
+    const label=[r.item.mat.codigo,r.item.mat.descricao,r.item.v.cor,
+      r.comprimento?r.comprimento+' mm':r.unidade,
+      'Origem: '+r.local,'Saldo: '+matFormat(r.saldo,r.item.v.tipo==='perfil'?0:3)+' '+r.unidade].filter(Boolean).join(' · ');
+    seletor.add(new Option(label,String(i)));
+  });
+  node('stockTransferPickMessage').textContent=candidates.length?'':'Não há materiais com saldo disponível na obra selecionada.';
+  node('stockTransferPickOverlay').classList.remove('hidden');
+}
+node('stockTransferPickLocal').addEventListener('click',()=>stockTransferPickOpen('local'));
+node('stockTransferPickWork').addEventListener('click',()=>stockTransferPickOpen('obra'));
+node('stockTransferPickCancel').addEventListener('click',stockTransferPickClose);
+node('stockTransferPickForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const value=node('stockTransferPickMaterial').value;
+  if(value==='')return;
+  const candidate=stockTransferPickCandidates[Number(value)];
+  if(!candidate||!(candidate.saldo>0))return;
+  const mode=stockTransferPickMode;
+  stockTransferPickClose();
+  if(mode==='local'){
+    stockTransferOpen(candidate.item.v.id,candidate.comprimento||'',candidate.unidade,candidate.local);
+  }else{
+    stockObraTransferOpen(candidate.item.v.id,candidate.comprimento||'',candidate.unidade,candidate.local);
+  }
+});
 let stockTransferSelected=null,stockTransferOperationId=null;
 function stockTransferOpen(variationId,length='',unit='',local='IMBIRIBEIRA'){
  if(!matIsAdmin()||stockLocais.some(l=>l.obra_id===node('stockWork').value&&l.excluido_em))return;
