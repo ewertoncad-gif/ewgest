@@ -1613,8 +1613,16 @@ const amostraSemPlano=montarPlanoCem({
  profMovs:[{CODPERF:'000633',CODTRATEXT:'ANOD-1002-A13',QTDE:'24',TAM:'1200'}],
  barrasAproveitamento:[],acesCatalog:[],aceMovs:[],acessoriosObra:[]
 });
-assert.deepEqual(amostraSemPlano.perfis[0].variacoes[0].barras_planejadas,[],
- 'Não deduzir comprimento ou barras do número de cortes');
+assert.equal(Object.hasOwn(amostraSemPlano.perfis[0].variacoes[0],'barras_planejadas'),false,
+ 'Quando o ZIP não tem OBAPROV, omitir plano para preservar dados anteriores');
+
+assert.throws(()=>montarPlanoCem({
+ perfCatalog:[{CODPERF:'000633',REF:'HYDRO',DESCRICAO:'TRAVESSA INFERIOR 105'}],
+ profMovs:[{CODPERF:'000633',CODTRATEXT:'ANOD-1002-A13',QTDE:'24',TAM:'1200'}],
+ barrasAproveitamento:[{CODPERF:'000633',CODTRATEXT:'ANOD-1002-A13',NUMBARRAS:'invalido',BARRA:'6000'}],
+ acesCatalog:[],aceMovs:[],acessoriosObra:[]
+}),/Plano de barras do CEM inválido/,
+ 'Não aceitar importação de plano de barras com quantidades inválidas');
 
 // Recebimento manual: perfis usam exclusivamente NUMBARRAS/BARRA da
 // importação específica da obra, nunca a contagem de cortes dos croquis.
