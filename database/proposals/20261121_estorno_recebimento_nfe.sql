@@ -529,3 +529,40 @@ begin
  return jsonb_build_object('repetida',false,'estornados',v_n,'historico_preservado',true);
 end;$function$
 ;
+
+-- Após todas as entradas físicas da NF-e serem estornadas, permitir eventual
+-- cancelamento financeiro administrativo, sem apagar nenhuma linha de histórico.
+CREATE OR REPLACE FUNCTION public.ew_cancelar_despesa_financeira(p_empresa_id uuid, p_despesa_id uuid, p_motivo text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+DECLARE v_uid uuid:=auth.uid();v_status text;
+BEGIN
+ PERFORM public.ew_exigir_sessao_atual();
+ IF v_uid IS NULL OR NOT EXISTS(SELECT 1 FROM public.usuarios_empresas ue WHERE
+   ue.usuario_id=v_uid AND ue.empresa_id=p_empresa_id AND ue.perfil='administrador')
+ THEN RAISE EXCEPTION 'Somente ADM pode cancelar despesas aprovadas.';END IF;
+ IF length(btrim(coalesce(p_motivo,''))) NOT BETWEEN 5 AND 400
+ THEN RAISE EXCEPTION 'Informe o motivo do cancelamento entre 5 e 400 caracteres.';END IF;
+ SELECT status INTO v_status FROM public.ew_obra_despesas
+ WHERE id=p_despesa_id AND empresa_id=p_empresa_id FOR UPDATE;
+ IF NOT FOUND OR v_status<>'aprovada'
+ THEN RAISE EXCEPTION 'Somente despesas aprovadas podem ser canceladas.';END IF;
+ IF EXISTS(SELECT 1 FROM public.ew_nfe_recebimentos r
+    JOIN public.ew_obra_despesas_itens i ON i.id=r.despesa_item_id
+    WHERE i.despesa_id=p_despesa_id AND r.empresa_id=p_empresa_id AND r.estornado_em is null)
+ THEN RAISE EXCEPTION 'Esta nota possui materiais recebidos. Estorne as entradas de estoque antes de cancelar a despesa.';END IF;
+ IF EXISTS(
+    select 1 from public.ew_insumos_movimentos m
+    join public.ew_obra_despesas_itens i on i.id=m.despesa_item_id
+    where i.despesa_id=p_despesa_id and m.empresa_id=p_empresa_id
+     and m.origem='RECEBIMENTO'
+ ) THEN RAISE EXCEPTION 'Nota com vidros/outros no estoque: use o cancelamento com estorno físico.';END IF;
+ UPDATE public.ew_obra_despesas
+ SET status='cancelada',cancelado_por=v_uid,cancelado_em=now(),
+ observacoes=observacoes||' | Cancelada: '||btrim(p_motivo)
+ WHERE id=p_despesa_id AND empresa_id=p_empresa_id;
+ RETURN jsonb_build_object('id',p_despesa_id,'status','cancelada');
+END;$function$
+;
