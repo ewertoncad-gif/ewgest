@@ -360,7 +360,7 @@
  }
  async function submit(event){
   event.preventDefault();
-  if(!finState||!isFullAdminUser())return;
+  if(!finState||!(isFullAdminUser()||isAlmoxarife()))return;
   const el=byId('finCostMessage'),btn=byId('finCostSubmit');
   const note=cents(byId('finCostTotal').value);
   if(note===null||note<=0){el.textContent='Informe o valor total da nota com centavos válidos.';return;}
@@ -400,20 +400,22 @@
     p_data_documento:byId('finCostDate').value||null,
     p_observacoes:byId('finCostNotes').value.trim(),p_operacao_id:finCostOpId};
    if(hasStock){
-    response=await request('/rest/v1/rpc/ew_registrar_recebimento_manual_financeiro',{
+    response=await request(isAlmoxarife()?
+    '/rest/v1/rpc/ew_receber_materiais_almox':'/rest/v1/rpc/ew_registrar_recebimento_manual_financeiro',{
      method:'POST',token:session.access_token,timeoutMs:120000,
      body:{...common,p_local_estoque:location,p_itens:items}
     });
    }else{
-    response=await request('/rest/v1/rpc/ew_registrar_despesa_financeira',{
+    response=await request(isAlmoxarife()?
+     '/rest/v1/rpc/ew_receber_despesa_almox':'/rest/v1/rpc/ew_registrar_despesa_financeira',{
      method:'POST',token:session.access_token,timeoutMs:90000,
-     body:{...common,p_origem:'manual',p_chave_nfe:null,p_itens:[]}
+     body:isAlmoxarife()?common:{...common,p_origem:'manual',p_chave_nfe:null,p_itens:[]}
     });
    }
    const repeated=Boolean(response?.ja_registrado);
    finCostOpId=null;
-   await finLoad();
-   byId('finMessage').textContent=repeated?
+   await carregarRecebimento();
+   byId('recebimentoMessage').textContent=repeated?
     'Este lançamento já constava registrado; o estoque não foi duplicado.':
     hasStock?'Nota registrada e materiais recebidos: o estoque físico da obra foi atualizado.':
     'Despesa registrada sem movimentação de estoque.';
@@ -496,6 +498,7 @@
    '</p>';
   initForm();
  };
+ window.ewRecebimentoManualInit=initForm;
  byId('finExpenseForm').removeEventListener('submit',finRegistrarCusto);
  byId('finExpenseForm').addEventListener('submit',submit);
  byId('finCostCategory').addEventListener('change',()=>{
