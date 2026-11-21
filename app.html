@@ -670,6 +670,17 @@
   .stockCemMirrorTable .stockCemSelect{width:17px;height:17px;min-width:17px}
   .stockCemMirrorTable{width:100%;min-width:700px}
 
+  /* Cadastros do sistema, sem menus duplicados no estoque. */
+  .cadastrosGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:18px}
+  .cadastrosTile{display:flex;flex-direction:column;gap:7px;min-height:94px;padding:16px;text-align:left;
+   background:#fff;border:1px solid #d9e5f0;border-radius:11px;color:#173653;cursor:pointer;font:inherit}
+  .cadastrosTile:hover,.cadastrosTile:focus-visible{border-color:#74a6d9;background:#f4f8fd}
+  .cadastrosTile strong{font-size:15px}.cadastrosTile span{font-size:12px;color:#667c92;line-height:1.35}
+  .cadastrosListGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:15px}
+  .cadastrosNovoForm{display:flex;flex-wrap:wrap;align-items:flex-end;gap:9px;margin:12px 0}
+  .cadastrosNovoForm label{flex:1;min-width:180px}.cadastrosNovoForm input{width:100%}
+  .cadastrosList{max-height:300px;overflow:auto}
+  .cadastrosListRow{padding:9px 5px;border-bottom:1px solid #e2eaf3;display:flex;justify-content:space-between}
   </style>
   <link rel="stylesheet" href="/assets/orcamento-niveis.css?v=20261120c">
   <link rel="stylesheet" href="/assets/recebimento-manual.css?v=20261121f">
@@ -2089,7 +2100,7 @@ function podeEmitirRomaneio(){return ['administrador','gerenciador','supervisor'
 function setView(view){
   node('startup').classList.add('hidden');
   if(isAlmoxarife()&&!['login','romaneiosPage','almoxNotas','myPassword'].includes(view))view='romaneiosPage';
-  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','almoxNotas','typologies','manufacturers','materials','stock','financeiro','cemImport','users','myPassword'])
+  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','almoxNotas','cadastros','typologies','manufacturers','materials','stock','financeiro','cemImport','users','myPassword'])
     node(id).classList.toggle('hidden',id!==view);
   node('logout').classList.toggle('hidden',view==='login');
   node('myPasswordHeader').classList.toggle('hidden',view==='login');
@@ -2097,10 +2108,11 @@ function setView(view){
   node('workspaceNav').classList.toggle('hidden',!autenticado);
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
   const ativo=view==='detail'?'worksPage':view;
-  for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],['navEnviarNotas','almoxNotas'],
+  for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],['navEnviarNotas','almoxNotas'],['navCadastros','cadastros'],
       ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navCem','cemImport'],['navUsers','users'],['navManageWorks','manageWorks']]){
     const button=node(id);
-    const selecionado=ativo===target;
+    const selecionado=ativo===target||(id==='navCadastros'&&
+      ['materials','typologies','manufacturers','users'].includes(ativo));
     button.classList.toggle('active',selecionado);
     if(selecionado)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
   }
@@ -2250,7 +2262,7 @@ async function loadPanel(){
   node('navWorks').classList.toggle('hidden',somenteRomaneios);
   node('navRomaneios').classList.toggle('hidden',!podeEmitirRomaneio());
   node('navEnviarNotas').classList.toggle('hidden',!somenteRomaneios);
-  for(const id of ['navTypologies','navManufacturers','navMaterials','navStock','navCem','navUsers','navManageWorks','navFinanceiro'])node(id).classList.toggle('hidden',!adminNav);
+  for(const id of ['navCadastros','navTypologies','navManufacturers','navMaterials','navAccessories','navStock','navCem','navUsers','navManageWorks','navFinanceiro'])node(id).classList.toggle('hidden',!adminNav);
   node('openRomaneioHub').classList.toggle('hidden',!podeEmitirRomaneio()||somenteRomaneios);
   node('topTag').textContent=somenteRomaneios?'Romaneios e expedição':'Gestão de obras · liberações e saídas';
   node('openTypologies').classList.toggle('hidden',!canAdministrate());
@@ -9429,5 +9441,6 @@ restaurarSessaoSalva().catch(e=>{
 </script>
 <script src="/assets/orcamento-niveis.js?v=20261120c"></script>
 <script src="/assets/recebimento-manual.js?v=20261121f"></script>
+<script src="/assets/cadastros-hub.js?v=20261121a"></script>
 </body>
 </html>
