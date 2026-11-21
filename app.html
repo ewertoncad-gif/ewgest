@@ -1176,7 +1176,19 @@
             <button type="submit" class="btn primary">Cadastrar galpão</button>
           </form><div id="cadastroGalpaoList" class="cadastrosList"></div>
         </div>
-      </div><p id="cadastrosMessage" class="feedback" role="status"></p>
+      </div>
+      <div id="cadastroEditPanel" class="section panel hidden" role="region" aria-labelledby="cadastroEditTitle">
+        <h2 id="cadastroEditTitle">Editar cadastro</h2>
+        <p class="hint" id="cadastroEditHint">Registros vinculados a notas ou estoque não podem ser editados ou excluídos.</p>
+        <label>Nome <input id="cadastroEditNome" type="text" maxlength="180"></label>
+        <div class="topactions" style="margin-top:12px">
+          <button id="cadastroEditSave" type="button" class="btn primary">Salvar alterações</button>
+          <button id="cadastroEditDelete" type="button" class="btn secondary">Excluir cadastro</button>
+          <button id="cadastroEditCancel" type="button" class="btn secondary">Cancelar</button>
+        </div>
+        <p id="cadastroEditMessage" class="feedback" role="status"></p>
+      </div>
+      <p id="cadastrosMessage" class="feedback" role="status"></p>
     </section>
     <section id="stock" class="hidden">
       <div class="head"><div>
