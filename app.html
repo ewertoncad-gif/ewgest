@@ -7570,7 +7570,7 @@ async function finConfirmarRecebimento(row){
 function finRenderHistorico(){
  const x=finState;
  const despesasComEstoque=new Set(
-  x.approvedItems.filter(i=>x.stockReceipts.some(r=>r.despesa_item_id===i.id))
+  x.approvedItems.filter(i=>x.stockReceipts.some(r=>r.despesa_item_id===i.id&&!r.estornado_em))
    .map(i=>i.despesa_id));
  const rows=[
  ...x.despesas.map(d=>({id:d.id,kind:'despesa',date:d.data_documento||d.criado_em?.slice(0,10)||'',grupo:'Despesa',tipo:d.categoria,
