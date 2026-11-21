@@ -75,3 +75,6 @@ alter table public.usuarios_empresas drop constraint if exists usuarios_empresas
 alter table public.usuarios_empresas add constraint usuarios_empresas_perfil_check check(
  perfil in ('administrador','gerenciador','supervisor','tecnico','consulta','almoxarife')
 );
+-- Colunas de fabricante ausentes no snapshot; existem em ewgest-producao.
+alter table public.ew_perfis add column if not exists fabricante text not null default '';
+alter table public.ew_acessorios add column if not exists fabricante text not null default '';
