@@ -2076,7 +2076,7 @@ assert.ok(source.includes('finReceiveUndo')&&
  receiptUndoSQL.includes("m.origem in ('PLANO_CORTE','PLANO_CORTE_LOTE','SAIDA_MANUAL','AJUSTE')")&&
  receiptUndoSQL.includes('m.local_estoque')&&
  receiptUndoSQL.includes('n.estornado_em is null')&&
- receiptUndoSQL.includes('Recebimento NF-e não pode ser revertido'),
+ receiptUndoSQL.includes('Estorno de recebimento NF-e não pode ser revertido'),
  'Estorno de NF mantém histórico, aceita galpão alterado e bloqueia baixa de produção');
 assert.ok(releaseDelayedSQL.includes('ew_liberar_plano_corte_revisado')&&
  releaseDelayedSQL.includes('ew_liberar_lote_cem')&&
