@@ -158,3 +158,30 @@ Não criar botão adicional de recuperação do CEM no Financeiro. Para obras an
 - Migração **`20261121102710_ew_fornecedores_por_empresa_rls_20261121`** aplicada no Supabase de produção, com SQL versionado em `supabase/migrations/`. Tabela `ew_fornecedores` criada vazia, com 3 políticas RLS ativas; `anon` não possui leitura e a equipe autenticada consulta apenas fornecedores de sua empresa; escrita somente para ADM.
 - Validação em banco de testes: CREATE TABLE e RLS em transação revertida, sem permanência da tabela de teste. Consulta de produção antes/depois: **5 obras, 631 materiais, 635 movimentos de estoque, 1 recebimento por NF, 2 galpões** — contagens mantidas; **0 fornecedores cadastrados inicialmente**.
 - A coluna Quantidade necessária do estoque dos perfis é renderizada por medida usando barras planejadas do CEM: não incluir cortes, não somar metragens de aproveitamento e não alterar saldos físicos. Os arquivos de interface são publicados quando a PR for integrada à `main`, e o deploy Cloudflare deverá ser conferido no site.
+
+## Estoque somente por Financeiro ou transferência entre obras — 21/11/2026
+
+**Regras operacionais aprovadas pelo usuário:** o saldo físico da obra não é digitado livremente no Estoque. A entrada por compra é gerada ao registrar a nota e os materiais em **Financeiro das obras**; o outro meio de entrada é uma transferência vinda de estoque de outra obra da mesma empresa.
+
+- Na tela **Estoque por obra**, eliminar os botões **Receber material por NF-e**, **Cadastrar quantidade**, **Ajustar quantidade**, **Adicionar material** e **Cadastrar galpão**. Preservar consulta, movimentações/histórico, filtros, saldos e estornos. Não modificar os registros preexistentes.
+- **Transferir local** continua movimentando o material entre galpões **da mesma obra**. **Transferir entre obras** é separado e aparece somente quando a linha tem quantidade positiva; escolhe uma obra distinta com estoque ativo e o galpão de destino. A UI só valida inicialmente; **o banco** valida novamente saldo, empresa, tipo, comprimento, unidade e quantidade.
+- A RPC `ew_transferir_estoque_entre_obras` usa bloqueio transacional consistente com os demais movimentos, exigência de sessão e perfil autorizado, e cria saída e entrada em transação única com o mesmo `transferencia_id`. Quantidades de perfis são **barras inteiras** por medida; acessórios conservam unidades base autorizadas. Repetição do `p_operacao_id` é idempotente.
+- A RPC `ew_estornar_transferencia_entre_obras` desfaz **ambas as obras** em uma transação, verificando que a origem/destino estão ativos, sem dependências de liberações e que o destino tem saldo para devolver. Registra dois movimentos `ESTORNO` com referência `estorno_de_id` e `transferencia_id` do estorno; repetir a operação não duplica lançamentos. O histórico reconhece as transferências entre obras e chama essa RPC específica. As transferências antigas entre galpões continuam utilizando o estorno original.
+- Proteções adicionais nas funções existentes `ew_estornar_estoque_obra` e `ew_excluir_estoque_local`: não permitir estornar todas as entradas de apenas uma ponta ou arquivar uma das obras com transferências entre obras ativas. Backups SQL originais versionados em `database/rollback/`.
+- **Criar estoque vazio** apenas cria a obra/estoque por rotina existente `ew_criar_obra_estoque`; não cria entrada ou compra fictícia. As telas antigas de cadastro manual permanecem sem botão de abertura por compatibilidade com histórico/código legado. O usuário não pediu revogar as RPCs antigas, que também têm chamadas usadas em outros módulos.
+
+### Central de cadastros
+
+A barra lateral exibe **Cadastros do sistema** em substituição aos acessos isolados a materiais, fabricantes, tipologias e usuários. A página oferece atalhos para **Perfis, Acessórios, Tipologias, Fabricantes, Fornecedores, Galpões e Usuários**. A navegação técnica reutiliza as páginas já existentes; os dois cadastros simples usam as tabelas existentes `ew_fornecedores` e `ew_locais_fisicos`, isoladas por empresa, sem duplicação.
+
+**Homologação:** testes de JS e SQL com dados sintéticos; o SQL em QA fez transferência de barras e acessórios, verificou saldo insuficiente, operação duplicada, rejeição de barra fracionária e obra de outra empresa; em teste separado, o estorno recuperou ambas as pontas e recusou desfazer quando já houve consumo no destino. Ambos concluíram com `ROLLBACK` e sem persistir objetos de teste. Teste real pelo navegador e confirmação de Cloudflare pendentes.
+
+
+### Migração de transferências entre obras aplicada no banco — 21/11/2026
+
+- Supabase produção: migração `20261121134428_transferencia_entre_obras_estorno_e_guardas_20261121`, versionada em `supabase/migrations/`.
+- Conferência de funções e permissões: RPCs de transferência e estorno presentes; execução permitida ao papel `authenticated` (sujeita às verificações de empresa/sessão/perfil dentro das funções) e negada ao `anon`. Guardas instaladas em `ew_estornar_estoque_obra` e `ew_excluir_estoque_local`.
+- **Antes e depois:** 5 obras, 631 materiais técnicos, 635 movimentos de estoque, 1 recebimento por NF, 5 registros de estoques e 2 galpões. Os quantitativos permanecem iguais após a migração, que não movimenta materiais.
+- QA das funções de transferência e estorno: testes com dados fictícios em banco de testes, em transações revertidas, e ensaio de compilação SQL em produção usando `BEGIN/ROLLBACK` antes de aplicar.
+- GitHub CI confirma sintaxe e comportamento esperado da interface. A publicação no Cloudflare e o ensaio real de transferência entre duas obras com saldo ainda precisam ser verificados pelo navegador autenticado.
+- As funções anteriores de estorno total e arquivamento estão em `database/rollback/` para uma reversão consciente e auditada. Não remover os novos movimentos nem suas referências para reverter código.

@@ -612,9 +612,9 @@ for(const token of ['ew_perfis','ew_acessorios','ew_materiais_variacoes',
   assert.ok(source.includes(token),'Cadastro de materiais deve conter '+token);
 }
 assert.ok(source.includes('Quantidade necessária')&&source.includes('Em estoque')&&
- source.includes('Comprimento da barra')&&source.includes('Ajustar quantidade')&&
- source.includes('Quantidade ainda não cadastrada'),
- 'Estoque atual mostra necessidade, saldo físico, barras e ajuste de quantidade');
+ source.includes('Comprimento da barra')&&source.includes('data-stock-work-transfer')&&
+ !source.includes('data-stock-adjust')&&!source.includes('data-stock-open-new'),
+ 'Estoque mostra planejamento, saldo e transferência, sem cadastro direto de quantidade');
 assert.ok(source.includes('async function abrirEstoque()')&&source.includes('async function registrarMovimentoEstoque(e)'),
  'Estoque possui consulta real e movimentação auditável');
 for(const id of ['navMaterials','navStock','navCem','materials','stock','cemImport',
@@ -722,8 +722,10 @@ assert.ok(source.includes('ew_importar_cem_conciliado'),
 assert.ok(!source.includes("rows.slice(0,6)"), 'Lista de materiais importados deve ser completa');
 
 assert.ok(source.includes('id="stockCreateAnother"')&&
- source.includes("node('stockCreateAnother').addEventListener"),
- 'Criar estoque de outra obra acessível diretamente no topo');
+ source.includes("node('stockCreateAnother').addEventListener")&&
+ source.includes('id="stockCreateEmptyForm"')&&
+ source.includes("'/rest/v1/rpc/ew_criar_obra_estoque'"),
+ 'Criar estoque vazio sem registrar material ou saldo inicial');
 assert.ok(source.includes('id="stockQuantityOverlay"')&&
  source.includes('id="stockQtyNew"')&&source.includes('function stockQtySubmit(e)'),
  'Ajustar quantidade altera saldo final pelo histórico de movimentos');
@@ -817,8 +819,12 @@ assert.ok(source.includes('id="stockManualCode"')&&
 assert.ok(source.includes('ew_cadastrar_comprimento_comercial')&&
  source.includes('function stockManualAddLength(){'),
  'Cadastro de novos tamanhos comerciais usa RPC com permissão ADM');
-assert.ok(source.indexOf('id="stockNewManual"')>source.indexOf('id="stockRecords"'),
- 'Adicionar material foi movido para baixo da tabela');
+assert.ok(!source.includes('id="stockNewManual"')&&
+ !source.includes('id="stockReceiveNfe"')&&
+ !source.includes('id="stockFactoryCreate"')&&
+ !source.includes("node('stockNewManual').addEventListener")&&
+ !source.includes("node('stockFactoryCreate').addEventListener"),
+ 'Estoque não exibe entradas manuais, NF-e e cadastro de galpão redundantes');
 assert.ok(source.includes('function stockCemReadMirror(){')&&
  source.includes('function stockCemMirrorRow(tipo,row={},index=-1){')&&
  source.includes('p_perfis:mirror.perfis,p_acessorios:mirror.acessorios'),
@@ -1102,11 +1108,11 @@ for(const id of ['stockWorkHistory','stockArchivedHint','stockReverseHistoryList
 assert.ok(source.includes("locaisPorObra.get(w.id)?.excluido_em")&&
  source.includes("ESTOQUE ARQUIVADO")&&
  source.includes('Somente consulta')&&
- source.includes("node('stockNewManual').disabled=arquivado"),
- 'Estoque arquivado deve aparecer no seletor sem permitir movimentação operacional');
+ source.includes("stockLocais.some(l=>l.obra_id===origem&&l.excluido_em)"),
+ 'Estoque arquivado permanece consultável, mas não permite transferências');
 assert.ok(source.includes('function stockReverseHistoryRender(id)')&&
  source.includes('async function stockReverseIndividual(movimentoId)')&&
- source.includes("request('/rest/v1/rpc/ew_estornar_movimento_obra'")&&
+ source.includes("'/rest/v1/rpc/ew_estornar_movimento_obra'")&&
  source.includes('data-stock-reverse-item'),
  'Histórico deve oferecer estorno individual pela RPC auditada');
 const estornoUnitMigration=readFileSync(fileURLToPath(new URL(
@@ -1880,5 +1886,76 @@ assert.ok(source.includes('const medidas=v.tipo')&&
  source.includes('barras_planejadas.map(b=>Number(b.comprimento_mm))')&&
  !source.includes('m em cortes'),
  'Estoque também deve listar tamanhos planejados sem saldo físico e não mostrar cortes como necessidade');
+
+// Novo fluxo: o estoque só mostra saídas por transferência, sem entrada livre na tela.
+const transferSQL=readFileSync(fileURLToPath(
+ new URL('../database/proposals/20261121_transferencia_estoque_entre_obras.sql',import.meta.url)),'utf8');
+const cadastroHubJS=readFileSync(fileURLToPath(
+ new URL('../assets/cadastros-hub.js',import.meta.url)),'utf8');
+assert.doesNotThrow(()=>new Function(cadastroHubJS),'Central de cadastros deve ser JavaScript válido');
+for(const id of ['navCadastros','cadastros','navAccessories','cadastroFornecedorForm',
+ 'cadastroGalpaoForm','cadastroFornecedorNome','cadastroGalpaoNome','navMaterials',
+ 'navTypologies','navManufacturers','navUsers']){
+ assert.ok(source.includes('id="'+id+'"'),'Cadastro central faltando '+id);
+}
+assert.ok(source.includes('cadastros-hub.js?v=20261121a')&&
+ source.includes("['navCadastros','cadastros']")&&
+ cadastroHubJS.includes("apiGet('ew_fornecedores'")&&
+ cadastroHubJS.includes("apiGet('ew_locais_fisicos'")&&
+ cadastroHubJS.includes('cadastrarGalpaoEmpresa(nome)'),
+ 'Um único menu de cadastros reutiliza fornecedores e galpões já cadastrados');
+assert.ok(source.includes('data-stock-work-transfer')&&
+ source.includes('Transferir entre obras')&&
+ source.includes('id="stockObraTransferOverlay"')&&
+ source.includes('id="stockObraTransferTarget"')&&
+ source.includes('id="stockObraTransferToLocal"')&&
+ source.includes('id="stockObraTransferQty"')&&
+ source.includes('stockObraTransferOpen(')&&
+ source.includes("'/rest/v1/rpc/ew_transferir_estoque_entre_obras'"),
+ 'Transferência entre obras deve indicar destino, galpão, quantidade e registrar RPC única');
+assert.ok(source.includes("node('stockCreateEmptyOverlay').classList.remove('hidden')")&&
+ source.includes("node('stockCreateEmptyForm').addEventListener('submit'")&&
+ !source.includes("node('stockCreateAnother').addEventListener('click',()=>stockManualOpen())"),
+ 'Nova obra de estoque começa sem entrada de materiais');
+for(const token of [
+ 'CREATE OR REPLACE FUNCTION public.ew_transferir_estoque_entre_obras',
+ 'PERFORM public.ew_exigir_sessao_atual();',
+ "u.perfil IN ('administrador','gerenciador')",
+ 'pg_catalog.pg_advisory_xact_lock',
+ 'v_saldo<p_quantidade',
+ "AND quantidade_delta=-p_quantidade AND origem='TRANSFERENCIA'",
+ "AND quantidade_delta=p_quantidade AND origem='TRANSFERENCIA'",
+ "'TRANSFERENCIA',gen_random_uuid(),v_observacao",
+ "p_quantidade<>trunc(p_quantidade)",
+ 'REVOKE ALL ON FUNCTION',
+ 'GRANT EXECUTE ON FUNCTION'
+]){
+ assert.ok(transferSQL.includes(token),'Transferência SQL sem proteção: '+token);
+}
+const estornoCrossSQL=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261121_estorno_transferencia_entre_obras.sql',import.meta.url)),'utf8');
+const guardTotalSQL=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261121_guard_estorno_estoque_transferencias_obras.sql',import.meta.url)),'utf8');
+const guardArchiveSQL=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261121_guard_arquivar_estoque_transferencias_obras.sql',import.meta.url)),'utf8');
+assert.ok(estornoCrossSQL.includes('CREATE OR REPLACE FUNCTION public.ew_estornar_transferencia_entre_obras')&&
+ estornoCrossSQL.includes('v_saldo<v_credito.quantidade_delta')&&
+ estornoCrossSQL.includes("'ESTORNO',gen_random_uuid()")&&
+ estornoCrossSQL.includes('v_credito.id')&&
+ estornoCrossSQL.includes('v_debito.id')&&
+ estornoCrossSQL.includes('REVOKE ALL ON FUNCTION'),
+ 'Estorno de transferência entre obras deve reverter ambas as pontas atomicamente e verificar saldo do destino');
+assert.ok(guardTotalSQL.includes('Há transferência ativa entre obras')&&
+ guardArchiveSQL.includes('Existe transferência entre obras ainda ativa')&&
+ guardTotalSQL.includes('est.estorno_de_id=m.id')&&
+ guardArchiveSQL.includes('est.estorno_de_id=m.id'),
+ 'Arquivar ou estornar o estoque inteiro não pode reverter apenas uma ponta de transferência');
+assert.ok(source.includes('Estornar transferência entre obras')&&
+ source.includes("'/rest/v1/rpc/ew_estornar_transferencia_entre_obras'")&&
+ source.includes('p_transferencia_id:mov.transferencia_id'),
+ 'Histórico deve permitir estorno conjunto das duas obras');
+assert.ok(!/DELETE\s+FROM\s+public\.ew_estoque_obras_movimentos/i.test(transferSQL)&&
+ !/UPDATE\s+public\.ew_estoque_obras_movimentos/i.test(transferSQL),
+ 'Transferência deve registrar deltas de saída/entrada, nunca reescrever histórico');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
