@@ -228,7 +228,7 @@
   const body=byId('finMiscRows');if(!body)return;
   const units=['PC','UN','M2','MT','KG','CX','CJ','PR'];
   body.innerHTML=miscRows.map((m,i)=>'<tr data-misc-row="'+i+'">'+
-   '<td><input class="finMiscDescription" required maxlength="500" placeholder="Descrição do vidro ou insumo" value="'+escapeHTML(m.descricao)+'"></td>'+
+   '<td><input class="finMiscDescription" list="insumoCatalogoSugestoes" required maxlength="500" placeholder="Descrição e medidas do vidro ou insumo" value="'+escapeHTML(m.descricao)+'"></td>'+
    '<td><input class="finMiscQty" type="number" inputmode="decimal" min="0.001" max="1000000" step="0.001" required placeholder="Qtd." value="'+escapeHTML(m.quantidade)+'"></td>'+
    '<td><select class="finMiscUnit">'+units.map(u=>'<option value="'+u+'"'+(u===m.unidade?' selected':'')+'>'+(u==='M2'?'m²':u)+'</option>').join('')+'</select></td>'+
    '<td><input class="finMiscAmount" inputmode="decimal" required placeholder="R$ 0,00" value="'+escapeHTML(m.valor)+'"></td>'+
