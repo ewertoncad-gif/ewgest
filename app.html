@@ -712,7 +712,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v45.6</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v45.7</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -1673,10 +1673,10 @@
     <h2 id="stockTransferTitle">Transferir material entre galpões</h2>
     <p id="stockTransferInfo" class="hint"></p>
     <form id="stockTransferForm">
-      <label>Local de origem <input id="stockTransferSource" readonly></label>
-      <label>Local de destino <select id="stockTransferTarget" required></select></label>
-      <label>Quantidade para transferir <input id="stockTransferQty" type="number" min="0.001" step="1" required></label>
-      <label>Motivo da transferência <textarea id="stockTransferReason" rows="2" minlength="5" maxlength="500" required placeholder="Ex.: Remanejamento para Afogados"></textarea></label>
+      <label>Galpão de origem <input id="stockTransferSource" readonly></label>
+      <label>Galpão de destino <select id="stockTransferTarget" required></select></label>
+      <label id="stockTransferQtyLabel">Quantidade para transferir <input id="stockTransferQty" type="number" min="1" step="1" inputmode="numeric" required></label>
+      <label>Motivo da transferência <textarea id="stockTransferReason" rows="2" minlength="5" maxlength="500" required placeholder="Ex.: Remanejamento para outro galpão"></textarea></label>
       <p id="stockTransferError" class="feedback" role="alert"></p>
       <div class="modalbuttons"><button id="stockTransferCancel" class="btn secondary" type="button">Cancelar</button><button id="stockTransferSave" class="btn primary" type="submit">Confirmar transferência</button></div>
     </form>
@@ -1691,7 +1691,7 @@
    <label>Galpão de origem <input id="stockObraTransferFromLocal" readonly></label>
    <label>Obra de destino <select id="stockObraTransferTarget" required></select></label>
    <label>Galpão de destino <select id="stockObraTransferToLocal" required></select></label>
-   <label>Quantidade para transferir <input id="stockObraTransferQty" type="number" min="0.001" step="1" required></label>
+   <label id="stockObraTransferQtyLabel">Quantidade para transferir <input id="stockObraTransferQty" type="number" min="1" step="1" inputmode="numeric" required></label>
    <label>Motivo <textarea id="stockObraTransferReason" minlength="5" maxlength="350" rows="2" required placeholder="Ex.: Remanejamento de material entre obras"></textarea></label>
    <p class="hint">O EWGEST baixa o saldo da origem e credita o destino na mesma operação, com histórico em ambas as obras.</p>
    <p id="stockObraTransferError" class="feedback" role="alert"></p>
@@ -8441,7 +8441,7 @@ function stockTransferPickOpen(mode){
   stockTransferPickCandidates=candidates;
   stockTransferPickMode=mode;
   node('stockTransferPickTitle').textContent=mode==='local'?
-    'Transferência de local de estoque':'Transferência entre obras';
+    'Transferência entre galpões':'Transferência entre obras';
   const seletor=node('stockTransferPickMaterial');
   seletor.replaceChildren(new Option('Selecione o material',''));
   candidates.forEach((r,i)=>{
@@ -8471,6 +8471,19 @@ node('stockTransferPickForm').addEventListener('submit',e=>{
   }
 });
 let stockTransferSelected=null,stockTransferOperationId=null;
+// Perfis são contados por barras inteiras; acessórios podem usar até três casas decimais.
+function stockTransferPrepararQuantidade(id,tipo,saldo){
+ const barra=tipo==='perfil',campo=node(id),saldoDisponivel=Number(saldo);
+ campo.min=barra?'1':'0.001';
+ campo.step=barra?'1':'0.001';
+ campo.max=String(saldoDisponivel);
+ campo.inputMode=barra?'numeric':'decimal';
+ campo.value=barra?'1':String(Number(Math.min(1,saldoDisponivel).toFixed(3)));
+ const label=node(id+'Label');
+ if(label)label.firstChild.textContent=barra?
+  'Quantidade para transferir (barras inteiras) ':
+  'Quantidade para transferir ';
+}
 function stockTransferOpen(variationId,length='',unit='',local='IMBIRIBEIRA'){
  if(!matIsAdmin()||stockLocais.some(l=>l.obra_id===node('stockWork').value&&l.excluido_em))return;
  const item=estoqueDados().find(x=>x.v.id===variationId);
@@ -8487,8 +8500,7 @@ function stockTransferOpen(variationId,length='',unit='',local='IMBIRIBEIRA'){
  node('stockTransferSource').value=local;
  node('stockTransferInfo').textContent=item.mat.codigo+' · '+item.mat.descricao+
    ' · '+(comprimento?comprimento+' mm · ':'')+'Saldo em '+local+': '+matFormat(saldo,3)+' '+unit;
- node('stockTransferQty').max=String(saldo);
- node('stockTransferQty').step=item.v.tipo==='perfil'?'1':'0.001';
+ stockTransferPrepararQuantidade('stockTransferQty',item.v.tipo,saldo);
  node('stockTransferError').textContent='';
  node('stockTransferOverlay').classList.remove('hidden');
 }
@@ -8503,8 +8515,10 @@ node('stockTransferForm').addEventListener('submit',async e=>{
  const qty=Number(node('stockTransferQty').value),dest=node('stockTransferTarget').value,
     motivo=node('stockTransferReason').value.trim(),isBar=selected.item.v.tipo==='perfil';
  if(!dest||dest===selected.local||!Number.isFinite(qty)||qty<=0||qty>selected.saldo||
-   (isBar&&!Number.isSafeInteger(qty))||motivo.length<5){
-  node('stockTransferError').textContent='Informe destino diferente, quantidade disponível e motivo (5 caracteres).';return;
+   qty>1000000||(isBar&&!Number.isSafeInteger(qty))||
+   (!isBar&&Math.abs(qty*1000-Math.round(qty*1000))>0.00001)||
+   motivo.length<5||motivo.length>500){
+  node('stockTransferError').textContent='Informe destino diferente, quantidade válida até o saldo disponível e motivo (5 a 500 caracteres). Perfis exigem barras inteiras.';return;
  }
  if(!window.confirm('Transferir '+qty+' '+selected.unit+' de '+selected.local+' para '+dest+'?'))return;
  const btn=node('stockTransferSave');btn.disabled=true;
@@ -8549,8 +8563,7 @@ function stockObraTransferOpen(variacaoId,comprimento='',unidade='',local=''){
  node('stockObraTransferToLocal').innerHTML='<option value="">Selecione o galpão de destino</option>'+
   stockLocaisFisicos.map(g=>'<option value="'+escapeHTML(g)+'">'+escapeHTML(g)+'</option>').join('');
  if(stockLocaisFisicos.includes(local))node('stockObraTransferToLocal').value=local;
- node('stockObraTransferQty').max=String(disponivel);
- node('stockObraTransferQty').step=item.v.tipo==='perfil'?'1':'0.001';
+ stockTransferPrepararQuantidade('stockObraTransferQty',item.v.tipo,disponivel);
  node('stockObraTransferInfo').textContent=item.mat.codigo+' · '+item.mat.descricao+
   ' · '+item.v.cor+(tamanho?' · '+tamanho.toLocaleString('pt-BR')+' mm':'')+
   ' · Disponível: '+matFormat(disponivel,item.v.tipo==='perfil'?0:3)+' '+unidade;
@@ -8577,7 +8590,7 @@ node('stockObraTransferForm').addEventListener('submit',async event=>{
    !stockLocaisFisicos.includes(localDestino)||!Number.isFinite(quantidade)||
    quantidade<=0||quantidade>sel.saldo||quantidade>1000000||
    (barra&&!Number.isSafeInteger(quantidade))||
-   (!barra&&Number(quantidade.toFixed(3))!==quantidade)||
+   (!barra&&Math.abs(quantidade*1000-Math.round(quantidade*1000))>0.00001)||
    motivo.length<5||motivo.length>350){
   erro.textContent='Selecione obra e galpão válidos, quantidade disponível e motivo (5 a 350 caracteres).';return;
  }

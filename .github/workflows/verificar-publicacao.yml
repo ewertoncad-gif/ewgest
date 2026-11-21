@@ -92,7 +92,7 @@ jobs:
           curl --fail --silent --show-error --location --max-time 20 \
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/assets/entregas-producao.css?verify=${GITHUB_SHA}" -o "$css"
-          grep -Fq 'v45.6' "$html"
+          grep -Fq 'v45.7' "$html"
           grep -Fq 'id="entregasProducaoPanel"' "$html"
           grep -Fq 'Estornar recebimento' "$html"
           grep -Fq 'ew_confirmar_entrega_producao' "$js"
@@ -116,7 +116,7 @@ jobs:
           curl --fail --silent --show-error --location --max-time 20 \
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/assets/romaneios-transferencia.css?verify=${GITHUB_SHA}" -o "$css"
-          grep -Fq 'v45.6' "$html"
+          grep -Fq 'v45.7' "$html"
           grep -Fq 'Transferência entre galpões' "$html"
           grep -Fq 'id="romTransfSection"' "$html"
           grep -Fq 'ew_romaneios_transferencia_juntar' "$js"
@@ -145,7 +145,7 @@ jobs:
           curl --fail --silent --show-error --location --max-time 20 \
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/assets/cadastros-pages.css?verify=${GITHUB_SHA}" -o "$css"
-          grep -Fq 'v45.6' "$html"
+          grep -Fq 'v45.7' "$html"
           grep -Fq 'id="fornecedoresPage"' "$html"
           grep -Fq 'id="galpoesPage"' "$html"
           grep -Fq 'id="insumosPage"' "$html"
@@ -173,9 +173,25 @@ jobs:
           curl --fail --silent --show-error --location --max-time 20 \
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/assets/recebimento-manual.js?verify=${GITHUB_SHA}" -o "$receipt"
-          grep -Fq 'v45.6' "$html"
+          grep -Fq 'v45.7' "$html"
           grep -Fq 'id="unidadesPage"' "$html"
           grep -Fq 'id="navUnidades"' "$html"
           grep -Fq 'ew_unidades_medida_gerenciar' "$units"
           grep -Fq 'ewUnidadesMedida?.lista()' "$receipt"
           echo 'PUBLICACAO CONFIRMADA: unidades de medida cadastraveis v45.6.'
+
+      - name: Conferir limites de barras inteiras nas transferencias v45.7
+        shell: bash
+        run: |
+          set -euo pipefail
+          html="$(mktemp)"
+          trap 'rm -f "$html"' EXIT
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/app.html?verify=${GITHUB_SHA}" -o "$html"
+          grep -Fq 'v45.7' "$html"
+          grep -Fq 'id="stockTransferQty" type="number" min="1" step="1"' "$html"
+          grep -Fq 'id="stockObraTransferQty" type="number" min="1" step="1"' "$html"
+          grep -Fq 'function stockTransferPrepararQuantidade' "$html"
+          grep -Fq "campo.value=barra?'1'" "$html"
+          echo 'PUBLICACAO CONFIRMADA: v45.7 — barras inteiras nas transferencias.'

@@ -2058,7 +2058,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v45.6')&&
+assert.ok(source.includes('v45.7')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2216,5 +2216,28 @@ assert.ok(unidadesSQL.includes("u.codigo=v_unit and u.ativo")&&
  unidadesSQL.includes("u.codigo=p_unidade and u.ativo")&&
  !/update\s+public\.ew_insumos_movimentos/i.test(unidadesSQL),
  'A nova unidade deve servir ao recebimento sem alterar saldo existente');
+
+
+// EWGEST v45.7 — transferir perfis em barras inteiras, nunca 0,001 barra.
+assert.ok(source.includes('id="stockTransferQty" type="number" min="1" step="1"')&&
+ source.includes('id="stockObraTransferQty" type="number" min="1" step="1"')&&
+ source.includes("function stockTransferPrepararQuantidade(id,tipo,saldo)")&&
+ source.includes("campo.min=barra?'1':'0.001'")&&
+ source.includes("campo.step=barra?'1':'0.001'")&&
+ source.includes("campo.value=barra?'1':String(Number(Math.min(1,saldoDisponivel).toFixed(3)))")&&
+ source.includes("stockTransferPrepararQuantidade('stockTransferQty',item.v.tipo,saldo)")&&
+ source.includes("stockTransferPrepararQuantidade('stockObraTransferQty',item.v.tipo,disponivel)")&&
+ source.includes("'Quantidade para transferir (barras inteiras) '")&&
+ source.includes("campo.max=String(saldoDisponivel)")&&
+ source.includes("(!isBar&&Math.abs(qty*1000-Math.round(qty*1000))>0.00001)")&&
+ source.includes("(barra&&!Number.isSafeInteger(quantidade))")&&
+ source.includes("node('stockTransferPickTitle').textContent=mode==='local'?")&&
+ source.includes("'Transferência entre galpões':'Transferência entre obras'"),
+ 'Transferencias devem iniciar em 1 barra e respeitar saldo; acessorios continuam fracionaveis');
+for(const id of ['stockTransferQtyLabel','stockObraTransferQtyLabel'])
+ assert.ok(source.includes('id="'+id+'"'),'Label de quantidade nao identificado: '+id);
+assert.ok(!source.includes('id="stockTransferQty" type="number" min="0.001" step="1"')&&
+ !source.includes('id="stockObraTransferQty" type="number" min="0.001" step="1"'),
+ 'Minimo de 0,001 nao pode ser aplicado a barras inteiras');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
