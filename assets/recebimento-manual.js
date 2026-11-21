@@ -228,7 +228,7 @@
   const body=byId('finMiscRows');if(!body)return;
   const units=['PC','UN','M2','MT','KG','CX','CJ','PR'];
   body.innerHTML=miscRows.map((m,i)=>'<tr data-misc-row="'+i+'">'+
-   '<td><input class="finMiscDescription" required maxlength="500" placeholder="Descrição do vidro ou insumo" value="'+escapeHTML(m.descricao)+'"></td>'+
+   '<td><input class="finMiscDescription" list="insumoCatalogoSugestoes" required maxlength="500" placeholder="Descrição e medidas do vidro ou insumo" value="'+escapeHTML(m.descricao)+'"></td>'+
    '<td><input class="finMiscQty" type="number" inputmode="decimal" min="0.001" max="1000000" step="0.001" required placeholder="Qtd." value="'+escapeHTML(m.quantidade)+'"></td>'+
    '<td><select class="finMiscUnit">'+units.map(u=>'<option value="'+u+'"'+(u===m.unidade?' selected':'')+'>'+(u==='M2'?'m²':u)+'</option>').join('')+'</select></td>'+
    '<td><input class="finMiscAmount" inputmode="decimal" required placeholder="R$ 0,00" value="'+escapeHTML(m.valor)+'"></td>'+
@@ -253,6 +253,8 @@
     throw Error('Quantidade inválida no item '+(i+1)+'.');
    if(!['PC','UN','M2','MT','KG','CX','CJ','PR'].includes(r.unidade))throw Error('Unidade inválida no item '+(i+1)+'.');
    if(centavos===null||centavos<0)throw Error('Subtotal inválido no item '+(i+1)+'.');
+   if(['PC','UN','CX','CJ','PR'].includes(r.unidade)&&!Number.isInteger(quantidade))
+    throw Error('Nesta unidade, informe quantidade inteira no item '+(i+1)+'.');
    const total=centavos/100;
    return {codigo:'',descricao,unidade:r.unidade,quantidade,
      valor_unitario:Math.round(total/quantidade*1e6)/1e6,valor_total:total};
@@ -283,11 +285,11 @@
   const hasStock=stockCategory();
   byId('finManualStockBlock').classList.toggle('hidden',!hasStock);
   byId('finMiscBlock').classList.toggle('hidden',hasStock);
-  byId('finManualLocalLabel').classList.toggle('hidden',!hasStock);
-  byId('finManualLocal').required=hasStock;
+  byId('finManualLocalLabel').classList.remove('hidden');
+  byId('finManualLocal').required=true;
   byId('finCostVendor').required=true;
   byId('finCostDate').required=true;
-  byId('finCostSubmit').textContent=hasStock?'Registrar nota e entrada no estoque':'Registrar itens e nota (sem entrada em estoque)';
+  byId('finCostSubmit').textContent=hasStock?'Registrar nota e entrada no estoque':'Registrar itens e nota com entrada no estoque físico';
   byId('finCostTotal').readOnly=true;
   byId('finCostTotal').title='Calculado automaticamente pela soma dos valores dos itens.';
   const list=hasStock?getMaterials():[];
@@ -297,7 +299,7 @@
    (list.length?
     'Somente materiais cadastrados nesta obra aparecem na lista. Necessidade: quantitativos do CEM. Já recebido: entradas físicas registradas por nota. Confirme quantidade e galpão antes de gravar.':
     'Esta obra não possui materiais desta categoria vinculados à sua lista técnica. Não é possível dar entrada por este formulário.'):
-   'Vidros e outros insumos são discriminados na nota, sem saldo físico automático enquanto não existir catálogo próprio destes materiais.';
+   'Vidros e outros insumos geram saldo físico por obra, unidade e galpão após confirmação da NF. Informe a descrição completa, medidas e espessura quando aplicável.';
   // Campos obrigatórios ocultos continuam participando da validação HTML.
   // Desmontar as linhas inativas evita bloquear a nota pela categoria anterior.
   if(hasStock){
@@ -430,6 +432,7 @@
    }else{
     if(!vendor||!(finState.fornecedores||[]).some(f=>f.nome===vendor))
      throw Error('Selecione um fornecedor cadastrado.');
+    if(!location)throw Error('Selecione o galpão em que os vidros/insumos chegaram fisicamente.');
     items=miscNormalized();
     if(items.reduce((a,i)=>a+Math.round(i.valor_total*100),0)!==note)
      throw Error('A soma dos itens não confere com o valor total da nota.');
@@ -442,11 +445,11 @@
    'O estoque receberá o comprimento real informado, sem alterar o planejamento original.':'';
   const text='Registrar nota '+number+' no valor de '+finMoney(note/100)+' para esta obra?'+
    (hasStock?'\n\nIsto dará entrada IMEDIATA de '+items.length+' material(is) no estoque da obra, galpão '+location+'.':
-    '\n\nEsta operação registrará somente a despesa; NÃO movimentará estoque.')+
+    '\n\nIsto dará entrada IMEDIATA de '+items.length+' item(ns) físicos em '+location+', além do registro financeiro.')+
    avisoMedidas+'\n\nConfirme apenas itens e quantidades realmente recebidos.';
   if(!window.confirm(text))return;
   btn.disabled=true;finCostOpId ||= crypto.randomUUID();
-  el.textContent=hasStock?'Registrando nota e estoque na mesma operação…':'Registrando despesa…';
+  el.textContent='Registrando nota e estoque na mesma operação…';
   try{
    await ensureSession();
    let response;
@@ -461,10 +464,9 @@
      body:{...common,p_local_estoque:location,p_itens:items}
     });
    }else{
-    response=await request(isAlmoxarife()?
-     '/rest/v1/rpc/ew_receber_despesa_com_itens_almox':'/rest/v1/rpc/ew_registrar_despesa_financeira',{
+    response=await request('/rest/v1/rpc/ew_insumos_receber',{
      method:'POST',token:session.access_token,timeoutMs:90000,
-     body:isAlmoxarife()?{...common,p_itens:items}:{...common,p_origem:'manual',p_chave_nfe:null,p_itens:items}
+     body:{...common,p_itens:items,p_local_estoque:location}
     });
    }
    const repeated=Boolean(response?.ja_registrado);
@@ -473,7 +475,7 @@
    byId('recebimentoMessage').textContent=repeated?
     'Este lançamento já constava registrado; o estoque não foi duplicado.':
     hasStock?'Nota registrada e materiais recebidos: o estoque físico da obra foi atualizado.':
-    'Despesa registrada sem movimentação de estoque.';
+    'Nota registrada e vidros/insumos adicionados ao estoque físico da obra.';
   }catch(e){
    el.textContent='Falha ou resposta inconclusiva: '+e.message+
     '. Confira o histórico antes de repetir; a operação impede duplicidade por identificador.';

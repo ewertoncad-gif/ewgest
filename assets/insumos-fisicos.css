@@ -1,0 +1,20 @@
+/* EWGEST #34 — vidros e outros insumos físicos */
+.insumosStockTable{min-width:720px}
+.insumosStockTable th,.insumosStockTable td{vertical-align:top}
+.insumosStockTable th:nth-child(2){width:42%}
+.insumosHistoryTable{min-width:880px}
+.insumosHistoryTable th:nth-child(1){width:28%}
+.insumosCatalogRow{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.insumosCatalogRow div{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#cadastroInsumosForm .finFormRows{margin:8px 0 12px}
+#cadastroInsumosList{margin-top:14px}
+#insumosTransferFormPanel .finFormRows{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+#insumosTransferFormPanel{margin-top:15px}
+#insumosTransferFormPanel textarea{min-height:65px}
+#insumosTransferFormPanel .topactions{margin-top:12px}
+@media(max-width:760px){
+  #insumosStockPanel{min-width:0;overflow:hidden}
+  #insumosTransferFormPanel .finFormRows,#cadastroInsumosForm .finFormRows{grid-template-columns:1fr}
+  .insumosStockTable{min-width:690px}
+  .insumosHistoryTable{min-width:760px}
+}

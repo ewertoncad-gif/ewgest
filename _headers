@@ -37,3 +37,11 @@
 /assets/recebimento-manual.css
   Content-Type: text/css; charset=utf-8
   Cache-Control: no-store
+
+/assets/insumos-fisicos.js
+  Content-Type: text/javascript; charset=utf-8
+  Cache-Control: no-store
+
+/assets/insumos-fisicos.css
+  Content-Type: text/css; charset=utf-8
+  Cache-Control: no-store
