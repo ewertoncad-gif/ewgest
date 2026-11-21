@@ -140,3 +140,21 @@ O banco `ewgest-restauracao-teste` possui estruturas simuladas criadas exclusiva
 ## Interface simplificada — 21/11/2026
 
 Não criar botão adicional de recuperação do CEM no Financeiro. Para obras antigas sem plano de barras, mostrar somente **Plano de barras não importado**. A importação já está disponível no menu **Importar arquivo técnico**. Reimportar o ZIP original para a obra existente com somente **Perfis** marcado e Esquadrias/Acessórios desmarcados, sem excluir a obra. Quando o plano for salvo, comprimento predefinido e editável na compra. Não presumir comprimento a partir de cortes ou outras obras. Nenhuma movimentação de estoque físico nesta alteração.
+
+## Ajustes de recebimento e estoque — 21/11/2026
+
+- **Valor total da nota para entrada física:** soma automaticamente os subtotais informados nas linhas de materiais enquanto o usuário preenche, altera, inclui ou remove itens. O total deixa de ser digitado separadamente no recebimento de perfis/acessórios. Para despesas sem entrada física (vidros/outros), o valor continua editável, preservando o fluxo existente.
+- **Fornecedor:** a entrada manual passa a oferecer somente seleção de fornecedores ativos da empresa, com ação `+ Novo` que cadastra fornecedor na tabela `ew_fornecedores`, isolada por empresa e protegida por RLS. O valor gravado na NF continua sendo o nome do fornecedor compatível com a RPC atual; a nova tabela não reescreve notas existentes.
+- **Galpão:** reutiliza `ew_locais_fisicos` (AFOGADOS/IMBIRIBEIRA e futuros locais) para selecionar. `+ Novo` chama o mesmo cadastro do módulo Estoque, sem duplicar tabela nem migrar saldos.
+- **Data da nota:** é inicializada com a data local do navegador quando o formulário abre, permanecendo editável pelo usuário. Não usa a data UTC do servidor para evitar mudanças de dia no fuso do Recife.
+- **Quantidade necessária no Estoque:** para perfil, a fonte passa a ser `ew_cem_obras_materiais.barras_planejadas` por variação e comprimento, jamais `quantidade_prevista` de cortes. Se houver 2 barras de 6.000 mm no CEM e 1 barra fisicamente em estoque, exibir **2 barras necessárias** / **1 barra em estoque** / **recebimento parcial**. Para múltiplos comprimentos, exibir cada necessidade separadamente inclusive quando ainda não chegou barra; nunca criar saldo físico fictício.
+- **Sem plano:** mostrar `Não importado` na necessidade, sem inferir barras por metros/cortes nem criar botão adicional de recuperação.
+- **Acessórios:** preservam a quantidade prevista na unidade do cadastro (PC, MT, etc.).
+
+**Segurança:** a única migração é aditiva para `ew_fornecedores`; nenhum lançamento de NF, obra, galpão existente ou saldo de estoque deve ser alterado por essa atualização. Conferir RLS e pipeline CI antes de integrar.
+
+### Implantação verificada — cadastro de fornecedores (21/11/2026)
+
+- Migração **`20261121102710_ew_fornecedores_por_empresa_rls_20261121`** aplicada no Supabase de produção, com SQL versionado em `supabase/migrations/`. Tabela `ew_fornecedores` criada vazia, com 3 políticas RLS ativas; `anon` não possui leitura e a equipe autenticada consulta apenas fornecedores de sua empresa; escrita somente para ADM.
+- Validação em banco de testes: CREATE TABLE e RLS em transação revertida, sem permanência da tabela de teste. Consulta de produção antes/depois: **5 obras, 631 materiais, 635 movimentos de estoque, 1 recebimento por NF, 2 galpões** — contagens mantidas; **0 fornecedores cadastrados inicialmente**.
+- A coluna Quantidade necessária do estoque dos perfis é renderizada por medida usando barras planejadas do CEM: não incluir cortes, não somar metragens de aproveitamento e não alterar saldos físicos. Os arquivos de interface são publicados quando a PR for integrada à `main`, e o deploy Cloudflare deverá ser conferido no site.
