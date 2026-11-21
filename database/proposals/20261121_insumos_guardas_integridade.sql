@@ -187,5 +187,4 @@ begin
  end if;
  return jsonb_build_object('acao','editado','tipo',p_tipo,'nome',v_novo);
 end
-$function$
-
+$function$;
