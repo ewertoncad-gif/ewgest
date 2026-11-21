@@ -83,7 +83,7 @@ begin
   where transferencia_id=new.transferencia_id) then return new;end if;
  select coalesce(p.codigo,a.codigo,'SEM CODIGO'),
    coalesce(p.descricao,a.descricao,'Material sem descricao'),
-   coalesce(nullif(v.cor,''),nullif(v.acabamento,''),'')
+   coalesce(nullif(to_jsonb(v)->>'cor',''),nullif(to_jsonb(v)->>'acabamento',''),'')
  into v_codigo,v_descricao,v_cor
  from public.ew_materiais_variacoes v
  left join public.ew_perfis p on p.id=v.perfil_id
