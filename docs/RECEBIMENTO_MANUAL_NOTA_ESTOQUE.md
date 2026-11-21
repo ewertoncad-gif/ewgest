@@ -175,3 +175,13 @@ Não criar botão adicional de recuperação do CEM no Financeiro. Para obras an
 A barra lateral exibe **Cadastros do sistema** em substituição aos acessos isolados a materiais, fabricantes, tipologias e usuários. A página oferece atalhos para **Perfis, Acessórios, Tipologias, Fabricantes, Fornecedores, Galpões e Usuários**. A navegação técnica reutiliza as páginas já existentes; os dois cadastros simples usam as tabelas existentes `ew_fornecedores` e `ew_locais_fisicos`, isoladas por empresa, sem duplicação.
 
 **Homologação:** testes de JS e SQL com dados sintéticos; o SQL em QA fez transferência de barras e acessórios, verificou saldo insuficiente, operação duplicada, rejeição de barra fracionária e obra de outra empresa; em teste separado, o estorno recuperou ambas as pontas e recusou desfazer quando já houve consumo no destino. Ambos concluíram com `ROLLBACK` e sem persistir objetos de teste. Teste real pelo navegador e confirmação de Cloudflare pendentes.
+
+
+### Migração de transferências entre obras aplicada no banco — 21/11/2026
+
+- Supabase produção: migração `20261121134428_transferencia_entre_obras_estorno_e_guardas_20261121`, versionada em `supabase/migrations/`.
+- Conferência de funções e permissões: RPCs de transferência e estorno presentes; execução permitida ao papel `authenticated` (sujeita às verificações de empresa/sessão/perfil dentro das funções) e negada ao `anon`. Guardas instaladas em `ew_estornar_estoque_obra` e `ew_excluir_estoque_local`.
+- **Antes e depois:** 5 obras, 631 materiais técnicos, 635 movimentos de estoque, 1 recebimento por NF, 5 registros de estoques e 2 galpões. Os quantitativos permanecem iguais após a migração, que não movimenta materiais.
+- QA das funções de transferência e estorno: testes com dados fictícios em banco de testes, em transações revertidas, e ensaio de compilação SQL em produção usando `BEGIN/ROLLBACK` antes de aplicar.
+- GitHub CI confirma sintaxe e comportamento esperado da interface. A publicação no Cloudflare e o ensaio real de transferência entre duas obras com saldo ainda precisam ser verificados pelo navegador autenticado.
+- As funções anteriores de estorno total e arquivamento estão em `database/rollback/` para uma reversão consciente e auditada. Não remover os novos movimentos nem suas referências para reverter código.
