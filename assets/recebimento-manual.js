@@ -25,6 +25,12 @@
   const value=toMoney(el.value);
   if(cents(value)!==null)el.value=value;
  }
+ // Quantidade recebida de barras: número natural positivo, nunca fração,
+ // negativo, notação científica nem quantidade interpretada como decimal.
+ function isNaturalBarQuantity(value){
+  const raw=String(value??'').trim(),number=Number(raw);
+  return /^[0-9]+$/.test(raw)&&Number.isSafeInteger(number)&&number>=1&&number<=1000000;
+ }
  function stockCategory(){return category==='aluminio'||category==='acessorios'}
  function plannedRows(matId='',variationId=''){
   if(!finState)return [];
@@ -199,8 +205,10 @@
     stats('<strong>'+escapeHTML(q.needed)+'</strong>')+
     stats('<strong>'+escapeHTML(q.received)+'</strong>')+
     stats('<strong>'+escapeHTML(q.pending)+'</strong>')+
-    '<td><input class="finManualQty" type="number" min="0.001" step="'+(category==='aluminio'?'1':'0.001')+
-    '" required placeholder="Qtd." value="'+escapeHTML(row.quantidade)+'" aria-label="Recebendo agora '+(i+1)+'"></td>'+
+    '<td><input class="finManualQty" '+(category==='aluminio'?
+     'type="text" inputmode="numeric" pattern="[0-9]*" maxlength="7" title="Somente barras inteiras: 1, 2, 3..."':
+     'type="number" inputmode="decimal" min="0.001" step="0.001"')+
+    ' required placeholder="Qtd." value="'+escapeHTML(row.quantidade)+'" aria-label="Recebendo agora '+(i+1)+'"></td>'+
     '<td class="hint">'+escapeHTML(unit||'—')+'</td>'+
     '<td><input class="finManualSubtotal" type="text" inputmode="decimal" required placeholder="R$ 0,00" value="'+escapeHTML(row.valor)+'" aria-label="Subtotal do material '+(i+1)+'"></td>'+
     '<td><button class="btn secondary" type="button" data-manual-remove="'+i+'">Remover</button></td></tr>';
@@ -260,6 +268,8 @@
   if(!mat||!variacao)throw new Error('Escolha material e cor/variação na linha '+(i+1)+'.');
   const rawQty=String(row.quantidade).trim(),qty=Number(rawQty);
   const amount=cents(row.valor);
+  if(category==='aluminio'&&!isNaturalBarQuantity(rawQty))
+   throw new Error('Quantidade de barras: informe somente números inteiros positivos (1, 2, 3...).');
   if(!rawQty||!Number.isFinite(qty)||qty<=0||qty>1000000||
     Math.abs(qty*1000-Math.round(qty*1000))>0.00001)
    throw new Error('Quantidade física inválida na linha '+(i+1)+'.');
@@ -439,7 +449,18 @@
  byId('finManualRows').addEventListener('input',event=>{
   const tr=event.target.closest('[data-manual-row]');if(!tr)return;
   const r=rows[Number(tr.dataset.manualRow)];if(!r)return;
-  if(event.target.matches('.finManualQty'))r.quantidade=event.target.value;
+  if(event.target.matches('.finManualQty')){
+   const value=event.target.value;
+   if(category==='aluminio'&&!/^[0-9]*$/.test(value)){
+    // Não transformar "3,001" em 3001 silenciosamente:
+    // restaurar o último valor válido e orientar o usuário.
+    event.target.value=r.quantidade||'';
+    byId('finCostMessage').textContent=
+     'Quantidade de barras: use apenas números inteiros positivos (1, 2, 3...).';
+    return;
+   }
+   r.quantidade=value;
+  }
   if(event.target.matches('.finManualLength')){
    r.comprimento=event.target.value;
    // Atualiza os indicadores sem recriar o campo durante a digitação.
