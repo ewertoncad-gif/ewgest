@@ -1656,12 +1656,20 @@ assert.equal(unknown.pending,'—');
 assert.equal(unknown.received,'2 barras');
 assert.ok(unknown.note.includes('não importadas'), 'Ausência de NUMBARRAS/BARRA deve ser explícita');
 assert.equal(noImport.selectOptions()[0].length,null,'Sem barras do CEM não inventar tamanho');
+const noPlanRow=noImport.quantityData({material:'p1',variacao:'v1',selectionKey:'v1|',comprimento:''});
+assert.deepEqual([noPlanRow.needed,noPlanRow.received,noPlanRow.pending],
+ ['Não importado','5 barras','—'],
+ 'Sem plano de barras, recebido em nota permanece visível sem presumir necessidade');
+assert.ok(!receiveScript.includes('Informe a barra')&&
+ !receiveScript.includes('Escolher tamanho da barra não informado no CEM')&&
+ !receiveScript.includes('placeholder="Não consta do CEM"'),
+ 'Recebimento não deve pedir comprimento manual na falta de plano do CEM');
 assert.equal(noImport.autoBarLength({material:'p1',variacao:'v1',selectionKey:'v1|'}),null,
  'Sem barra importada e sem cadastro, comprimento permanece não informado');
 const cad=mockResolver({...fixture,barrasCem:[],
  perfis:[{...fixture.perfis[0],comprimento_comercial_mm:5500},fixture.perfis[1]]},'aluminio');
-assert.equal(cad.autoBarLength({material:'p1',variacao:'v1',selectionKey:'v1|'}),5500,
- 'Comprimento cadastrado pode preencher a medida quando não existe no CEM');
+assert.equal(cad.autoBarLength({material:'p1',variacao:'v1',selectionKey:'v1|'}),null,
+ 'Comprimento comercial genérico não substitui o plano de barras do CEM');
 const accessor=mockResolver(fixture,'acessorios');
 assert.deepEqual(accessor.getMaterials().map(x=>x.id),['a1']);
 const acc=accessor.quantityData({material:'a1',variacao:'va1'});
