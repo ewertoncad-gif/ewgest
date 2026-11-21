@@ -3,7 +3,7 @@
 (function(){
  'use strict';
  const byId=id=>document.getElementById(id);
- const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','&#39;':'&#39;'}[c]));
+ const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"\u0027":'&#39;'}[c]));
  const defaults=[
   {codigo:'PC',nome:'Peça',ativo:true,padrao:true},
   {codigo:'UN',nome:'Unidade',ativo:true,padrao:true},
