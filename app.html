@@ -778,6 +778,7 @@
         <div class="topactions" style="justify-content:flex-start;margin-top:7px">
           <select id="recebimentoWork" style="min-width:250px;max-width:470px"><option value="">Escolha a obra</option></select>
           <button class="btn secondary" type="button" id="recebimentoRefresh">Atualizar materiais</button>
+          <button class="btn secondary hidden" type="button" id="recebimentoXmlLegacy">Enviar XML para conferência</button>
         </div>
         <p class="feedback" id="recebimentoMessage" role="status"></p>
       </div>
@@ -2377,6 +2378,7 @@ async function loadPanel(){
   node('navRomaneios').classList.toggle('hidden',!podeEmitirRomaneio());
   node('navEnviarNotas').classList.add('hidden'); // Fluxo antigo preservado internamente; nova entrada no Recebimento.
   node('navRecebimento').classList.toggle('hidden',!(isAlmoxarife()||isFullAdminUser()));
+  node('recebimentoXmlLegacy').classList.toggle('hidden',!isAlmoxarife());
   for(const id of ['navCadastros','navTypologies','navManufacturers','navMaterials','navAccessories','navStock','navCem','navUsers','navManageWorks','navFinanceiro'])node(id).classList.toggle('hidden',!adminNav);
   node('openRomaneioHub').classList.toggle('hidden',!podeEmitirRomaneio()||somenteRomaneios);
   node('topTag').textContent=somenteRomaneios?'Romaneios e expedição':'Gestão de obras · liberações e saídas';
@@ -7775,6 +7777,7 @@ node('navFinanceiro').addEventListener('click',()=>abrirFinanceiro());
 node('navRecebimento').addEventListener('click',()=>abrirRecebimento());
 node('recebimentoWork').addEventListener('change',()=>carregarRecebimento());
 node('recebimentoRefresh').addEventListener('click',()=>carregarRecebimento());
+node('recebimentoXmlLegacy').addEventListener('click',abrirAlmoxNotas);
 node('finWork').addEventListener('change',()=>{finCostOpId=null;finBillingOpId=null;finLoad();});
 node('finRefresh').addEventListener('click',finLoad);
 node('finBillingCategory').addEventListener('change',finRenderFaturaveis);
