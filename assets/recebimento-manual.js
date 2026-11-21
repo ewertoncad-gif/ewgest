@@ -101,15 +101,17 @@
    const planned=plannedBarRows(row.variacao)
     .filter(x=>Number(x.comprimento_mm)===length);
    const hasPlan=planned.length>0;
+   const hasAnyPlan=plannedBarRows(row.variacao).length>0;
    const expected=planned.reduce((sum,x)=>sum+Number(x.quantidade_delta||0),0);
    const received=registered.filter(x=>x.unidade==='BARRA'&&Number(x.comprimento_mm)===length)
     .reduce((sum,x)=>sum+Number(x.quantidade||0),0);
    return {
-    needed:hasPlan?barLabel(expected):(plannedBarRows(row.variacao).length?'Não planejado':'Não importado'),
+    needed:hasPlan?barLabel(expected):(hasAnyPlan?'Não planejado':'Não importado'),
     received:barLabel(received),
     pending:hasPlan?barLabel(Math.max(0,expected-received)):'—',
     note:hasPlan?'Quantidade de barras planejada no CEM, sem confundir com saldo físico.':
-     'Comprimento fora do plano do CEM (ou plano não importado). A nota pode registrar a barra real sem alterar a necessidade original.'
+     hasAnyPlan?'Comprimento não planejado para este perfil e cor. A barra real pode ser recebida sem alterar o plano.':
+      'Barras necessárias não importadas para esta obra. Informe o comprimento real recebido; a entrada não cria necessidade planejada.'
    };
   }
   const wanted=new Map(),invoices=new Map();
