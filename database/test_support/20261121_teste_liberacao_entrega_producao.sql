@@ -15,9 +15,9 @@ begin
  insert into public.obras(id,empresa_id,codigo,nome)
  values(v_obra,v_empresa,'LIB-01','OBRA FICTICIA ENTREGA');
  insert into public.usuarios_empresas(empresa_id,usuario_id,perfil)
- values(v_empresa,v_user,'tecnico');
+ values(v_empresa,v_user,'supervisor');
  insert into public.usuarios_login(usuario_id,empresa_id,perfil,ativo,login,nome)
- values(v_user,v_empresa,'tecnico',true,'tecnico-teste','TÉCNICO TESTE');
+ values(v_user,v_empresa,'supervisor',true,'supervisor-teste','TÉCNICO TESTE');
  insert into public.esquadrias(id,empresa_id,obra_id,codigo,descricao,
   largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada)
  values(v_esq1,v_empresa,v_obra,'EA1','JANELA TESTE',1000,1000,1,0,0),
