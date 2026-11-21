@@ -2011,7 +2011,7 @@
         <button id="releaseAddMaterial" class="btn secondary" type="button">+ Adicionar material à liberação</button>
       </div>
       <div id="releaseError" class="feedback" role="alert"></div>
-      <div class="modalbuttons"><button type="button" id="releaseCancel" class="btn secondary">Cancelar</button><button type="submit" id="releaseSave" class="btn primary">Conferir e confirmar liberação</button></div>
+      <div class="modalbuttons"><button type="button" id="releaseCancel" class="btn secondary">Cancelar</button><button type="submit" id="releaseSave" class="btn primary">Confirmar liberação técnica</button></div>
     </form>
   </div>
 </div>
@@ -4186,81 +4186,113 @@ async function confirmReleaseCancelAll(){
 }
 node('releaseCancelAllClose').addEventListener('click',closeReleaseCancelAll);
 node('releaseCancelAllConfirm').addEventListener('click',confirmReleaseCancelAll);
+function releaseComponentSaldo(partes,tipo){
+ return tipo==='completo'?partes.saldoCompleto:
+  tipo==='marco'?partes.saldoMarco:tipo==='folhas'?partes.saldoFolhas:0;
+}
+function releaseComponentAtualizar(){
+ if(!selectedItem)return;
+ const parts=releaseParts(selectedItem);
+ const tipo=node('releaseComponent').value;
+ const pending=releaseComponentSaldo(parts,tipo);
+ const qty=node('releaseQty');
+ qty.max=String(pending);
+ if(!tipo||pending<=0)qty.value='';
+ else if(!Number.isSafeInteger(Number(qty.value))||Number(qty.value)<1||Number(qty.value)>pending)
+  qty.value='1';
+ node('releaseComponentBalance').textContent=
+  'Marcos liberados: '+parts.marcos+'/'+selectedItem.quantidade+
+  ' · Conjuntos das folhas liberados: '+parts.folhas+'/'+selectedItem.quantidade+
+  (tipo?' · Disponíveis nesta opção: '+pending:' · Selecione a parte a liberar.');
+}
 function openRelease(id){
-  if(!['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
-  selectedItem=elements.find(e=>e.id===id);if(!selectedItem)return;
-  const pending=Number(selectedItem.quantidade)-Number(selectedItem.qtd_liberada);
-  if(pending<=0)return;
-  releaseOperationId=crypto.randomUUID();releaseCatalogReady=false;releaseMirrorData=[];releaseMirrorSaldo=new Map();
-  releaseCemChecked=false;releaseCemFileName='';
-  node('releaseItem').textContent=selectedItem.codigo+' · '+labeledDescription(selectedItem)+' · '+(selectedItem.localizacao||'');
-  node('releaseBalance').textContent='Aguardando liberação: '+pending+' de '+selectedItem.quantidade+' unidades.';
-  node('releaseQty').value='';node('releaseQty').max=String(pending);
-  node('releaseDate').value=todayLocal();node('releaseFactory').value='';node('releaseError').textContent='';
-  node('releaseMirrorRows').innerHTML='';node('releaseCemZip').value='';node('releaseCemPreview').classList.add('hidden');
-  document.querySelectorAll('input[name="releaseMethod"]').forEach(x=>x.checked=false);
-  node('releaseMirrorPanel').classList.add('hidden');node('releaseModal').classList.remove('hidden');
-  node('releaseQty').focus();
+ if(!['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
+ selectedItem=elements.find(e=>e.id===id);if(!selectedItem)return;
+ const parts=releaseParts(selectedItem);
+ if(Math.max(parts.saldoCompleto,parts.saldoMarco,parts.saldoFolhas)<=0)return;
+ releaseOperationId=crypto.randomUUID();
+ node('releaseItem').textContent=selectedItem.codigo+' · '+labeledDescription(selectedItem)+' · '+(selectedItem.localizacao||'');
+ node('releaseBalance').textContent='Esquadrias: '+selectedItem.quantidade+
+  ' · Marcos liberados: '+parts.marcos+' · Conjuntos de folhas liberados: '+parts.folhas+'.';
+ const select=node('releaseComponent');
+ const permitePartes=Boolean(suggestedLeaves(selectedItem))&&!ehMaximArRomaneio(selectedItem);
+ for(const option of select.options){
+  if(!option.value)continue;
+  option.disabled=releaseComponentSaldo(parts,option.value)<=0||
+   (!permitePartes&&option.value!=='completo');
+  option.hidden=!permitePartes&&option.value!=='completo';
+ }
+ select.value=permitePartes?'':'completo';
+ node('releaseQty').value='';
+ node('releaseDate').value=todayLocal();
+ node('releaseFactory').value='';
+ node('releaseError').textContent='';
+ node('releaseMirrorPanel').classList.add('hidden');
+ node('releaseModal').classList.remove('hidden');
+ releaseComponentAtualizar();
+ (select.value?node('releaseQty'):select).focus();
 }
 function closeRelease(){node('releaseModal').classList.add('hidden');selectedItem=null;}
 node('releaseCancel').addEventListener('click',closeRelease);
-document.querySelectorAll('input[name="releaseMethod"]').forEach(x=>x.addEventListener('change',releaseMetodoAtualizar));
-node('releaseAddMaterial').addEventListener('click',()=>releaseAddRow());
-node('releaseCemRead').addEventListener('click',releaseLerCem);
-node('releaseCemZip').addEventListener('change',()=>{releaseCemChecked=false;releaseCemFileName='';node('releaseCemPreview').classList.add('hidden');});
+node('releaseComponent').addEventListener('change',releaseComponentAtualizar);
+// O formulário manual de materiais permanece indisponível neste fluxo.
+// A liberação técnica não baixa estoque; o almoxarife confirma a entrega em Recebimento.
 node('releaseForm').addEventListener('submit',async event=>{
-  event.preventDefault();if(!selectedItem)return;
-  const qty=Number(node('releaseQty').value),date=node('releaseDate').value;
-  const fabrica=node('releaseFactory').value;
-  const pending=Number(selectedItem.quantidade)-Number(selectedItem.qtd_liberada);
-  const metodo=document.querySelector('input[name="releaseMethod"]:checked')?.value;
-  if(!Number.isSafeInteger(qty)||qty<=0||qty>pending){
-    node('releaseError').textContent='Quantidade inválida. Máximo: '+pending+'.';return;}
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date>todayLocal()){
-    node('releaseError').textContent='Data inválida ou futura.';return;}
-  if(!['AFOGADOS','IMBIRIBEIRA'].includes(fabrica)){
-    node('releaseError').textContent='Escolha Afogados ou Imbiribeira.';return;}
-  if(!metodo){node('releaseError').textContent='Escolha como deseja fazer a liberação.';return;}
-  let materiais=[];
+ event.preventDefault();if(!selectedItem)return;
+ const qty=Number(node('releaseQty').value),date=node('releaseDate').value;
+ const fabrica=node('releaseFactory').value,componente=node('releaseComponent').value;
+ const pending=releaseComponentSaldo(releaseParts(selectedItem),componente);
+ if(!['completo','marco','folhas'].includes(componente)||
+    node('releaseComponent').selectedOptions[0]?.disabled){
+  node('releaseError').textContent='Selecione a parte da esquadria que será liberada.';return;
+ }
+ if(!Number.isSafeInteger(qty)||qty<=0||qty>pending){
+  node('releaseError').textContent='Quantidade inválida para esta parte. Máximo: '+pending+'.';return;
+ }
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date>todayLocal()){
+  node('releaseError').textContent='Data inválida ou futura.';return;
+ }
+ if(!['AFOGADOS','IMBIRIBEIRA'].includes(fabrica)){
+  node('releaseError').textContent='Escolha Afogados ou Imbiribeira.';return;
+ }
+ const escopo={completo:'esquadria completa (100%)',marco:'somente marco (50%)',
+  folhas:'conjunto das folhas (50%)'}[componente];
+ if(!window.confirm('Confirma a liberação de '+qty+' unidade(s) da parte '+escopo+
+     ' de '+selectedItem.codigo+' para '+fabrica+'?\n\n'+
+     'Nenhum material será baixado do estoque agora. A baixa é feita pelo almoxarife na entrega à produção.'))return;
+ const button=node('releaseSave');button.disabled=true;button.textContent='Registrando…';
+ node('releaseError').textContent='';
+ try{
+  await ensureSession();
+  const ans=await request('/rest/v1/rpc/ew_liberar_plano_corte_componente',{
+   method:'POST',token:session.access_token,timeoutMs:45000,
+   body:{p_esquadria_id:selectedItem.id,p_quantidade:qty,p_data_liberacao:date,
+    p_fabrica:fabrica,p_materiais:[],p_fonte:'SEM_BAIXA',p_arquivo_nome:null,
+    p_operacao_id:releaseOperationId,p_componente:componente}});
+  const workId=selectedItem.obra_id;
+  closeRelease();
+  node('detailError').textContent=ans.repetida?
+   'Esta liberação já havia sido registrada. Nenhuma nova operação foi efetuada.':
+   'Liberação técnica registrada: '+qty+' unidade(s) · '+escopo+'. Nenhum material baixado.';
   try{
-    if(metodo!=='sem'){
-      if(!releaseCatalogReady)throw new Error('Os materiais ainda não foram carregados.');
-      if(metodo==='cem'&&!releaseCemChecked)throw new Error('Analise o arquivo ZIP ou selecione a liberação manual.');
-      materiais=releaseColetarMateriais();
-    }
-  }catch(err){node('releaseError').textContent=err.message;return;}
-  const aviso='Confirma a liberação de '+qty+' unidade(s) de '+selectedItem.codigo+
-    ' para '+fabrica+'?\n'+(materiais.length?'Serão listadas '+materiais.length+' linha(s) para entrega futura pelo almoxarife. Sem baixa agora.':
-      'Esta liberação não terá materiais a entregar.')+
-    '\nA baixa só ocorrerá quando o almoxarife confirmar a entrega física.';
-  if(!window.confirm(aviso))return;
-  const button=node('releaseSave');button.disabled=true;button.textContent='Registrando…';
-  node('releaseError').textContent='';
-  try{
-    await ensureSession();
-    // Mesmo registro de registrar_liberacao_corte_fabrica, com revisão de materiais na mesma transação.
-    const ans=await request('/rest/v1/rpc/ew_liberar_plano_corte_revisado',{method:'POST',
-      token:session.access_token,timeoutMs:45000,
-      body:{p_esquadria_id:selectedItem.id,p_quantidade:qty,p_data_liberacao:date,
-        p_fabrica:fabrica,p_materiais:materiais,
-        // Arquivo CEM serve de referência. Até validar exportação de plano otimizado, o consumo é manual.
-        p_fonte:materiais.length?'MANUAL':'SEM_BAIXA',
-        p_arquivo_nome:metodo==='cem'?releaseCemFileName:null,p_operacao_id:releaseOperationId}});
-    const workId=selectedItem.obra_id;
-    closeRelease();
-    node('detailError').textContent=ans.repetida?
-      'Esta operação já havia sido registrada. Nenhuma nova baixa foi efetuada.':
-      'Liberação registrada ('+qty+' unidade(s)) e '+(ans.linhas_baixadas||0)+' linha(s) de material baixada(s). Atualizando…';
-    try{await loadPanel();const w=works.find(x=>x.id===workId);
-      if(w){renderDetail(w);node('detailError').textContent=ans.repetida?
-        'Operação já registrada anteriormente; sem nova baixa.':
-        'Liberação confirmada: '+qty+' unidade(s), fábrica '+fabrica+'; '+(ans.linhas_baixadas||0)+' material(is) baixado(s).';}}
-    catch(e){node('detailError').textContent='Liberação salva, mas atualização falhou: '+e.message+'. Não repita o lançamento.';}
+   await loadPanel();
+   const w=works.find(x=>x.id===workId);
+   if(w){
+    detailMode='release';renderDetail(w);
+    node('detailError').textContent=ans.repetida?'Operação já registrada, sem duplicação.':
+     'Liberação confirmada: '+qty+' unidade(s), '+escopo+', fábrica '+fabrica+
+     '. Estoque inalterado; a entrega física será confirmada pelo almoxarife.';
+   }
   }catch(e){
-    node('releaseError').textContent='Não foi possível confirmar: '+e.message+
-      '. Confira o histórico antes de repetir; a operação mantém o mesmo identificador.';
-  }finally{button.disabled=false;button.textContent='Conferir e confirmar liberação';}
+   node('detailError').textContent='Liberação salva, mas a atualização falhou: '+e.message+
+    '. Não repita o lançamento; atualize a obra.';
+  }
+ }catch(e){
+  node('releaseError').textContent='Não foi possível confirmar: '+e.message+
+   '. Confira o histórico antes de repetir; a tentativa mantém o mesmo identificador.';
+ }finally{button.disabled=false;button.textContent='Confirmar liberação técnica';}
 });
+
 window.EWGEST_LOGIN=async function(event){event.preventDefault();setError('');setStatus('Botão funcionando. Conferindo usuário e senha…');const b=node('loginButton');b.disabled=true;b.textContent='Verificando…';try{
   const login=node('email').value.trim();
   const pass=node('password').value;
