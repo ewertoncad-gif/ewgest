@@ -5,7 +5,7 @@
  'use strict';
  const byId=id=>node(id),esc=x=>escapeHTML(String(x??''));
  const fmt=n=>Number(n||0).toLocaleString('pt-BR',{maximumFractionDigits:3});
- let catalogo=[],saldos=[],historico=[],carregando=false,editId=null,transferOp=null;
+ let catalogo=[],saldos=[],historico=[],carregando=false,editId=null,transferOp=null,categoriaAtual='vidros';
  const tipos={vidros:'Vidros',outros:'Outros insumos'};
  const unidades={PC:'PC',UN:'UN',M2:'m²',MT:'m',KG:'kg',CX:'CX',CJ:'CJ',PR:'PR'};
  async function rpc(func,args){
@@ -59,6 +59,7 @@
  }
  function encerrarEdicao(){
   editId=null;byId('cadastroInsumosForm').reset();
+  byId('cadastroInsumosCategory').value=categoriaAtual;
   byId('cadastroInsumosSave').textContent='Cadastrar material';
   byId('cadastroInsumosCancel').classList.add('hidden');
   mostrarCatalogo();
@@ -261,11 +262,22 @@
   if(edit)editar(edit.dataset.insumoEdit);
   if(del)excluirCadastro(del.dataset.insumoDelete);
  });
- byId('navCadastros').addEventListener('click',carregarCatalogo);
- byId('cadastroInsumosJump').addEventListener('click',()=>{
-  byId('cadastroInsumos').scrollIntoView({behavior:'smooth',block:'start'});
+ function abrirCategoria(categoria){
+  if(!canAdministrate()||!currentCompany||!Object.hasOwn(tipos,categoria))return;
+  categoriaAtual=categoria;
+  encerrarEdicao();
+  byId('cadastroInsumosCategory').value=categoria;
+  const nome=tipos[categoria];
+  byId('cadastroInsumosTitle').textContent='Cadastro de '+nome.toLowerCase();
+  byId('cadastroInsumosSubtitle').textContent=categoria==='vidros'
+   ?'Catálogo e unidades dos vidros utilizados nas obras.'
+   :'Catálogo e unidades de outros insumos utilizados nas obras.';
+  aviso('cadastroInsumosStatus','');
+  setView('insumosPage');
   carregarCatalogo();
- });
+ }
+ byId('navVidros').addEventListener('click',()=>abrirCategoria('vidros'));
+ byId('navOutrosInsumos').addEventListener('click',()=>abrirCategoria('outros'));
  byId('finCostCategory').addEventListener('change',sugestoes);
  const carregarRecebimentoOriginal=carregarRecebimento;
  carregarRecebimento=async function(){
