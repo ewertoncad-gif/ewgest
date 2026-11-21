@@ -2608,7 +2608,7 @@ async function loadPanel(){
       typologyOrigins=[];typologyOriginReady=false;
     }
   }
-  releaseHistory=somenteRomaneios?[]:await apiGet('liberacoes_corte',{select:'esquadria_id,quantidade,data_liberacao,fabrica,tipo_componente',cancelado_em:'is.null',order:'data_liberacao.desc'});
+  releaseHistory=await apiGet('liberacoes_corte',{select:'esquadria_id,quantidade,data_liberacao,fabrica,tipo_componente',cancelado_em:'is.null',order:'data_liberacao.desc'});
   try{
     const [config,history]=await Promise.all([
       apiGet('esquadrias_saida_config',{select:'esquadria_id,folhas_por_unidade'}),
@@ -3665,6 +3665,7 @@ function renderDetail(w){
   renderUnitCounters('detail',t);
   const canEdit=['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase());
   const shipping=detailMode==='shipment';
+  const exibidos=shipping?list.filter(x=>Number(x.qtd_liberada)>0):list;
   node('tabRelease').classList.toggle('active',!shipping);
   node('tabRelease').setAttribute('aria-pressed',String(!shipping));
   node('tabShip').classList.toggle('active',shipping);
@@ -3678,7 +3679,7 @@ function renderDetail(w){
   if(shipping)renderResumoRomaneios(w.id);
   node('itemListTitle').textContent=shipping?'Saídas da produção':'Itens da obra';
   node('detailIntro').textContent=shipping
-    ?'Clique em uma esquadria para registrar o envio completo, somente do marco ou somente das folhas. Cada saída fica registrada com sua data.'
+    ?'Somente esquadrias com liberação técnica aparecem aqui. Registre a saída apenas das partes liberadas para fabricação.'
     :'Clique em um item para registrar uma liberação para corte.';
   node('detailError').textContent=shipping&&!dispatchReady
     ?'O controle de saída ainda não está habilitado no banco: '+dispatchLoadError
@@ -3693,27 +3694,29 @@ function renderDetail(w){
   }
   if(!shipping){
     node('items').innerHTML=list.length?list.map(x=>{
-      const pending=Math.max(0,Number(x.quantidade)-Number(x.qtd_liberada));
+      const part=releaseParts(x);
+      const pending=Math.max(part.saldoCompleto,part.saldoMarco,part.saldoFolhas);
       const latest=releaseHistory.find(r=>r.esquadria_id===x.id);
-      return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><div class="hint" style="margin-top:8px">${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Liberadas: ${Number(x.qtd_liberada)||0}</span><span>Aguardando: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline" style="margin-top:8px"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/'))+
+      return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><div class="hint" style="margin-top:8px">${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Com alguma parte liberada: ${Number(x.qtd_liberada)||0}</span><span>Marcos: ${part.marcos} · Folhas (conj.): ${part.folhas}</span><span>Restam por liberar: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline" style="margin-top:8px"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/'))+
   (latest.fabrica?' · '+escapeHTML(latest.fabrica):' · fábrica não informada (histórico)'):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button></div>`;
     }).join(''):'<div class="empty">Nenhuma esquadria nesta obra.</div>';
     node('items').querySelectorAll('[data-esq]').forEach(b=>b.addEventListener('click',()=>openRelease(b.dataset.esq)));
   }else{
-    node('items').innerHTML=list.length?list.map(x=>{
+    node('items').innerHTML=exibidos.length?exibidos.map(x=>{
       const s=shipmentStats(x);
-      const pendingFrames=Math.max(0,s.released-s.frames);
+      const pendingFrames=Math.max(0,s.marcosLiberados-s.frames);
       const pendingLeaves=s.maxLeaves===null?null:Math.max(0,s.maxLeaves-s.leaves);
-      const canShip=dispatchReady&&canEdit&&s.released>0&&(pendingFrames>0||pendingLeaves===null||pendingLeaves>0);
+      const canShip=dispatchReady&&canEdit&&s.released>0&&
+        (pendingFrames>0||(pendingLeaves===null?s.folhasLiberadas>0:pendingLeaves>0));
       const sheetText=s.per===null
         ?'Folhas: composição a confirmar na primeira saída'
         :'Folhas enviadas: '+s.leaves+' / '+s.maxLeaves+' ( '+s.per+' por unidade )';
       const dateText=s.last?'Última saída: '+s.last.data_saida.split('-').reverse().join('/'):'Nenhuma saída registrada';
-      return `<div class="item"><button type="button" class="itemclick" data-ship="${escapeHTML(x.id)}" ${!canShip?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Liberadas para corte: ${s.released}</span><span>Marcos enviados: ${s.frames} / ${s.released}</span><span>${escapeHTML(sheetText)}</span></div><div class="itemline" style="margin-top:8px"><span class="hint">${escapeHTML(dateText)}</span><span class="tap">${!dispatchReady?'Configuração pendente':!canEdit?'Somente consulta':s.released===0?'Ainda não liberada':canShip?'Registrar saída':'Tudo expedido'}</span></div></button></div>`;
-    }).join(''):'<div class="empty">Nenhuma esquadria nesta obra.</div>';
+      return `<div class="item"><button type="button" class="itemclick" data-ship="${escapeHTML(x.id)}" ${!canShip?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Com alguma parte liberada: ${s.released}</span><span>Marcos enviados: ${s.frames} / ${s.marcosLiberados}</span><span>${escapeHTML(sheetText)}</span></div><div class="itemline" style="margin-top:8px"><span class="hint">${escapeHTML(dateText)}</span><span class="tap">${!dispatchReady?'Configuração pendente':!canEdit?'Somente consulta':s.released===0?'Ainda não liberada':canShip?'Registrar saída':'Tudo expedido'}</span></div></button></div>`;
+    }).join(''):'<div class="empty">Nenhuma esquadria liberada para fabricação nesta obra.</div>';
     node('items').querySelectorAll('[data-ship]').forEach(b=>b.addEventListener('click',()=>openShipment(b.dataset.ship)));
   }
-  groupRenderedItems(list);
+  groupRenderedItems(exibidos);
   applyDetailVisibility();
   applyItemFilter();
   setView('detail');
@@ -3777,8 +3780,8 @@ function shipmentType(){return node('shipmentKind').value==='completo'?'completo
 function shipmentAvailability(item){
   const s=shipmentStats(item);
   const per=s.per||Number(node('shipmentLeaves').value)||0;
-  const pendingFrames=Math.max(0,s.released-s.frames);
-  const pendingLeaves=per?Math.max(0,s.released*per-s.leaves):null;
+  const pendingFrames=Math.max(0,s.marcosLiberados-s.frames);
+  const pendingLeaves=per?Math.max(0,s.folhasLiberadas*per-s.leaves):null;
   return {s,per,pendingFrames,pendingLeaves};
 }
 
@@ -3799,10 +3802,13 @@ function updateShipmentForm(){
   node('shipmentLeaves').disabled=!precisaComposicao;
   node('shipmentQtyLabel').textContent=kind==='completo'?'Quantas esquadrias completas saíram?':kind==='marco'?'Quantos marcos saíram?':'Quantas folhas físicas saíram?';
   const remaining=kind==='marco'?pendingFrames:kind==='folha'?pendingLeaves:
-    per?Math.min(pendingFrames,Math.floor(pendingLeaves/per)):pendingFrames;
+    per?Math.min(pendingFrames,Math.floor(pendingLeaves/per)):
+      Math.min(pendingFrames,s.folhasLiberadas);
   node('shipmentQty').max=remaining===null?'':String(remaining);
-  node('shipmentBalance').textContent='Liberadas para corte: '+s.released+' unidade(s). Marcos expedidos: '+s.frames+'/'+s.released+
-    (per?'. Folhas expedidas: '+s.leaves+'/'+s.released*per+'.':'. Composição de folhas não informada.')+
+  node('shipmentBalance').textContent='Unidades com alguma parte liberada: '+s.released+
+    '. Marcos liberados: '+s.marcosLiberados+'. Marcos expedidos: '+s.frames+'/'+s.marcosLiberados+
+    (per?'. Conjuntos de folhas liberados: '+s.folhasLiberadas+'. Folhas expedidas: '+s.leaves+'/'+s.maxLeaves+'.':
+      '. Conjuntos de folhas liberados: '+s.folhasLiberadas+'. Composição física ainda não informada.')+
     (remaining===null?' Informe a composição para envio desmembrado.':' Saldo desta opção: '+remaining+'.');
   node('shipmentError').textContent='';
 }
