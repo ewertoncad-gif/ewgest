@@ -115,6 +115,11 @@
  $('cadastroEditSave').addEventListener('click',()=>salvarEdicao('editar'));
  $('cadastroEditDelete').addEventListener('click',()=>salvarEdicao('excluir'));
  $('cadastroEditCancel').addEventListener('click',fecharEdicao);
+ $('cadastroGerenciarEstoque').addEventListener('click',async()=>{
+  if(!matIsAdmin())return;
+  await abrirEstoque();
+  stockManageOpen();
+ });
  $('navCadastros').addEventListener('click',abrir);
  $('navAccessories').addEventListener('click',async()=>{
   if(!canAdministrate())return;
