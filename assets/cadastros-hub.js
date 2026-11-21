@@ -31,7 +31,10 @@
  }
  async function salvar(event,tipo){
   event.preventDefault();
-  if(!isFullAdminUser()||!currentCompany){informar('Cadastro reservado ao ADM.');return;}
+  if(!currentCompany||
+   (tipo==='fornecedor'?!isFullAdminUser():!canAdministrate())){
+   informar('Seu perfil não tem permissão para realizar este cadastro.');return;
+  }
   const id=tipo==='fornecedor'?'cadastroFornecedorNome':'cadastroGalpaoNome';
   const campo=$(id),botao=event.currentTarget.querySelector('[type="submit"]');
   const nome=campo.value.trim().replace(/\s+/g,' ').toLocaleUpperCase('pt-BR');
