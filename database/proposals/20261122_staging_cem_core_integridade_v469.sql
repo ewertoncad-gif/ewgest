@@ -1,3 +1,5 @@
+-- APLICADA APENAS NO SUPABASE DE TESTES EM 22/11/2026, após dry-run transacional.
+-- NÃO reaplicar no mesmo staging sem revisar as precondições. PRODUÇÃO INTACTA.
 -- EWGEST v46.9 | reconciliação de integridade do importador CEM somente em Supabase staging
 -- Equivalência de constraints/índices de materiais, perfis, aliases, obras e estoques.
 -- Não alterar produção. Alvos vazios: preservar Auth e empresa existentes.
