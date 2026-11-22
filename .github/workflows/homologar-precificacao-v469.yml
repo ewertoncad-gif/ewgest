@@ -75,6 +75,28 @@ jobs:
         run: |
           set -euo pipefail
           psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/20_faturamento_real.sql
+      - name: Iniciar PostgREST local com roles e JWT ficticios
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name ewgest-postgrest-v469 --network host \
+            -e PGRST_DB_URI='postgres://postgres:postgres@127.0.0.1:5432/ewgest_homologacao' \
+            -e PGRST_DB_SCHEMAS='public' \
+            -e PGRST_DB_ANON_ROLE='anon' \
+            -e PGRST_JWT_SECRET='ewgest-homologacao-somente-dados-ficticios-20261122' \
+            -e PGRST_SERVER_PORT='3000' \
+            postgrest/postgrest:v12.2.3
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3000/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          docker logs ewgest-postgrest-v469 --tail 60
+          exit 1
+      - name: Testar RPC e RLS pela API HTTP sem usar Supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/test-precificacao-postgrest-v469.mjs
       - name: Revalidar ausencia de servicos externos
         shell: bash
         run: |
