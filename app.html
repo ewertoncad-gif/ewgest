@@ -714,7 +714,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.11</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.12</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -10293,14 +10293,19 @@ function renderGerenciamentoObras(){
  out.innerHTML=works.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(w=>{
   const qtd=elements.filter(e=>e.obra_id===w.id).length;
   const ids=new Set(elements.filter(e=>e.obra_id===w.id).map(e=>e.id));
+  // releaseHistory já inclui somente cancelado_em IS NULL.
+  // A quantidade aparece sempre (inclusive 0) e controla o botão por obra.
   const liberacoesAtivas=releaseHistory.filter(h=>ids.has(h.esquadria_id)).length;
+  const podeCancelarLiberacoes=liberacoesAtivas>0;
   return '<div class="manufacturerLine" style="gap:14px">'+
     '<div><strong>'+escapeHTML(w.nome)+'</strong><div class="hint">'+
      escapeHTML(w.codigo||'Sem código')+' · '+qtd+' esquadria(s)'+
      (!qtd?' · pode ser estoque sem esquadrias':'')+
-     (liberacoesAtivas?' · '+liberacoesAtivas+' liberação(ões) ativa(s)':'')+'</div></div>'+
+     ' · Liberações ativas: '+liberacoesAtivas+'</div></div>'+
     '<div class="manageWorksRowActions">'+
-      '<button type="button" class="btn secondary releaseCancellationButton" data-work-cancel-releases="'+escapeHTML(w.id)+'">Cancelar liberações</button>'+
+      '<button type="button" class="btn secondary releaseCancellationButton" data-work-cancel-releases="'+escapeHTML(w.id)+'"'+
+      (podeCancelarLiberacoes?'':' disabled title="Esta obra não possui liberações ativas para cancelar."')+
+      '>Cancelar liberações ('+liberacoesAtivas+')</button>'+
       '<button type="button" class="btn secondary" data-work-review="'+escapeHTML(w.id)+'">Verificar exclusão</button>'+
     '</div></div>';
  }).join('');
