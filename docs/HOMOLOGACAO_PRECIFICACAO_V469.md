@@ -68,3 +68,67 @@ Só marcar PR #64 como pronto e fundir à `main` quando:
 - Migrações compiladas dentro de transação revertida em produção; isso não exerce permissões autenticadas nem estado persistente.
 - Projeto `ewgest-restauracao-teste` tem apenas 35 tabelas públicas contra 59 em produção e não serve como ambiente compatível sem sincronização completa.
 - Changelog Supabase de 16/11/2026: a mesclagem de branch via API/MCP passou a exigir permissão explícita de escrita em produção — evitar automatizar essa etapa.
+
+
+## Resultado real da homologação isolada (22/11/2026)
+
+**Supabase Branching indisponível neste projeto:** a solicitação de criar
+\`homologacao-v469-precificacao-20261122\` foi recusada pelo Supabase com:
+\`PaymentRequiredException: Branching is supported only on the Pro plan or above\`.
+O ID de confirmação de custo havia sido autorizado, mas **nenhuma ramificação foi criada**,
+**nenhum upgrade foi solicitado** e **nenhuma nova cobrança horária de ramificação foi iniciada**.
+
+**Alternativa executada sem Supabase adicional:** nova GitHub Action
+\`.github/workflows/homologar-precificacao-v469.yml\`, com serviço
+\`postgres:17\` descartável em runner isolado. Os testes usam apenas
+identidades/obras fictícias declaradas em:
+- \`tests/homologacao_pg17/00_fixture_minima.sql\`: empresas, usuários, tipologias,
+  obras, esquadrias, orçamento e **stub explicitamente identificado** para a RPC
+  pré-existente \`ew_importar_obra_cem_financeiro\`.
+- \`tests/homologacao_pg17/05_fixture_faturamento.sql\`: tabelas mínimas
+  para executar a **RPC real** de faturamento, com perfis simulados.
+- \`tests/homologacao_pg17/10_cenarios.sql\`: executa a nova RPC **real**
+  \`ew_importar_obra_cem_precificacao\` sobre a fixture e comprova:
+  orçamento original de 70/30, distribuição aprovada 60/40, histórico por
+  categoria/esquadria/ID, opção explícita de tipologia padrão, idempotência,
+  rejeição de payload modificado e centavos adulterados, RLS para almoxarifado,
+  permissão administrativa e imutabilidade das revisões aprovadas.
+- \`tests/homologacao_pg17/20_faturamento_real.sql\`: executa a **RPC real**
+  \`ew_registrar_faturamento_financeiro\`, cobrando 75% após saída de
+  marco + uma folha física; respeita limite de fabricação de 60%, instalação
+  de 40% e confirmação explícita de instalação; aceita preço editado sem mudar
+  histórico; rejeita exceder área expedida, tetos financeiros, item sem
+  preço aprovado e perfil de almoxarifado. Confirma fallback para obra legada
+  sem revisão de precificação.
+
+**Defeito corrigido pelo teste real:** a soma da área dos itens no
+\`INSERT INTO ew_precificacao_revisoes\` não usava alias de coluna JSONB.
+Foi corrigido em \`20261122_precificacao_importacao_rpc_v469.sql\`; compilar
+o DDL sem executar a função não detectava o defeito.
+
+**Proteção adicional implementada:** a RPC financeira agora verifica no
+servidor a existência da esquadria na última revisão aprovada, com
+quantidade coerente, antes de faturar. Os snapshots passaram a exigir
+\`esquadria_id NOT NULL\` e unicidade \`(revisao_id,esquadria_id)\`.
+Obras sem revisão continuam com comportamento legado.
+
+**Resultado final:** [GitHub Actions #45020195584](https://github.com/ewertoncad-gif/ewgest/actions/runs/45020195584)
+com **sucesso** no commit \`72b0e9d7b\`.
+
+### Cobertura e limites — não confundir com homologação Supabase completa
+
+A Action exerce SQL verdadeiro em PostgreSQL 17, incluindo as funções novas e
+a função financeira, mas a **RPC legada de importação é um stub com contrato
+mínimo**, e autenticação/sessões são emuladas por variáveis de configuração
+Postgres. Ainda faltam:
+1. Exercitar a RPC real pré-existente de importação com suas dependências,
+   fluxo de materiais/estoque previsto e relação com obra/financeiro.
+2. Executar a importação pelo REST/PostgREST, com sessão real do Supabase,
+   papéis, permissões, RLS e leituras isoladas por empresa.
+3. Homologar execução no esquema completo da produção, backup e
+   plano de recuperação antes de aplicar novas migrações permanentes.
+4. Revisar o PR #64 para merge/publicação, garantindo que as migrações
+   antecedam a interface e que não se quebrem obras já cadastradas.
+
+**Não criar nem pagar por um ambiente adicional sem nova autorização específica.**
+**Não aplicar migrações permanentemente em produção apenas com esta evidência.**
