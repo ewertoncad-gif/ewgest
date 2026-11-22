@@ -50,6 +50,8 @@ DECLARE
  v_revisao_id uuid;
  v_codigo_existente text;
  v_valor_orcado numeric;
+ v_hash_existente text;
+ v_request_hash text;
  v_ids jsonb;
  v_esquadria_id uuid;
  v_categoria_nome text;
@@ -67,17 +69,25 @@ BEGIN
   SELECT 1 FROM public.usuarios_empresas ue WHERE ue.usuario_id=v_uid
     AND ue.empresa_id=p_empresa_id AND ue.perfil='administrador'
  ) THEN RAISE EXCEPTION 'Somente ADM autenticado pode aprovar importação e precificação.'; END IF;
+ v_request_hash:=md5(jsonb_build_object(
+  'empresa_id',p_empresa_id,'codigo_obra',upper(btrim(coalesce(p_codigo_obra,''))),
+  'nome_obra',btrim(coalesce(p_nome_obra,'')),'cliente',btrim(coalesce(p_cliente,'')),
+  'esquadrias',p_esquadrias,'perfis',p_perfis,'acessorios',p_acessorios,
+  'decisoes',p_decisoes,'orcamento',p_orcamento,'precificacao',p_precificacao
+ )::text);
  -- A chave de operação é permanente na revisão aprovada; o retry devolve
  -- a mesma obra e a mesma revisão, sem inserir mais nenhuma linha.
  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
     p_empresa_id::text||'|preco-cem|'||p_operacao_id::text,0));
- SELECT r.obra_id,r.id,o.codigo,orc.valor_total
-  INTO v_obra_id,v_revisao_id,v_codigo_existente,v_valor_orcado
+ SELECT r.obra_id,r.id,o.codigo,orc.valor_total,r.operacao_hash
+  INTO v_obra_id,v_revisao_id,v_codigo_existente,v_valor_orcado,v_hash_existente
   FROM public.ew_precificacao_revisoes r
   JOIN public.obras o ON o.id=r.obra_id AND o.empresa_id=r.empresa_id
   JOIN public.ew_obra_orcamento orc ON orc.obra_id=r.obra_id AND orc.empresa_id=r.empresa_id
  WHERE r.empresa_id=p_empresa_id AND r.operacao_id=p_operacao_id;
  IF FOUND THEN
+  IF v_hash_existente IS DISTINCT FROM v_request_hash THEN
+   RAISE EXCEPTION 'O identificador da importação já foi usado com outros dados. Refaça a conferência sem reutilizar esta operação.'; END IF;
   IF upper(btrim(v_codigo_existente))<>upper(btrim(coalesce(p_codigo_obra,''))) THEN
    RAISE EXCEPTION 'Operação de importação já vinculada a outra obra.'; END IF;
   IF EXISTS(SELECT 1 FROM public.ew_precificacao_revisoes r
@@ -277,11 +287,11 @@ BEGIN
  THEN RAISE EXCEPTION 'IDs das esquadrias não foram retornados pelo importador.'; END IF;
 
  INSERT INTO public.ew_precificacao_revisoes(
-  empresa_id,obra_id,versao,operacao_id,fabricacao_original_centavos,instalacao_original_centavos,
+  empresa_id,obra_id,versao,operacao_id,operacao_hash,fabricacao_original_centavos,instalacao_original_centavos,
   fabricacao_distribuida_centavos,instalacao_distribuida_centavos,
   percentual_fabricacao_bp,area_total_m2,motivo,aprovado_por)
  VALUES(
-  p_empresa_id,v_obra_id,1,p_operacao_id,v_fab_origem,v_inst_origem,v_fab_atual,v_inst_atual,
+  p_empresa_id,v_obra_id,1,p_operacao_id,v_request_hash,v_fab_origem,v_inst_origem,v_fab_atual,v_inst_atual,
   v_pcent,
   (SELECT round(sum((item->>'area_m2')::numeric),6)
    FROM jsonb_array_elements(p_precificacao->'itens')),
