@@ -2843,7 +2843,8 @@ assert.ok(source.includes('precificacao-core.js?v=20261122a')&&
  source.includes("r.precificacaoDraft&&answer.precificacao_gravada!==true")&&
  source.includes("Conclua a etapa de categorias e preços antes da importação."),
  'A importação nova não pode contornar a etapa nem aceitar resposta sem precificação gravada');
-assert.ok(precificacaoOrc.includes("window.ewPrecificacaoImportacao.abrir(r,values")&&
+assert.ok(precificacaoOrc.includes("await window.ewPrecificacaoImportacao.abrir(r,values")&&
+ precificacaoOrc.includes("node('cemQuoteOverlay').classList.remove('hidden')")&&
  precificacaoOrc.includes("const fabricacao=values.niveis.filter")&&
  precificacaoOrc.includes("r.precificacaoDraft=draft")&&
  precificacaoOrc.includes("await cemImportarSelecionados()"),
@@ -2854,6 +2855,10 @@ assert.ok(precificacaoUI.includes('data-item=')&&
  precificacaoUI.includes('precoAjustadoFabricacaoM2')&&
  precificacaoUI.includes('precoAjustadoInstalacaoM2')&&
  precificacaoUI.includes("const resultado=motor.precificar(")&&
+ precificacaoUI.includes("apiGet('ew_precificacao_categorias'")&&
+ precificacaoUI.includes("apiGet('ew_precificacao_tipologias_padrao'")&&
+ precificacaoUI.includes("apiGet('tipologias'")&&
+ precificacaoUI.includes('marque os níveis de fabricação e instalação como faturáveis')&&
  precificacaoUI.includes('ewPriceGroupRow')&&
  precificacaoUI.includes('s.categorias.map(cat=>'),
  'Tela deve permitir categorias e preços por m² e recalcular fabricação/instalação');
@@ -2866,6 +2871,7 @@ assert.ok(precificacaoSQL.includes('SECURITY DEFINER')&&
  precificacaoSQL.includes("v_result:=public.ew_importar_obra_cem_financeiro(")&&
  precificacaoSQL.includes("RETURN v_result||jsonb_build_object('precificacao_gravada',true")&&
  precificacaoSQL.includes('REVOKE ALL ON FUNCTION public.ew_importar_obra_cem_precificacao')&&
+ precificacaoSQL.includes("Níveis de fabricação e instalação precisam ser faturáveis.")&&
  precificacaoSQL.includes('v_request_hash:=md5(jsonb_build_object(')&&
  precificacaoSQL.includes('v_hash_existente IS DISTINCT FROM v_request_hash')&&
  precificacaoSQL.includes('pg_catalog.pg_advisory_xact_lock')&&
