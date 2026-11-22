@@ -1,3 +1,5 @@
+-- APLICADA APENAS NO SUPABASE DE TESTES EM 22/11/2026, após dry-run transacional.
+-- NÃO reaplicar no mesmo staging sem revisar as precondições. PRODUÇÃO INTACTA.
 -- EWGEST v46.9 — PROPOSTA DE RPC transacional (NÃO APLICADA EM PRODUÇÃO)
 -- Dependências:
 -- 1. 20261122_precificacao_categorias_historico_fase1.sql
