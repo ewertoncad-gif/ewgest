@@ -1182,7 +1182,7 @@ for(const parte of ['ew_estornar_movimento_obra','estorno_de_id',
 }
 // A confirmação de estorno de estoque é única e explica o efeito da operação.
 const confirmacaoUnica=source.slice(source.indexOf('async function stockReverseIndividual(movimentoId)'),
- source.indexOf('async function stockManageDelete(id)'));
+ source.indexOf("node('stockManageLocations').addEventListener('click',stockManageOpen);"));
 assert.ok(confirmacaoUnica.includes('Tem certeza que deseja estornar esta movimentação?')&&
  confirmacaoUnica.includes('Tem certeza que deseja estornar todas as movimentações ainda não estornadas?')&&
  !confirmacaoUnica.includes('Digite ESTORNAR')&&
@@ -1194,27 +1194,31 @@ const revGerenciar=source.slice(source.indexOf('async function executarReversaoO
 assert.ok(revGerenciar.includes("const aviso=tipo==='estoque'?")&&
  !revGerenciar.includes("tipo==='estoque'?'ESTORNAR'"),
  'Gerenciar obras também não pode exigir palavra digitada para estornar estoque');
-// A exclusão da obra requer motivo e uma confirmação: não pede código digitado nem pressupõe nova importação.
+// v46.18: exclusão é definitiva, confirmada por aviso e código DIGITADO.
 const formExcluir=source.slice(source.indexOf('<div id="manageWorksDeleteForm"'),
  source.indexOf('<section id="romaneiosPage"'));
 const fluxoExcluir=source.slice(source.indexOf("node('manageWorksDelete').addEventListener"),
  source.indexOf("window.addEventListener('error'"));
-assert.ok(formExcluir.includes('>Excluir obra</button>')&&
- !formExcluir.includes('manageWorksConfirmation')&&
- !formExcluir.toLowerCase().includes('reimportar'),
- 'Excluir obra deve ter botão simples, sem código ou reimportação');
-assert.ok(fluxoExcluir.includes('Tem certeza que deseja excluir esta obra?')&&
+assert.ok(formExcluir.includes('>Excluir obra definitivamente</button>')&&
+ formExcluir.includes('será necessário importar a obra do início')&&
+ !formExcluir.includes('Restaurar obra'),
+ 'Exclusão exige aviso inequívoco, sem oferecer restauração');
+assert.ok(fluxoExcluir.includes('ESTA AÇÃO É DEFINITIVA')&&
  fluxoExcluir.includes('window.confirm(aviso)')&&
- fluxoExcluir.includes("confirmacao=String(workDeleteInspection.codigo||workDeleteInspection.nome||'').trim()")&&
- fluxoExcluir.includes("p_confirmacao:confirmacao")&&
- !fluxoExcluir.includes("node('manageWorksConfirmation')"),
- 'Confirmar exclusão uma única vez e validar código automaticamente para compatibilidade com RPC');
+ fluxoExcluir.includes('window.prompt(')&&
+ fluxoExcluir.includes('Digite exatamente o código da obra')&&
+ fluxoExcluir.includes('digitado.trim().toLocaleUpperCase')&&
+ fluxoExcluir.includes("p_confirmacao:confirmacao"),
+ 'É obrigatório digitar o código correto para encerrar a obra sem volta');
 assert.ok(source.includes("node('manageWorksDelete').disabled=!info?.permitido||workDeleteSubmitting")&&
  fluxoExcluir.includes("if(motivo.length<5||motivo.length>300)")&&
  fluxoExcluir.includes('window.alert(mensagem)')&&
- fluxoExcluir.includes('motivoCampo.focus()')&&
- !source.includes('Digite exatamente o código da obra para confirmar'),
- 'Sem motivo o clique deve avisar e focar o campo; exclusão só após motivo válido');
+ fluxoExcluir.includes('motivoCampo.focus()'),
+ 'Sem motivo válido o encerramento não pode prosseguir');
+assert.ok(!source.includes('stockManageRestore(')&&
+ !source.includes("data-stock-restore")&&
+ !source.includes("romTransfIncludeArchived"),
+ 'Nenhuma tela deve oferecer restauração ou histórico operacional de obra encerrada');
 // v43.6: motivo de 5 caracteres, estados claros e listas paginadas para obras grandes.
 for(const id of ['stockReverseBalancesCount','stockReverseBalancesMore','stockReverseHistoryCount',
  'stockReverseHistoryMore','stockReverseOpenWorks']){
