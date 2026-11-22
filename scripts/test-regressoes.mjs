@@ -1205,9 +1205,12 @@ assert.ok(fluxoExcluir.includes('Tem certeza que deseja excluir esta obra?')&&
  fluxoExcluir.includes("p_confirmacao:confirmacao")&&
  !fluxoExcluir.includes("node('manageWorksConfirmation')"),
  'Confirmar exclusão uma única vez e validar código automaticamente para compatibilidade com RPC');
-assert.ok(source.includes('info?.permitido&&motivo.length>=5&&motivo.length<=300')&&
+assert.ok(source.includes("node('manageWorksDelete').disabled=!info?.permitido||workDeleteSubmitting")&&
+ fluxoExcluir.includes("if(motivo.length<5||motivo.length>300)")&&
+ fluxoExcluir.includes('window.alert(mensagem)')&&
+ fluxoExcluir.includes('motivoCampo.focus()')&&
  !source.includes('Digite exatamente o código da obra para confirmar'),
- 'Motivo obrigatório e sem frase digitada');
+ 'Sem motivo o clique deve avisar e focar o campo; exclusão só após motivo válido');
 // v43.6: motivo de 5 caracteres, estados claros e listas paginadas para obras grandes.
 for(const id of ['stockReverseBalancesCount','stockReverseBalancesMore','stockReverseHistoryCount',
  'stockReverseHistoryMore','stockReverseOpenWorks']){
