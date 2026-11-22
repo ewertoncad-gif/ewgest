@@ -1556,11 +1556,11 @@
             <li>MOD-xxxxxx continua sendo o identificador interno. Croquis legados permanecem no respectivo cadastro; divergências entre descrições exigem conferência administrativa.</li>
             <li>Se a tipologia técnica já estiver correta, diferenças de escrita permitem: confirmar a mesma configuração, registrar nova variação, corrigir a descrição com histórico ou adiar. Nenhuma opção bloqueia o andamento da obra.</li>
             <li>Cada liberação para corte exige a fábrica AFOGADOS ou IMBIRIBEIRA; as liberações antigas sem fábrica não são presumidas retroativamente.</li>
-            <li>Emitir romaneio é confirmar expedição real: registra as saídas completas de uma vez, sem duplicidade. Materiais avulsos só constam no comprovante. Duas vias em A4 quando couber.</li>
+            <li>Emitir romaneio é confirmar expedição real: registra saídas de esquadrias e, quando selecionados do estoque, a baixa auditada de perfis e acessórios. Emissão transacional, sem duplicidade. Duas vias em A4 quando couber.</li>
             <li>A média por fábrica mede dias corridos da liberação até a saída e usa apenas registros com fábrica identificada sem ambiguidade; não representa as horas efetivas de fabricação.</li>
             <li>O romaneio permite escolher motoristas e placas cadastrados, pesquisar esquadrias e selecionar envio completo, apenas marco ou apenas folhas; folhas são contadas individualmente.</li>
             <li>Esquadria completa não pergunta folhas por unidade nem inventa composição; o número só é solicitado quando necessário para desmembrar. MAXIM-AR é sempre expedido completo.</li>
-            <li>Cancelar romaneio exige ADM, confirmação e motivo; marca documento e saídas como cancelados, devolve saldo lógico sem apagar o histórico. Cancelar não significa retorno físico da carga.</li>
+            <li>Cancelar romaneio exige ADM, confirmação e motivo. Quando houver material físico, confirme a devolução efetiva antes do cancelamento; somente então o sistema recompõe o estoque e preserva os lançamentos de auditoria.</li>
             <li>Romaneio impresso: descrição ampliada, sem Localização ou Valor; medidas originalmente em mm são mostradas em metros. Preservar duas vias no A4 quando couber.</li>
             <li>Na impressão, o caminhão fica DENTRO do mesmo quadro do título, com espaço reservado. Cabeçalho e rodapé do Chrome dependem também da opção de impressão do navegador.</li>
             <li>O histórico oferece Consultar (nova guia, sem impressão automática) e Reimprimir (abre a impressão). A consulta não gera saída nem modifica dados.</li>
@@ -1571,6 +1571,8 @@
             <li>Romaneios já emitidos mantêm seus dados salvos, sem edição silenciosa. O caminhão foi redesenhado em SVG, sem a linha preta do arquivo anterior.</li>
             <li>O perfil ALMOXARIFE acessa somente a área de romaneios (obra, emissão, histórico e reimpressão), além de Minha senha e Sair. Pode cadastrar motorista e veículo, mas não pode liberar corte nem cancelar romaneios.</li>
             <li>O ADM pode criar e editar o perfil Almoxarife, redefinir sua senha ou desativar o acesso. Para bloqueio imediato, utilizar Desativar acesso, não somente troca de senha.</li>
+            <li><strong>Exclusão de obra é definitiva.</strong> Antes de encerrar, cancelar romaneios, saídas, liberações e estornar o estoque até saldo zero. É obrigatório registrar motivo, confirmar o aviso e digitar o código da obra. Não existe restaurar obra ou estoque: uma nova operação exige nova importação, novo ID e refazer todos os processos. A auditoria anterior permanece.</li>
+            <li>Obras encerradas não aparecem em relatórios, totais consolidados, seletores de obras, gestão operacional de estoque ou romaneios. Registros antigos permanecem somente para auditoria, não para restauração.</li>
           </ul>
           <p class="hint">Antes de qualquer atualização: conferir estas regras, testar classificações e vínculos e preservar os dados históricos.</p>
         </details>
