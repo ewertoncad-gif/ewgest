@@ -66,3 +66,7 @@ RETURNS jsonb LANGUAGE plpgsql AS $$
 BEGIN
  RAISE EXCEPTION 'CI real-sem-materiais: conciliação de materiais NÃO homologada';
 END $$;
+
+-- Apenas consultas de verificação feitas com papel autenticado no CI.
+GRANT SELECT ON public.ew_estoques_locais, public.ew_obra_orcamento_niveis
+ TO authenticated;
