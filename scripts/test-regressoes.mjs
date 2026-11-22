@@ -2445,7 +2445,7 @@ assert.ok(!emissaoFalhou.chamadas.includes('doc.write'));
 
 
 // v46.3 — transferência usa o exato modelo visual do romaneio de esquadrias.
-const printStart=source.indexOf('function construirHTMLRomaneio(header,linhas){');
+const printStart=source.indexOf('function areaRomaneioEmM2(linha){');
 const printEnd=source.indexOf('function abrirRomaneioDocumento(',printStart);
 assert.ok(printStart>0&&printEnd>printStart);
 const factorySource=source.slice(printStart,printEnd);
@@ -2457,11 +2457,11 @@ for(const phrase of [
 ])assert.ok(factorySource.includes(phrase),'Layout de transferência faltando '+phrase);
 const printWin={};
 const factories=new Function('window','works','escapeHTML','dataRomaneioFormatada',
- 'medidaRomaneioEmMetros','descricaoCurtaRomaneio',factorySource+
- '\nreturn [construirHTMLRomaneio,window.ewConstruirHTMLRomaneioTransferencia];')(
+ 'medidaRomaneioEmMetros','descricaoCurtaRomaneio','dispatchConfig',factorySource+
+ '\nreturn [construirHTMLRomaneio,window.ewConstruirHTMLRomaneioTransferencia,areaRomaneioEmM2];')(
  printWin,[{id:'obraQA',nome:'Obra QA',cliente:'Cliente QA'}],
  x=>String(x??''),x=>String(x).split('-').reverse().join('/'),
- x=>String(x??''),x=>String(x??''));
+ x=>String(x??''),x=>String(x??''),[{esquadria_id:'ea2qa',folhas_por_unidade:2}]);
 const printHeader={numero:'RM009',obra_id:'obraQA',data_saida:'2026-11-21',
  motorista:'IRAN',placa:'ABC1D23',status:'EMITIDO'};
 const printLines=[
@@ -2470,6 +2470,35 @@ const printLines=[
  {sequencia:2,natureza:'material',codigo:'GUA0070PTO',descricao:'GUARNIÇÃO PINGADEIRA',
   medida:'',quantidade:1,unidade:'MT',obra_origem:'ESSENCE CONSTRUÇÕES'}
 ];
+// v46.5 — RM011 com marco expedido deve mostrar 50% da área tanto na linha quanto no total.
+const parcialBase={sequencia:1,natureza:'esquadria',esquadria_id:'ea2qa',codigo:'EA2',
+ descricao:'JANELA CORRER 2F GOLD SLIM (MARCO)',medida:'1200.00 x 1150.00 mm',
+ quantidade:1,unidade:'UNID.',area_m2:null,tipo_saida:'marco'};
+const htmlMarco=factories[0]({...printHeader,numero:'RM011'},[parcialBase]);
+assert.ok(htmlMarco.includes('<td class="right">0,69</td>')&&
+ htmlMarco.includes('Total M²:</strong> 0,69'),
+ 'EA2 só marco: a reimpressão mostra 0,69 m² e não 0,00');
+assert.equal(factories[2](parcialBase),0.69);
+assert.equal(factories[2]({...parcialBase,tipo_saida:'folha',quantidade:1}),0.345,
+ 'Uma folha física de janela 2F equivale a 25% da área total');
+assert.equal(factories[2]({...parcialBase,tipo_saida:'folha',quantidade:2}),0.69,
+ 'Duas folhas físicas somam 50% da área');
+assert.equal(factories[2]({...parcialBase,tipo_saida:'completo'}),1.38,
+ 'Completa = 100% da área');
+assert.equal(factories[2]({...parcialBase,tipo_saida:'completo',quantidade:2}),2.76,
+ 'Múltiplas esquadrias completas respeitam a quantidade');
+assert.equal(factories[2]({...parcialBase,medida:'1.200,00 × 1.150,00 mm'}),0.69,
+ 'Medidas com formatação brasileira são aceitas');
+assert.equal(factories[2]({...parcialBase,area_m2:1.4}),1.4,
+ 'Área histórica positiva já gravada não deve ser recalculada');
+assert.equal(factories[2]({...parcialBase,tipo_saida:'folha',esquadria_id:'sem-config'}),null,
+ 'Sem número cadastrado de folhas não inventar área por folha física');
+assert.equal(factories[2]({...parcialBase,natureza:'material'}),null,
+ 'Materiais não recebem M² de esquadrias');
+const htmlFolhas=factories[0](printHeader,[{...parcialBase,tipo_saida:'folha',quantidade:2}]);
+assert.ok(htmlFolhas.includes('<td class="right">0,69</td>')&&
+ htmlFolhas.includes('Total M²:</strong> 0,69'),
+ 'Duas folhas de EA2: 0,69 m² no romaneio');
 const padrão=factories[0](printHeader,printLines);
 const transferenciaHTML=factories[1]({...printHeader,
  origem_galpao:'AFOGADOS',destino_galpao:'IMBIRIBEIRA'},printLines);
