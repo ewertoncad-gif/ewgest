@@ -2,7 +2,7 @@
 -- Implementações obtidas APENAS do código de funções do banco de produção e proposal v46.9.
 -- Chaves, dados e contas de produção não são lidos ou copiados.
 -- NÃO aplicar esta migração na produção nem usar como substituto do Auth real.
--- Requisitos: 41 tabelas públicas, 44 funções e as duas migrações de integridade CEM do staging.
+-- Requisitos: 41 tabelas públicas, 45 funções (incluindo proteção de histórico) e as duas migrações de integridade CEM do staging.
 -- Função de sessão do staging permanece simulada (NÃO é a função de produção).
 BEGIN;
 DO $guard$
@@ -565,7 +565,7 @@ DO $verify$
 DECLARE total int; n int;
 BEGIN
  SELECT count(*) INTO total FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace WHERE s.nspname='public';
- IF total<>48 THEN RAISE EXCEPTION 'Era esperado 48 funções no staging, há %.',total;END IF;
+ IF total<>49 THEN RAISE EXCEPTION 'Era esperado 49 funções no staging, há %.',total;END IF;
  SELECT count(*) INTO n FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace
  WHERE s.nspname='public' AND (has_function_privilege('anon',p.oid,'EXECUTE'));
  IF n<>0 THEN RAISE EXCEPTION 'Restam % funções executáveis anon.',n;END IF;
