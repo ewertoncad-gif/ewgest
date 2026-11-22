@@ -714,7 +714,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.10</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.11</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -9605,7 +9605,7 @@ node('stockCemFile').addEventListener('change',()=>{
 });
 
 /* Estoque arquivado não some da auditoria: consultar e estornar sem reativar operações. */
-let stockReverseSelectedWorkId=null,stockReverseReady=false;
+let stockReverseSelectedWorkId=null,stockReverseReady=false,stockReverseConciliadas=0;
 let stockReverseHistoryLimit=60,stockReverseBalancesLimit=70,stockReverseMaterialIndex=null;
 function stockReversalBalances(obraId){
  const movimentos=estoqueObraMovimentos.filter(m=>m.obra_id===obraId);
@@ -9622,7 +9622,7 @@ function stockReversalBalances(obraId){
 }
 function stockReverseFechar(){
  stockReverseSelectedWorkId=null;
- stockReverseReady=false;
+ stockReverseReady=false;stockReverseConciliadas=0;
  stockReverseHistoryLimit=60;stockReverseBalancesLimit=70;
  node('stockReversePanel').classList.add('hidden');
  node('stockReverseOpenWorks').classList.add('hidden');
@@ -9703,8 +9703,9 @@ function stockReverseHistoryRender(id){
    PLANO_CORTE:'Plano de corte',PLANO_CORTE_LOTE:'Lote de corte',ESTORNO:'Estorno'};
  root.innerHTML=filtrados.slice(0,stockReverseHistoryLimit).map(m=>{
   const titulo=stockReverseDescricaoMaterial(m);
-  const estornado=m.estorno_de_id?'Contrapartida de estorno':
-   estornados.has(m.id)?'Estornado':'Não estornado';
+  const conciliada=stockReverseConciliadas>0&&m.origem==='TRANSFERENCIA'&&!m.estorno_de_id&&!estornados.has(m.id);
+ const estornado=m.estorno_de_id?'Contrapartida de estorno':
+   estornados.has(m.id)?'Estornado':conciliada?'Histórico conciliado pelo estorno da NF-e':'Não estornado';
   const entreObras=m.origem==='TRANSFERENCIA'&&m.transferencia_id&&
    estoqueObraMovimentos.some(x=>x.transferencia_id===m.transferencia_id&&
     x.origem==='TRANSFERENCIA'&&x.obra_id!==m.obra_id);
@@ -9787,7 +9788,7 @@ async function stockReverseRevisar(id){
  const obra=works.find(w=>w.id===id);
  if(!obra)return;
  stockReverseSelectedWorkId=id;
- stockReverseReady=false;
+ stockReverseReady=false;stockReverseConciliadas=0;
  stockReverseHistoryLimit=60;
  stockReverseBalancesLimit=70;
  node('stockReverseOpenWorks').classList.add('hidden');
@@ -9845,6 +9846,22 @@ async function stockReverseRevisar(id){
    node('stockReverseOpenWorks').classList.remove('hidden');
    return;
   }
+  const conciliadas=Number(ver?.resumo?.transferencias_nfe_conciliadas||0);
+  if(conciliadas>0&&conciliadas===resumo.pendentes&&resumo.saldos.length===0){
+   // Não reverter transferências entre galpões depois que o estorno físico
+   // da NF-e zerou os saldos: isso recriaria estoque negativo.
+   stockReverseConciliadas=conciliadas;
+   stockReverseReady=false;
+   stockReverseHistoryRender(id);
+   node('stockReverseSummary').textContent=resumo.movimentos+' lançamento(s) históricos · '+
+    conciliadas+' transferência(s) já conciliada(s) pelos estornos das NF-e · saldo zerado.';
+   node('stockReverseMessage').textContent='Os recebimentos das NF-e já foram estornados e o saldo está zero em todos os galpões. '+
+    conciliadas+' transferências constam apenas como histórico. Informe o motivo e registre a conciliação: '+
+    'nenhum lançamento de estoque será criado ou apagado.';
+   node('stockReverseApply').textContent='Registrar conciliação (saldo zero)';
+   node('stockReverseApply').disabled=false;
+   return;
+  }
   node('stockReverseMessage').textContent='Confira cada movimentação e a localização física dos materiais. '+
    'O estorno individual ou total exige motivo e confirmação.';
   stockReverseReady=true;
@@ -9866,10 +9883,17 @@ async function stockReverseExecutar(){
  }
  const saldos=stockReversalBalances(id);
  if(!saldos.pendentes){mensagem.textContent='Esta obra não possui lançamentos sem estorno.';return;}
- if(!window.confirm('Tem certeza que deseja estornar todas as movimentações ainda não estornadas?\\n\\n'+
+ const conciliando=stockReverseConciliadas>0;
+ const aviso=conciliando?
+  'Registrar a conciliação das transferências históricas desta obra?\\n\\n'+
+  'Obra: '+obra.nome+'\\nTransferências conciliadas: '+stockReverseConciliadas+
+  '\\n\\nTodas as entradas físicas de NF-e já foram estornadas e os saldos estão zerados. '+
+  'Nenhum saldo será alterado nem movimento excluído. O motivo e a conferência serão registrados em auditoria.':
+  'Tem certeza que deseja estornar todas as movimentações ainda não estornadas?\\n\\n'+
   'Obra: '+obra.nome+'\\nMovimentações sem estorno: '+saldos.pendentes+
   '\\n\\nO sistema registrará lançamentos inversos para zerar o saldo da obra por material e galpão. '+
-  'As movimentações originais serão preservadas, assim como usuário, data e motivo do estorno.'))return;
+  'As movimentações originais serão preservadas, assim como usuário, data e motivo do estorno.';
+ if(!window.confirm(aviso))return;
  botao.disabled=true;mensagem.textContent='Conferindo e estornando no banco…';
  try{
   await ensureSession();
@@ -9878,13 +9902,20 @@ async function stockReverseExecutar(){
   const impedimentos=(ver?.motivos||[]).filter(m=>
    !String(m).includes('Estorne as movimentações do estoque'));
   if(impedimentos.length)throw new Error('Existem outras pendências: '+impedimentos.join(' '));
+  if(conciliando && Number(ver?.resumo?.transferencias_nfe_conciliadas||0)!==stockReverseConciliadas)
+   throw new Error('A situação das transferências mudou. Atualize a conferência antes de prosseguir.');
   const result=await request('/rest/v1/rpc/ew_estornar_estoque_obra',{
    method:'POST',token:session.access_token,timeoutMs:60000,
    body:{p_obra_id:id,p_motivo:motivo,p_operacao_id:crypto.randomUUID()}});
   if(stockReverseSelectedWorkId!==id)return;
   await abrirEstoque();
   stockReverseFechar();stockManageRender();
-  node('stockManageStatus').textContent='Estorno concluído: '+Number(result?.estornados||0)+
+  node('stockManageStatus').textContent=Number(result?.conciliados||0)>0?
+   'Conciliação registrada: '+Number(result.conciliados)+' transferências históricas de '+
+   obra.nome+' já estavam compensadas pelo estorno das NF-e. Saldo zero em todos os galpões; '+
+   'nenhum movimento novo foi criado. Histórico preservado no relatório de operações. '+
+   'Se quiser retirar a obra de treinamento, use Gerenciar obras.':
+   'Estorno concluído: '+Number(result?.estornados||0)+
    ' movimento(s) revertido(s) em '+obra.nome+
    '. Os saldos devem estar zerados; histórico disponível em Usuários → Relatório de operações.';
  }catch(e){
