@@ -231,6 +231,75 @@ BEGIN
  THEN RAISE EXCEPTION 'Caso8: operação rejeitada não pode deixar movimentações';END IF;
 END $case8$;
 
+-- Transporte entre galpões A->B->C deve ser desfeito em ordem inversa,
+-- mesmo com compra posterior que recompõe artificialmente o saldo em B.
+TRUNCATE public.ew_auditoria_operacoes,public.ew_estornos_parcelas,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
+DO $internal_chain$
+DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
+  t1 uuid:='aaaa0020-0000-4000-8000-000000000020';
+  t2 uuid:='aaaa0021-0000-4000-8000-000000000021';
+  mid uuid; r jsonb;err text;saldo numeric;
+BEGIN
+ PERFORM public.test_mov(a,3,'ABERTURA','AFOGADOS');
+ PERFORM public.test_mov(a,-3,'TRANSFERENCIA','AFOGADOS',t1);
+ PERFORM public.test_mov(a,3,'TRANSFERENCIA','IMBIRIBEIRA',t1);
+ PERFORM public.test_mov(a,-1,'TRANSFERENCIA','IMBIRIBEIRA',t2);
+ PERFORM public.test_mov(a,1,'TRANSFERENCIA','TERCEIRO',t2);
+ PERFORM public.test_mov(a,1,'COMPRA','IMBIRIBEIRA');
+ SELECT id INTO mid FROM public.ew_estoque_obras_movimentos
+ WHERE transferencia_id=t1 AND quantidade_delta>0;
+ BEGIN
+  PERFORM public.ew_estornar_movimento_obra(a,mid,
+   'A transferência seguinte está ativa',gen_random_uuid());
+  RAISE EXCEPTION 'Transferência posterior aceita apesar da cadeia';
+ EXCEPTION WHEN OTHERS THEN
+  GET STACKED DIAGNOSTICS err=MESSAGE_TEXT;
+  IF err NOT LIKE '%Transferência posterior%' THEN RAISE; END IF;
+ END;
+ SELECT id INTO mid FROM public.ew_estoque_obras_movimentos
+ WHERE transferencia_id=t2 AND quantidade_delta>0;
+ r:=public.ew_estornar_movimento_obra(a,mid,'Desfazer remanejamento mais recente',gen_random_uuid());
+ IF (r->>'estornados')::int<>2 THEN RAISE EXCEPTION 'Reversão T2 sem duas contrapartidas';END IF;
+ SELECT id INTO mid FROM public.ew_estoque_obras_movimentos
+ WHERE transferencia_id=t1 AND quantidade_delta>0;
+ r:=public.ew_estornar_movimento_obra(a,mid,'Desfazer remanejamento anterior',gen_random_uuid());
+ IF (r->>'estornados')::int<>2 THEN RAISE EXCEPTION 'Reversão T1 sem duas contrapartidas';END IF;
+ SELECT coalesce(sum(quantidade_delta),0) INTO saldo FROM public.ew_estoque_obras_movimentos
+ WHERE obra_id=a AND local_estoque='AFOGADOS';
+ IF saldo<>3 THEN RAISE EXCEPTION 'Origem não recomposta depois dos estornos: %',saldo;END IF;
+ SELECT coalesce(sum(quantidade_delta),0) INTO saldo FROM public.ew_estoque_obras_movimentos
+ WHERE obra_id=a AND local_estoque='TERCEIRO';
+ IF saldo<>0 THEN RAISE EXCEPTION 'Saldo fantasma no último galpão: %',saldo;END IF;
+ SELECT coalesce(sum(quantidade_delta),0) INTO saldo FROM public.ew_estoque_obras_movimentos
+ WHERE obra_id=a AND local_estoque='IMBIRIBEIRA';
+ IF saldo<>1 THEN RAISE EXCEPTION 'Compra posterior deveria continuar disponível: %',saldo;END IF;
+END $internal_chain$;
+
+-- Baixa de fabricação após o transporte não pode ser mascarada por nova compra.
+TRUNCATE public.ew_auditoria_operacoes,public.ew_estornos_parcelas,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
+DO $internal_consumption$
+DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
+ t uuid:='aaaa0022-0000-4000-8000-000000000022';
+ credito uuid;baixa uuid; err text;
+BEGIN
+ PERFORM public.test_mov(a,2,'ABERTURA','AFOGADOS');
+ PERFORM public.test_mov(a,-2,'TRANSFERENCIA','AFOGADOS',t);
+ credito:=public.test_mov(a,2,'TRANSFERENCIA','IMBIRIBEIRA',t);
+ baixa:=public.test_mov(a,-1,'PLANO_CORTE_LOTE','IMBIRIBEIRA');
+ PERFORM public.test_mov(a,1,'COMPRA','IMBIRIBEIRA');
+ BEGIN
+  PERFORM public.ew_estornar_movimento_obra(a,credito,
+   'Baixa de fabricação ainda ativa',gen_random_uuid());
+  RAISE EXCEPTION 'Consumo posterior à transferência foi aceito';
+ EXCEPTION WHEN OTHERS THEN
+  GET STACKED DIAGNOSTICS err=MESSAGE_TEXT;
+  IF err NOT LIKE '%Material utilizado após transferência%' THEN RAISE; END IF;
+ END;
+ PERFORM public.test_mov(a,1,'ESTORNO','IMBIRIBEIRA',NULL,baixa);
+ PERFORM public.ew_estornar_movimento_obra(a,credito,
+  'Baixa revertida, transferência sem dependências',gen_random_uuid());
+END $internal_consumption$;
+
 -- Entrada que foi distribuída entre dois galpões: duas contrapartidas
 -- com uma única operação, cada parcela com vínculo próprio.
 TRUNCATE public.ew_auditoria_operacoes,public.ew_estornos_parcelas,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
@@ -349,74 +418,5 @@ BEGIN
  SELECT count(*) INTO apos FROM public.ew_estoque_obras_movimentos;
  IF antes<>apos THEN RAISE EXCEPTION 'Segurança: tentativa negada modificou estoque';END IF;
 END $security_inactive$;
-
--- Transporte entre galpões A->B->C deve ser desfeito em ordem inversa,
--- mesmo com compra posterior que recompõe artificialmente o saldo em B.
-TRUNCATE public.ew_auditoria_operacoes,public.ew_estornos_parcelas,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
-DO $internal_chain$
-DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
-  t1 uuid:='aaaa0020-0000-4000-8000-000000000020';
-  t2 uuid:='aaaa0021-0000-4000-8000-000000000021';
-  mid uuid; r jsonb;err text;saldo numeric;
-BEGIN
- PERFORM public.test_mov(a,3,'ABERTURA','AFOGADOS');
- PERFORM public.test_mov(a,-3,'TRANSFERENCIA','AFOGADOS',t1);
- PERFORM public.test_mov(a,3,'TRANSFERENCIA','IMBIRIBEIRA',t1);
- PERFORM public.test_mov(a,-1,'TRANSFERENCIA','IMBIRIBEIRA',t2);
- PERFORM public.test_mov(a,1,'TRANSFERENCIA','TERCEIRO',t2);
- PERFORM public.test_mov(a,1,'COMPRA','IMBIRIBEIRA');
- SELECT id INTO mid FROM public.ew_estoque_obras_movimentos
- WHERE transferencia_id=t1 AND quantidade_delta>0;
- BEGIN
-  PERFORM public.ew_estornar_movimento_obra(a,mid,
-   'A transferência seguinte está ativa',gen_random_uuid());
-  RAISE EXCEPTION 'Transferência posterior aceita apesar da cadeia';
- EXCEPTION WHEN OTHERS THEN
-  GET STACKED DIAGNOSTICS err=MESSAGE_TEXT;
-  IF err NOT LIKE '%Transferência posterior%' THEN RAISE; END IF;
- END;
- SELECT id INTO mid FROM public.ew_estoque_obras_movimentos
- WHERE transferencia_id=t2 AND quantidade_delta>0;
- r:=public.ew_estornar_movimento_obra(a,mid,'Desfazer remanejamento mais recente',gen_random_uuid());
- IF (r->>'estornados')::int<>2 THEN RAISE EXCEPTION 'Reversão T2 sem duas contrapartidas';END IF;
- SELECT id INTO mid FROM public.ew_estoque_obras_movimentos
- WHERE transferencia_id=t1 AND quantidade_delta>0;
- r:=public.ew_estornar_movimento_obra(a,mid,'Desfazer remanejamento anterior',gen_random_uuid());
- IF (r->>'estornados')::int<>2 THEN RAISE EXCEPTION 'Reversão T1 sem duas contrapartidas';END IF;
- SELECT coalesce(sum(quantidade_delta),0) INTO saldo FROM public.ew_estoque_obras_movimentos
- WHERE obra_id=a AND local_estoque='AFOGADOS';
- IF saldo<>3 THEN RAISE EXCEPTION 'Origem não recomposta depois dos estornos: %',saldo;END IF;
- SELECT coalesce(sum(quantidade_delta),0) INTO saldo FROM public.ew_estoque_obras_movimentos
- WHERE obra_id=a AND local_estoque='TERCEIRO';
- IF saldo<>0 THEN RAISE EXCEPTION 'Saldo fantasma no último galpão: %',saldo;END IF;
- SELECT coalesce(sum(quantidade_delta),0) INTO saldo FROM public.ew_estoque_obras_movimentos
- WHERE obra_id=a AND local_estoque='IMBIRIBEIRA';
- IF saldo<>1 THEN RAISE EXCEPTION 'Compra posterior deveria continuar disponível: %',saldo;END IF;
-END $internal_chain$;
-
--- Baixa de fabricação após o transporte não pode ser mascarada por nova compra.
-TRUNCATE public.ew_auditoria_operacoes,public.ew_estornos_parcelas,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
-DO $internal_consumption$
-DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
- t uuid:='aaaa0022-0000-4000-8000-000000000022';
- credito uuid;baixa uuid; err text;
-BEGIN
- PERFORM public.test_mov(a,2,'ABERTURA','AFOGADOS');
- PERFORM public.test_mov(a,-2,'TRANSFERENCIA','AFOGADOS',t);
- credito:=public.test_mov(a,2,'TRANSFERENCIA','IMBIRIBEIRA',t);
- baixa:=public.test_mov(a,-1,'PLANO_CORTE_LOTE','IMBIRIBEIRA');
- PERFORM public.test_mov(a,1,'COMPRA','IMBIRIBEIRA');
- BEGIN
-  PERFORM public.ew_estornar_movimento_obra(a,credito,
-   'Baixa de fabricação ainda ativa',gen_random_uuid());
-  RAISE EXCEPTION 'Consumo posterior à transferência foi aceito';
- EXCEPTION WHEN OTHERS THEN
-  GET STACKED DIAGNOSTICS err=MESSAGE_TEXT;
-  IF err NOT LIKE '%Material utilizado após transferência%' THEN RAISE; END IF;
- END;
- PERFORM public.test_mov(a,1,'ESTORNO','IMBIRIBEIRA',NULL,baixa);
- PERFORM public.ew_estornar_movimento_obra(a,credito,
-  'Baixa revertida, transferência sem dependências',gen_random_uuid());
-END $internal_consumption$;
 
 SELECT 'OK v46.15: galpão alternativo, consumo, romaneio, cadeia entre obras, entrada e usuário, login ativo/perfil e galpões em cadeia' AS resultado;
