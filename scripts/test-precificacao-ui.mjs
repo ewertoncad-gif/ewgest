@@ -60,6 +60,7 @@ change('ewPriceCategorias',{price:'categoria-1'},'1400');
 assert.equal(el('ewPriceConfirmar').disabled,false,'Preços válidos liberam confirmação');
 // O usuário opta por atualizar o padrão da tipologia, não apenas esta obra.
 el('ewPriceItens').handlers.change({target:{dataset:{default:'item-000000'},checked:true}});
+el('ewPricePercent').value='60';
 change('ewPricePercent',{},'60');
 assert.match(el('ewPriceResumo').innerHTML,/R\$\s*6\.000,00/);
 assert.match(el('ewPriceResumo').innerHTML,/R\$\s*4\.000,00/);
