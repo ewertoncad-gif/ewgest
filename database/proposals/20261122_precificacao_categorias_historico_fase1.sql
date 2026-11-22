@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS public.ew_precificacao_revisoes (
  obra_id uuid NOT NULL,
  versao integer NOT NULL CHECK(versao>=1),
  operacao_id uuid NOT NULL,
+ operacao_hash text NOT NULL CHECK(length(operacao_hash)=32),
  revisao_anterior_id uuid,
  fabricacao_original_centavos bigint NOT NULL CHECK(fabricacao_original_centavos>=0),
  instalacao_original_centavos bigint NOT NULL CHECK(instalacao_original_centavos>=0),
