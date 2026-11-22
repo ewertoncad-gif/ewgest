@@ -79,7 +79,7 @@ function renderizar(){
  const s=estado;
  const ops=s.categorias.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>').join('');
  $$('ewPriceCategorias').innerHTML=
-  '<table><thead><tr><th>Categoria</th><th>Área</th><th>Preço-base/m²</th><th>Fabricação</th><th>Instalação</th><th>Ações</th></tr></thead><tbody>'+
+  '<table><thead><tr><th>Categoria</th><th>Área</th><th>Preço-base/m²</th><th>Fabricação</th><th>Instalação</th><th>Fab. R$/m²</th><th>Inst. R$/m²</th><th>Ações</th></tr></thead><tbody>'+
   s.categorias.map(c=>{
    const a=s.itens.filter(x=>x.categoriaId===c.id)
     .reduce((sum,x)=>sum+x.largura_mm*x.altura_mm*x.quantidade/1000000,0);
@@ -90,6 +90,8 @@ function renderizar(){
     (c.precoBaseCentavosM2?esc(dinheiro(c.precoBaseCentavosM2)):'')+'"></td>'+
     '<td class="ewPriceNum" data-fab="'+esc(c.id)+'">—</td>'+
     '<td class="ewPriceNum" data-inst="'+esc(c.id)+'">—</td>'+
+    '<td class="ewPriceNum" data-fab-m2="'+esc(c.id)+'">—</td>'+
+    '<td class="ewPriceNum" data-inst-m2="'+esc(c.id)+'">—</td>'+
     '<td><button type="button" class="btn secondary" data-remove="'+esc(c.id)+'"'+
     (temItens?' disabled title="Mova as esquadrias antes de excluir"':'')+'>Excluir</button></td></tr>';
   }).join('')+'</tbody></table>';
@@ -119,6 +121,10 @@ function atualizar(){
    const i=wrapper.querySelector('[data-inst="'+c.id+'"]');
    if(f)f.textContent=dinheiro(c.fabricacaoCentavos);
    if(i)i.textContent=dinheiro(c.instalacaoCentavos);
+   const fm=wrapper.querySelector('[data-fab-m2="'+c.id+'"]');
+   const im=wrapper.querySelector('[data-inst-m2="'+c.id+'"]');
+   if(fm)fm.textContent=c.precoAjustadoFabricacaoM2===null?'—':real(c.precoAjustadoFabricacaoM2/100);
+   if(im)im.textContent=c.precoAjustadoInstalacaoM2===null?'—':real(c.precoAjustadoInstalacaoM2/100);
   }
   for(const x of resultado.itens){
    const f=wrapper.querySelector('[data-item-fab="'+x.id+'"]');
