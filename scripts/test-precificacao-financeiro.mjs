@@ -26,6 +26,11 @@ assert.ok(app.includes("apiGet('ew_precificacao_revisoes',{select:'id,versao,apr
  app.includes("estado:'eq.aprovada'")&&
  app.includes("revisao_id:'eq.'+precificacoes[0].id"),
  'Somente a revisão aprovada mais recente da obra serve de referência');
+assert.ok(app.includes("apiGet('ew_precificacao_revisoes_categorias',{")&&
+ app.includes("precificacaoCategorias:precoCategorias||[]")&&
+ app.includes("Precificação aprovada · revisão ")&&
+ app.includes("moedaM2(fab)")&&app.includes("moedaM2(inst)"),
+ 'Financeiro deve mostrar histórico por categoria, m² e revisão aprovada');
 assert.ok(app.includes("billedValues={fabricacao:new Map(),instalacao:new Map()}")&&
  app.includes("Math.round(Number(x.valor_total||0)*100)")&&
  app.includes("row.dataset.autoPrice='0'")&&
