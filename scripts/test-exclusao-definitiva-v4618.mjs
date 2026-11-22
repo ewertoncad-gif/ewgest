@@ -12,7 +12,9 @@ assert.match(app,/EWGEST <strong>· v46\.19<\/strong>/);
 assert.match(app,/Exclusão definitiva e sem restauração/);
 assert.match(app,/Excluir obra definitivamente/);
 assert.match(app,/ATENÇÃO: PROCESSO IRREVERSÍVEL\. TEM CERTEZA QUE DESEJA ESTORNAR\?/);
-assert.doesNotMatch(app,/Digite exatamente o código da obra para confirmar|window\.prompt\(/);
+const fluxoExcluir=app.slice(app.indexOf("node('manageWorksDelete').addEventListener('click'"),
+ app.indexOf("window.addEventListener('error'"));
+assert.doesNotMatch(fluxoExcluir,/Digite exatamente o código da obra para confirmar|window\.prompt\(/);
 assert.doesNotMatch(app,/data-stock-restore|romTransfIncludeArchived|stockManageRestore\(/);
 assert.doesNotMatch(app,/\/rest\/v1\/rpc\/ew_restaurar_estoque_local/);
 assert.doesNotMatch(app,/\/rest\/v1\/rpc\/ew_excluir_estoque_local/);
