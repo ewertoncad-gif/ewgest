@@ -37,6 +37,18 @@ CREATE TABLE public.ew_estoque_obras_movimentos (
  observacao text DEFAULT '',
  criado_em timestamptz NOT NULL DEFAULT clock_timestamp()
 );
+CREATE TABLE public.usuarios_login (
+ usuario_id uuid NOT NULL REFERENCES auth.users(id),
+ empresa_id uuid NOT NULL REFERENCES public.empresas(id),
+ perfil text NOT NULL, ativo boolean NOT NULL DEFAULT true,
+ excluido_em timestamptz, PRIMARY KEY(usuario_id,empresa_id)
+);
+CREATE TABLE public.ew_auditoria_operacoes (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ empresa_id uuid NOT NULL,obra_id uuid NOT NULL,obra_nome text,obra_codigo text,
+ usuario_id uuid NOT NULL,acao text NOT NULL,referencia_id uuid,
+ operacao_id uuid UNIQUE,motivo text NOT NULL,detalhes jsonb NOT NULL DEFAULT '{}'::jsonb
+);
 CREATE TABLE public._blockers (obra_id uuid PRIMARY KEY, motivo text NOT NULL);
 CREATE FUNCTION public.ew_exigir_sessao_atual() RETURNS void LANGUAGE plpgsql
 AS $$ BEGIN IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Sessão requerida'; END IF; END $$;
@@ -58,6 +70,8 @@ INSERT INTO public.usuarios_empresas(empresa_id,usuario_id,perfil) VALUES
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','11111111-1111-4111-8111-111111111111','administrador'),
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','22222222-2222-4222-8222-222222222222','almoxarife'),
  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','33333333-3333-4333-8333-333333333333','administrador');
+INSERT INTO public.usuarios_login(usuario_id,empresa_id,perfil)
+ SELECT usuario_id,empresa_id,perfil FROM public.usuarios_empresas;
 INSERT INTO public.obras(id,empresa_id,nome,codigo) VALUES
  ('aaaaaaaa-0000-4000-8000-000000000001','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Obra A','TESTE-A'),
  ('aaaaaaaa-0000-4000-8000-000000000002','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Obra B','TESTE-B'),
