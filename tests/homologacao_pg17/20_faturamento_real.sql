@@ -168,7 +168,7 @@ WITH nova_obra AS(
  RETURNING id,obra_id,empresa_id
 ),nova_rom AS(
  INSERT INTO public.romaneios(empresa_id,obra_id,status)
- SELECT empresa_id,obra_id,'emitido' FROM nova_obra RETURNING id,obra_id
+ SELECT empresa_id,id,'emitido' FROM nova_obra RETURNING id,obra_id
 )
 INSERT INTO public.romaneios_itens(romaneio_id,esquadria_id,tipo_saida,quantidade)
  SELECT nova_rom.id,nova_esq.id,'completo',1
