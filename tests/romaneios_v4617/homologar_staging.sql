@@ -74,7 +74,8 @@ BEGIN
  v_rom_id:=(result->>'id')::uuid;
  SELECT coalesce(sum(m.quantidade_delta),0) INTO saldo
   FROM public.ew_estoque_obras_movimentos m
-  WHERE m.obra_id='b1111111-1111-4111-8111-111111111111';
+  WHERE m.obra_id='b1111111-1111-4111-8111-111111111111'
+   AND m.variacao_id='b3333333-3333-4333-8333-333333333333';
  IF saldo<>3 THEN RAISE EXCEPTION 'Saldo após saída deveria ser 3, obtido %',saldo;END IF;
  SELECT count(*) INTO n FROM public.ew_romaneios_materiais_saidas x WHERE x.romaneio_id=v_rom_id;
  IF n<>1 THEN RAISE EXCEPTION 'Romaneio não vinculou material ao movimento';END IF;
@@ -99,7 +100,8 @@ BEGIN
  c:=public.cancelar_romaneio_com_estorno(v_rom_id,'Devolução física confirmada na obra fictícia');
  SELECT coalesce(sum(m.quantidade_delta),0) INTO saldo
   FROM public.ew_estoque_obras_movimentos m
-  WHERE m.obra_id='b1111111-1111-4111-8111-111111111111';
+  WHERE m.obra_id='b1111111-1111-4111-8111-111111111111'
+   AND m.variacao_id='b3333333-3333-4333-8333-333333333333';
  IF saldo<>5 THEN RAISE EXCEPTION 'Saldo após devolução deveria ser 5, obtido %',saldo;END IF;
  IF (c->>'materiais_devolvidos')::integer<>1 THEN RAISE EXCEPTION 'Devolução não conciliada';END IF;
  SELECT count(*) INTO n FROM public.ew_romaneios_materiais_saidas x
