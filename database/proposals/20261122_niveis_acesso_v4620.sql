@@ -96,6 +96,12 @@ UPDATE public.usuarios_login SET nivel_acesso=CASE
 UPDATE public.usuarios_empresas ue SET nivel_acesso=ul.nivel_acesso
 FROM public.usuarios_login ul WHERE ue.usuario_id=ul.usuario_id
 AND ue.empresa_id=ul.empresa_id AND ue.nivel_acesso IS NULL;
+-- Vínculos de migrações antigas podem existir sem cadastro de login correspondente.
+UPDATE public.usuarios_empresas SET nivel_acesso=CASE
+ WHEN perfil='administrador' THEN 1 WHEN perfil='gerenciador' THEN 2
+ WHEN perfil IN ('tecnico','supervisor') THEN 3 WHEN perfil='almoxarife' THEN 4
+ WHEN perfil='financeiro' THEN 5 WHEN perfil='consulta' THEN 6 ELSE 8 END
+ WHERE nivel_acesso IS NULL;
 ALTER TABLE public.usuarios_login ALTER COLUMN nivel_acesso SET DEFAULT 8;
 ALTER TABLE public.usuarios_empresas ALTER COLUMN nivel_acesso SET DEFAULT 8;
 ALTER TABLE public.usuarios_login ALTER COLUMN nivel_acesso SET NOT NULL;
