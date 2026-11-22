@@ -1,3 +1,4 @@
+-- APLICADO NO STAGING EM 22/11/2026, com criação temporária de tabela e ROLLBACK confirmados.
 -- EWGEST 46.9 | completar proteção de novas tabelas no Supabase TESTE
 -- Ambiente exclusivo: ewgest-restauracao-teste, 35 tabelas públicas.
 -- Função existente idêntica à produção; não alterar a função nem projeto de produção.
