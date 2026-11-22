@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS public.ew_precificacao_revisoes_itens (
  categoria_nome_snapshot text NOT NULL,
  codigo_snapshot text NOT NULL,
  descricao_snapshot text NOT NULL,
+ referencia_tipologia_snapshot text NOT NULL DEFAULT '',
  linha_snapshot text,
  largura_mm numeric(12,3) NOT NULL CHECK(largura_mm>0),
  altura_mm numeric(12,3) NOT NULL CHECK(altura_mm>0),
