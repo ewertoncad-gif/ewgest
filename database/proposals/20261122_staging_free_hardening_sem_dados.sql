@@ -1,4 +1,5 @@
--- EWGEST v46.9 — PROPOSTA NÃO APLICADA.
+-- EWGEST v46.9 — APLICADO AO STAGING TESTE EM 22/11/2026.
+-- NÃO REAPLICAR: os próprios guards irão interromper quando RLS já estiver ligado.
 -- Destino EXCLUSIVO: projeto ewgest-restauracao-teste (schema antigo).
 -- Nunca executar na produção e nunca usar como substituto de restauração fiel.
 -- O staging atual: 35 tabelas públicas, 11 sem RLS, todas as 11 vazias.
