@@ -30,8 +30,12 @@ BEGIN
  PERFORM public.ew_exigir_sessao_atual();
  IF p_empresa_id IS NULL OR p_transferencia_id IS NULL OR p_operacao_id IS NULL
  OR v_uid IS NULL OR NOT EXISTS (
-  SELECT 1 FROM public.usuarios_empresas u WHERE u.empresa_id=p_empresa_id
-   AND u.usuario_id=v_uid AND u.perfil IN ('administrador','gerenciador'))
+  SELECT 1 FROM public.usuarios_empresas u
+  JOIN public.usuarios_login ul
+   ON ul.empresa_id=u.empresa_id AND ul.usuario_id=u.usuario_id
+  WHERE u.empresa_id=p_empresa_id AND u.usuario_id=v_uid
+   AND u.perfil IN ('administrador','gerenciador')
+   AND ul.perfil=u.perfil AND ul.ativo AND ul.excluido_em IS NULL)
  THEN RAISE EXCEPTION 'Somente ADM pode estornar transferências entre obras.'; END IF;
  IF char_length(v_motivo) NOT BETWEEN 5 AND 350
  THEN RAISE EXCEPTION 'Informe motivo de 5 a 350 caracteres.'; END IF;
