@@ -265,6 +265,12 @@ declare
  v_locais integer;
  v_local_retirada text;
  v_total_disponivel numeric;
+ v_local_alocacao record;
+ v_falta numeric;
+ v_parcela numeric;
+ v_estorno_id uuid;
+ v_primeiro boolean:=true;
+ v_parcelas jsonb:='[]'::jsonb;
  v_originais jsonb := '[]'::jsonb;
 begin
  perform public.ew_exigir_sessao_atual();
@@ -300,8 +306,8 @@ begin
  select * into v_original from public.ew_estoque_obras_movimentos
  where id=p_movimento_id and obra_id=p_obra_id for update;
  if not found then raise exception 'Movimentação não encontrada nesta obra.'; end if;
- if v_original.origem='ESTORNO' and v_original.observacao like 'Estorno do recebimento NF%' then
-  raise exception 'Estorno de recebimento NF-e não pode ser revertido pela função genérica.';
+ if v_original.origem='ESTORNO' then
+  raise exception 'Contrapartida de estorno é somente histórico. Nunca estorne outra vez o mesmo lançamento; revise a origem.';
  end if;
  if exists(select 1 from public.ew_nfe_recebimentos n where n.movimento_id=v_original.id) then
   raise exception 'Movimento vinculado à NF-e: use Estornar recebimento na tela Recebimento.';
@@ -335,6 +341,11 @@ begin
    raise exception 'Transferência incompleta ou inconsistente. Não é seguro estornar uma perna isoladamente.';
   end if;
  end if;
+ -- O lock por material/obra é o mesmo usado por transferências e NF-e,
+ -- impedindo alteração de saldo enquanto as parcelas são planejadas.
+ PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+  p_obra_id::text||'|'||v_original.variacao_id::text||'|'||
+  coalesce(v_original.comprimento_mm::text,'-')||'|'||v_original.unidade,34777));
  -- Cancelar entrada não vinculada a NF-e: a localização física é irrelevante,
  -- mas material consumido ou transferido a outra obra continua indisponível.
  IF v_original.transferencia_id IS NULL AND v_original.quantidade_delta>0 THEN
@@ -360,26 +371,24 @@ begin
     AND NOT EXISTS(SELECT 1 FROM public.ew_estoque_obras_movimentos e
       WHERE e.estorno_de_id=m.id))
   THEN RAISE EXCEPTION 'Material transferido a outra obra. Devolva-o antes de estornar a entrada.';END IF;
-  SELECT m.local_estoque,sum(m.quantidade_delta) INTO v_local_retirada,v_saldo
-  FROM public.ew_estoque_obras_movimentos m
-  WHERE m.empresa_id=v_obra.empresa_id AND m.obra_id=p_obra_id
-   AND m.variacao_id=v_original.variacao_id
-   AND m.comprimento_mm IS NOT DISTINCT FROM v_original.comprimento_mm
-   AND m.unidade=v_original.unidade
-  GROUP BY m.local_estoque
-  HAVING sum(m.quantidade_delta)>=v_original.quantidade_delta
-  ORDER BY (m.local_estoque=v_original.local_estoque) DESC,m.local_estoque LIMIT 1;
-  IF v_local_retirada IS NULL THEN
-   SELECT coalesce(sum(greatest(t.saldo,0)),0) INTO v_total_disponivel
-   FROM(SELECT sum(m.quantidade_delta) saldo FROM public.ew_estoque_obras_movimentos m
-     WHERE m.empresa_id=v_obra.empresa_id AND m.obra_id=p_obra_id
-      AND m.variacao_id=v_original.variacao_id
-      AND m.comprimento_mm IS NOT DISTINCT FROM v_original.comprimento_mm
-      AND m.unidade=v_original.unidade GROUP BY m.local_estoque) t;
-   IF v_total_disponivel<v_original.quantidade_delta THEN
-    RAISE EXCEPTION 'Saldo insuficiente na obra. Devolva material transferido ou usado antes do estorno.';
-   END IF;
-   RAISE EXCEPTION 'Saldo dividido entre galpões. Estorno por parcelas ainda não homologado; nenhuma baixa foi realizada.';
+  IF EXISTS(
+   SELECT 1 FROM public.ew_estoque_obras_movimentos m
+   WHERE m.empresa_id=v_obra.empresa_id AND m.obra_id=p_obra_id
+    AND m.variacao_id=v_original.variacao_id
+    AND m.comprimento_mm IS NOT DISTINCT FROM v_original.comprimento_mm
+    AND m.unidade=v_original.unidade
+   GROUP BY m.local_estoque HAVING sum(m.quantidade_delta)<0
+  ) THEN
+   RAISE EXCEPTION 'Saldo negativo em galpão da obra: concilie antes do estorno.';
+  END IF;
+  SELECT coalesce(sum(greatest(t.saldo,0)),0) INTO v_total_disponivel
+  FROM(SELECT sum(m.quantidade_delta) saldo FROM public.ew_estoque_obras_movimentos m
+    WHERE m.empresa_id=v_obra.empresa_id AND m.obra_id=p_obra_id
+     AND m.variacao_id=v_original.variacao_id
+     AND m.comprimento_mm IS NOT DISTINCT FROM v_original.comprimento_mm
+     AND m.unidade=v_original.unidade GROUP BY m.local_estoque) t;
+  IF v_total_disponivel<v_original.quantidade_delta THEN
+   RAISE EXCEPTION 'Saldo insuficiente na obra. Devolva material transferido ou usado antes do estorno.';
   END IF;
  END IF;
  -- Toda a obra é serializada pelo mesmo bloqueio da reversão total.
@@ -410,6 +419,52 @@ begin
     v_mov.local_estoque,v_saldo,v_mov.unidade;
   end if;
  end loop;
+ IF v_original.transferencia_id IS NULL AND v_original.quantidade_delta>0 THEN
+  v_falta:=v_original.quantidade_delta;
+  v_originais:=jsonb_build_array(jsonb_build_object(
+   'movimento_id',v_original.id,'origem',v_original.origem,
+   'quantidade',v_original.quantidade_delta,
+   'variacao_id',v_original.variacao_id,
+   'comprimento_mm',v_original.comprimento_mm,'unidade',v_original.unidade,
+   'galpao_original',v_original.local_estoque,
+   'usuario_original',v_original.usuario_id,'registrado_em',v_original.criado_em));
+  FOR v_local_alocacao IN
+   SELECT m.local_estoque,sum(m.quantidade_delta) saldo
+   FROM public.ew_estoque_obras_movimentos m
+   WHERE m.empresa_id=v_obra.empresa_id AND m.obra_id=p_obra_id
+    AND m.variacao_id=v_original.variacao_id
+    AND m.comprimento_mm IS NOT DISTINCT FROM v_original.comprimento_mm
+    AND m.unidade=v_original.unidade
+   GROUP BY m.local_estoque HAVING sum(m.quantidade_delta)>0
+   ORDER BY (m.local_estoque=v_original.local_estoque) DESC,m.local_estoque
+  LOOP
+   EXIT WHEN v_falta<=0;
+   v_parcela:=least(v_falta,v_local_alocacao.saldo);
+   INSERT INTO public.ew_estoque_obras_movimentos
+   (empresa_id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,
+    origem,operacao_id,observacao,usuario_id,local_estoque,estorno_de_id)
+   VALUES(v_original.empresa_id,v_original.obra_id,v_original.variacao_id,
+    v_original.comprimento_mm,v_original.unidade,-v_parcela,'ESTORNO',
+    pg_catalog.gen_random_uuid(),left('Estorno individual: '||v_motivo,500),
+    v_uid,v_local_alocacao.local_estoque,
+    CASE WHEN v_primeiro THEN v_original.id ELSE NULL END)
+   RETURNING id INTO v_estorno_id;
+   INSERT INTO public.ew_estornos_parcelas
+    (empresa_id,obra_id,operacao_id,movimento_original_id,movimento_estorno_id,
+     local_estoque,quantidade)
+   VALUES(v_original.empresa_id,v_original.obra_id,p_operacao_id,
+    v_original.id,v_estorno_id,v_local_alocacao.local_estoque,v_parcela);
+   v_primeiro:=false;
+   v_n:=v_n+1;
+   v_falta:=v_falta-v_parcela;
+   v_parcelas:=v_parcelas||jsonb_build_array(jsonb_build_object(
+    'galpao',v_local_alocacao.local_estoque,'quantidade',v_parcela,
+    'movimento_estorno_id',v_estorno_id,'movimento_original_id',v_original.id));
+  END LOOP;
+  IF v_falta<>0 THEN
+   RAISE EXCEPTION 'Não foi possível alocar todas as parcelas. Operação cancelada.';
+  END IF;
+ ELSE
  for v_mov in
   select * from public.ew_estoque_obras_movimentos m
   where m.obra_id=p_obra_id
@@ -439,6 +494,7 @@ begin
     THEN v_local_retirada ELSE v_mov.local_estoque END
   ));
  end loop;
+ END IF;
  insert into public.ew_auditoria_operacoes (
   empresa_id,obra_id,obra_nome,obra_codigo,usuario_id,acao,
   referencia_id,operacao_id,motivo,detalhes
@@ -446,7 +502,8 @@ begin
   v_obra.empresa_id,p_obra_id,v_obra.nome,v_obra.codigo,v_uid,'ESTORNAR_ESTOQUE',
   p_movimento_id,p_operacao_id,v_motivo,
   jsonb_build_object('modo','individual','movimentos_estornados',v_n,
-   'movimentos_originais',v_originais)
+   'movimentos_originais',v_originais,
+   'parcelas',v_parcelas)
  );
  return jsonb_build_object('repetida',false,'estornados',v_n,
   'historico_preservado',true);
