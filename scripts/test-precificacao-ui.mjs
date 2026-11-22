@@ -58,6 +58,8 @@ change('ewPriceCategorias',{price:'catalogo-'+uuid},'R$ 1.500,00');
 assert.equal(el('ewPriceConfirmar').disabled,true,'Falta preço de guarda-corpo');
 change('ewPriceCategorias',{price:'categoria-1'},'1400');
 assert.equal(el('ewPriceConfirmar').disabled,false,'Preços válidos liberam confirmação');
+// O usuário opta por atualizar o padrão da tipologia, não apenas esta obra.
+el('ewPriceItens').handlers.change({target:{dataset:{default:'item-000000'},checked:true}});
 change('ewPricePercent',{},'60');
 assert.match(el('ewPriceResumo').innerHTML,/R\$\s*6\.000,00/);
 assert.match(el('ewPriceResumo').innerHTML,/R\$\s*4\.000,00/);
@@ -71,6 +73,8 @@ assert.equal(record.fabricacao_distribuida_centavos,600000);
 assert.equal(record.instalacao_distribuida_centavos,400000);
 assert.equal(record.itens.length,2);
 assert.equal(record.itens[0].referencia_tipologia,'GOLD-JCR101');
+assert.equal(record.itens[0].definir_padrao_tipologia,true,'Padrão explicitamente selecionado');
+assert.equal(record.itens[1].definir_padrao_tipologia,false,'Sem seleção não muda o padrão global');
 assert.equal(record.itens.reduce((s,x)=>s+x.fabricacao_centavos,0),600000);
 assert.equal(record.itens.reduce((s,x)=>s+x.instalacao_centavos,0),400000);
 assert.ok(record.categorias.some(x=>x.nome==='LINHA ESPECIAL'&&x.fabricacao_centavos>0));
