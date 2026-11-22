@@ -112,7 +112,7 @@ BEGIN
     jsonb_array_length(p_precificacao->'itens')<>v_count OR
     jsonb_array_length(p_precificacao->'categorias') NOT BETWEEN 1 AND 150
  THEN RAISE EXCEPTION 'Quantidade de itens/categorias não corresponde à obra.'; END IF;
- IF p_precificacao->>'versao'<>'1' THEN
+ IF p_precificacao->>'versao' IS DISTINCT FROM '1' THEN
   RAISE EXCEPTION 'Versão de precificação não reconhecida.'; END IF;
 
  -- Percentuais e totais originais são derivados do próprio orçamento, não do
@@ -197,7 +197,7 @@ BEGIN
  FOR v_item IN SELECT value FROM jsonb_array_elements(p_precificacao->'itens') LOOP
   v_origem:=p_esquadrias->v_idx;
   IF jsonb_typeof(v_item) IS DISTINCT FROM 'object' OR
-     (v_item->>'indice_importacao')::integer<>v_idx OR
+     (v_item->>'indice_importacao')::integer IS DISTINCT FROM v_idx OR
      v_item->>'codigo' IS DISTINCT FROM v_origem->>'codigo' OR
      v_item->>'descricao' IS DISTINCT FROM v_origem->>'descricao' OR
      v_item->>'referencia_tipologia' IS DISTINCT FROM coalesce(v_origem->>'referencia_tipologia','') OR
