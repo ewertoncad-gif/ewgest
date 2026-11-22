@@ -1,3 +1,4 @@
+-- APLICADO NO STAGING EM 22/11/2026; não reaplicar sem revisão (guards).
 -- EWGEST v46.9 — revogar EXECUTE anon em rotinas legado do Supabase TESTE.
 -- Somente ewgest-restauracao-teste; NÃO executar na produção.
 -- Verifica 44 funções públicas, 15 com anon EXECUTE, mantendo uso authenticated.
