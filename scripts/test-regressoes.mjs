@@ -2853,7 +2853,9 @@ assert.ok(precificacaoUI.includes('data-item=')&&
  precificacaoUI.includes('ewPricePercent')&&
  precificacaoUI.includes('precoAjustadoFabricacaoM2')&&
  precificacaoUI.includes('precoAjustadoInstalacaoM2')&&
- precificacaoUI.includes("const resultado=motor.precificar("),
+ precificacaoUI.includes("const resultado=motor.precificar(")&&
+ precificacaoUI.includes('ewPriceGroupRow')&&
+ precificacaoUI.includes('s.categorias.map(cat=>'),
  'Tela deve permitir categorias e preços por m² e recalcular fabricação/instalação');
 assert.ok(precificacaoSQL.includes('SECURITY DEFINER')&&
  precificacaoSQL.includes('PERFORM public.ew_exigir_sessao_atual()')&&
@@ -2863,7 +2865,13 @@ assert.ok(precificacaoSQL.includes('SECURITY DEFINER')&&
  precificacaoSQL.includes("row_number() OVER(ORDER BY ir DESC,idx ASC)")&&
  precificacaoSQL.includes("v_result:=public.ew_importar_obra_cem_financeiro(")&&
  precificacaoSQL.includes("RETURN v_result||jsonb_build_object('precificacao_gravada',true")&&
- precificacaoSQL.includes('REVOKE ALL ON FUNCTION public.ew_importar_obra_cem_precificacao'),
+ precificacaoSQL.includes('REVOKE ALL ON FUNCTION public.ew_importar_obra_cem_precificacao')&&
+ precificacaoSQL.includes('v_request_hash:=md5(jsonb_build_object(')&&
+ precificacaoSQL.includes('v_hash_existente IS DISTINCT FROM v_request_hash')&&
+ precificacaoSQL.includes('pg_catalog.pg_advisory_xact_lock')&&
+ precificacaoSQL.includes("'ja_importado',true")&&
+ precificacaoSchema.includes('UNIQUE(empresa_id,operacao_id)')&&
+ precificacaoSchema.includes('operacao_hash text NOT NULL'),
  'Proposta de RPC deve validar saldos e autorizar a gravação em uma só transação');
 assert.ok(precificacaoMapeamento.includes("RETURNING id INTO v_esquadria_id")&&
  precificacaoMapeamento.includes("'esquadrias_ids',v_esquadrias_ids")&&
