@@ -85,3 +85,18 @@ Para indicadores de galpão, registrar fábrica designada, liberação, início 
 - [ ] Homologar experiência em desktop/celular e importação completa com ZIP de treinamento. **Nenhuma obra foi apagada/reimportada.**
 
 **Restrição de publicação:** o PR permanece em rascunho e não deve ser integrado à `main` antes de ter backend compatível e fluxo financeiro ajustado; caso contrário o botão final encontraria RPC inexistente.
+
+## Atualização — integração financeira e pré-homologação de SQL
+
+- [x] Na importação, esquadrias são exibidas **agrupadas por categoria**, com transferência individual entre elas; categorias e preços são editáveis no rascunho.
+- [x] `finLoad` busca a revisão aprovada mais recente, os preços individuais e os subtotais históricos por categoria, com consulta restrita à empresa/obra.
+- [x] Financeiro apresenta tabela histórica por categoria: área, preço-base/m², fabricação, instalação e preço efetivo por m². Os valores originais do orçamento são mantidos separados dos ajustados.
+- [x] O formulário de faturamento sugere automaticamente **preços distintos** para fabricação e instalação, calculados do preço aprovado de cada item dividido pela quantidade original. A sugestão continua editável. Para a última fração, considera o valor já faturado para evitar perda de centavos.
+- [x] Limites exibidos e validados pela interface seguem a revisão aprovada (fallback para orçamento original nas obras sem revisão).
+- [x] `20261122_precificacao_tetos_faturamento_v469.sql`: proposta de alteração da RPC financeira preservando todas as permissões, exigência de instalação e limites por quantidade/romaneios; altera apenas o teto para usar a distribuição aprovada, sem afetar obras antigas.
+- [x] Operação de importação agora tem ID e hash do conteúdo na revisão, protegidos por restrição única e trava transacional. Repetição com o mesmo conteúdo devolve a mesma obra; reutilização com dados diferentes é rejeitada.
+- [x] **Ensaio SQL transacional** em produção (criação de cinco tabelas e compilação das rotinas, seguida de ROLLBACK, sem persistir dados); verificação após ensaio confirmou zero tabelas de precificação em produção.
+- [x] CTE de rateio testada em consulta somente leitura: 3 itens distribuídos em R$ 55.000,00 de fabricação e R$ 45.000,00 de instalação, com soma exata de R$ 100.000,00.
+- [x] Testes automáticos de regressão, incluindo cálculo com 75% do EA2, revisão aprovada, tetos, edição manual, agrupamento e idempotência, passaram no GitHub Actions.
+
+**Permanece pendente:** homologação em banco independente com autenticação real, permissões e RLS por empresa, importação de obra de teste e faturamento/cancelamento ponta a ponta. O ensaio transacional verifica estrutura e compilação, **não** substitui isso. Somente depois fazer migração de produção (com backup), revisão final do PR e publicação da interface. O ambiente de produção continua na v46.8 e a obra existente não foi removida.
