@@ -12,7 +12,10 @@ BEGIN
 END $$;
 CREATE TABLE auth.users(id uuid PRIMARY KEY);
 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE
-AS $$ SELECT NULLIF(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+AS $ SELECT coalesce(
+ NULLIF(current_setting('request.jwt.claim.sub',true),''),
+ NULLIF(current_setting('request.jwt.claims',true),'')::jsonb->>'sub'
+)::uuid $;
 CREATE TABLE public.empresas (id uuid PRIMARY KEY,nome text NOT NULL);
 CREATE TABLE public.usuarios_empresas (
  empresa_id uuid NOT NULL REFERENCES public.empresas(id),
