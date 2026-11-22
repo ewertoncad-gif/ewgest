@@ -208,3 +208,14 @@ O Supabase Advisor (22/11/2026) sinalizou uma função `public.rls_auto_enable()
 - v46.9 ainda não publicada; PR #64 permanece **draft**.
 - v46.8 publicada permanece sem alterações.
 - Não foi realizado upgrade Supabase, contratação de ambiente pago nem alteração de dados reais.
+
+
+### Conciliador CEM real + confirmação de backup — 22/11/2026
+
+- **[GitHub Actions #45021592973](https://github.com/ewertoncad-gif/ewgest/actions/runs/45021592973)**: os dois jobs em PostgreSQL 17 descartável terminaram com **success** no commit `6fba49d3`.
+- O novo `tests/homologacao_pg17/36_conciliacao_alias_real.sql` executa a rotina real `ew_conciliar_codigo_cem`, associando código alternativo **CG179** ao perfil fictício **CG1016** sem substituir o código principal; confirma que outra obra reutiliza o alias sem duplicar perfil e que uma decisão sem correspondência no ZIP aborta a operação.
+- Cobre agora também o caminho antes pendente de **decisão manual de conciliação**. Permanece pendente o teste da interface gráfica com ZIP real e sessão Supabase Auth/PostgREST.
+
+**Backup existente, verificado sem baixar dados:** a rotina agendada `EWGEST - Backup criptografado` teve execução **success** em [22/11/2026, run #44988018681](https://github.com/ewertoncad-gif/ewgest/actions/runs/44988018681). O artefato criptografado `ewgest-backup-19` existe no GitHub, com **411.517 bytes**, `expired=false` e retenção indicada até 22/12/2026. Esse resultado comprova que a geração/cifra/upload ocorreram, **não** comprova que o backup restaura integralmente o projeto; exigir ensaio de restauração isolada antes de migrar produção.
+
+Sem alteração em Supabase, obras, backup existente, custo, deploy ou main.
