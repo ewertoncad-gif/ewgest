@@ -339,3 +339,32 @@ jobs:
           grep -Fq 'tipo_componente' "$html"
           echo 'PUBLICACAO CONFIRMADA: v46.4 com 50/50 marco/folhas, sem baixa na liberação.'
 
+
+      - name: Conferir precificacao v46.9 publicada
+        shell: bash
+        run: |
+          set -euo pipefail
+          html="$(mktemp)"
+          js="$(mktemp)"
+          core="$(mktemp)"
+          css="$(mktemp)"
+          trap 'rm -f "$html" "$js" "$core" "$css"' EXIT
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/app.html?verify=${GITHUB_SHA}" -o "$html"
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/assets/precificacao-importacao.js?verify=${GITHUB_SHA}" -o "$js"
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/assets/precificacao-core.js?verify=${GITHUB_SHA}" -o "$core"
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/assets/precificacao-importacao.css?verify=${GITHUB_SHA}" -o "$css"
+          grep -Fq 'v46.9' "$html"
+          grep -Fq 'ew_importar_obra_cem_precificacao' "$html"
+          grep -Fq 'precificacao-importacao.js?v=20261122a' "$html"
+          grep -Fq 'ewPrecificacaoImportacao' "$js"
+          grep -Fq 'ewPrecificacaoCore' "$core"
+          grep -Fq 'ewPriceModal' "$css"
+          echo 'PUBLICACAO CONFIRMADA: interface de precificacao por m2 v46.9 e todos os assets estao no dominio real.'
