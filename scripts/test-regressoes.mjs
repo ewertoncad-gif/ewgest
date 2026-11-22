@@ -1200,7 +1200,7 @@ const formExcluir=source.slice(source.indexOf('<div id="manageWorksDeleteForm"')
 const fluxoExcluir=source.slice(source.indexOf("node('manageWorksDelete').addEventListener"),
  source.indexOf("window.addEventListener('error'"));
 assert.ok(formExcluir.includes('>Excluir obra definitivamente</button>')&&
- formExcluir.includes('será necessário importar a obra do início')&&
+ formExcluir.includes('faça uma nova importação')&&
  !formExcluir.includes('Restaurar obra'),
  'Exclusão exige aviso inequívoco, sem oferecer restauração');
 assert.ok(fluxoExcluir.includes('ESTA AÇÃO É DEFINITIVA')&&
