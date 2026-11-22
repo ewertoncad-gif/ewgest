@@ -1441,7 +1441,7 @@ assert.ok(source.includes('id="cemQuoteRows"')&&source.includes('id="cemQuoteAdd
  source.includes('id="cemQuoteNewLevel"')&&source.includes('id="cemQuoteNewCompany"')&&
  source.includes('id="cemQuoteSaveCompany"')&&source.includes('id="cemQuoteTotal"'),
  'Orçamento por níveis tem seleção e cadastro de níveis e empresas comerciais');
-assert.ok(source.includes('<script src="/assets/orcamento-niveis.js?v=20261120c"></script>')&&
+assert.ok(source.includes('<script src="/assets/orcamento-niveis.js?v=20261122b"></script>')&&
  source.includes('<link rel="stylesheet" href="/assets/orcamento-niveis.css?v=20261120c">')&&
  budgetCSS.includes('.cemBudgetTable'),
  'A interface deve carregar os arquivos versionados de orçamento, sem cache antigo');
