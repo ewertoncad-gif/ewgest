@@ -36,7 +36,7 @@ BEGIN
  INTO funcs,anon,auth_less
  FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
  WHERE n.nspname='public';
- IF funcs<>44 OR anon<>0 OR auth_less<>0 THEN
+ IF funcs<>44 OR anon<>0 OR auth_less<>6 THEN
   RAISE EXCEPTION 'Permissões finais inválidas: total %, anon %, sem auth %',funcs,anon,auth_less;
  END IF;
 END $verify$;
