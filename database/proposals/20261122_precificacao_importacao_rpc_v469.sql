@@ -303,8 +303,8 @@ BEGIN
  VALUES(
   p_empresa_id,v_obra_id,1,p_operacao_id,v_request_hash,v_fab_origem,v_inst_origem,v_fab_atual,v_inst_atual,
   v_pcent,
-  (SELECT round(sum((item->>'area_m2')::numeric),6)
-   FROM jsonb_array_elements(p_precificacao->'itens')),
+  (SELECT round(sum((v_area.item->>'area_m2')::numeric),6)
+   FROM jsonb_array_elements(p_precificacao->'itens') AS v_area(item)),
   'Precificação aprovada na importação do CEM',v_uid)
  RETURNING id INTO v_revisao_id;
 
