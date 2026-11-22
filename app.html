@@ -1031,7 +1031,7 @@
         <div class="stat"><div class="label">A liberar</div><div class="number" id="detailPending">—</div></div>
         <div class="stat"><div class="label">Fabricada</div><div class="number" id="detailMade">—</div></div>
       </div>
-      <div class="qtystats" aria-label="Quantidades de esquadrias"><div class="stat"><div class="label">Unidades totais</div><div class="number" id="detailUnitsTotal">—</div></div><div class="stat"><div class="label">Liberadas para corte</div><div class="number" id="detailUnitsReleased">—</div></div><div class="stat"><div class="label">Aguardando liberação</div><div class="number" id="detailUnitsPending">—</div></div></div>
+      <div class="qtystats" aria-label="Quantidades de esquadrias"><div class="stat"><div class="label">Unidades totais</div><div class="number" id="detailUnitsTotal">—</div></div><div class="stat"><div class="label">Com alguma parte liberada</div><div class="number" id="detailUnitsReleased">—</div></div><div class="stat"><div class="label">Sem liberação</div><div class="number" id="detailUnitsPending">—</div></div></div>
       <div class="section panel">
         <div class="detailSticky">
         <div class="detailtabs"><button type="button" class="btn secondary active" id="tabRelease" aria-pressed="true">Liberações para corte</button><button type="button" class="btn secondary" id="tabShip" aria-pressed="false">Saídas para obra</button></div>
@@ -2733,8 +2733,8 @@ function renderList(){
       <div class="line"><span>Total</span><strong>${amount(sum.total)} m²</strong></div>
       <div class="line"><span>Liberada</span><strong>${amount(sum.released)} m²</strong></div>
       <div class="line"><span>A liberar</span><strong>${amount(sum.total-sum.released)} m²</strong></div>
-      <div class="line"><span>Unidades liberadas</span><strong>${sum.unitsReleased.toLocaleString("pt-BR")} / ${sum.unitsTotal.toLocaleString("pt-BR")}</strong></div>
-      <div class="line"><span>Unidades aguardando</span><strong>${(sum.unitsTotal-sum.unitsReleased).toLocaleString("pt-BR")}</strong></div>
+      <div class="line"><span>Com alguma parte liberada</span><strong>${sum.unitsReleased.toLocaleString("pt-BR")} / ${sum.unitsTotal.toLocaleString("pt-BR")}</strong></div>
+      <div class="line"><span>Sem liberação</span><strong>${(sum.unitsTotal-sum.unitsReleased).toLocaleString("pt-BR")}</strong></div>
       <div class="expeditionProgressLabel"><span>Progresso de liberação</span><strong>${pct}%</strong></div>
       <div class="progress"><div class="bar" style="width:${pct}%"></div></div>
       ${envioInfo}
@@ -2914,10 +2914,11 @@ function renderResumoRomaneios(obraId){
     const media=n?dados.reduce((s,x)=>s+Number(x.prazo_liberacao_saida_dias)*Number(x.quantidade),0)/n:null;
     const idsObra=new Set(elements.filter(e=>e.obra_id===obraId).map(e=>e.id));
     const liberadas=releaseHistory.filter(h=>h.fabrica===nome&&idsObra.has(h.esquadria_id))
-      .reduce((v,h)=>v+Number(h.quantidade||0),0);
+      .reduce((v,h)=>v+Number(h.quantidade||0)*
+        (h.tipo_componente==='completo'||!h.tipo_componente?1:0.5),0);
     return '<strong>'+nome+'</strong>: '+(media===null?'média ainda indisponível':
       media.toLocaleString('pt-BR',{maximumFractionDigits:1})+' dia(s) em '+n+' unidade(s) expedida(s)')+
-      ' · '+liberadas+' liberada(s)';
+      ' · '+liberadas.toLocaleString('pt-BR',{maximumFractionDigits:1})+' unidade(s) equivalente(s) liberada(s)';
   });
   const idsDaObra=new Set(elements.filter(e=>e.obra_id===obraId).map(e=>e.id));
   const historicas=releaseHistory.filter(h=>!h.fabrica&&idsDaObra.has(h.esquadria_id))
