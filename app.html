@@ -9705,6 +9705,42 @@ function stockReverseDescricaoMaterial(g){
   g.local_estoque,g.unidade].filter(Boolean).join(' · ');
  return {cabecalho,detalhes};
 }
+// Orienta o usuário antes da tentativa. O servidor sempre decide sob trava.
+function stockReverseDependenciasMovimento(mov,lista){
+ if(!mov||mov.origem==='ESTORNO')return [];
+ const pares=mov.transferencia_id&&mov.origem==='TRANSFERENCIA'?
+  lista.filter(x=>x.transferencia_id===mov.transferencia_id&&x.origem==='TRANSFERENCIA'):[];
+ const referencia=pares.find(x=>Number(x.quantidade_delta)>0)||mov;
+ if(Number(referencia.quantidade_delta)<=0)return [];
+ const dataBase=Date.parse(referencia.criado_em||'');
+ if(!Number.isFinite(dataBase))return [];
+ const estornados=new Set(lista.filter(x=>x.estorno_de_id).map(x=>x.estorno_de_id));
+ const tiposConsumo=new Set(['PLANO_CORTE','PLANO_CORTE_LOTE','SAIDA_MANUAL','AJUSTE']);
+ const deps=lista.filter(x=>x.obra_id===referencia.obra_id&&
+  x.variacao_id===referencia.variacao_id&&
+  (x.comprimento_mm??null)===(referencia.comprimento_mm??null)&&
+  x.unidade===referencia.unidade&&Number(x.quantidade_delta)<0&&
+  x.origem!=='ESTORNO'&&!estornados.has(x.id)&&
+  Date.parse(x.criado_em||'')>dataBase&&
+  (tiposConsumo.has(x.origem)||(x.origem==='TRANSFERENCIA'&&
+   x.transferencia_id!==referencia.transferencia_id)));
+ return deps.sort((a,b)=>String(b.criado_em).localeCompare(String(a.criado_em)))
+  .map(x=>{
+   const saida=x.origem==='TRANSFERENCIA';
+   const destino=saida?lista.find(y=>y.transferencia_id===x.transferencia_id&&
+    y.origem==='TRANSFERENCIA'&&Number(y.quantidade_delta)>0):null;
+   const obraDestino=destino?works.find(w=>w.id===destino.obra_id):null;
+   const descricao=saida?
+    (destino&&destino.obra_id!==x.obra_id?'Transferência para outra obra':'Transferência entre galpões'):
+    (tiposConsumo.has(x.origem)?'Baixa/consumo de material':'Movimentação posterior');
+   const quando=new Date(x.criado_em);
+   return {id:x.id,descricao,
+    detalhe:[obraDestino&&obraDestino.id!==x.obra_id?(obraDestino.codigo||obraDestino.nome):null,
+     x.local_estoque,
+     Number.isFinite(quando.getTime())?quando.toLocaleString('pt-BR'):null,
+     'lançamento '+String(x.id).slice(0,8)].filter(Boolean).join(' · ')};
+  });
+}
 function stockReverseHistoryRender(id){
  const root=node('stockReverseHistoryList');
  const movs=estoqueObraMovimentos.filter(m=>m.obra_id===id);
@@ -9738,9 +9774,11 @@ function stockReverseHistoryRender(id){
    origemLabels[m.origem]||m.origem,quando,m.transferencia_id?'Transferência vinculada':null,
    m.observacao?String(m.observacao):null
   ].filter(Boolean).join(' · ');
+  const dependencias=stockReverseDependenciasMovimento(m,estoqueObraMovimentos);
   const botao=m.origem!=='ESTORNO'&&!conciliada&&!m.estorno_de_id&&!estornados.has(m.id)?
    '<button type="button" class="btn secondary" data-stock-reverse-item="'+escapeHTML(m.id)+
-   '" '+(stockReverseReady?'':'disabled')+'>'+(entreObras?
+   '" '+(stockReverseReady||dependencias.length?'':'disabled')+'>'+(dependencias.length?
+    'Ver '+dependencias.length+' dependência(s)':entreObras?
     'Estornar transferência entre obras':'Estornar lançamento')+'</button>':'';
   return '<div class="stockReverseHistoryRow"><div><strong>'+escapeHTML(titulo.cabecalho)+'</strong>'+
    '<div class="hint">'+escapeHTML(titulo.detalhes)+'</div>'+
@@ -9759,7 +9797,20 @@ async function stockReverseIndividual(movimentoId){
  const mov=estoqueObraMovimentos.find(m=>m.id===movimentoId&&m.obra_id===id);
  const obra=works.find(w=>w.id===id);
  const estado=node('stockReverseMessage');
- if(!stockReverseReady||!mov||mov.origem==='ESTORNO'||mov.estorno_de_id||!obra||!matIsAdmin())return;
+ if(!mov||mov.origem==='ESTORNO'||mov.estorno_de_id||!obra||!matIsAdmin())return;
+ const dependencias=stockReverseDependenciasMovimento(mov,estoqueObraMovimentos);
+ if(dependencias.length){
+  const roteiro=dependencias.slice(0,8).map((d,i)=>String(i+1)+'. '+
+   d.descricao+' — '+d.detalhe);
+  estado.textContent='ESTORNO BLOQUEADO — primeiro desfaça as movimentações posteriores, '+
+   'começando pela mais recente. Se houve saída ou fabricação, cancele o romaneio, '+
+   'estorne a saída e a baixa. Depois retorne e atualize a conferência.\n'+
+   roteiro.join('\n')+(dependencias.length>8?'\n... e outras pendências':'');
+  estado.classList.add('stockReversalBlock');
+  node('stockReverseOpenWorks').classList.remove('hidden');
+  return;
+ }
+ if(!stockReverseReady)return;
  const motivo=node('stockReverseReason').value.trim();
  if(motivo.length<5||motivo.length>400){
   estado.textContent='Informe um motivo de 5 a 400 caracteres para o lançamento.';return;
