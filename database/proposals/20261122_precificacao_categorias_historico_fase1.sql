@@ -100,7 +100,7 @@ CREATE TABLE IF NOT EXISTS public.ew_precificacao_revisoes_itens (
  obra_id uuid NOT NULL,
  revisao_id uuid NOT NULL,
  indice_importacao integer NOT NULL CHECK(indice_importacao>=0),
- esquadria_id uuid REFERENCES public.esquadrias(id) ON DELETE RESTRICT,
+ esquadria_id uuid NOT NULL REFERENCES public.esquadrias(id) ON DELETE RESTRICT,
  tipologia_id uuid REFERENCES public.tipologias(id) ON DELETE RESTRICT,
  categoria_id uuid,
  categoria_nome_snapshot text NOT NULL,
@@ -115,6 +115,7 @@ CREATE TABLE IF NOT EXISTS public.ew_precificacao_revisoes_itens (
  fabricacao_centavos bigint NOT NULL CHECK(fabricacao_centavos>=0),
  instalacao_centavos bigint NOT NULL CHECK(instalacao_centavos>=0),
  UNIQUE(revisao_id,indice_importacao),
+ UNIQUE(revisao_id,esquadria_id),
  FOREIGN KEY(revisao_id,empresa_id,obra_id)
   REFERENCES public.ew_precificacao_revisoes(id,empresa_id,obra_id) ON DELETE RESTRICT,
  FOREIGN KEY(categoria_id,empresa_id)
