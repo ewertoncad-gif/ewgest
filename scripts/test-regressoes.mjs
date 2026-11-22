@@ -418,9 +418,9 @@ assert.ok(iniciar>=0&&terminar>iniciar,'Funções de romaneios identificadas');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({
  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
 })[c]);
-const montarRomaneio=new Function('works','escapeHTML',
+const montarRomaneio=new Function('works','escapeHTML','window','dispatchConfig',
  source.slice(iniciar,terminar)+'\nreturn construirHTMLRomaneio;'
-)([{id:'obra',nome:'MIRAGE',cliente:'MOURA DUBEUX'}],esc);
+)([{id:'obra',nome:'MIRAGE',cliente:'MOURA DUBEUX'}],esc,{},[]);
 const cabecalho={id:'rm',obra_id:'obra',numero:'RM042',data_saida:'2026-07-08',
  motorista:'IRAN FRANCISCO',placa:'UHQ4A65',observacoes:''};
 const linha=(n)=>({sequencia:n,codigo:'CG 1016',localizacao:'Ático',
