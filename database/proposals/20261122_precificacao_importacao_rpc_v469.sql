@@ -215,6 +215,15 @@ BEGIN
   v_idx:=v_idx+1;
  END LOOP;
 
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(p_precificacao->'categorias') c
+              WHERE (c->>'preco_base_m2_centavos')::numeric>0) OR
+    EXISTS (
+      SELECT 1 FROM jsonb_array_elements(p_precificacao->'itens') p
+      JOIN jsonb_array_elements(p_precificacao->'categorias') c
+       ON c->>'id_local'=p->>'categoria_id_local'
+      WHERE (c->>'preco_base_m2_centavos')::numeric<=0
+    ) THEN RAISE EXCEPTION 'Todas as categorias em uso exigem preço-base positivo.'; END IF;
+
  -- O rateio é recalculado no servidor por maior resto e índice do CEM;
  -- não basta o cliente enviar somatórios aparentemente corretos.
  WITH entrada AS (
@@ -251,14 +260,7 @@ BEGIN
   ) INTO v_expected_errs FROM ordenada;
  IF v_expected_errs IS NULL OR v_expected_errs<>0 THEN
   RAISE EXCEPTION 'Valores dos itens não conferem com o rateio aprovado.'; END IF;
- IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(p_precificacao->'categorias') c
-              WHERE (c->>'preco_base_m2_centavos')::numeric>0) OR
-    EXISTS (
-      SELECT 1 FROM jsonb_array_elements(p_precificacao->'itens') p
-      JOIN jsonb_array_elements(p_precificacao->'categorias') c
-       ON c->>'id_local'=p->>'categoria_id_local'
-      WHERE (c->>'preco_base_m2_centavos')::numeric<=0
-    ) THEN RAISE EXCEPTION 'Todas as categorias em uso exigem preço-base positivo.'; END IF;
+
 
  -- Validar também os totais fornecidos por categoria.
  FOR v_cat IN SELECT value FROM jsonb_array_elements(p_precificacao->'categorias') LOOP
