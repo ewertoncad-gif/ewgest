@@ -351,6 +351,44 @@ begin
  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
   p_obra_id::text||'|'||v_original.variacao_id::text||'|'||
   coalesce(v_original.comprimento_mm::text,'-')||'|'||v_original.unidade,34777));
+ -- Transferência ENTRE GALPÕES: o estorno deve respeitar a cadeia das
+ -- movimentações e nunca fingir que o material voltou fisicamente de galpão.
+ -- Saldo recomposto por compra posterior não prova que o lote não foi usado.
+ IF v_original.transferencia_id IS NOT NULL THEN
+  SELECT * INTO v_mov FROM public.ew_estoque_obras_movimentos
+  WHERE obra_id=p_obra_id AND transferencia_id=v_original.transferencia_id
+    AND origem='TRANSFERENCIA' AND quantidade_delta>0
+  LIMIT 1;
+  IF v_mov.id IS NULL THEN
+   RAISE EXCEPTION 'Crédito da transferência entre galpões não localizado.';
+  END IF;
+  IF EXISTS(
+   SELECT 1 FROM public.ew_estoque_obras_movimentos m
+   WHERE m.empresa_id=v_obra.empresa_id AND m.obra_id=p_obra_id
+    AND m.variacao_id=v_mov.variacao_id
+    AND m.comprimento_mm IS NOT DISTINCT FROM v_mov.comprimento_mm
+    AND m.unidade=v_mov.unidade AND m.criado_em>v_mov.criado_em
+    AND m.quantidade_delta<0
+    AND m.origem IN ('PLANO_CORTE','PLANO_CORTE_LOTE','SAIDA_MANUAL','AJUSTE')
+    AND NOT EXISTS(SELECT 1 FROM public.ew_estoque_obras_movimentos e
+      WHERE e.estorno_de_id=m.id)
+  ) THEN
+   RAISE EXCEPTION 'Material utilizado após transferência entre galpões. Cancele o romaneio/saída e estorne a baixa de fabricação antes de desfazer a transferência.';
+  END IF;
+  IF EXISTS(
+   SELECT 1 FROM public.ew_estoque_obras_movimentos m
+   WHERE m.empresa_id=v_obra.empresa_id AND m.obra_id=p_obra_id
+    AND m.variacao_id=v_mov.variacao_id
+    AND m.comprimento_mm IS NOT DISTINCT FROM v_mov.comprimento_mm
+    AND m.unidade=v_mov.unidade AND m.criado_em>v_mov.criado_em
+    AND m.quantidade_delta<0 AND m.origem='TRANSFERENCIA'
+    AND m.transferencia_id IS DISTINCT FROM v_original.transferencia_id
+    AND NOT EXISTS(SELECT 1 FROM public.ew_estoque_obras_movimentos e
+      WHERE e.estorno_de_id=m.id)
+  ) THEN
+   RAISE EXCEPTION 'Transferência posterior do mesmo material ainda ativa. Estorne primeiro a transferência mais recente, seja para outro galpão ou outra obra.';
+  END IF;
+ END IF;
  -- Cancelar entrada não vinculada a NF-e: a localização física é irrelevante,
  -- mas material consumido ou transferido a outra obra continua indisponível.
  IF v_original.transferencia_id IS NULL AND v_original.quantidade_delta>0 THEN
