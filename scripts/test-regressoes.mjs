@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import './test-precificacao.mjs';
 import './test-precificacao-financeiro.mjs';
+import './test-precificacao-ui.mjs';
 const source=readFileSync(fileURLToPath(new URL('../app.html',import.meta.url)),'utf8');
 // Issue #31 — Recebimento separado do Financeiro e operação por perfil.
 const recebimentoSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_recebimento_almoxarife_seguro.sql',import.meta.url)),'utf8');
