@@ -689,6 +689,7 @@
 <link rel="stylesheet" href="/assets/insumos-fisicos.css?v=20261121a">
 <link rel="stylesheet" href="/assets/entregas-producao.css?v=20261121a">
 <link rel="stylesheet" href="/assets/romaneios-transferencia.css?v=20261121c">
+<link rel="stylesheet" href="/assets/relatorios-obras.css?v=20261122a">
 <link rel="stylesheet" href="/assets/cadastros-pages.css?v=20261121b">
 </head>
 <body>
@@ -711,10 +712,11 @@
     <div class="workspaceNavCaption workspaceNavCaptionSecond">ADMINISTRAÇÃO</div>
     <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
     <button id="navFinanceiro" class="workspaceLink hidden" type="button"><span class="navSymbol">◈</span> Financeiro das obras</button>
+    <button id="navRelatorios" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Relatórios</button>
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.15</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.16</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -913,6 +915,36 @@
         </div>
       </div>
     </section>
+    
+    <section id="relatorios" class="hidden">
+      <div class="head"><div><h1>Relatórios por obra</h1>
+        <p class="muted">Faturamentos registrados e histórico completo das movimentações de materiais, inclusive obras arquivadas. Consulta sem alteração de estoque.</p>
+      </div></div>
+      <div class="section panel">
+        <div class="reportsFilters">
+          <label>Tipo de relatório
+            <select id="reportType">
+              <option value="faturamento">Faturamento por obra</option>
+              <option value="estoque">Movimentações de estoque</option>
+            </select>
+          </label>
+          <label>Obra
+            <select id="reportWork"><option value="">Todas as obras</option></select>
+          </label>
+          <label>De <input id="reportStart" type="date"></label>
+          <label>Até <input id="reportEnd" type="date"></label>
+        </div>
+        <label class="reportsCheck"><input id="reportCancelled" type="checkbox"> Incluir faturamentos cancelados (separados dos totais ativos)</label>
+        <div class="topactions reportActions">
+          <button id="reportGenerate" class="btn primary" type="button">Gerar relatório</button>
+          <button id="reportCsv" class="btn secondary" type="button" disabled>Exportar CSV</button>
+          <button id="reportPrint" class="btn secondary" type="button" disabled>Imprimir relatório</button>
+        </div>
+        <p id="reportStatus" class="feedback" role="status" aria-live="polite">Selecione os filtros para consultar.</p>
+        <div id="reportSummary"></div>
+        <div id="reportTable" class="reportsTableScroll"></div>
+      </div>
+    </section>
     <section id="worksPage" class="hidden">
       <div class="head"><div>
         <h1>Obras</h1>
@@ -987,6 +1019,7 @@
             <button type="button" class="btn secondary" id="romTransfReload">Atualizar transferências</button>
             <button type="button" class="btn secondary" id="romTransfMerge">Juntar romaneios selecionados</button>
           </div>
+          <label class="hint" style="display:flex;align-items:center;gap:8px;margin:12px 0"><input id="romTransfIncludeArchived" type="checkbox" style="width:auto"> Consultar histórico de romaneios de obras arquivadas</label>
           <p id="romTransfStatus" class="hint" role="status"></p>
           <div id="romTransfList" aria-live="polite"><p class="hint">Abra esta guia para consultar transferências entre galpões.</p></div>
         </div>
@@ -2383,7 +2416,7 @@ function podeEmitirRomaneio(){return ['administrador','gerenciador','supervisor'
 function setView(view){
   node('startup').classList.add('hidden');
   if(isAlmoxarife()&&!['login','romaneiosPage','recebimento','almoxNotas','myPassword'].includes(view))view='romaneiosPage';
-  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','recebimento','almoxNotas','cadastros','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','typologies','manufacturers','materials','stock','financeiro','cemImport','users','myPassword'])
+  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','recebimento','almoxNotas','cadastros','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','typologies','manufacturers','materials','stock','financeiro','relatorios','cemImport','users','myPassword'])
     node(id).classList.toggle('hidden',id!==view);
   node('logout').classList.toggle('hidden',view==='login');
   node('myPasswordHeader').classList.toggle('hidden',view==='login');
@@ -2392,7 +2425,7 @@ function setView(view){
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
   const ativo=view==='detail'?'worksPage':view;
   for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],['navRecebimento','recebimento'],['navEnviarNotas','almoxNotas'],['navCadastros','cadastros'],
-      ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navCem','cemImport'],['navUsers','users'],['navManageWorks','manageWorks']]){
+      ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navRelatorios','relatorios'],['navCem','cemImport'],['navUsers','users'],['navManageWorks','manageWorks']]){
     const button=node(id);
     const selecionado=ativo===target||(id==='navCadastros'&&
       ['materials','typologies','manufacturers','users','fornecedoresPage','galpoesPage','insumosPage','unidadesPage'].includes(ativo));
@@ -2557,7 +2590,7 @@ async function loadPanel(){
   node('navEnviarNotas').classList.add('hidden'); // Fluxo antigo preservado internamente; nova entrada no Recebimento.
   node('navRecebimento').classList.toggle('hidden',!(isAlmoxarife()||isFullAdminUser()));
   node('recebimentoXmlLegacy').classList.toggle('hidden',!isAlmoxarife());
-  for(const id of ['navCadastros','navTypologies','navManufacturers','navMaterials','navAccessories','navStock','navCem','navUsers','navManageWorks','navFinanceiro'])node(id).classList.toggle('hidden',!adminNav);
+  for(const id of ['navCadastros','navTypologies','navManufacturers','navMaterials','navAccessories','navStock','navCem','navUsers','navManageWorks','navFinanceiro','navRelatorios'])node(id).classList.toggle('hidden',!adminNav);
   node('openRomaneioHub').classList.toggle('hidden',!podeEmitirRomaneio()||somenteRomaneios);
   node('topTag').textContent=somenteRomaneios?'Romaneios e expedição':'Gestão de obras · liberações e saídas';
   node('openTypologies').classList.toggle('hidden',!canAdministrate());
@@ -10678,7 +10711,8 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/cadastros-hub.js?v=20261121c"></script>
 <script src="/assets/insumos-fisicos.js?v=20261121d"></script>
 <script src="/assets/entregas-producao.js?v=20261121a"></script>
-<script src="/assets/romaneios-transferencia.js?v=20261121d"></script>
+<script src="/assets/romaneios-transferencia.js?v=20261122a"></script>
+<script src="/assets/relatorios-obras.js?v=20261122a"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>
 </body>
 </html>
