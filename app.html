@@ -712,7 +712,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.5</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.6</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -1981,15 +1981,15 @@
         <option value="IMBIRIBEIRA">IMBIRIBEIRA</option>
       </select>
       <p class="hint">A fábrica será registrada nesta liberação para apurar o prazo até a saída da produção.</p>
-      <label for="releaseComponent">4. Qual parte da esquadria está sendo liberada?</label>
+      <label for="releaseComponent">4. O que deseja liberar tecnicamente para fabricação?</label>
       <select id="releaseComponent" required>
         <option value="">Selecione a parte</option>
-        <option value="completo">Esquadria completa (100%)</option>
-        <option value="marco">Somente o marco (50%)</option>
-        <option value="folhas">Conjunto das folhas (50%)</option>
+        <option value="completo">Esquadria completa: marco + todas as folhas (100%)</option>
+        <option value="marco">Liberação parcial: somente o marco (50%)</option>
+        <option value="folhas">Liberação parcial: conjunto das folhas (50%)</option>
       </select>
       <p id="releaseComponentBalance" class="hint" role="status"></p>
-      <p class="hint">Marco = 100% da parte; folhas = 100% da parte. Somados são 200% e, divididos por 2, representam 100% da esquadria.</p>
+      <p class="hint"><strong>Ao liberar a esquadria completa, marco e folhas ficam liberados juntos.</strong> Na expedição, o almoxarife poderá enviar o marco e cada folha física separadamente, em qualquer ordem. Uma liberação parcial só autoriza o componente selecionado.</p>
       <p class="hint"><strong>Liberação somente técnica.</strong> Não movimenta nem baixa materiais. O almoxarife registra a saída física ao entregar à produção.</p>
       <div class="releaseMirrorIntro hidden">
         <h3>4. Como deseja registrar a relação de materiais?</h3>
@@ -3218,7 +3218,7 @@ function adicionarLinhaRomaneio(natureza){
       '<select class="romaneioKind" data-rom-field="tipo_saida">'+
       '<option value="completo">Esquadria completa</option>'+
       '<option value="marco">Somente o marco</option>'+
-      '<option value="folha">Somente as folhas</option></select>'+
+      '<option value="folha">Folhas físicas (pode enviar uma de cada vez)</option></select>'+
       '<p class="hint hidden" data-rom-maxim-note>MAXIM-AR é expedido somente completo.</p>'+
       '<label>Buscar esquadria pelo código ou descrição</label>'+
       '<input class="romaneioSearch" type="search" data-rom-field="esquadria_search" placeholder="Ex.: EA14, JCR, veneziana">'+
@@ -3231,7 +3231,7 @@ function adicionarLinhaRomaneio(natureza){
       '<div class="romaneioRowFields">'+
       '<label>Quantidade<input data-rom-field="quantidade" type="number" min="1" step="1" required></label>'+
       '<label class="hidden">Folhas por esquadria<input data-rom-field="folhas_por_unidade" type="number" min="1" max="12" step="1" placeholder="Confirmar"></label>'+
-      '</div><p class="hint hidden" data-rom-hint-folhas>Na opção “só folhas”, a quantidade representa folhas físicas, não esquadrias completas.</p>';
+      '</div><p class="hint hidden" data-rom-hint-folhas>Informe a quantidade de folhas físicas expedidas. Não precisa enviar todas juntas: para janela 2F, cada folha equivale a 25% da área da esquadria. Marco e folhas podem constar em linhas separadas deste mesmo romaneio.</p>';
     row.querySelector('[data-rom-field="tipo_saida"]').addEventListener('change',()=>buscarEsquadriasRomaneio(row));
     row.querySelector('[data-rom-field="esquadria_search"]').addEventListener('input',()=>buscarEsquadriasRomaneio(row));
     row.querySelector('[data-rom-field="esquadria_id"]').addEventListener('change',()=>atualizarLinhaRomaneio(row));
@@ -3255,7 +3255,7 @@ function adicionarLinhaRomaneio(natureza){
 function coletarItensRomaneio(){
   const rows=[...node('romaneioRows').querySelectorAll('.romaneioRow')];
   if(rows.length===0)throw new Error('Adicione pelo menos um item.');
-  const usados=new Set();
+  const usados=new Set(); // Uma linha por componente, não uma linha por esquadria.
   return rows.map((row,index)=>{
     const campo=n=>row.querySelector('[data-rom-field="'+n+'"]')?.value.trim()||'';
     const quantidade=Number(campo('quantidade'));
@@ -3270,8 +3270,9 @@ function coletarItensRomaneio(){
         throw new Error('Escolha completa, marco ou folhas para '+item.codigo+'.');
       if(tipo!=='completo'&&ehMaximArRomaneio(item))
         throw new Error(item.codigo+': MAXIM-AR só pode sair como esquadria completa.');
-      if(usados.has(id))throw new Error('A esquadria '+item.codigo+' aparece duas vezes. Separe em outro romaneio.');
-      usados.add(id);
+      const chave=id+'|'+tipo;
+      if(usados.has(chave))throw new Error(item.codigo+': a parte '+tipo+' já está neste romaneio. Altere a quantidade na mesma linha.');
+      usados.add(chave);
       const config=dispatchConfig.find(x=>x.esquadria_id===id);
       // Completo usa a composição cadastrada se já existir; caso contrário não cria estimativa.
       const folhas=tipo==='completo'?null:
@@ -4263,7 +4264,9 @@ function releaseComponentAtualizar(){
  node('releaseComponentBalance').textContent=
   'Marcos liberados: '+parts.marcos+'/'+selectedItem.quantidade+
   ' · Conjuntos das folhas liberados: '+parts.folhas+'/'+selectedItem.quantidade+
-  (tipo?' · Disponíveis nesta opção: '+pending:' · Selecione a parte a liberar.');
+  (tipo?' · Disponíveis nesta opção: '+pending:' · Selecione a parte a liberar.')+
+  (parts.marcos>parts.folhas?' · Há '+(parts.marcos-parts.folhas)+' marco(s) liberado(s) sem o conjunto de folhas.':'')+
+  (parts.folhas>parts.marcos?' · Há '+(parts.folhas-parts.marcos)+' conjunto(s) de folhas liberado(s) sem marco.':'');
 }
 function openRelease(id){
  if(!['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
@@ -4282,7 +4285,14 @@ function openRelease(id){
    (!permitePartes&&option.value!=='completo');
   option.hidden=!permitePartes&&option.value!=='completo';
  }
- select.value=permitePartes?'':'completo';
+ // Completa é a escolha natural. Uma liberação parcial já existente sugere
+ // apenas a parte complementar — nunca altera retroativamente o histórico.
+ const complemento=permitePartes&&parts.marcos>parts.folhas&&parts.saldoFolhas>0?'folhas':
+  permitePartes&&parts.folhas>parts.marcos&&parts.saldoMarco>0?'marco':'';
+ const preferida=complemento||(parts.saldoCompleto>0?'completo':
+  parts.saldoMarco>0?'marco':parts.saldoFolhas>0?'folhas':'');
+ select.value=[...select.options].some(o=>o.value===preferida&&!o.disabled)?preferida:'';
+
  node('releaseQty').value='';
  node('releaseDate').value=todayLocal();
  node('releaseFactory').value='';

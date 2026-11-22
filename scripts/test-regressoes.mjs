@@ -179,8 +179,8 @@ for(const token of [
  "tipoSelect.querySelector('option[value=\"parcial\"]').disabled=maxim",
  "node('shipmentLeaves').required=precisaComposicao",
  "const per=kind==='completo'?null:",
- 'Somente o marco',
- 'Somente as folhas',
+ 'Liberação parcial: somente o marco (50%)',
+ 'Folhas físicas (pode enviar uma de cada vez)',
  'data-rom-field="esquadria_search"',
  "p_motivo:texto",
  'cancelar_romaneio_com_estorno',
@@ -2073,7 +2073,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.5')&&
+assert.ok(source.includes('v46.6')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2306,7 +2306,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.5</strong>'),
+ source.includes('EWGEST <strong>· v46.6</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2626,5 +2626,84 @@ assert.ok(areaSql.includes("CREATE OR REPLACE FUNCTION public.emitir_romaneio_co
  areaSql.includes("when 'completo' then")&&
  areaSql.includes('v_item.largura_mm*v_item.altura_mm*v_qty/1000000.0'),
  'A proposta SQL deve preservar as guardas e persistir as áreas equivalentes por componente');
+
+// EWGEST v46.6 — liberação completa por padrão e expedição livre por componente.
+assert.ok(source.includes('Esquadria completa: marco + todas as folhas (100%)')&&
+ source.includes('const complemento=permitePartes&&parts.marcos>parts.folhas')&&
+ source.includes("select.value=[...select.options].some(o=>o.value===preferida&&!o.disabled)?preferida:'';"),
+ 'A liberação normal deve ser completa, e um marco já liberado deve sugerir complementar as folhas');
+assert.ok(source.includes('Folhas físicas (pode enviar uma de cada vez)')&&
+ source.includes("const chave=id+'|'+tipo;")&&
+ source.includes('if(usados.has(chave))')&&
+ !source.includes("if(usados.has(id))throw new Error('A esquadria"),
+ 'No mesmo romaneio, marco e folha são tipos distintos; repetição da mesma parte é bloqueada');
+const migration466=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261122_romaneio_marco_folha_mesmo_doc_v466.sql',import.meta.url)),'utf8');
+assert.ok(migration466.includes("CREATE OR REPLACE FUNCTION public.emitir_romaneio_com_saidas")&&
+ migration466.includes('PERFORM public.ew_exigir_sessao_atual()')&&
+ migration466.includes("SECURITY DEFINER")&&
+ migration466.includes("SET search_path TO ''")&&
+ migration466.includes('pg_catalog.pg_advisory_xact_lock')&&
+ migration466.includes('AND esquadria_id=v_id AND tipo_saida=v_tipo_saida')&&
+ migration466.includes("when 'marco' then")&&migration466.includes("when 'folha' then")&&
+ migration466.includes('v_item.largura_mm*v_item.altura_mm*v_qty/(2000000.0*v_per)')&&
+ !migration466.includes("WHERE romaneio_id=v_rom.id AND esquadria_id=v_id) THEN"),
+ 'RPC proposta v46.6 deve permitir duas linhas do mesmo código com componentes distintos e preservar guardas');
+const codigoPartes466=source.slice(source.indexOf('function releaseParts(item){'),
+ source.indexOf('function totals(',source.indexOf('function releaseParts(item){')));
+const codigoStats466=source.slice(source.indexOf('function shipmentStats(item){'),
+ source.indexOf('function suggestedLeaves(item)',source.indexOf('function shipmentStats(item){')));
+const codigoFolhas466=source.slice(source.indexOf('function suggestedLeaves(item) {'),
+ source.indexOf('function romaneioSaldoCompleto(item)',source.indexOf('function suggestedLeaves(item) {')));
+const codigoSaldo466=source.slice(source.indexOf('function romaneioSaldoPorTipo(item,tipo,folhas){'),
+ source.indexOf('function mensagemSemSaldoRomaneio(',source.indexOf('function romaneioSaldoPorTipo(item,tipo,folhas){')));
+const liberacoes466=[{esquadria_id:'ea2v466',tipo_componente:'completo',quantidade:1}];
+const expedicoes466=[];
+const configuracao466=[{esquadria_id:'ea2v466',folhas_por_unidade:2}];
+const regras466=new Function('releaseHistory','shipmentHistory','dispatchConfig',
+ codigoPartes466+codigoStats466+codigoFolhas466+codigoSaldo466+
+ '\nreturn {releaseParts,shipmentStats,romaneioSaldoPorTipo};')(
+ liberacoes466,expedicoes466,configuracao466);
+const ea2466={id:'ea2v466',codigo:'EA2',descricao:'JANELA DE CORRER 2 FOLHAS',
+ largura_mm:1200,altura_mm:1150,quantidade:1,qtd_liberada:1};
+assert.equal(regras466.releaseParts(ea2466).marcos,1,'Liberar completo libera marco');
+assert.equal(regras466.releaseParts(ea2466).folhas,1,'Liberar completo libera o conjunto das folhas');
+assert.equal(regras466.romaneioSaldoPorTipo(ea2466,'marco',2),1,'Marco disponível');
+assert.equal(regras466.romaneioSaldoPorTipo(ea2466,'folha',2),2,'Duas folhas físicas disponíveis');
+expedicoes466.push({esquadria_id:'ea2v466',tipo:'marco',quantidade:1});
+assert.equal(regras466.romaneioSaldoPorTipo(ea2466,'folha',2),2,
+ 'Após enviar 1 marco, continuam 2 folhas físicas disponíveis');
+expedicoes466.push({esquadria_id:'ea2v466',tipo:'folha',quantidade:1});
+assert.equal(regras466.romaneioSaldoPorTipo(ea2466,'folha',2),1,
+ 'Marco+folha deixa só uma folha de saldo (25%)');
+const progStart466=source.indexOf('function progressoExpedicao(list){');
+const progEnd466=source.indexOf('function renderList(){',progStart466);
+const progresso466=new Function('shipmentHistory','dispatchConfig','dispatchReady','area',
+ source.slice(progStart466,progEnd466)+'\nreturn progressoExpedicao;')(
+ expedicoes466,configuracao466,true,
+ (x,q)=>Number(x.largura_mm)*Number(x.altura_mm)*q/1000000);
+assert.ok(Math.abs(progresso466([ea2466]).areaEnviada-1.035)<1e-9,
+ 'Marco+uma folha de 2 folhas = 75% de 1,38m² = 1,035m²');
+expedicoes466.push({esquadria_id:'ea2v466',tipo:'folha',quantidade:1});
+assert.equal(regras466.romaneioSaldoPorTipo(ea2466,'folha',2),0,'Não aceitar terceira folha');
+assert.ok(Math.abs(progresso466([ea2466]).areaEnviada-1.38)<1e-9,
+ 'Marco+duas folhas = 100% de 1,38m²');
+expedicoes466.splice(0);
+expedicoes466.push({esquadria_id:'ea2v466',tipo:'folha',quantidade:1});
+assert.equal(regras466.romaneioSaldoPorTipo(ea2466,'marco',2),1,
+ 'Ordem inversa: enviar folha antes não bloqueia o marco');
+assert.ok(Math.abs(progresso466([ea2466]).areaEnviada-0.345)<1e-9,
+ 'Folha primeiro equivale a 25% da esquadria');
+expedicoes466.push({esquadria_id:'ea2v466',tipo:'marco',quantidade:1});
+assert.ok(Math.abs(progresso466([ea2466]).areaEnviada-1.035)<1e-9,
+ 'Folha primeiro e marco depois equivale a 75%');
+const duasPartesNoRomaneio466=factories[0](printHeader,[
+ {...parcialBase,sequencia:1,tipo_saida:'marco',area_m2:null},
+ {...parcialBase,sequencia:2,tipo_saida:'folha',area_m2:null}
+]);
+assert.ok(duasPartesNoRomaneio466.includes('Total M²:</strong> 1,04')&&
+ duasPartesNoRomaneio466.includes('<td class="right">0,69</td>')&&
+ duasPartesNoRomaneio466.includes('<td class="right">0,35</td>'),
+ 'Mesmo romaneio com marco e uma folha física calcula 1,035m² e exibe 1,04m² arredondado');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
