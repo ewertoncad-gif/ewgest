@@ -56,7 +56,10 @@ CREATE TABLE public.ew_auditoria_operacoes (
 -- Apenas referência de NF para que o estorno genérico recuse recebimentos vinculados.
 CREATE TABLE public.ew_nfe_recebimentos (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
- movimento_id uuid NOT NULL REFERENCES public.ew_estoque_obras_movimentos(id)
+ movimento_id uuid NOT NULL REFERENCES public.ew_estoque_obras_movimentos(id),
+ empresa_id uuid REFERENCES public.empresas(id),
+ obra_id uuid REFERENCES public.obras(id),
+ estornado_em timestamptz
 );
 CREATE TABLE public._blockers (obra_id uuid PRIMARY KEY, motivo text NOT NULL);
 CREATE FUNCTION public.ew_exigir_sessao_atual() RETURNS void LANGUAGE plpgsql
