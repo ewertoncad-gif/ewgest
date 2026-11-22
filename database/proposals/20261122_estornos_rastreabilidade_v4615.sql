@@ -372,4 +372,15 @@ begin
   'historico_preservado',true);
 end;
 $function$;
+-- Preservar EXECUTE apenas a sessões autenticadas; política de negócio é verificada
+-- novamente internamente pelo vínculo ativo de ADM/gerenciador.
+REVOKE ALL ON FUNCTION public.ew_estornar_transferencia_entre_obras(uuid,uuid,text,uuid)
+ FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.ew_estornar_movimento_obra(uuid,uuid,text,uuid)
+ FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.ew_estornar_transferencia_entre_obras(uuid,uuid,text,uuid)
+ TO authenticated;
+GRANT EXECUTE ON FUNCTION public.ew_estornar_movimento_obra(uuid,uuid,text,uuid)
+ TO authenticated;
+
 COMMIT;
