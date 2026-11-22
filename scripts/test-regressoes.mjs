@@ -2138,7 +2138,7 @@ assert.ok(source.includes('id="stockTransferPickLocal">Transferência entre galp
  source.includes('id="romTransfMerge"')&&
  source.includes('id="romTransfExtras"')&&
  source.includes('romaneios-transferencia.css?v=20261121c')&&
- source.includes('romaneios-transferencia.js?v=20261121d')&&
+ source.includes('romaneios-transferencia.js?v=20261122a')&&
  source.includes("if(window.ewTransferRomaneiosReload)window.ewTransferRomaneiosReload()"),
  'Transferencia entre galpoes deve ter romaneio na guia de expedicao');
 for(const token of [
@@ -2395,7 +2395,7 @@ assert.ok(transferTransport.includes("apiGet('romaneios_motoristas'")&&
  transferTransport.includes("if(editVersion!==version||editId!==id)return")&&
  transferTransport.includes("void carregarTransporteEdicao(id,version,d.motorista||'',d.placa||'')"),
  'Romaneios de transferencia precisam carregar cadastros ativos, preservar valores validos e bloquear texto livre');
-assert.ok(source.includes('romaneios-transferencia.js?v=20261121d')&&
+assert.ok(source.includes('romaneios-transferencia.js?v=20261122a')&&
  source.includes('romaneios-transferencia.css?v=20261121c')&&
  transferTransportCSS.includes('.romTransfFields select'),
  'O deploy da versao 46.1 precisa atualizar o cache e o estilo do seletor');
