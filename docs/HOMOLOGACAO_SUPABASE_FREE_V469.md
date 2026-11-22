@@ -48,3 +48,45 @@ O inventário está em [DRIFT_SCHEMA_SUPABASE_V469.md](DRIFT_SCHEMA_SUPABASE_V46
 Falta reconstruir o **legado** de importação de obras, estoque, romaneios e faturamento de forma fiel, preservar Auth/usuários existentes, validar login real pela API, simular importação completa com ZIP sem dados comerciais, executar restauração efetiva do backup criptografado e revisar implantação/rollback. **Não aplicar ainda a RPC de importação ou os tetos novos no staging enquanto suas dependências antigas permanecerem incompatíveis.**
 
 **Status:** PR #64 permanece rascunho. v46.8 continua publicada; nenhuma migração de v46.9 foi aplicada em produção.
+
+
+## 5. Reconstrução central do importador CEM — execução em staging
+
+**Etapa aplicada e testada em 22/11/2026**, no projeto `ewgest-restauracao-teste` exclusivamente. Produção permanece com 59 tabelas públicas, 98 funções públicas e **sem** qualquer objeto novo de precificação.
+
+### Migrações do estágio (aplicadas com pré-ensaio + ROLLBACK)
+
+1. `database/proposals/20261122_staging_cem_core_contracts_v469.sql` — **44 colunas** faltantes alinhadas para contratos das tabelas centrais, incluindo catálogo de perfis e acessórios, variações, estoque local, esquadrias e planejamento de barras; criou `ew_cem_importacoes_materiais` com 10 campos, chave única, FKs, RLS ativo e grants fechados.
+2. `database/proposals/20261122_staging_cem_core_integridade_v469.sql` — **42 restrições adicionais** de integridade (unicidade, CHECKs e FKs), índices de materiais, aliases e estoque; corrigiu defaults, nulidade e precisão numérica em alvos vazios. FK `esquadrias_modulacao_id_fkey` continua pendente porque `tipologias_modulacoes` ainda não existe no staging. Duas restrições com nomes diferentes já tinham efeito equivalente no staging; não foram criadas em duplicidade.
+3. `database/proposals/20261122_staging_importador_real_v469.sql` — restaurou do código de produção, **sem importar dados**, as rotinas `ew_criar_obra_estoque`, `ew_conciliar_codigo_cem`, `importar_materiais_cem`, `ew_importar_cem_conciliado`; substituiu a função antiga de `ew_importar_obra_cem` pela adaptação versionada v46.9 que devolve UUIDs das esquadrias na ordem do ZIP. O wrapper financeiro legado já era idêntico ao de produção. Restabeleceu privilégios `EXECUTE` somente a `authenticated`.
+4. `database/proposals/20261122_staging_cem_rls_grants_v469.sql` — restaurou as **25 políticas de produção** em dez tabelas centrais de importação, substituindo as sete políticas antigas, e ajustou os `GRANTs` do perfil `authenticated` para refletir o padrão de produção. Removeu `DELETE`/escritas diretas que o staging antigo permitia indevidamente.
+5. `database/proposals/20261122_precificacao_importacao_rpc_v469.sql` — após ensaio que não persistiu a função, **instalou somente no staging** a nova RPC `ew_importar_obra_cem_precificacao` com o rateio revalidado no servidor e gravação atômica da revisão com a obra. Papel `anon` sem EXECUTE; `authenticated` pode executar, com verificação interna do vínculo de administrador.
+
+### Testes no Supabase REAL (dados fictícios, sem persistência)
+
+Executados dentro de `BEGIN; ... ROLLBACK;`, com **o usuário Auth já existente no staging** e uma claim SQL simulada. Não usamos senha nem token de produção.
+
+- O importador financeiro legado REAL criou temporariamente obra + 2 esquadrias + orçamento de dois níveis + estoque local.
+- O mesmo importador com materiais REAL criou um perfil fictício, um acessório fictício, 2 variações, vínculos do CEM, plano de barras e registro de importação. Sem baixa física.
+- A RPC v46.9 combinada ao importador REAL fechou o valor de 70/30 contratado em **60/40 aprovado**, com duas esquadrias e 2 preços individuais; retry com o mesmo ID não duplicou obra; alteração de um centavo foi rejeitada antes de qualquer operação de escrita.
+- A RPC combinada **com materiais e planejamento de barras** passou e não deixou dados parciais quando o preço estava adulterado.
+- A RPC barrou a tentativa de aprovação quando o perfil da sessão simulada foi trocado temporariamente para `almoxarife`. O perfil `administrador` original foi preservado pelo ROLLBACK.
+- O teste pode ser reexecutado com o arquivo versionado **`tests/homologacao_supabase_free/10_importador_real_com_precificacao_rollback.sql`**. Ele nunca faz COMMIT e verifica no final que as tabelas permanecem vazias.
+
+### Estado verificado após os testes
+
+| Indicador | Staging Free | Produção |
+|---|---:|---:|
+| Tabelas públicas | 41 | 59 |
+| Tabelas com RLS ativo | 41 | 59 |
+| Funções públicas | 50 | 98 |
+| Tabelas com privilégios anon de leitura/inserção | 0 | 0 |
+| Funções públicas com anon EXECUTE | 0 | 3 (estado original; sem alterações) |
+| Obras | 0 | 5 |
+| Esquadrias | 0 | 88 |
+| Usuários Auth | 1 | 6 |
+| RPC de importação com preços v46.9 | instalada | ausente |
+
+Supabase Advisor do staging: 20 tabelas com RLS sem políticas (`INFO`, algumas são módulos antigos ainda por reconstruir) e aviso sobre proteção contra senhas vazadas (`WARN`). Não abrir políticas amplas nem alterar produção automaticamente.
+
+**Faltam**, antes de liberar a v46.9: reconstruir romaneios, configuração de folhas, faturamento por itens, funções de faturamento e respectivos limites, relacionamentos de tipologias/modulações, a checagem real de sessões (`ew_exigir_sessao_atual` ainda é simulada no staging) e teste de login via Supabase Auth/PostgREST com JWT verdadeiro; também conferir backup restaurável e fluxo visual do site. O staging é **parcialmente homologado, não um espelho completo da produção**. PR #64 mantém-se em rascunho.
