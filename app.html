@@ -649,6 +649,7 @@
   .finRowCheck input{width:16px;height:16px}
   .finCostMap{width:100%;max-width:270px}
   .finTable .finSmallInput{width:95px;min-width:75px;padding:5px 7px;font-size:12px}
+  .finTable .finPrice{width:140px;min-width:130px;box-sizing:border-box}
   .finValuesGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
   .finValuesGrid label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:650;color:#345575}
   .finValuesGrid input{width:100%;min-width:0}
@@ -712,7 +713,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.7</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.8</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -7511,7 +7512,7 @@ async function finLoad(){
  const obraId=node('finWork').value,box=node('finContent');
  box.classList.add('hidden');finState=null;finXmlDoc=null;node('finXmlPreview').classList.add('hidden');
  node('finExpenseForm').reset();node('finCostTotal').readOnly=false;
- node('finBillingForm').reset();node('finInstalledConfirm').checked=false;
+ node('finBillingForm').reset();node('finBillingDate').value=todayLocal();node('finInstalledConfirm').checked=false;
  node('finMessage').textContent='';
  if(!obraId)return;
  const empresa='eq.'+currentCompany.id,obra='eq.'+obraId;
@@ -7943,6 +7944,26 @@ function finEquivalentesExpedidos(linhas,composicoes){
 // Arredondar para baixo (6 casas) evita faturar centésimos de unidade ainda não enviados.
 function finEquivDisponivel(v){return Math.max(0,Math.floor((Number(v)||0)*1000000+1e-8)/1000000);}
 function finEquivFormat(v){return Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:6});}
+// O preço é exibido em reais; a RPC continua recebendo um número sem máscara.
+// Aceita 1500, 1500,25, 1.500,25, ou 1500.25, mantendo quatro casas.
+function finPrecoValor(texto){
+ const valor=String(texto??'').trim().replace(/^R\$\s*/i,'').replace(/\s/g,'');
+ if(!valor)return 0;
+ let numero;
+ if(/^\d{1,3}(?:\.\d{3})+(?:,\d{1,4})?$/.test(valor))
+  numero=valor.replace(/\./g,'').replace(',','.');
+ else if(/^\d+(?:,\d{1,4})?$/.test(valor))
+  numero=valor.replace(',','.');
+ else if(/^\d+\.\d{1,4}$/.test(valor))numero=valor;
+ else return NaN;
+ return Number(numero);
+}
+function finPrecoFormatar(preco){
+ return Number(preco).toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2,maximumFractionDigits:4});
+}
+function finPrecoEdicao(preco){
+ return Number(preco).toLocaleString('pt-BR',{useGrouping:false,maximumFractionDigits:4});
+}
 
 function finRenderFaturaveis(){
  if(!finState)return;
@@ -7962,9 +7983,22 @@ function finRenderFaturaveis(){
   '<td><strong>'+escapeHTML(r.e.codigo)+'</strong><div class="hint">'+escapeHTML(r.e.descricao||'')+'</div></td>'+
   '<td>'+finEquivFormat(r.enviados)+'</td><td>'+finEquivFormat(r.ja)+'</td><td>'+finEquivFormat(r.disponivel)+'</td>'+
   '<td><input class="finQty finSmallInput" type="number" min="0.000001" max="'+r.disponivel+'" step="0.000001" value="'+(r.disponivel||'')+'"'+(r.disponivel===0?' disabled':'')+'></td>'+
-  '<td><input class="finPrice finSmallInput" type="number" min="0.0001" step="0.0001" placeholder="Preço total da esquadria"'+(r.disponivel===0?' disabled':'')+'></td></tr>').join('')+
+  '<td><input class="finPrice finSmallInput" type="text" inputmode="decimal" autocomplete="off" placeholder="R$ 0,00" aria-label="Preço integral da esquadria em reais"'+(r.disponivel===0?' disabled':'')+'></td></tr>').join('')+
   '</tbody></table></div>':'<p class="hint">Nenhuma esquadria com saída registrada em romaneio ativo está disponível nesta obra.</p>';
  node('finBillingRows').querySelectorAll('input').forEach(x=>x.addEventListener('input',finAtualizarSomaFatura));
+ node('finBillingRows').querySelectorAll('.finPrice').forEach(campo=>{
+  campo.addEventListener('focus',()=>{
+   const valor=finPrecoValor(campo.value);
+   if(Number.isFinite(valor)&&valor>0)campo.value=finPrecoEdicao(valor);
+   campo.select();
+  });
+  campo.addEventListener('blur',()=>{
+   const valor=finPrecoValor(campo.value);
+   if(campo.value.trim()&&Number.isFinite(valor)&&valor>0)
+    campo.value=finPrecoFormatar(valor);
+   finAtualizarSomaFatura();
+  });
+ });
  finAtualizarSomaFatura();
 }
 function finAtualizarSomaFatura(){
@@ -7972,7 +8006,8 @@ function finAtualizarSomaFatura(){
  for(const row of node('finBillingRows').querySelectorAll('.finInvoiceRow')){
   if(!row.querySelector('.finSelected').checked)continue;
   count++;
-  sum+=Number(row.querySelector('.finQty').value||0)*Number(row.querySelector('.finPrice').value||0);
+  const valor=finPrecoValor(row.querySelector('.finPrice').value);
+  if(Number.isFinite(valor)&&valor>0)sum+=Number(row.querySelector('.finQty').value||0)*valor;
  }
  node('finBillingSum').textContent='Selecionados: '+count+' · Valor calculado: '+finMoney(sum);
 }
@@ -8112,7 +8147,7 @@ async function finRegistrarFaturamento(event){
  const itens=[];
  for(const row of node('finBillingRows').querySelectorAll('.finInvoiceRow')){
   if(!row.querySelector('.finSelected').checked)continue;
-  const qtd=Number(row.querySelector('.finQty').value),preco=Number(row.querySelector('.finPrice').value);
+  const qtd=Number(row.querySelector('.finQty').value),preco=finPrecoValor(row.querySelector('.finPrice').value);
   if(!Number.isFinite(qtd)||qtd<=0||qtd>Number(row.dataset.max)+1e-9||
      Math.abs(qtd*1000000-Math.round(qtd*1000000))>0.00001||
      !Number.isFinite(preco)||preco<=0||Math.abs(preco*10000-Math.round(preco*10000))>0.00001){
