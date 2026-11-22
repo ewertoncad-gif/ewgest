@@ -275,7 +275,7 @@ jobs:
           grep -Fq 'v46.16' "$html"
           grep -Fq '<select id="romTransfMotorista" required>' "$html"
           grep -Fq '<select id="romTransfPlaca" required>' "$html"
-          grep -Fq 'romaneios-transferencia.js?v=20261121d' "$html"
+          grep -Fq 'romaneios-transferencia.js?v=20261122a' "$html"
           grep -Fq "apiGet('romaneios_motoristas'" "$js"
           grep -Fq "apiGet('romaneios_veiculos'" "$js"
           echo 'PUBLICACAO CONFIRMADA: romaneios v46.1 com motorista e placa cadastrados.'
@@ -294,7 +294,7 @@ jobs:
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/assets/romaneios-transferencia.js?verify=${GITHUB_SHA}" -o "$js"
           grep -Fq 'v46.16' "$html"
-          grep -Fq 'romaneios-transferencia.js?v=20261121d' "$html"
+          grep -Fq 'romaneios-transferencia.js?v=20261122a' "$html"
           grep -Fq 'Emitir e imprimir</button>' "$js"
           grep -Fq 'Imprimir / reimprimir</button>' "$js"
           grep -Fq 'janela.print()' "$js"
@@ -316,7 +316,7 @@ jobs:
           grep -Fq 'v46.16' "$html"
           grep -Fq 'window.ewConstruirHTMLRomaneioTransferencia=' "$html"
           grep -Fq 'Comprovante de Transferência de Materiais' "$html"
-          grep -Fq 'romaneios-transferencia.js?v=20261121d' "$html"
+          grep -Fq 'romaneios-transferencia.js?v=20261122a' "$html"
           grep -Fq 'ewConstruirHTMLRomaneioTransferencia({' "$js"
           grep -Fq 'imprimirBtn.addEventListener' "$js"
           echo 'PUBLICACAO CONFIRMADA: v46.3 com modelo padronizado de romaneios.'
@@ -369,6 +369,36 @@ jobs:
           grep -Fq '.ewPriceDialog' "$css"
           echo 'PUBLICACAO CONFIRMADA: interface de precificacao por m2 v46.9 e todos os assets estao no dominio real.'
 
+      - name: Conferir relatórios por obra e histórico operacional v46.16
+        shell: bash
+        run: |
+          set -euo pipefail
+          html="$(mktemp)"
+          js="$(mktemp)"
+          css="$(mktemp)"
+          transfer="$(mktemp)"
+          trap 'rm -f "$html" "$js" "$css" "$transfer"' EXIT
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/app.html?verify=${GITHUB_SHA}" -o "$html"
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/assets/relatorios-obras.js?verify=${GITHUB_SHA}" -o "$js"
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/assets/relatorios-obras.css?verify=${GITHUB_SHA}" -o "$css"
+          curl --fail --silent --show-error --location --max-time 20 \
+            -H 'Cache-Control: no-cache' \
+            "https://ewgest.com.br/assets/romaneios-transferencia.js?verify=${GITHUB_SHA}" -o "$transfer"
+          grep -Fq 'v46.16' "$html"
+          grep -Fq 'id="navRelatorios"' "$html"
+          grep -Fq 'id="reportCsv"' "$html"
+          grep -Fq 'id="romTransfIncludeArchived"' "$html"
+          grep -Fq 'listarTudo' "$js"
+          grep -Fq '.reportsFilters' "$css"
+          grep -Fq 'obraArquivada' "$transfer"
+          echo 'PUBLICACAO CONFIRMADA: relatórios de faturamento/estoque e histórico de transferências v46.16.'
+      
       - name: Conferir estorno financeiro de NF-e v46.16
         shell: bash
         run: |
