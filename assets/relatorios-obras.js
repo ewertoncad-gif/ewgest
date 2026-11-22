@@ -253,19 +253,47 @@ async function liberacoes(ctx){
  el('reportTable').innerHTML=tabela(headers,rows);
  return {contagem:rows.length};
 }
+// Reconstitui área histórica apenas quando o romaneio não a armazenou.
+function areaLinha(item,folhasConfig){
+ if(item.natureza!=='esquadria')return null;
+ const salvo=Number(item.area_m2);
+ if(item.area_m2!==null&&item.area_m2!==undefined&&Number.isFinite(salvo)&&salvo>0)return salvo;
+ const raw=String(item.medida||'').trim();
+ const match=raw.match(/^(\\d[\\d.,]*)\\s*[x×]\\s*(\\d[\\d.,]*)\\s*mm$/i);
+ if(!match)return null;
+ const valor=s=>{
+  let text=s;
+  if(text.includes(','))text=text.replace(/\\./g,'').replace(',','.');
+  else if(/^\\d{1,3}(?:\\.\\d{3})+$/.test(text))text=text.replace(/\\./g,'');
+  return Number(text);
+ };
+ const largura=valor(match[1]),altura=valor(match[2]),q=Number(item.quantidade);
+ if(!(largura>0&&altura>0&&Number.isInteger(q)&&q>0))return null;
+ let fracao=1;
+ if(item.tipo_saida==='marco')fracao=.5;
+ else if(item.tipo_saida==='folha'){
+  const folhas=Number(folhasConfig.get(item.esquadria_id));
+  if(!Number.isSafeInteger(folhas)||folhas<1)return null;
+  fracao=.5/folhas;
+ }else if(item.tipo_saida&&item.tipo_saida!=='completo')return null;
+ return Math.round(largura*altura*q*fracao/1000)/1000;
+}
 async function expedicao(ctx){
- const [docs,itens]=await Promise.all([
+ const [docs,itens,composicoes]=await Promise.all([
   listarTudo('romaneios',{empresa_id:ctx.empresa,
    select:'id,obra_id,numero,data_saida,motorista,placa,status,cancelado_em,criado_por,observacoes',order:'data_saida.asc'}),
-  listarTudo('romaneios_itens',{select:'id,romaneio_id,natureza,esquadria_id,codigo,descricao,tipo_saida,quantidade,unidade,area_m2,fabrica,medida,localizacao',order:'sequencia.asc'})
+  listarTudo('romaneios_itens',{select:'id,romaneio_id,natureza,esquadria_id,codigo,descricao,tipo_saida,quantidade,unidade,area_m2,fabrica,medida,localizacao',order:'sequencia.asc'}),
+  listarTudo('esquadrias_saida_config',{select:'esquadria_id,folhas_por_unidade'})
  ]);
  const porDoc=new Map(docs.map(x=>[x.id,x]));
+ const partes=new Map(composicoes.map(x=>[x.esquadria_id,x.folhas_por_unidade]));
  const incluirCancelados=el('reportCancelled').checked;
  const filtrados=itens.map(i=>({i,doc:porDoc.get(i.romaneio_id)}))
  .filter(x=>x.doc&&(!ctx.obraId||x.doc.obra_id===ctx.obraId)&&dentro(x.doc.data_saida)&&
  (incluirCancelados||(!x.doc.cancelado_em&&String(x.doc.status).toLowerCase()!=='cancelado')));
  const ativos=filtrados.filter(x=>!x.doc.cancelado_em&&String(x.doc.status).toLowerCase()!=='cancelado');
- const codDocs=new Set(ativos.map(x=>x.doc.id)),area=ativos.reduce((n,x)=>n+Number(x.i.area_m2||0),0);
+ const codDocs=new Set(ativos.map(x=>x.doc.id)),area=ativos.reduce((n,x)=>n+Number(areaLinha(x.i,partes)||0),0);
+ const semArea=ativos.filter(x=>x.i.natureza==='esquadria'&&areaLinha(x.i,partes)===null).length;
  headers=['Obra','Data de saída','Romaneio','Status','Tipo','Código','Descrição',
  'Componente / natureza','Medida','Quantidade','Unidade','Área expedida m²','Fábrica',
  'Motorista','Placa','Emitido por','ID item'];
@@ -273,7 +301,7 @@ async function expedicao(ctx){
   doc.cancelado_em||String(doc.status).toLowerCase()==='cancelado'?'CANCELADO':doc.status,
   i.natureza==='esquadria'?'Esquadria':'Material',i.codigo,i.descricao,
   i.tipo_saida||i.natureza,i.medida||'',qtd(i.quantidade),i.unidade,
-  i.area_m2===null?'':qtd(i.area_m2),i.fabrica||'',doc.motorista,doc.placa,
+  areaLinha(i,partes)===null?'':qtd(areaLinha(i,partes)),i.fabrica||'',doc.motorista,doc.placa,
   usuario(doc.criado_por),i.id]);
  reportTitle='Romaneios de expedição fábrica → obra';
  el('reportSummary').innerHTML=resumoKpi([
@@ -281,26 +309,31 @@ async function expedicao(ctx){
  ['Itens de esquadrias',String(ativos.filter(x=>x.i.natureza==='esquadria').length)],
  ['Itens de materiais',String(ativos.filter(x=>x.i.natureza==='material').length)]])+
  '<p class="hint">O total considera apenas documentos ativos. Área de marco e folhas é parcial. '+
- 'Perfis e acessórios expedidos separadamente não acrescentam m² de esquadrias.</p>';
+ 'Perfis e acessórios expedidos separadamente não acrescentam m² de esquadrias.'+
+ (semArea?' <strong>Atenção: '+semArea+' linha(s) de esquadria sem área calculável.</strong>':'')+'</p>';
  el('reportTable').innerHTML=tabela(headers,rows);
  return {contagem:rows.length};
 }
 async function aluminio(ctx){
- const [docs,itens,movs,vars,perfis]=await Promise.all([
+ const [docs,itens,movs,vars,perfis,composicoes]=await Promise.all([
   listarTudo('romaneios',{empresa_id:ctx.empresa,select:'id,obra_id,data_saida,status,cancelado_em'}),
-  listarTudo('romaneios_itens',{select:'romaneio_id,natureza,area_m2'}),
+  listarTudo('romaneios_itens',{select:'romaneio_id,natureza,area_m2,esquadria_id,tipo_saida,medida,quantidade'}),
   listarTudo('ew_estoque_obras_movimentos',{empresa_id:ctx.empresa,
     select:'id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,origem,criado_em,estorno_de_id'}),
   listarTudo('ew_materiais_variacoes',{empresa_id:ctx.empresa,select:'id,perfil_id,tipo'}),
-  listarTudo('ew_perfis',{empresa_id:ctx.empresa,select:'id,codigo,peso_kg_m'})
+  listarTudo('ew_perfis',{empresa_id:ctx.empresa,select:'id,codigo,peso_kg_m'}),
+  listarTudo('esquadrias_saida_config',{select:'esquadria_id,folhas_por_unidade'})
  ]);
  const porDoc=new Map(docs.map(d=>[d.id,d]));
- const areaPorObra=new Map(),kgPorObra=new Map(),faltaPeso=new Map();
+ const partes=new Map(composicoes.map(x=>[x.esquadria_id,x.folhas_por_unidade]));
+ const areaPorObra=new Map(),kgPorObra=new Map(),faltaPeso=new Map(),faltaArea=new Map();
  for(const i of itens){
   const d=porDoc.get(i.romaneio_id);
   if(!d||d.cancelado_em||String(d.status).toLowerCase()==='cancelado'||
     (ctx.obraId&&d.obra_id!==ctx.obraId)||!dentro(d.data_saida)||i.natureza!=='esquadria')continue;
-  areaPorObra.set(d.obra_id,(areaPorObra.get(d.obra_id)||0)+Number(i.area_m2||0));
+  const m2=areaLinha(i,partes);
+  if(m2===null){faltaArea.set(d.obra_id,(faltaArea.get(d.obra_id)||0)+1);continue;}
+  areaPorObra.set(d.obra_id,(areaPorObra.get(d.obra_id)||0)+m2);
  }
  const variacoes=new Map(vars.map(x=>[x.id,x])),catalogo=new Map(perfis.map(x=>[x.id,x]));
  const estornados=new Set(movs.filter(x=>x.estorno_de_id).map(x=>x.estorno_de_id));
@@ -317,32 +350,34 @@ async function aluminio(ctx){
   const kg=Math.abs(Number(m.quantidade_delta))*Number(m.comprimento_mm)/1000*peso;
   kgPorObra.set(m.obra_id,(kgPorObra.get(m.obra_id)||0)+kg);
  }
- const obrasRel=new Set([...areaPorObra.keys(),...kgPorObra.keys(),...faltaPeso.keys()]);
+ const obrasRel=new Set([...areaPorObra.keys(),...kgPorObra.keys(),...faltaPeso.keys(),...faltaArea.keys()]);
  if(ctx.obraId)obrasRel.add(ctx.obraId);
  const rel=[...obrasRel].map(id=>({id,area:areaPorObra.get(id)||0,
-  kg:kgPorObra.get(id)||0,naoPesados:faltaPeso.get(id)||0}))
+  kg:kgPorObra.get(id)||0,naoPesados:faltaPeso.get(id)||0,semArea:faltaArea.get(id)||0}))
   .sort((a,b)=>obra(a.id).localeCompare(obra(b.id),'pt-BR'));
  const somaArea=rel.reduce((n,x)=>n+x.area,0),somaKg=rel.reduce((n,x)=>n+x.kg,0),
- naoPesados=rel.reduce((n,x)=>n+x.naoPesados,0);
+ naoPesados=rel.reduce((n,x)=>n+x.naoPesados,0),semArea=rel.reduce((n,x)=>n+x.semArea,0);
  headers=['Obra','m² expedidos (parcial + completo)','Alumínio destinado kg',
-  'Alumínio destinado t','kg por m² expedido','Linhas sem peso/tamanho','Qualidade do dado'];
+  'Alumínio destinado t','kg por m² expedido','Linhas sem peso/tamanho','Linhas sem área','Qualidade do dado'];
  rows=rel.map(x=>[obra(x.id),qtd(x.area),qtd(x.kg),qtd(x.kg/1000),
-  x.area>0?qtd(x.kg/x.area):'—',x.naoPesados,
+  x.area>0?qtd(x.kg/x.area):'—',x.naoPesados,x.semArea,
   x.naoPesados?'Peso incompleto / não conclusivo':'Indicador de expedição + fornecimento']);
  rows.push(['TOTAL DAS OBRAS',qtd(somaArea),qtd(somaKg),qtd(somaKg/1000),
-  somaArea>0?qtd(somaKg/somaArea):'—',naoPesados,naoPesados?'Peso parcial':'Indicador']);
+  somaArea>0?qtd(somaKg/somaArea):'—',naoPesados,semArea,
+  naoPesados||semArea?'Índice parcial':'Indicador']);
  reportTitle='m² expedidos versus alumínio destinado';
  el('reportSummary').innerHTML=resumoKpi([
   ['m² expedidos',qtd(somaArea)+' m²'],
   ['Alumínio destinado',qtd(somaKg/1000)+' t'],
   ['Consumo específico indicativo',somaArea?qtd(somaKg/somaArea)+' kg/m²':'—'],
-  ['Linhas sem peso',String(naoPesados)]
+  ['Linhas sem peso/área',String(naoPesados+semArea)]
  ])+
  '<p class="hint"><strong>Limitação:</strong> o EWGEST ainda não registra conclusão física de fabricação nem '+
  'pesagem real de sucata. O m² corresponde à esquadria <strong>expedida</strong> (marcos/folhas proporcionais); '+
  'o alumínio corresponde a barras entregues à produção ou enviadas diretamente à obra. '+
  'Transferências entre galpões/obras NÃO contam como consumo. Estornos de consumo integral vinculados '+
- 'são desconsiderados. Não representa rendimento exato, perda nem índice definitivo até reconciliar '+
+ 'são desconsiderados. O peso utiliza o cadastro técnico atualmente disponível, e pode mudar se os pesos forem revisados. '+
+ 'Não representa rendimento exato, perda nem índice definitivo até reconciliar '+
  'estornos parciais e pesos faltantes.</p>';
  el('reportTable').innerHTML=tabela(headers,rows);
  return {contagem:rows.length};
