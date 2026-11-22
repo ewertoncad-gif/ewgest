@@ -60,7 +60,7 @@ assert.equal(balances.saldos.length,0,'Ambos os galpões estão zerados');
 ctx.stockReverseHistoryRender(own);
 assert.equal(node('stockReverseHistoryCount').textContent,
  'Exibindo 2 de 2 movimentação(ões) neste filtro.');
-assert.doesNotMatch(node('stockReverseHistoryList').innerHTML,/estorno-imb-parcela/);
+assert.doesNotMatch(node('stockReverseHistoryList').innerHTML,/Contrapartida de estorno/);
 
 ctx.stockReverseConciliadas=2;
 ctx.stockReverseHistoryRender(own);
@@ -72,7 +72,8 @@ assert.doesNotMatch(node('stockReverseHistoryList').innerHTML,/Estornar lançame
 node('stockReverseHistoryFilter').value='todas';
 ctx.stockReverseHistoryRender(own);
 let total=node('stockReverseHistoryList').innerHTML;
-assert.match(total,/estorno-imb-parcela/);
+assert.equal((total.match(/Contrapartida de estorno/g)||[]).length,2,
+ 'As duas parcelas devem existir no histórico, uma sem vínculo direto');
 assert.match(total,/Contrapartida de estorno/);
 assert.match(total,/Histórico conciliado \(saldo zero\)/);
 assert.doesNotMatch(total,/data-stock-reverse-item=/,
