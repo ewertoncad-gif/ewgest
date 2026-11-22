@@ -2563,4 +2563,40 @@ assert.ok(Math.abs(calculo.totals([esq]).released-1.38)<0.000001,
  '1 marco + 1 conjunto de folhas = 1,38m²');
 assert.equal(calculo.releaseParts(esq).saldoMarco,4);
 
+// v46.5 — explicar a indisponibilidade de folhas quando só o marco foi liberado.
+const semSaldoStart=source.indexOf('function mensagemSemSaldoRomaneio(tipo,candidatos){');
+const semSaldoEnd=source.indexOf('function buscarEsquadriasRomaneio(row){',semSaldoStart);
+assert.ok(semSaldoStart>=0&&semSaldoEnd>semSaldoStart,'Diagnóstico de saldo presente');
+const avaliarSaldo=new Function('ehMaximArRomaneio','releaseParts',
+ source.slice(semSaldoStart,semSaldoEnd)+'\nreturn mensagemSemSaldoRomaneio;')(
+ x=>/MAXIM-AR/i.test(x.descricao||''),
+ x=>({marcos:Number(x.marcosLiberados||0),folhas:Number(x.folhasLiberadas||0)})
+);
+const ea2SemFolhas=[{codigo:'EA2',qtd_liberada:1,marcosLiberados:1,folhasLiberadas:0}];
+assert.ok(avaliarSaldo('folha',ea2SemFolhas).includes('folhas ainda não foram liberadas'),
+ 'EA2 com só marco liberado deve mostrar pendência de liberação das folhas');
+assert.ok(avaliarSaldo('completo',ea2SemFolhas).includes('marco e folhas liberados'),
+ 'Expedição completa requer dois componentes');
+assert.ok(avaliarSaldo('folha',[{...ea2SemFolhas,folhasLiberadas:1}]).includes('já foram expedidas'),
+ 'Distinguir folha sem liberação de folha já expedida');
+assert.ok(avaliarSaldo('marco',[{...ea2SemFolhas,marcosLiberados:0}]).includes('marco ainda não foi liberado'),
+ 'Marco ainda não liberado tem aviso claro');
+assert.ok(source.includes("row.dataset.mensagemSemSaldo=disponiveis.length?'':mensagemSemSaldoRomaneio(tipo,candidatos)")&&
+ source.includes("summary.textContent=el.dataset.mensagemSemSaldo||")&&
+ source.includes("if(elements.some(x=>x.obra_id===selectedWork.id))"),
+ 'Romaneio exibe linha de seleção e explica pendência mesmo quando não há saldo');
+const areaSql=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261122_area_componentes_romaneio_v465.sql',import.meta.url)),'utf8');
+assert.ok(areaSql.includes("CREATE OR REPLACE FUNCTION public.emitir_romaneio_com_saidas")&&
+ areaSql.includes("SECURITY DEFINER")&&
+ areaSql.includes("SET search_path TO ''")&&
+ areaSql.includes('PERFORM public.ew_exigir_sessao_atual();')&&
+ areaSql.includes("when 'marco' then")&&
+ areaSql.includes('v_item.largura_mm*v_item.altura_mm*v_qty/2000000.0')&&
+ areaSql.includes("when 'folha' then")&&
+ areaSql.includes('v_item.largura_mm*v_item.altura_mm*v_qty/(2000000.0*v_per)')&&
+ areaSql.includes("when 'completo' then")&&
+ areaSql.includes('v_item.largura_mm*v_item.altura_mm*v_qty/1000000.0'),
+ 'A proposta SQL deve preservar as guardas e persistir as áreas equivalentes por componente');
+
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
