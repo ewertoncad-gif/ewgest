@@ -14,7 +14,7 @@ for(const key of [
  'id="navRelatorios"','id="relatorios"','id="reportType"',
  'id="reportWork"','id="reportStart"','id="reportEnd"',
  'id="reportCsv"','id="reportPrint"','id="romTransfIncludeArchived"',
- 'relatorios-obras.js?v=20261122b','romaneios-transferencia.js?v=20261122a']){
+ 'relatorios-obras.js?v=20261122c','romaneios-transferencia.js?v=20261122b']){
  assert.ok(app.includes(key),'Componente ausente: '+key);
 }
 assert.ok(app.includes("'navFinanceiro','navRelatorios'"),
@@ -74,4 +74,4 @@ assert.match(element('romTransfList').innerHTML,/RM101/,
 assert.match(element('romTransfList').innerHTML,/OBRA ARQUIVADA/);
 assert.doesNotMatch(element('romTransfList').innerHTML,/data-t-edit="historico"|data-t-emit="historico"/,
  'Documento histórico não pode ser editado/emitido pela operação atual');
-console.log('OK v46.17: romaneios arquivados fora da operação; relatórios somente leitura e acessíveis ao ADM.');
+console.log('OK v46.18: romaneios arquivados fora da operação; relatórios somente leitura e acessíveis ao ADM.');
