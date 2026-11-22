@@ -10,6 +10,7 @@ import './test-conciliacao-transferencias-nfe-v4611.mjs';
 import './test-contador-liberacoes-gerenciar-obras-v4612.mjs';
 import './test-aviso-motivo-exclusao-v4613.mjs';
 import './test-estoque-zero-sem-galpao-v4614.mjs';
+import './test-estornos-parcelas-ui-v4615.mjs';
 const source=readFileSync(fileURLToPath(new URL('../app.html',import.meta.url)),'utf8');
 // Issue #31 — Recebimento separado do Financeiro e operação por perfil.
 const recebimentoSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_recebimento_almoxarife_seguro.sql',import.meta.url)),'utf8');
@@ -1227,7 +1228,9 @@ assert.ok(source.includes('stockReverseHistoryLimit=60')&&
  source.includes("filtrados.slice(0,stockReverseHistoryLimit)")&&
  source.includes("resumo.saldos.slice(0,stockReverseBalancesLimit)"),
  'As listagens extensas precisam ser exibidas progressivamente sem cortar histórico');
-assert.ok(source.includes("estornados.has(m.id)?'Estornado':conciliada?'Histórico conciliado pelo estorno da NF-e':'Não estornado'")&&
+assert.ok(source.includes("m.origem==='ESTORNO'||m.estorno_de_id?'Contrapartida de estorno'")&&
+ source.includes('Histórico conciliado pelo estorno da NF-e')&&
+ source.includes('Histórico conciliado (saldo zero)')&&
  source.includes('Estornar todos os lançamentos sem estorno')&&
  source.includes('⚠ ESTORNO BLOQUEADO')&&
  source.includes("node('stockReverseOpenWorks').classList.remove('hidden')"),
@@ -2086,7 +2089,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.14')&&
+assert.ok(source.includes('v46.15')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2319,7 +2322,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.14</strong>'),
+ source.includes('EWGEST <strong>· v46.15</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);

@@ -714,7 +714,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.14</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.15</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -9620,12 +9620,12 @@ node('stockCemFile').addEventListener('change',()=>{
 });
 
 /* Estoque arquivado não some da auditoria: consultar e estornar sem reativar operações. */
-let stockReverseSelectedWorkId=null,stockReverseReady=false,stockReverseConciliadas=0;
+let stockReverseSelectedWorkId=null,stockReverseReady=false,stockReverseConciliadas=0,stockReverseConciliadasNfe=0;
 let stockReverseHistoryLimit=60,stockReverseBalancesLimit=70,stockReverseMaterialIndex=null;
 function stockReversalBalances(obraId){
  const movimentos=estoqueObraMovimentos.filter(m=>m.obra_id===obraId);
  const estornados=new Set(movimentos.filter(m=>m.estorno_de_id).map(m=>m.estorno_de_id));
- const pendentes=movimentos.filter(m=>!m.estorno_de_id&&!estornados.has(m.id)).length;
+ const pendentes=movimentos.filter(m=>m.origem!=='ESTORNO'&&!m.estorno_de_id&&!estornados.has(m.id)).length;
  const grupos=new Map();
  for(const m of movimentos){
   const chave=JSON.stringify([m.variacao_id,m.comprimento_mm??null,m.unidade,m.local_estoque||'IMBIRIBEIRA']);
@@ -9637,7 +9637,7 @@ function stockReversalBalances(obraId){
 }
 function stockReverseFechar(){
  stockReverseSelectedWorkId=null;
- stockReverseReady=false;stockReverseConciliadas=0;
+ stockReverseReady=false;stockReverseConciliadas=0;stockReverseConciliadasNfe=0;
  stockReverseHistoryLimit=60;stockReverseBalancesLimit=70;
  node('stockReversePanel').classList.add('hidden');
  node('stockReverseOpenWorks').classList.add('hidden');
@@ -9705,22 +9705,65 @@ function stockReverseDescricaoMaterial(g){
   g.local_estoque,g.unidade].filter(Boolean).join(' · ');
  return {cabecalho,detalhes};
 }
+// Orienta o usuário antes da tentativa. O servidor sempre decide sob trava.
+function stockReverseDependenciasMovimento(mov,lista){
+ if(!mov||mov.origem==='ESTORNO')return [];
+ const pares=mov.transferencia_id&&mov.origem==='TRANSFERENCIA'?
+  lista.filter(x=>x.transferencia_id===mov.transferencia_id&&x.origem==='TRANSFERENCIA'):[];
+ const referencia=pares.find(x=>Number(x.quantidade_delta)>0)||mov;
+ if(Number(referencia.quantidade_delta)<=0)return [];
+ const dataBase=Date.parse(referencia.criado_em||'');
+ if(!Number.isFinite(dataBase))return [];
+ const estornados=new Set(lista.filter(x=>x.estorno_de_id).map(x=>x.estorno_de_id));
+ const tiposConsumo=new Set(['PLANO_CORTE','PLANO_CORTE_LOTE','SAIDA_MANUAL','AJUSTE']);
+ const deps=lista.filter(x=>x.obra_id===referencia.obra_id&&
+  x.variacao_id===referencia.variacao_id&&
+  (x.comprimento_mm??null)===(referencia.comprimento_mm??null)&&
+  x.unidade===referencia.unidade&&Number(x.quantidade_delta)<0&&
+  x.origem!=='ESTORNO'&&!estornados.has(x.id)&&
+  Date.parse(x.criado_em||'')>dataBase&&
+  (tiposConsumo.has(x.origem)||(x.origem==='TRANSFERENCIA'&&
+   x.transferencia_id!==referencia.transferencia_id)));
+ return deps.sort((a,b)=>String(b.criado_em).localeCompare(String(a.criado_em)))
+  .map(x=>{
+   const saida=x.origem==='TRANSFERENCIA';
+   const destino=saida?lista.find(y=>y.transferencia_id===x.transferencia_id&&
+    y.origem==='TRANSFERENCIA'&&Number(y.quantidade_delta)>0):null;
+   const obraDestino=destino?works.find(w=>w.id===destino.obra_id):null;
+   const descricao=saida?
+    (destino&&destino.obra_id!==x.obra_id?'Transferência para outra obra':'Transferência entre galpões'):
+    (tiposConsumo.has(x.origem)?'Baixa/consumo de material':'Movimentação posterior');
+   const quando=new Date(x.criado_em);
+   return {id:x.id,descricao,
+    detalhe:[obraDestino&&obraDestino.id!==x.obra_id?(obraDestino.codigo||obraDestino.nome):null,
+     x.local_estoque,
+     Number.isFinite(quando.getTime())?quando.toLocaleString('pt-BR'):null,
+     'lançamento '+String(x.id).slice(0,8)].filter(Boolean).join(' · ')};
+  });
+}
 function stockReverseHistoryRender(id){
  const root=node('stockReverseHistoryList');
  const movs=estoqueObraMovimentos.filter(m=>m.obra_id===id);
  const estornados=new Set(movs.filter(m=>m.estorno_de_id).map(m=>m.estorno_de_id));
  const soPendentes=node('stockReverseHistoryFilter').value==='pendentes';
+ const historicaConciliada=m=>stockReverseConciliadas>0&&m.origem==='TRANSFERENCIA'&&
+  !m.estorno_de_id&&!estornados.has(m.id);
+ // Uma contrapartida de estorno (inclusive parcelas extras sem estorno_de_id)
+ // NUNCA é nova pendência nem deve oferecer botão para ser estornada.
  const filtrados=movs.filter(m=>!soPendentes||
-   (!m.estorno_de_id&&!estornados.has(m.id)))
+   (m.origem!=='ESTORNO'&&!m.estorno_de_id&&!estornados.has(m.id)&&
+    !historicaConciliada(m)))
   .sort((a,b)=>String(b.criado_em).localeCompare(String(a.criado_em)));
  const origemLabels={ABERTURA:'Abertura',AJUSTE:'Ajuste',IMPORTACAO_CEM:'Importação CEM',
    TRANSFERENCIA:'Transferência',COMPRA:'Compra',SAIDA_MANUAL:'Saída manual',
    PLANO_CORTE:'Plano de corte',PLANO_CORTE_LOTE:'Lote de corte',ESTORNO:'Estorno'};
  root.innerHTML=filtrados.slice(0,stockReverseHistoryLimit).map(m=>{
   const titulo=stockReverseDescricaoMaterial(m);
-  const conciliada=stockReverseConciliadas>0&&m.origem==='TRANSFERENCIA'&&!m.estorno_de_id&&!estornados.has(m.id);
- const estornado=m.estorno_de_id?'Contrapartida de estorno':
-   estornados.has(m.id)?'Estornado':conciliada?'Histórico conciliado pelo estorno da NF-e':'Não estornado';
+  const conciliada=historicaConciliada(m);
+  const estornado=m.origem==='ESTORNO'||m.estorno_de_id?'Contrapartida de estorno':
+   estornados.has(m.id)?'Estornado':
+   conciliada?(stockReverseConciliadasNfe>0?'Histórico conciliado pelo estorno da NF-e':
+    'Histórico conciliado (saldo zero)'):'Não estornado';
   const entreObras=m.origem==='TRANSFERENCIA'&&m.transferencia_id&&
    estoqueObraMovimentos.some(x=>x.transferencia_id===m.transferencia_id&&
     x.origem==='TRANSFERENCIA'&&x.obra_id!==m.obra_id);
@@ -9731,9 +9774,11 @@ function stockReverseHistoryRender(id){
    origemLabels[m.origem]||m.origem,quando,m.transferencia_id?'Transferência vinculada':null,
    m.observacao?String(m.observacao):null
   ].filter(Boolean).join(' · ');
-  const botao=!m.estorno_de_id&&!estornados.has(m.id)?
+  const dependencias=stockReverseDependenciasMovimento(m,estoqueObraMovimentos);
+  const botao=m.origem!=='ESTORNO'&&!conciliada&&!m.estorno_de_id&&!estornados.has(m.id)?
    '<button type="button" class="btn secondary" data-stock-reverse-item="'+escapeHTML(m.id)+
-   '" '+(stockReverseReady?'':'disabled')+'>'+(entreObras?
+   '" '+(stockReverseReady||dependencias.length?'':'disabled')+'>'+(dependencias.length?
+    'Ver '+dependencias.length+' dependência(s)':entreObras?
     'Estornar transferência entre obras':'Estornar lançamento')+'</button>':'';
   return '<div class="stockReverseHistoryRow"><div><strong>'+escapeHTML(titulo.cabecalho)+'</strong>'+
    '<div class="hint">'+escapeHTML(titulo.detalhes)+'</div>'+
@@ -9752,7 +9797,20 @@ async function stockReverseIndividual(movimentoId){
  const mov=estoqueObraMovimentos.find(m=>m.id===movimentoId&&m.obra_id===id);
  const obra=works.find(w=>w.id===id);
  const estado=node('stockReverseMessage');
- if(!stockReverseReady||!mov||mov.estorno_de_id||!obra||!matIsAdmin())return;
+ if(!mov||mov.origem==='ESTORNO'||mov.estorno_de_id||!obra||!matIsAdmin())return;
+ const dependencias=stockReverseDependenciasMovimento(mov,estoqueObraMovimentos);
+ if(dependencias.length){
+  const roteiro=dependencias.slice(0,8).map((d,i)=>String(i+1)+'. '+
+   d.descricao+' — '+d.detalhe);
+  estado.textContent='ESTORNO BLOQUEADO — primeiro desfaça as movimentações posteriores, '+
+   'começando pela mais recente. Se houve saída ou fabricação, cancele o romaneio, '+
+   'estorne a saída e a baixa. Depois retorne e atualize a conferência.\n'+
+   roteiro.join('\n')+(dependencias.length>8?'\n... e outras pendências':'');
+  estado.classList.add('stockReversalBlock');
+  node('stockReverseOpenWorks').classList.remove('hidden');
+  return;
+ }
+ if(!stockReverseReady)return;
  const motivo=node('stockReverseReason').value.trim();
  if(motivo.length<5||motivo.length>400){
   estado.textContent='Informe um motivo de 5 a 400 caracteres para o lançamento.';return;
@@ -9762,7 +9820,7 @@ async function stockReverseIndividual(movimentoId){
   estoqueObraMovimentos.some(x=>x.transferencia_id===mov.transferencia_id&&
    x.origem==='TRANSFERENCIA'&&x.obra_id!==mov.obra_id);
  const transferencia=entreObras?
-  '\\nA saída e a entrada em ambas as obras serão estornadas juntas. O destino precisa ter saldo para devolver o material.':
+  '\\nA saída e a entrada em ambas as obras serão estornadas juntas. O material deve estar disponível na obra destino, em qualquer galpão. Cada parcela será registrada.':
   mov.transferencia_id?'\\nAs duas partes da transferência entre galpões serão estornadas juntas.':'';
  const efeito=Number(mov.quantidade_delta)>0?'diminuirá':'aumentará';
  if(!window.confirm('Tem certeza que deseja estornar esta movimentação?\\n\\n'+
@@ -9803,7 +9861,7 @@ async function stockReverseRevisar(id){
  const obra=works.find(w=>w.id===id);
  if(!obra)return;
  stockReverseSelectedWorkId=id;
- stockReverseReady=false;stockReverseConciliadas=0;
+ stockReverseReady=false;stockReverseConciliadas=0;stockReverseConciliadasNfe=0;
  stockReverseHistoryLimit=60;
  stockReverseBalancesLimit=70;
  node('stockReverseOpenWorks').classList.add('hidden');
@@ -9861,17 +9919,21 @@ async function stockReverseRevisar(id){
    node('stockReverseOpenWorks').classList.remove('hidden');
    return;
   }
-  const conciliadas=Number(ver?.resumo?.transferencias_nfe_conciliadas||0);
+  const conciliadas=Number(ver?.resumo?.transferencias_conciliadas??ver?.resumo?.transferencias_nfe_conciliadas??0);
+  const conciliadasNfe=Number(ver?.resumo?.transferencias_nfe_conciliadas||0);
   if(conciliadas>0&&conciliadas===resumo.pendentes&&resumo.saldos.length===0){
    // Não reverter transferências entre galpões depois que o estorno físico
    // da NF-e zerou os saldos: isso recriaria estoque negativo.
    stockReverseConciliadas=conciliadas;
+   stockReverseConciliadasNfe=conciliadasNfe;
    stockReverseReady=false;
    stockReverseHistoryRender(id);
    node('stockReverseSummary').textContent=resumo.movimentos+' lançamento(s) históricos · '+
-    conciliadas+' transferência(s) já conciliada(s) pelos estornos das NF-e · saldo zerado.';
-   node('stockReverseMessage').textContent='Os recebimentos das NF-e já foram estornados e o saldo está zero em todos os galpões. '+
-    conciliadas+' transferências constam apenas como histórico. Informe o motivo e registre a conciliação: '+
+    conciliadas+' transferência(s) históricas conciliadas · saldo zerado.';
+   node('stockReverseMessage').textContent=(conciliadasNfe>0?
+    'Os recebimentos das NF-e já foram estornados e o saldo está zero em todos os galpões. ':
+    'As entradas originais já foram estornadas e o saldo está zero em todos os galpões. ')+
+    conciliadas+' transferências internas constam apenas como histórico. Informe o motivo e registre a conciliação: '+
     'nenhum lançamento de estoque será criado ou apagado.';
    node('stockReverseApply').textContent='Registrar conciliação (saldo zero)';
    node('stockReverseApply').disabled=false;
@@ -9917,7 +9979,7 @@ async function stockReverseExecutar(){
   const impedimentos=(ver?.motivos||[]).filter(m=>
    !String(m).includes('Estorne as movimentações do estoque'));
   if(impedimentos.length)throw new Error('Existem outras pendências: '+impedimentos.join(' '));
-  if(conciliando && Number(ver?.resumo?.transferencias_nfe_conciliadas||0)!==stockReverseConciliadas)
+  if(conciliando && Number(ver?.resumo?.transferencias_conciliadas??ver?.resumo?.transferencias_nfe_conciliadas??0)!==stockReverseConciliadas)
    throw new Error('A situação das transferências mudou. Atualize a conferência antes de prosseguir.');
   const result=await request('/rest/v1/rpc/ew_estornar_estoque_obra',{
    method:'POST',token:session.access_token,timeoutMs:60000,
