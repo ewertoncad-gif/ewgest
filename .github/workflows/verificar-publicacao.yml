@@ -193,7 +193,7 @@ jobs:
           grep -Fq 'id="stockTransferQty" type="number" min="1" step="1"' "$html"
           grep -Fq 'id="stockObraTransferQty" type="number" min="1" step="1"' "$html"
           grep -Fq 'function stockTransferPrepararQuantidade' "$html"
-          grep -Fq "campo.value=barra?'1'" "$html"
+          grep -Fq "campo.value=inteira?(saldoDisponivel>=1?'1':'')" "$html"
           echo 'PUBLICACAO CONFIRMADA: v45.7 — barras inteiras nas transferencias.'
 
       - name: Conferir recebimento de unidades contaveis v45.8
@@ -210,7 +210,7 @@ jobs:
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/assets/recebimento-manual.js?verify=${GITHUB_SHA}" -o "$js"
           grep -Fq 'v46.7' "$html"
-          grep -Fq 'recebimento-manual.js?v=20261121j' "$html"
+          grep -Fq 'recebimento-manual.js?v=20261121l' "$html"
           grep -Fq 'function unidadeContavel(unidade)' "$js"
           grep -Fq "contavel?'type=\"number\" inputmode=\"numeric\" min=\"1\"" "$js"
           echo 'PUBLICACAO CONFIRMADA: v45.8 — entrada inteira de pecas.'
@@ -229,7 +229,7 @@ jobs:
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/assets/recebimento-manual.js?verify=${GITHUB_SHA}" -o "$js"
           grep -Fq 'v46.7' "$html"
-          grep -Fq 'recebimento-manual.js?v=20261121k' "$html"
+          grep -Fq 'recebimento-manual.js?v=20261121l' "$html"
           grep -Fq 'step="any"' "$js"
           grep -Fq "r.quantidade=category==='acessorios'&&r.material?'1':''" "$js"
           echo 'PUBLICACAO CONFIRMADA: v45.9 e quantidade em metros iniciando 1.'
@@ -275,7 +275,7 @@ jobs:
           grep -Fq 'v46.7' "$html"
           grep -Fq '<select id="romTransfMotorista" required>' "$html"
           grep -Fq '<select id="romTransfPlaca" required>' "$html"
-          grep -Fq 'romaneios-transferencia.js?v=20261121b' "$html"
+          grep -Fq 'romaneios-transferencia.js?v=20261121d' "$html"
           grep -Fq "apiGet('romaneios_motoristas'" "$js"
           grep -Fq "apiGet('romaneios_veiculos'" "$js"
           echo 'PUBLICACAO CONFIRMADA: romaneios v46.1 com motorista e placa cadastrados.'
@@ -294,7 +294,7 @@ jobs:
             -H 'Cache-Control: no-cache' \
             "https://ewgest.com.br/assets/romaneios-transferencia.js?verify=${GITHUB_SHA}" -o "$js"
           grep -Fq 'v46.7' "$html"
-          grep -Fq 'romaneios-transferencia.js?v=20261121c' "$html"
+          grep -Fq 'romaneios-transferencia.js?v=20261121d' "$html"
           grep -Fq 'Emitir e imprimir</button>' "$js"
           grep -Fq 'Imprimir / reimprimir</button>' "$js"
           grep -Fq 'janela.print()' "$js"
