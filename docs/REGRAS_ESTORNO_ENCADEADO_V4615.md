@@ -1,6 +1,6 @@
 # EWGEST v46.15 — Estornos encadeados, parcelas e galpões
 
-**Situação em 22/11/2026:** versão em desenvolvimento e testes, sem alterações de schema, funções ou movimentos do Supabase de produção. O rodapé publicado permanece v46.14. A PR #70 fica em rascunho até a verificação final.
+**Situação em 22/11/2026:** código e testes concluídos; Supabase de testes e produção receberam quatro migrações aditivas/funcionais com sucesso. Os saldos e contagens anteriores da produção foram preservados (5 obras, 642 movimentos, 2 recebimentos, 319 contrapartidas, 2 auditorias). A publicação do frontend na `main` é etapa separada.
 
 ## Regra de negócio
 
@@ -18,7 +18,7 @@
 | Transferências internas já compensadas e saldo zero | Reconhecer como histórico conciliado, sem criar movimentos inversos artificiais |
 | Existência de compra/reposição posterior | Não prova que a quantidade transferida continua disponível. Sem lote individual, consumo posterior não estornado bloqueia conservadoramente |
 
-## Implementação preparada na PR #70
+## Implementação na PR #70
 
 Arquivos versionados:
 
@@ -49,12 +49,21 @@ Todos os passos financeiros, de produção, liberações e romaneios continuam i
 
 **Limitação dos testes:** o PostgreSQL isolado contém contratos mínimos das tabelas, não uma cópia do Supabase inteiro; a parte de conciliação de NF-e é simulada no teste da inspeção, enquanto a função de NF-e real continua inalterada. As funções SQL compilam e são exercitadas em banco descartável, mas isso ainda não equivale a um teste completo com autenticação Supabase real.
 
-## Pendências antes de publicar
+## Verificações de implantação e acompanhamento
 
-- Avaliar **reversão específica de transferências internas com movimentações posteriores**, distinguindo cancelamento lógico de transferência e movimentação física efetiva; o estorno genérico desse tipo de movimento ainda pode exigir saldo no galpão original.
-- Concluir roteiro visual das dependências na tela, para informar exatamente qual romaneio, saída, baixa ou transferência impede a operação.
-- Testar interação HTTP/PostgREST com permissões e autenticação compatíveis com Supabase, conferir concorrência e restaurar backup em ambiente isolado antes de publicar alterações sensíveis ao estoque.
-- Fazer revisão final dos privilégios de funções SECURITY DEFINER, da RLS e da integridade dos vínculos de parcelas.
-- Validar o fluxo completo com obra de treinamento antes de habilitar operações em produção.
+- **Corrigido e testado:** transferências internas encadeadas devem ser desfeitas na ordem inversa; compra posterior não autoriza reverter transferência cujo material foi consumido ou remanejado. O estorno não simula retorno físico a galpão diferente.
+- **Implementado:** painel apresenta movimentos posteriores com tipo, galpão, data, obra destino (quando disponível) e referência abreviada; o servidor verifica novamente antes de realizar o estorno.
+- **Validação em staging:** quatro migrações compiladas, RLS e privilégios verificados; testes isolados do PostgreSQL 17 e da interface aprovados. **Ainda pendente:** teste end-to-end com autenticação HTTP/PostgREST e restauração completa do backup em ambiente isolado.
+- **Validado:** novas parcelas têm RLS habilitada e acesso direto negado a `anon` e `authenticated`; RPCs de estorno exigem usuário ativo e privilégios. Advisories preexistentes de outras rotinas permanecem para tratamento separado.
+- **Pendente:** homologação manual do fluxo no navegador com obra de treinamento; nunca testar estornos com materiais de obras reais sem conferência.
 
 **Regra inegociável:** atualizar o sistema jamais executa estornos automaticamente; todo estorno requer motivo, permissão e confirmação explícita.
+
+## Implantação do banco de dados — evidências
+
+- Banco staging `ewgest-restauracao-teste`: migrações `v4615_*_stage` aplicadas com sucesso.
+- Banco produção `ewgest-producao`: migrações `v4615_estornos_parcelas_prod`, `v4615_estornos_rastreabilidade_prod`, `v4615_estornos_transferencias_conciliadas_prod` e `v4615_estornos_inspecao_lote_prod`, todas aplicadas em 22/11/2026.
+- Conferência após migração: 642 lançamentos de estoque, 319 estornos existentes e **zero parcelas novas**, sem operações de estoque executadas por essas migrações.
+- Backup diário criptografado do dia 22/11/2026 aprovado no GitHub Actions, com artefato disponível; restauração completa ainda não foi realizada.
+- Snapshot do código original de quatro RPCs preservado em `database/rollback/20261122_pre_v4615_functions.sql`. Após uso das novas parcelas, rollback de funções antigas exige análise de compatibilidade de histórico.
+- Preview da interface disponibilizada pelo Cloudflare Pages no branch da PR #70; aguardar homologação com obra de treinamento.
