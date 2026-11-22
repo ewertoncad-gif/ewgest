@@ -88,7 +88,7 @@ BEGIN
   RAISE EXCEPTION 'Caso3: transferência encadeada não bloqueada';
  EXCEPTION WHEN OTHERS THEN
   GET STACKED DIAGNOSTICS err=MESSAGE_TEXT;
-  IF err NOT LIKE '%transferido posteriormente%' THEN RAISE;END IF;
+  IF err NOT LIKE '%enviado posteriormente para outra obra%' THEN RAISE;END IF;
  END;
  PERFORM public.test_mov(b,1,'ESTORNO','IMBIRIBEIRA',NULL,debit);
  PERFORM public.test_mov(c,-1,'ESTORNO','IMBIRIBEIRA',NULL,credit);
