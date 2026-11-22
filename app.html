@@ -714,7 +714,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.12</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.13</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -10283,7 +10283,7 @@ node('releaseBatchConfirm').addEventListener('click',async()=>{
 
 /* Remoção de obra somente antes de qualquer operação. A validação definitiva
    ocorre em transação no Supabase, nunca em uma regra do navegador. */
-let workDeleteInspection=null,workDeleteOperationId=null,workDeleteRequestId=0;
+let workDeleteInspection=null,workDeleteOperationId=null,workDeleteRequestId=0,workDeleteSubmitting=false;
 function renderGerenciamentoObras(){
  const out=node('manageWorksList');
  if(!works.length){
@@ -10345,9 +10345,12 @@ function workDeleteResumo(r){
 }
 function atualizarEstadoExclusaoObra(){
  const info=workDeleteInspection;
+ // O botão permanece clicável sem motivo para explicar o requisito,
+ // mas a exclusão só será enviada após 5 a 300 caracteres e confirmação.
+ node('manageWorksDelete').disabled=!info?.permitido||workDeleteSubmitting;
  const motivo=node('manageWorksReason').value.trim();
- node('manageWorksDelete').disabled=!(
-  info?.permitido&&motivo.length>=5&&motivo.length<=300);
+ if(motivo.length>=5&&motivo.length<=300&&info?.permitido)
+  node('manageWorksDeleteBlockedMessage').textContent='';
 }
 async function inspecionarExclusaoObra(id){
  if(!canAdministrate()||!works.some(w=>w.id===id))return;
@@ -10464,18 +10467,27 @@ node('manageWorksCancelShipments').addEventListener('click',()=>executarReversao
 node('manageWorksReverseStock').addEventListener('click',()=>executarReversaoObra('estoque'));
 
 node('manageWorksDelete').addEventListener('click',async()=>{
- if(!canAdministrate()||!workDeleteInspection?.permitido||!workDeleteOperationId)return;
+ if(!canAdministrate()||!workDeleteInspection?.permitido||!workDeleteOperationId||workDeleteSubmitting)return;
  atualizarEstadoExclusaoObra();
  const btn=node('manageWorksDelete');
  if(btn.disabled)return;
+ const motivoCampo=node('manageWorksReason');
+ const motivo=motivoCampo.value.trim();
+ if(motivo.length<5||motivo.length>300){
+  const mensagem='Informe o motivo da exclusão antes de continuar (mínimo de 5 caracteres).';
+  node('manageWorksDeleteBlockedMessage').textContent=mensagem;
+  window.alert(mensagem);
+  motivoCampo.focus();
+  return;
+ }
  const check=workDeleteInspection,operation=workDeleteOperationId,
-  confirmacao=String(workDeleteInspection.codigo||workDeleteInspection.nome||'').trim(),
-  motivo=node('manageWorksReason').value.trim();
+  confirmacao=String(workDeleteInspection.codigo||workDeleteInspection.nome||'').trim();
  const aviso='Tem certeza que deseja excluir esta obra?\n\n'+
   'Obra: '+check.nome+' · '+(check.codigo||'sem código')+'\n\n'+
   'A obra deixará de aparecer nas telas operacionais do EWGEST. '+
   'As movimentações, os cadastros gerais e os registros históricos continuarão preservados para auditoria.';
  if(!window.confirm(aviso))return;
+ workDeleteSubmitting=true;
  btn.disabled=true;
  node('manageWorksFeedback').textContent='Conferindo novamente e excluindo a obra…';
  try{
@@ -10497,6 +10509,8 @@ node('manageWorksDelete').addEventListener('click',async()=>{
   node('manageWorksFeedback').textContent=
    'Não foi possível concluir a exclusão: '+err.message+
    '. Confira a lista antes de tentar novamente.';
+ }finally{
+  workDeleteSubmitting=false;
   atualizarEstadoExclusaoObra();
  }
 });
