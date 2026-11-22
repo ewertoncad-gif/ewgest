@@ -95,14 +95,22 @@ function renderizar(){
     '<td><button type="button" class="btn secondary" data-remove="'+esc(c.id)+'"'+
     (temItens?' disabled title="Mova as esquadrias antes de excluir"':'')+'>Excluir</button></td></tr>';
   }).join('')+'</tbody></table>';
- $$('ewPriceItens').innerHTML='<table><thead><tr><th>Código</th><th>Descrição</th><th>Qtd.</th><th>Área</th><th>Categoria</th><th>Fabricação</th><th>Instalação</th></tr></thead><tbody>'+
- s.itens.map(x=>{
-  const options=ops.replace('value="'+esc(x.categoriaId)+'"','value="'+esc(x.categoriaId)+'" selected');
-  return '<tr><td><strong>'+esc(x.codigo)+'</strong></td><td>'+esc(x.descricao)+'</td>'+
-   '<td class="ewPriceNum">'+x.quantidade+'</td><td class="ewPriceNum">'+area(x.largura_mm*x.altura_mm*x.quantidade/1000000)+'</td>'+
-   '<td><select aria-label="Categoria de '+esc(x.codigo)+'" data-item="'+esc(x.id)+'">'+options+'</select></td>'+
-   '<td class="ewPriceNum" data-item-fab="'+esc(x.id)+'">—</td>'+
-   '<td class="ewPriceNum" data-item-inst="'+esc(x.id)+'">—</td></tr>';
+ // Exibir esquadrias agrupadas por categoria, com possibilidade de mover cada item.
+ $('ewPriceItens').innerHTML='<table><thead><tr><th>Código</th><th>Descrição</th><th>Qtd.</th><th>Área</th><th>Categoria</th><th>Fabricação</th><th>Instalação</th></tr></thead><tbody>'+
+ s.categorias.map(cat=>{
+  const porGrupo=s.itens.filter(x=>x.categoriaId===cat.id).sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR'));
+  if(!porGrupo.length)return '';
+  const areaGrupo=porGrupo.reduce((sum,x)=>sum+x.largura_mm*x.altura_mm*x.quantidade/1000000,0);
+  return '<tr class="ewPriceGroupRow"><td colspan="7"><strong>'+esc(cat.nome)+'</strong> · '+
+   porGrupo.length+' linhas · '+area(areaGrupo)+'</td></tr>'+
+  porGrupo.map(x=>{
+   const options=ops.replace('value="'+esc(x.categoriaId)+'"','value="'+esc(x.categoriaId)+'" selected');
+   return '<tr><td><strong>'+esc(x.codigo)+'</strong></td><td>'+esc(x.descricao)+'</td>'+
+    '<td class="ewPriceNum">'+x.quantidade+'</td><td class="ewPriceNum">'+area(x.largura_mm*x.altura_mm*x.quantidade/1000000)+'</td>'+
+    '<td><select aria-label="Categoria de '+esc(x.codigo)+'" data-item="'+esc(x.id)+'">'+options+'</select></td>'+
+    '<td class="ewPriceNum" data-item-fab="'+esc(x.id)+'">—</td>'+
+    '<td class="ewPriceNum" data-item-inst="'+esc(x.id)+'">—</td></tr>';
+  }).join('');
  }).join('')+'</tbody></table>';
  atualizar();
 }
