@@ -503,7 +503,8 @@ const {ehMaximArRomaneio,romaneioSaldoPorTipo}=new Function('shipmentStats','sug
  source.slice(ehInicio,ehFim)+
  '\nreturn {ehMaximArRomaneio,romaneioSaldoPorTipo};'
 )(x=>({released:Number(x.qtd_liberada),frames:Number(x.marcos||0),
- leaves:Number(x.folhas_enviadas||0),per:x.per||null}),
+ leaves:Number(x.folhas_enviadas||0),per:x.per||null,completas:0,
+ marcosLiberados:Number(x.qtd_liberada),folhasLiberadas:Number(x.qtd_liberada)}),
   x=>Number((x.descricao||'').match(/(\d+)\s*FOLHA/i)?.[1]||0)||null);
 assert.equal(ehMaximArRomaneio({descricao:'MAXIM-AR 1 FOLHA(S) - HYDRO'}),true);
 assert.equal(ehMaximArRomaneio({descricao:'MAXIM AR 1 FOLHA(S)'}),true);
