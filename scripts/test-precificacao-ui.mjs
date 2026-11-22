@@ -87,4 +87,23 @@ const custoInvalido={...quote,niveis:[
 ]};
 await assert.rejects(ui.abrir(res2,custoInvalido,async()=>{}),/marque os níveis/);
 assert.equal(quote.niveis[0].valor,7000,'Orçamento original não alterado');
-console.log('OK: UI v46.9 — catálogo por tipologia, categorias, preço R$, 60/40, totais por item, confirmação e falha segura.');
+// Segunda conferência: criar categoria, mover esquadria, bloquear preço inválido
+// e voltar ao orçamento sem gravar nada.
+await ui.abrir(res2,quote,async()=>{throw Error('Nunca deveria gravar');});
+el('ewPriceNovaCategoria').value='COBERTURAS';
+el('ewPriceAdd').handlers.click();
+assert.match(el('ewPriceCategorias').innerHTML,/COBERTURAS/,'Nova categoria disponível');
+change('ewPriceItens',{item:'item-000001'},'categoria-5');
+assert.match(el('ewPriceItens').innerHTML,/COBERTURAS/);
+change('ewPriceCategorias',{price:'categoria-5'},'abc');
+assert.equal(el('ewPriceConfirmar').disabled,true,'Preço inválido bloqueia confirmação');
+assert.match(el('ewPriceErro').textContent,/Preço inválido/);
+change('ewPriceCategorias',{price:'catalogo-'+uuid},'1000');
+change('ewPriceCategorias',{price:'categoria-5'},'1250');
+assert.equal(el('ewPriceConfirmar').disabled,false,'Preços reparados permitem importação');
+el('ewPriceVoltar').handlers.click();
+assert.equal(el('ewPriceOverlay').classList._state.has('hidden'),true);
+assert.equal(res2.precificacaoDraft,null);
+assert.equal(res2.confirmacaoInicialFeita,false);
+assert.equal(quote.niveis[0].valor,7000,'Voltar não altera orçamento');
+console.log('OK: UI v46.9 — catálogos, mover/criar categorias, bloqueio de preço inválido, 60/40, confirmação e retorno seguro.');
