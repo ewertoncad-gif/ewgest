@@ -53,6 +53,11 @@ CREATE TABLE public.ew_auditoria_operacoes (
  usuario_id uuid NOT NULL,acao text NOT NULL,referencia_id uuid,
  operacao_id uuid UNIQUE,motivo text NOT NULL,detalhes jsonb NOT NULL DEFAULT '{}'::jsonb
 );
+-- Apenas referência de NF para que o estorno genérico recuse recebimentos vinculados.
+CREATE TABLE public.ew_nfe_recebimentos (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ movimento_id uuid NOT NULL REFERENCES public.ew_estoque_obras_movimentos(id)
+);
 CREATE TABLE public._blockers (obra_id uuid PRIMARY KEY, motivo text NOT NULL);
 CREATE FUNCTION public.ew_exigir_sessao_atual() RETURNS void LANGUAGE plpgsql
 AS $$ BEGIN IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Sessão requerida'; END IF; END $$;
