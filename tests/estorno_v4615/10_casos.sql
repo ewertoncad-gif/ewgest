@@ -231,6 +231,50 @@ BEGIN
  THEN RAISE EXCEPTION 'Caso8: operação rejeitada não pode deixar movimentações';END IF;
 END $case8$;
 
+-- Entrada que foi distribuída entre dois galpões: duas contrapartidas
+-- com uma única operação, cada parcela com vínculo próprio.
+TRUNCATE public.ew_auditoria_operacoes,public.ew_estornos_parcelas,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
+DO $case9$
+DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
+ origem uuid;rev uuid:='cccc0012-0000-4000-8000-000000000012';
+ r jsonb;extra uuid;err text;
+BEGIN
+ origem:=public.test_mov(a,2,'ABERTURA','AFOGADOS');
+ PERFORM public.test_mov(a,-1,'TRANSFERENCIA','AFOGADOS','aaaa0012-0000-4000-8000-000000000012');
+ PERFORM public.test_mov(a,1,'TRANSFERENCIA','IMBIRIBEIRA','aaaa0012-0000-4000-8000-000000000012');
+ r:=public.ew_estornar_movimento_obra(a,origem,'Reverter entrada disponível em dois galpões',rev);
+ IF (r->>'estornados')::int<>2 OR
+    (SELECT count(*) FROM public.ew_estornos_parcelas WHERE operacao_id=rev)<>2
+ THEN RAISE EXCEPTION 'Caso9: estorno de entrada dividido incorreto: %',r;END IF;
+ IF (SELECT count(*) FROM public.ew_estornos_parcelas
+   WHERE operacao_id=rev AND movimento_original_id=origem)<>2
+ THEN RAISE EXCEPTION 'Caso9: parcelas não vinculadas ao lançamento original';END IF;
+ IF EXISTS(SELECT 1 FROM public.ew_estoque_obras_movimentos m WHERE m.obra_id=a
+    GROUP BY m.local_estoque HAVING sum(m.quantidade_delta)<>0)
+ THEN RAISE EXCEPTION 'Caso9: sobrou saldo em um dos galpões';END IF;
+ SELECT m.id INTO extra FROM public.ew_estornos_parcelas p
+ JOIN public.ew_estoque_obras_movimentos m ON m.id=p.movimento_estorno_id
+ WHERE p.operacao_id=rev AND m.estorno_de_id IS NULL;
+ IF extra IS NULL THEN RAISE EXCEPTION 'Caso9: parcela adicional inexistente';END IF;
+ BEGIN
+  PERFORM public.ew_estornar_movimento_obra(a,extra,'Não pode estornar uma contrapartida',gen_random_uuid());
+  RAISE EXCEPTION 'Caso9: permitiu estorno da contrapartida';
+ EXCEPTION WHEN OTHERS THEN
+  GET STACKED DIAGNOSTICS err=MESSAGE_TEXT;
+  IF err NOT LIKE '%Contrapartida de estorno%' THEN RAISE;END IF;
+ END;
+ r:=public.ew_estornar_movimento_obra(a,origem,'Reverter entrada disponível em dois galpões',rev);
+ IF (r->>'repetida')::boolean IS DISTINCT FROM true OR (r->>'estornados')::int<>2
+ THEN RAISE EXCEPTION 'Caso9: retry da entrada não é idempotente';END IF;
+ BEGIN
+  PERFORM public.ew_estornar_movimento_obra(a,origem,'Tentar estornar pela segunda vez',gen_random_uuid());
+  RAISE EXCEPTION 'Caso9: duplo estorno com nova operação';
+ EXCEPTION WHEN OTHERS THEN
+  GET STACKED DIAGNOSTICS err=MESSAGE_TEXT;
+  IF err NOT LIKE '%já foi estornada%' THEN RAISE;END IF;
+ END;
+END $case9$;
+
 -- Isolamento empresarial e perfil de autorização.
 DO $security$
 DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
