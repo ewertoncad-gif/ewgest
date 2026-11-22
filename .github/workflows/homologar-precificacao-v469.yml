@@ -1,0 +1,72 @@
+name: Homologar precificacao v46.9 no PostgreSQL descartavel
+
+on:
+  push:
+    branches:
+      - feature/categorias-precificacao-fase1-v469
+    paths:
+      - '.github/workflows/homologar-precificacao-v469.yml'
+      - 'tests/homologacao_pg17/**'
+      - 'database/proposals/20261122_precificacao_*.sql'
+      - 'database/proposals/20261122_rollback_*.sql'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-isolado:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: ewgest_homologacao
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ewgest_homologacao"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGDATABASE: ewgest_homologacao
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - name: Obter versao do codigo
+        uses: actions/checkout@v4
+      - name: Disponibilizar cliente PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+          psql --version
+          psql -v ON_ERROR_STOP=1 -tAc "select current_setting('server_version_num')::int>=170000"
+      - name: Aplicar somente contratos minimos descartaveis
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/00_fixture_minima.sql
+          psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_precificacao_categorias_historico_fase1.sql
+          psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_precificacao_importacao_rpc_v469.sql
+          psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_precificacao_tetos_faturamento_v469.sql
+      - name: Testar importacao real da nova RPC, idempotencia e permissoes
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/10_cenarios.sql
+      - name: Revalidar ausencia de servicos externos
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Banco isolado como servico descartavel; nenhum ID, URL ou segredo do Supabase configurado."
+          psql -v ON_ERROR_STOP=1 -tAc "select count(*) from public.ew_precificacao_revisoes" | grep -Fx '1'
