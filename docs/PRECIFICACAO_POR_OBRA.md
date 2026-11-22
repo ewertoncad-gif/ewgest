@@ -100,3 +100,15 @@ Para indicadores de galpão, registrar fábrica designada, liberação, início 
 - [x] Testes automáticos de regressão, incluindo cálculo com 75% do EA2, revisão aprovada, tetos, edição manual, agrupamento e idempotência, passaram no GitHub Actions.
 
 **Permanece pendente:** homologação em banco independente com autenticação real, permissões e RLS por empresa, importação de obra de teste e faturamento/cancelamento ponta a ponta. O ensaio transacional verifica estrutura e compilação, **não** substitui isso. Somente depois fazer migração de produção (com backup), revisão final do PR e publicação da interface. O ambiente de produção continua na v46.8 e a obra existente não foi removida.
+
+## Continuação — homologação automatizada da interface e categorias padrão (22/11/2026)
+
+- A simulação do DOM foi adicionada em `scripts/test-precificacao-ui.mjs`; ela executa os **scripts reais** de precificação com dados sintéticos. Confere consulta de categorias por empresa, categoria padrão associada à tipologia, classificação e criação de categorias, alteração de preços/m², 60%/40%, preços individuais, erros e retorno ao orçamento sem gravar.
+- O teste encontrou chamadas a um seletor DOM incorreto que passavam na simples validação de sintaxe. Foram substituídas pela função `priceNode` em toda a tela e a suíte passou depois da correção.
+- O histórico individual aprovado agora preserva `referencia_tipologia_snapshot` do CEM e, quando o código corresponde a **uma única** tipologia da empresa, seu `tipologia_id`. Nunca escolher um vínculo ambíguo.
+- A conferência oferece `Usar depois` por esquadria: só quando o usuário marca essa opção, a categoria aprovada atualiza o padrão da tipologia para futuras obras. Se a mesma tipologia tiver dois padrões conflitantes no arquivo, a RPC rejeita a operação. Sem marcar, a reclassificação permanece exclusiva da obra.
+- O Financeiro verifica se **todas** as esquadrias da obra têm preço aprovado, quantidades coerentes e se a soma dos itens e das categorias em centavos coincide com os valores da revisão; divergências bloqueiam faturamento, sem esconder silenciosamente itens.
+- O SQL foi ensaiado novamente dentro de transação com `ROLLBACK`, incluindo a opção de padrão e snapshots técnicos. Resultado do ensaio: cinco tabelas disponíveis durante a transação e função de importação compilada; nenhuma mudança persistente.
+- [GitHub Actions #45018724293](https://github.com/ewertoncad-gif/ewgest/actions/runs/45018724293): regressões aprovadas no commit `cfb59b995`.
+
+**Importante:** uma compilação ou teste simulado NÃO comprova a importação/faturamento real ponta a ponta. O PR #64 permanece em rascunho; não mesclar nem publicar antes do teste autenticado em ambiente de homologação independente e revisão das migrações. As obras, estoque, romaneios e faturas de produção continuam inalterados.
