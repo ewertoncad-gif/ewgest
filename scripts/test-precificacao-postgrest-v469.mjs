@@ -8,6 +8,7 @@ const jwtSecret='ewgest-homologacao-somente-dados-ficticios-20261122';
 const base='http://127.0.0.1:3000';
 const admin='11111111-1111-4111-8111-111111111111';
 const almox='22222222-2222-4222-8222-222222222222';
+const adminB='44444444-4444-4444-8444-444444444444';
 const fixture=readFileSync('tests/homologacao_pg17/10_cenarios.sql','utf8');
 const match=fixture.match(/INSERT INTO public\._homolog_payload VALUES \('(\{[^\n]*\})'::jsonb\)/);
 assert.ok(match,'Fixture sintética de precificação não encontrada');
@@ -81,3 +82,62 @@ assert.equal(admLeitura.status,200,'ADM precisa ler a revisão aprovada');
 assert.ok(Array.isArray(admLeitura.data)&&
  admLeitura.data.some(x=>x.obra_id===correto.data.obra_id&&x.versao===1));
 console.log('OK: PostgREST local sem sessão/almoxarife bloqueados; ADM via JWT grava obra, retry idempotente, payload divergente rejeitado e RLS na leitura.');
+
+
+// CONCORRENCIA E ISOLAMENTO MULTIEMPRESA (somente JWT/obras fictícias).
+const importacaoNova=structuredClone(input);
+importacaoNova.p_codigo_obra='HOMOLOG-REST-CORRIDA';
+importacaoNova.p_nome_obra='OBRA FICTICIA COM REQUISICOES SIMULTANEAS';
+importacaoNova.p_operacao_id='eeeeeeee-1111-4111-8111-111111111111';
+const emParalelo=await Promise.all([
+ api(endpoint,importacaoNova,admin),
+ api(endpoint,importacaoNova,admin)
+]);
+assert.deepEqual(emParalelo.map(x=>x.status),[200,200],
+ 'Mesmo ID submetido simultaneamente precisa dar duas respostas confirmadas');
+assert.deepEqual(emParalelo.map(x=>x.data.obra_id),
+ [emParalelo[0].data.obra_id,emParalelo[0].data.obra_id],
+ 'Duas requisições simultâneas não podem criar obras distintas');
+assert.equal(emParalelo.filter(x=>x.data.ja_importado===true).length,1,
+ 'Apenas uma das duas requisições repetidas deve reconhecer o resultado anterior');
+assert.equal(emParalelo.filter(x=>x.data.ja_importado!==true).length,1,
+ 'Somente uma gravação deve ter sido executada');
+
+const tentativaB=structuredClone(input);
+tentativaB.p_codigo_obra='HOMOLOG-REST-ATAQUE-B';
+tentativaB.p_nome_obra='OBRA FICTICIA BLOQUEADA';
+tentativaB.p_operacao_id='ffffffff-1111-4111-8111-111111111111';
+const gravacaoB=await api(endpoint,tentativaB,adminB);
+assert.ok(gravacaoB.status>=400,'ADM de empresa B não importa na A');
+assert.match(JSON.stringify(gravacaoB.data),/Somente ADM/);
+for(const tabela of ['ew_precificacao_revisoes','ew_precificacao_revisoes_itens',
+ 'ew_precificacao_revisoes_categorias','ew_precificacao_categorias',
+ 'ew_precificacao_tipologias_padrao']){
+ const res=await api('/'+tabela+'?select=*',null,adminB,'GET');
+ assert.equal(res.status,200,'Tabelas de precificação devem responder com RLS: '+tabela);
+ assert.deepEqual(res.data,[],
+  'RLS não pode revelar históricos, preços ou padrões da empresa A à B: '+tabela);
+}
+const acessoDireto=await api('/ew_precificacao_revisoes', {
+ empresa_id:input.p_empresa_id,obra_id:correto.data.obra_id,versao:999
+},admin);
+assert.ok([401,403].includes(acessoDireto.status),
+ 'Mesmo ADM deve registrar revisões apenas pela RPC autorizada');
+const expirada=jwt(admin).split('.');
+const claims={role:'authenticated',sub:admin,aud:'authenticated',
+ exp:Math.floor(Date.now()/1000)-3600,iat:Math.floor(Date.now()/1000)-7200};
+const header=expirada[0],payload=Buffer.from(JSON.stringify(claims)).toString('base64url');
+const jwtExpirado=header+'.'+payload+'.'+createHmac('sha256',jwtSecret)
+ .update(header+'.'+payload).digest('base64url');
+const expiredResponse=await fetch(base+endpoint,{
+ method:'POST',headers:{Authorization:'Bearer '+jwtExpirado,'Content-Type':'application/json'},
+ body:JSON.stringify(tentativaB)
+});
+assert.ok([401,403].includes(expiredResponse.status),
+ 'JWT expirado nunca pode autorizar RPC');
+// O bloqueio de outra empresa e de acesso direto não deve alterar a contagem.
+const revisoesFinais=await api('/ew_precificacao_revisoes?select=id',null,admin,'GET');
+assert.equal(revisoesFinais.status,200);
+assert.equal(revisoesFinais.data.length,3,
+ 'Uma revisão SQL + uma HTTP original + uma concorrente; sem duplicidade ou invasão');
+console.log('OK: HTTP com concorrência de operações iguais, isolamento de ADM de outra empresa, proteção de escrita direta e JWT expirado.');
