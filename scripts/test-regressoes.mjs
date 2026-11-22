@@ -2697,5 +2697,13 @@ assert.ok(Math.abs(progresso466([ea2466]).areaEnviada-0.345)<1e-9,
 expedicoes466.push({esquadria_id:'ea2v466',tipo:'marco',quantidade:1});
 assert.ok(Math.abs(progresso466([ea2466]).areaEnviada-1.035)<1e-9,
  'Folha primeiro e marco depois equivale a 75%');
+const duasPartesNoRomaneio466=factories[0](printHeader,[
+ {...parcialBase,sequencia:1,tipo_saida:'marco',area_m2:null},
+ {...parcialBase,sequencia:2,tipo_saida:'folha',area_m2:null}
+]);
+assert.ok(duasPartesNoRomaneio466.includes('Total M²:</strong> 1,04')&&
+ duasPartesNoRomaneio466.includes('<td class="right">0,69</td>')&&
+ duasPartesNoRomaneio466.includes('<td class="right">0,35</td>'),
+ 'Mesmo romaneio com marco e uma folha física calcula 1,035m² e exibe 1,04m² arredondado');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
