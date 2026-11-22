@@ -52,7 +52,6 @@ function context({serverCount=4,localCount=4,serverAfter=4}={}){
    requests.push({path,args});
    if(path.endsWith('/ew_inspecionar_reversao_obra'))return {
     motivos:[],resumo:{transferencias_nfe_conciliadas:requests.length===1?serverCount:serverAfter}};
-   };
    if(path.endsWith('/ew_estornar_estoque_obra'))return {estornados:0,conciliados:4};
    throw new Error('RPC inesperada '+path);
   },
