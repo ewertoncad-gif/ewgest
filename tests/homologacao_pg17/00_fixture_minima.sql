@@ -93,13 +93,15 @@ REVOKE ALL ON FUNCTION public.ew_importar_obra_cem_financeiro(
  uuid,text,text,text,jsonb,jsonb,jsonb,uuid,jsonb,jsonb) FROM PUBLIC,anon,authenticated;
 INSERT INTO auth.users(id) VALUES
  ('11111111-1111-4111-8111-111111111111'),
- ('22222222-2222-4222-8222-222222222222');
+ ('22222222-2222-4222-8222-222222222222'),
+ ('44444444-4444-4444-8444-444444444444');
 INSERT INTO public.empresas(id,nome) VALUES
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Empresa fictícia A'),
  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','Empresa fictícia B');
 INSERT INTO public.usuarios_empresas(empresa_id,usuario_id,perfil) VALUES
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','11111111-1111-4111-8111-111111111111','administrador'),
- ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','22222222-2222-4222-8222-222222222222','almoxarife');
+ ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','22222222-2222-4222-8222-222222222222','almoxarife'),
+ ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','44444444-4444-4444-8444-444444444444','administrador');
 INSERT INTO public.tipologias(empresa_id,codigo)
 VALUES
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','GOLD-JCR101'),
