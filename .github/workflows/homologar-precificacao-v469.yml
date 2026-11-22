@@ -1,0 +1,163 @@
+name: Homologar precificacao v46.9 no PostgreSQL descartavel
+
+on:
+  push:
+    branches:
+      - feature/categorias-precificacao-fase1-v469
+    paths:
+      - '.github/workflows/homologar-precificacao-v469.yml'
+      - 'tests/homologacao_pg17/**'
+      - 'database/proposals/20261122_precificacao_*.sql'
+      - 'database/proposals/20261122_rollback_*.sql'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-isolado:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: ewgest_homologacao
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ewgest_homologacao"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGDATABASE: ewgest_homologacao
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - name: Obter versao do codigo
+        uses: actions/checkout@v4
+      - name: Disponibilizar cliente PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+          psql --version
+          psql -v ON_ERROR_STOP=1 -tAc "select current_setting('server_version_num')::int>=170000"
+      - name: Aplicar somente contratos minimos descartaveis
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/00_fixture_minima.sql
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/05_fixture_faturamento.sql
+          psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_precificacao_categorias_historico_fase1.sql
+          psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_precificacao_importacao_rpc_v469.sql
+          psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_precificacao_tetos_faturamento_v469.sql
+      - name: Testar importacao real da nova RPC, idempotencia e permissoes
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/10_cenarios.sql
+      - name: Conferir EA repetido, rollback tardio e isolamento multiempresa
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/15_casos_criticos.sql
+      - name: Executar RPC real de faturamento com marco, folha e tetos 60/40
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/20_faturamento_real.sql
+      - name: Iniciar PostgREST local com roles e JWT ficticios
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name ewgest-postgrest-v469 --network host \
+            -e PGRST_DB_URI='postgres://postgres:postgres@127.0.0.1:5432/ewgest_homologacao' \
+            -e PGRST_DB_SCHEMAS='public' \
+            -e PGRST_DB_ANON_ROLE='anon' \
+            -e PGRST_JWT_SECRET='ewgest-homologacao-somente-dados-ficticios-20261122' \
+            -e PGRST_SERVER_PORT='3000' \
+            postgrest/postgrest:v12.2.3
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3000/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          docker logs ewgest-postgrest-v469 --tail 60
+          exit 1
+      - name: Testar RPC e RLS pela API HTTP sem usar Supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/test-precificacao-postgrest-v469.mjs
+      - name: Revalidar ausencia de servicos externos
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Banco isolado como servico descartavel; nenhum ID, URL ou segredo do Supabase configurado."
+          # 1 revisão SQL + 1 importação HTTP + 1 concorrente simultânea; nenhum retry duplica.
+          psql -v ON_ERROR_STOP=1 -tAc "select count(*) from public.ew_precificacao_revisoes" | grep -Fx '3'
+
+  importador-legado-real:
+    name: Testar importador CEM e financeiro REAL sem materiais
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: ewgest_integracao_real
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ewgest_integracao_real"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGDATABASE: ewgest_integracao_real
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cliente Postgres
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+      - name: Funcoes LEGADAS reais e ambiente inteiramente ficticio
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/00_fixture_minima.sql
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/30_fixture_legado_real.sql
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/31_importador_legado_real_snapshot.sql
+          psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_precificacao_importador_mapeamento_v469.sql
+          psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_precificacao_categorias_historico_fase1.sql
+          psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_precificacao_importacao_rpc_v469.sql
+      - name: Testar integridade CEM e rollback atraves do codigo real
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/32_cenarios_legado_real_sem_materiais.sql
+      - name: Executar materiais reais (perfis, barras planejadas e acessorios)
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/33_fixture_material_real.sql
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/34_materiais_legado_real_snapshot.sql
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/35_cenarios_material_real.sql
+      - name: Validar conciliacao real e reuso de codigo CEM alternativo
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/36_conciliacao_alias_real.sql

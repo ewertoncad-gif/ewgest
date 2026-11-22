@@ -163,7 +163,7 @@
  cemQuoteValidar=validar;
  cemQuoteFechar=function(){
   node('cemQuoteOverlay').classList.add('hidden');
-  if(cemParsed)cemParsed.confirmacaoInicialFeita=false;
+  if(cemParsed){cemParsed.confirmacaoInicialFeita=false;cemParsed.orcamentoDraft=null;cemParsed.precificacaoDraft=null;}
  };
  cemQuoteAbrir=async function(r){
   node('cemQuoteForm').reset();
@@ -204,6 +204,23 @@
   const r=cemParsed;if(!r||r.jaImportado||r.obraExistente){cemQuoteFechar();return;}
   try{
    const values=validar();
+   const fabricacao=values.niveis.filter(x=>x.categoria_base==='fabricacao').reduce((s,x)=>s+Math.round(x.valor*100),0);
+   const instalacao=values.niveis.filter(x=>x.categoria_base==='instalacao').reduce((s,x)=>s+Math.round(x.valor*100),0);
+   if(fabricacao+instalacao>0){
+    if(!window.ewPrecificacaoImportacao?.abrir)
+     throw new Error('A etapa de precificação não foi carregada. Atualize a página antes de importar.');
+    r.orcamentoDraft=values;r.precificacaoDraft=null;
+    node('cemQuoteError').textContent='';
+    node('cemQuoteOverlay').classList.add('hidden');
+    await window.ewPrecificacaoImportacao.abrir(r,values,async(draft)=>{
+     r.precificacaoDraft=draft;r.confirmacaoInicialFeita=true;
+     await cemImportarSelecionados();
+     if(!r.jaImportado)throw new Error(node('cemImportResult').textContent||'A gravação não foi confirmada.');
+    });
+    return;
+   }
+   // Para obras sem fabricação/instalação (ACM, manutenção etc.), manter o
+   // fluxo legado sem exigir preços por m² fictícios.
    const custo=values.niveis.filter(x=>!x.faturar).reduce((s,x)=>s+x.valor,0);
    if(!window.confirm('Confirmar importação da nova obra?'+
     '\n\n'+r.nomeObra+' ('+r.codigo+')'+
@@ -215,7 +232,7 @@
    node('cemQuoteError').textContent='';
    node('cemQuoteOverlay').classList.add('hidden');
    await cemImportarSelecionados();
-  }catch(e){node('cemQuoteError').textContent=e.message;}
+  }catch(e){node('cemQuoteOverlay').classList.remove('hidden');node('cemQuoteError').textContent=e.message;}
  };
  node('cemQuoteTotal').addEventListener('focus',event=>{
   // Quando o browser preenche o campo sem input/change, corrige ao receber foco.
@@ -298,6 +315,25 @@
   if(r&&!r.obraExistente&&!r.orcamentoDraft){
    await cemQuoteAbrir(r);
    return;
+  }
+  if(r&&!r.obraExistente&&r.orcamentoDraft?.niveis&&!r.precificacaoDraft){
+   const temPreco=r.orcamentoDraft.niveis.some(x=>
+    ['fabricacao','instalacao'].includes(x.categoria_base)&&Math.round(Number(x.valor)*100)>0);
+   if(temPreco){
+    if(!window.ewPrecificacaoImportacao?.abrir)
+     throw new Error('Tela de precificação não disponível. Atualize a página.');
+    try{
+     await window.ewPrecificacaoImportacao.abrir(r,r.orcamentoDraft,async(draft)=>{
+      r.precificacaoDraft=draft;r.confirmacaoInicialFeita=true;
+      await cemImportarSelecionados();
+      if(!r.jaImportado)throw new Error(node('cemImportResult').textContent||'A gravação não foi confirmada.');
+     });
+    }catch(e){
+     node('cemQuoteOverlay').classList.remove('hidden');
+     node('cemQuoteError').textContent='Não foi possível abrir a precificação: '+e.message;
+    }
+    return;
+   }
   }
   return oldImport();
  };

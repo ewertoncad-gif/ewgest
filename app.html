@@ -684,6 +684,7 @@
   .cadastrosListRow{padding:9px 5px;border-bottom:1px solid #e2eaf3;display:flex;justify-content:space-between}
   </style>
   <link rel="stylesheet" href="/assets/orcamento-niveis.css?v=20261120c">
+  <link rel="stylesheet" href="/assets/precificacao-importacao.css?v=20261122a">
   <link rel="stylesheet" href="/assets/recebimento-manual.css?v=20261121g">
 <link rel="stylesheet" href="/assets/insumos-fisicos.css?v=20261121a">
 <link rel="stylesheet" href="/assets/entregas-producao.css?v=20261121a">
@@ -713,7 +714,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.8</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.9</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -7269,6 +7270,7 @@ function cemAtualizarNomeArquivo(){
   node('matCemNomeArquivo').title=nome;
 }
 function cemDescartarRascunho(){
+  window.ewPrecificacaoImportacao?.fechar();
   // O ZIP analisado é temporário. Nunca apagar obras ou materiais já gravados no banco.
   cemAnaliseGeracao++;
   cemParsed=null;cemOperacaoId=null;
@@ -7378,6 +7380,12 @@ async function cemImportarSelecionados(){
    r.confirmacaoInicialFeita=true;
  }
  if(nova&&!r.orcamentoDraft){cemQuoteAbrir(r);return;}
+ if(nova&&r.orcamentoDraft?.niveis?.some(x=>
+    ['fabricacao','instalacao'].includes(x.categoria_base)&&Math.round(Number(x.valor)*100)>0)
+    &&!r.precificacaoDraft){
+  result.textContent='Conclua a etapa de categorias e preços antes da importação.';
+  return;
+ }
  cemOperacaoId ||= crypto.randomUUID();save.disabled=true;
  result.textContent=nova?'Cadastrando obra, esquadrias e materiais…':'Gravando materiais…';
  try{
@@ -7386,16 +7394,20 @@ async function cemImportarSelecionados(){
      p_empresa_id:currentCompany.id,p_codigo_obra:r.codigo,p_nome_obra:r.nomeObra,
      p_cliente:r.clienteObra,p_esquadrias:r.esquadriasPayload,
      p_perfis:perf,p_acessorios:aces,p_operacao_id:cemOperacaoId,p_decisoes:decisoes,
-     p_orcamento:r.orcamentoDraft
+     p_orcamento:r.orcamentoDraft,
+     ...(r.precificacaoDraft?{p_precificacao:r.precificacaoDraft}:{})
    }:{
      p_empresa_id:currentCompany.id,p_codigo_obra:r.codigo,
      p_perfis:perf,p_acessorios:aces,p_operacao_id:cemOperacaoId,p_decisoes:decisoes
    };
-   const answer=await request('/rest/v1/rpc/'+(nova?'ew_importar_obra_cem_financeiro':'ew_importar_cem_conciliado'),{
+   const answer=await request('/rest/v1/rpc/'+(nova?
+      (r.precificacaoDraft?'ew_importar_obra_cem_precificacao':'ew_importar_obra_cem_financeiro'):
+      'ew_importar_cem_conciliado'),{
      method:'POST',token:session.access_token,timeoutMs:120000,body:payload});
    if(analise!==cemAnaliseGeracao||!session)return;
    if(!answer||answer.estoque_fisico_alterado!==false||
       (nova?(answer.obra_criada!==true||answer.orcamento_gravado!==true||
+        (r.precificacaoDraft&&answer.precificacao_gravada!==true)||
         Number(answer.esquadrias_novas)!==r.esquadriasPayload.length):
         answer.esquadrias_alteradas!==0))
      throw new Error('A resposta da operação não foi confirmada. Consulte Obras antes de repetir.');
@@ -7519,7 +7531,7 @@ async function finLoad(){
  node('finMessage').textContent='Consultando orçamento, despesas e faturamentos…';
  try{
   await ensureSession();
-  const [b,c,fat,perfis,aces,roms,variacoes,galpoes,niveis,materiaisObra,comprimentos,barraCem,fornecedores,composicoes]=await Promise.all([
+  const [b,c,fat,perfis,aces,roms,variacoes,galpoes,niveis,materiaisObra,comprimentos,barraCem,fornecedores,composicoes,precificacoes]=await Promise.all([
    apiGet('ew_obra_orcamento',{select:'*',empresa_id:empresa,obra_id:obra,limit:'1'}),
    apiGet('ew_obra_despesas',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
    apiGet('ew_obra_faturamentos',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
@@ -7533,7 +7545,8 @@ async function finLoad(){
    apiGet('ew_comprimentos_comerciais',{select:'comprimento_mm',empresa_id:empresa,order:'comprimento_mm.asc',limit:'100'}),
    apiGet('ew_estoque_obras_movimentos',{select:'variacao_id,comprimento_mm,quantidade_delta,origem',empresa_id:empresa,obra_id:obra,origem:'eq.IMPORTACAO_CEM',unidade:'eq.BARRA',limit:'3000'}),
    apiGet('ew_fornecedores',{select:'id,nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'1000'}),
-   apiGet('esquadrias_saida_config',{select:'esquadria_id,folhas_por_unidade',limit:'10000'})
+   apiGet('esquadrias_saida_config',{select:'esquadria_id,folhas_por_unidade',limit:'10000'}),
+   apiGet('ew_precificacao_revisoes',{select:'id,versao,aprovado_em,fabricacao_original_centavos,instalacao_original_centavos,fabricacao_distribuida_centavos,instalacao_distribuida_centavos',empresa_id:empresa,obra_id:obra,estado:'eq.aprovada',order:'versao.desc',limit:'1'})
   ]);
   if(node('finWork').value!==obraId)return;
   if(!b?.length){node('finMessage').textContent='Esta obra ainda não possui orçamento cadastrado. As novas importações agora exigem essa etapa.';return;}
@@ -7541,7 +7554,7 @@ async function finLoad(){
   const pendentes=(c||[]).filter(x=>x.status==='pendente'),pendingIds=pendentes.map(x=>x.id);
   const aprovadas=(c||[]).filter(x=>x.status==='aprovada'&&['aluminio','acessorios'].includes(x.categoria));
   const approvedIds=aprovadas.map(x=>x.id);
-  const [linhas,romLinhas,pendentesItens,approvedItems,stockReceipts]=await Promise.all([
+  const [linhas,romLinhas,pendentesItens,approvedItems,stockReceipts,precoLinhas,precoCategorias]=await Promise.all([
    invoiceIds.length?apiGet('ew_obra_faturamentos_itens',{select:'faturamento_id,esquadria_id,quantidade,valor_total',empresa_id:empresa,faturamento_id:'in.('+invoiceIds.join(',')+')',limit:'5000'}):[],
    romaneioIds.length?apiGet('romaneios_itens',{select:'romaneio_id,esquadria_id,quantidade,natureza,tipo_saida',romaneio_id:'in.('+romaneioIds.join(',')+')',limit:'10000'}):[],
    pendingIds.length?apiGet('ew_obra_despesas_itens',{
@@ -7551,17 +7564,47 @@ async function finLoad(){
      select:'id,despesa_id,codigo_fornecedor,descricao,unidade,quantidade,valor_unitario,valor_total,perfil_id,acessorio_id',
      empresa_id:empresa,despesa_id:'in.('+approvedIds.join(',')+')',limit:'10000'}):[],
    apiGet('ew_nfe_recebimentos',{select:'id,despesa_item_id,variacao_id,quantidade,unidade,comprimento_mm,local_estoque,criado_em,estornado_em,estorno_motivo,estorno_detalhes',
-     empresa_id:empresa,obra_id:obra,limit:'10000'})
+     empresa_id:empresa,obra_id:obra,limit:'10000'}),
+   precificacoes?.[0]?apiGet('ew_precificacao_revisoes_itens',{
+     select:'esquadria_id,categoria_nome_snapshot,quantidade,fabricacao_centavos,instalacao_centavos',
+     empresa_id:empresa,obra_id:obra,revisao_id:'eq.'+precificacoes[0].id,limit:'3000'}):[],
+   precificacoes?.[0]?apiGet('ew_precificacao_revisoes_categorias',{
+     select:'categoria_nome_snapshot,preco_base_m2_centavos,area_m2,fabricacao_centavos,instalacao_centavos',
+     empresa_id:empresa,obra_id:obra,revisao_id:'eq.'+precificacoes[0].id,
+     order:'categoria_nome_snapshot.asc',limit:'200'}):[]
   ]);
   const shipped=finEquivalentesExpedidos(romLinhas,composicoes);
   const billed={fabricacao:new Map(),instalacao:new Map()};
+  const billedValues={fabricacao:new Map(),instalacao:new Map()};
+  const precoPorEsquadria=new Map((precoLinhas||[]).map(x=>[x.esquadria_id,x]));
+  if(precificacoes?.[0]){
+   const obraItens=elements.filter(e=>e.obra_id===obraId);
+   const somaCentavos=(lista,chave)=>lista.reduce((s,x)=>s+Number(x[chave]||0),0);
+   const completo=obraItens.length>0&&precoLinhas?.length===obraItens.length&&
+    precoPorEsquadria.size===obraItens.length&&precoCategorias?.length>0&&
+    obraItens.every(e=>precoPorEsquadria.has(e.id)&&
+     Number(precoPorEsquadria.get(e.id).quantidade)===Number(e.quantidade))&&
+    ['fabricacao','instalacao'].every(tipo=>{
+     const campo=tipo+'_centavos',previsto=Number(precificacoes[0][tipo+'_distribuida_centavos']);
+     return somaCentavos(precoLinhas,campo)===previsto&&
+      somaCentavos(precoCategorias,campo)===previsto;
+    });
+   if(!completo)
+    throw new Error('O histórico de precificação está incompleto ou não fecha com as esquadrias da obra. Faturamento bloqueado até conferência.');
+  }
   const header=new Map((fat||[]).filter(x=>x.status==='emitido').map(x=>[x.id,x]));
   for(const x of linhas||[]){
    const tipo=header.get(x.faturamento_id)?.categoria;
-   if(tipo)billed[tipo].set(x.esquadria_id,(billed[tipo].get(x.esquadria_id)||0)+Number(x.quantidade||0));
+   if(tipo&&billed[tipo]){
+    billed[tipo].set(x.esquadria_id,(billed[tipo].get(x.esquadria_id)||0)+Number(x.quantidade||0));
+    billedValues[tipo].set(x.esquadria_id,(billedValues[tipo].get(x.esquadria_id)||0)+Math.round(Number(x.valor_total||0)*100));
+   }
   }
   finState={obraId,orcamento:b[0],despesas:c||[],faturas:fat||[],linhas:linhas||[],perfis:perfis||[],
-   acessorios:aces||[],shipped,billed,pendentes,pendentesItens:pendentesItens||[],
+   acessorios:aces||[],shipped,billed,billedValues,
+   precificacao:precificacoes?.[0]||null,precoPorEsquadria,
+   precificacaoCategorias:precoCategorias||[],
+   pendentes,pendentesItens:pendentesItens||[],
    aprovadas,approvedItems:approvedItems||[],stockReceipts:stockReceipts||[],
    variacoes:variacoes||[],galpoes:(galpoes||[]).filter(x=>x.ativo).map(x=>x.nome),
    fornecedores:(fornecedores||[]).filter(x=>x.ativo).map(x=>({id:x.id,nome:x.nome})),orcamentoNiveis:niveis||[],
@@ -7578,8 +7621,11 @@ function finRenderResumo(){
  for(const d of x.despesas)if(d.status==='aprovada')gastos.set(d.categoria,(gastos.get(d.categoria)||0)+Number(d.valor));
  for(const f of x.faturas)if(f.status==='emitido')faturado.set(f.categoria,(faturado.get(f.categoria)||0)+Number(f.valor_total));
  const gastoTotal=[...gastos.values()].reduce((a,b)=>a+b,0),recebTotal=[...faturado.values()].reduce((a,b)=>a+b,0);
- const totalReceita=x.orcamentoNiveis.length?
-  x.orcamentoNiveis.filter(n=>n.faturar&&['fabricacao','instalacao'].includes(n.categoria_base))
+ const totalReceita=x.precificacao?
+  (Number(x.precificacao.fabricacao_distribuida_centavos)+
+   Number(x.precificacao.instalacao_distribuida_centavos))/100:
+  x.orcamentoNiveis.length?
+   x.orcamentoNiveis.filter(n=>n.faturar&&['fabricacao','instalacao'].includes(n.categoria_base))
     .reduce((sum,n)=>sum+Number(n.valor||0),0):Number(o.fabricacao)+Number(o.instalacao);
  node('finTotals').innerHTML='<span><strong>Valor da obra: '+finMoney(o.valor_total)+'</strong></span>'+
   '<span><strong>Faturado: '+finMoney(recebTotal)+'</strong></span>'+
@@ -7596,10 +7642,34 @@ function finRenderResumo(){
   '</tbody></table></div>'+
   '<p class="hint">Os níveis faturáveis identificam valores previstos. A emissão automática de outros níveis além de fabricação e instalação não está disponível nesta versão.</p>'+
   '<h3>Grupos financeiros existentes</h3>':'';
- node('finSummary').innerHTML=resumoNiveis+'<div class="finTableWrap"><table class="finTable"><thead><tr>'+
+ const resumoPreco=x.precificacao?
+  '<h3>Precificação aprovada · revisão '+Number(x.precificacao.versao)+'</h3>'+
+  '<p class="hint">Aprovada em '+
+  new Date(x.precificacao.aprovado_em).toLocaleDateString('pt-BR')+
+  '. Orçamento original: fabricação '+finMoney(Number(x.precificacao.fabricacao_original_centavos)/100)+
+  ', instalação '+finMoney(Number(x.precificacao.instalacao_original_centavos)/100)+
+  '. Distribuição aprovada: fabricação '+finMoney(Number(x.precificacao.fabricacao_distribuida_centavos)/100)+
+  ', instalação '+finMoney(Number(x.precificacao.instalacao_distribuida_centavos)/100)+
+  '. Os tetos de faturamento seguem a distribuição aprovada.</p>'+
+  '<div class="finTableWrap"><table class="finTable"><thead><tr>'+
+  '<th>Categoria da esquadria</th><th>Área (m²)</th><th>Preço-base/m²</th>'+
+  '<th>Fabricação</th><th>R$/m² fabricação</th><th>Instalação</th><th>R$/m² instalação</th></tr></thead><tbody>'+
+  x.precificacaoCategorias.map(cat=>{
+   const area=Number(cat.area_m2),fab=Number(cat.fabricacao_centavos),inst=Number(cat.instalacao_centavos);
+   const moedaM2=(centavos)=>area>0?finMoney(centavos/100/area):'—';
+   return '<tr><td>'+escapeHTML(cat.categoria_nome_snapshot)+'</td>'+
+    '<td>'+area.toLocaleString('pt-BR',{maximumFractionDigits:6})+'</td>'+
+    '<td>'+finMoney(Number(cat.preco_base_m2_centavos)/100)+'</td>'+
+    '<td>'+finMoney(fab/100)+'</td><td>'+moedaM2(fab)+'</td>'+
+    '<td>'+finMoney(inst/100)+'</td><td>'+moedaM2(inst)+'</td></tr>';
+  }).join('')+'</tbody></table></div>'+
+  '<p class="hint">Os preços-base/m² representam pesos comerciais. Os valores em centavos por esquadria, aprovados na importação, são a referência exata para faturamento; o R$/m² exibido é informativo.</p>':'';
+ node('finSummary').innerHTML=resumoNiveis+resumoPreco+'<div class="finTableWrap"><table class="finTable"><thead><tr>'+
    '<th>Categoria</th><th>Controle</th><th align="right">Previsto / teto</th><th align="right">Realizado</th><th align="right">Restante</th></tr></thead><tbody>'+
  finCategories.map(([k,label,tipo])=>{
-   const total=Number(o[k]),real=tipo==='custo'?(gastos.get(k)||0):(faturado.get(k)||0);
+   const total=x.precificacao&&['fabricacao','instalacao'].includes(k)?
+     Number(x.precificacao[k+'_distribuida_centavos'])/100:Number(o[k]);
+   const real=tipo==='custo'?(gastos.get(k)||0):(faturado.get(k)||0);
    const resto=Math.round((total-real)*100)/100;
    return '<tr><td>'+label+'</td><td>'+(tipo==='custo'?'Gasto':'Faturamento')+
    '</td><td align="right">'+finMoney(total)+'</td><td align="right">'+finMoney(real)+
@@ -7965,6 +8035,27 @@ function finPrecoEdicao(preco){
  return Number(preco).toLocaleString('pt-BR',{useGrouping:false,maximumFractionDigits:4});
 }
 
+// Preço sugerido é baseado na precificação aprovada; nunca altera o orçamento.
+// Considera o valor integral do item (todas as unidades) e permite ajuste manual.
+// Na última fração, tenta utilizar o saldo aprovado para absorver centavos.
+function finPrecoSugerido(linha,tipo,unidades,qtdLancamento,qtdFaturada,valorFaturadoCentavos){
+ if(!linha||!['fabricacao','instalacao'].includes(tipo))return null;
+ const totalCentavos=Number(linha[tipo+'_centavos']);
+ const totalUnidades=Number(unidades),qtd=Number(qtdLancamento);
+ if(!Number.isSafeInteger(totalCentavos)||totalCentavos<=0||
+    !Number.isSafeInteger(totalUnidades)||totalUnidades<1||
+    !Number.isFinite(qtd)||qtd<=0)return null;
+ let valorUnitario=totalCentavos/(100*totalUnidades);
+ // Ao encerrar a esquadria, o saldo em centavos tem prioridade sobre a média.
+ if(Math.abs(Number(qtdFaturada||0)+qtd-totalUnidades)<=0.000001){
+  const restante=totalCentavos-Number(valorFaturadoCentavos||0);
+  if(Number.isSafeInteger(restante)&&restante>0)
+   valorUnitario=restante/(100*qtd);
+ }
+ const preco=Math.round(valorUnitario*10000)/10000;
+ return Number.isFinite(preco)&&preco>0&&preco<=100000000?preco:null;
+}
+
 function finRenderFaturaveis(){
  if(!finState)return;
  const tipo=node('finBillingCategory').value,items=elements.filter(e=>e.obra_id===finState.obraId);
@@ -7973,20 +8064,47 @@ function finRenderFaturaveis(){
   const enviados=Math.min(Number(e.quantidade),finState.shipped.get(e.id)||0);
   const ja=finState.billed[tipo].get(e.id)||0;
   const disponivel=finEquivDisponivel(Math.min(Number(e.quantidade)-ja,enviados-ja));
-  return {e,enviados,ja,disponivel};
+  const precificacao=finState.precoPorEsquadria.get(e.id)||null;
+  const sugestao=finPrecoSugerido(precificacao,tipo,e.quantidade,disponivel,ja,
+   finState.billedValues[tipo].get(e.id)||0);
+  return {e,enviados,ja,disponivel,precificacao,sugestao};
  }).filter(r=>r.enviados>0);
- node('finBillingRows').innerHTML=rows.length?'<div class="finTableWrap"><table class="finTable"><thead><tr>'+
-  '<th>Faturar</th><th>Esquadria</th><th>Expedido (equiv.)</th><th>Já faturado ('+
-  (tipo==='fabricacao'?'fab.':'inst.')+')</th><th>Disponível</th><th>Qtd. equivalente</th><th>Valor/un. integral (R$)</th></tr></thead><tbody>'+
- rows.map(r=>'<tr class="finInvoiceRow" data-esq="'+escapeHTML(r.e.id)+'" data-max="'+r.disponivel+'">'+
+ node('finBillingRows').innerHTML=rows.length?'<p class="hint">'+
+  (finState.precificacao?'Os preços integrais sugeridos são da precificação aprovada (revisão '+
+   Number(finState.precificacao.versao)+'). Podem ser editados antes de faturar.':
+   'Obra sem precificação individual: informe os preços das esquadrias manualmente.')+'</p>'+
+  '<div class="finTableWrap"><table class="finTable"><thead><tr>'+
+  '<th>Faturar</th><th>Esquadria</th><th>Categoria da obra</th><th>Expedido (equiv.)</th><th>Já faturado ('+
+  (tipo==='fabricacao'?'fab.':'inst.')+')</th><th>Disponível</th><th>Qtd. equivalente</th><th>Preço integral sugerido (R$)</th></tr></thead><tbody>'+
+ rows.map(r=>'<tr class="finInvoiceRow" data-esq="'+escapeHTML(r.e.id)+
+  '" data-max="'+r.disponivel+'" data-auto-price="'+(r.sugestao!==null?'1':'0')+'">'+
   '<td class="finRowCheck"><input class="finSelected" type="checkbox"'+(r.disponivel===0?' disabled':'')+'></td>'+
   '<td><strong>'+escapeHTML(r.e.codigo)+'</strong><div class="hint">'+escapeHTML(r.e.descricao||'')+'</div></td>'+
+  '<td>'+escapeHTML(r.precificacao?.categoria_nome_snapshot||'—')+'</td>'+
   '<td>'+finEquivFormat(r.enviados)+'</td><td>'+finEquivFormat(r.ja)+'</td><td>'+finEquivFormat(r.disponivel)+'</td>'+
-  '<td><input class="finQty finSmallInput" type="number" min="0.000001" max="'+r.disponivel+'" step="0.000001" value="'+(r.disponivel||'')+'"'+(r.disponivel===0?' disabled':'')+'></td>'+
-  '<td><input class="finPrice finSmallInput" type="text" inputmode="decimal" autocomplete="off" placeholder="R$ 0,00" aria-label="Preço integral da esquadria em reais"'+(r.disponivel===0?' disabled':'')+'></td></tr>').join('')+
+  '<td><input class="finQty finSmallInput" type="number" min="0.000001" max="'+r.disponivel+
+  '" step="0.000001" value="'+(r.disponivel||'')+'"'+(r.disponivel===0?' disabled':'')+'></td>'+
+  '<td><input class="finPrice finSmallInput" type="text" inputmode="decimal" autocomplete="off" placeholder="R$ 0,00" aria-label="Preço integral da esquadria em reais" value="'+
+  (r.sugestao===null?'':escapeHTML(finPrecoFormatar(r.sugestao)))+'"'+
+  (r.disponivel===0?' disabled':'')+'></td></tr>').join('')+
   '</tbody></table></div>':'<p class="hint">Nenhuma esquadria com saída registrada em romaneio ativo está disponível nesta obra.</p>';
- node('finBillingRows').querySelectorAll('input').forEach(x=>x.addEventListener('input',finAtualizarSomaFatura));
- node('finBillingRows').querySelectorAll('.finPrice').forEach(campo=>{
+ node('finBillingRows').querySelectorAll('.finInvoiceRow').forEach(row=>{
+  const campo=row.querySelector('.finPrice'),quantidade=row.querySelector('.finQty');
+  const recalcSugestao=()=>{
+   if(row.dataset.autoPrice!=='1')return;
+   const linha=finState.precoPorEsquadria.get(row.dataset.esq);
+   const obraItem=items.find(x=>x.id===row.dataset.esq);
+   const sugestao=finPrecoSugerido(linha,tipo,obraItem?.quantidade,Number(quantidade.value),
+    finState.billed[tipo].get(row.dataset.esq)||0,
+    finState.billedValues[tipo].get(row.dataset.esq)||0);
+   if(sugestao!==null)campo.value=finPrecoFormatar(sugestao);
+  };
+  quantidade.addEventListener('input',()=>{
+   recalcSugestao();finAtualizarSomaFatura();
+  });
+  campo.addEventListener('input',()=>{
+   row.dataset.autoPrice='0';finAtualizarSomaFatura();
+  });
   campo.addEventListener('focus',()=>{
    const valor=finPrecoValor(campo.value);
    if(Number.isFinite(valor)&&valor>0)campo.value=finPrecoEdicao(valor);
@@ -7998,6 +8116,7 @@ function finRenderFaturaveis(){
     campo.value=finPrecoFormatar(valor);
    finAtualizarSomaFatura();
   });
+  row.querySelector('.finSelected').addEventListener('input',finAtualizarSomaFatura);
  });
  finAtualizarSomaFatura();
 }
@@ -8007,7 +8126,7 @@ function finAtualizarSomaFatura(){
   if(!row.querySelector('.finSelected').checked)continue;
   count++;
   const valor=finPrecoValor(row.querySelector('.finPrice').value);
-  if(Number.isFinite(valor)&&valor>0)sum+=Number(row.querySelector('.finQty').value||0)*valor;
+  if(Number.isFinite(valor)&&valor>0)sum+=Math.round(Number(row.querySelector('.finQty').value||0)*valor*100)/100;
  }
  node('finBillingSum').textContent='Selecionados: '+count+' · Valor calculado: '+finMoney(sum);
 }
@@ -8165,9 +8284,12 @@ async function finRegistrarFaturamento(event){
  const value=itens.reduce((a,x)=>a+Math.round(x.quantidade*x.valor_unitario*100),0)/100;
  const billed=finState.faturas.filter(f=>f.status==='emitido'&&f.categoria===tipo)
   .reduce((v,f)=>v+Number(f.valor_total),0);
- if(billed+value>Number(finState.orcamento[tipo])+0.00001){
+ const teto=finState.precificacao?
+  Number(finState.precificacao[tipo+'_distribuida_centavos'])/100:
+  Number(finState.orcamento[tipo]);
+ if(billed+value>teto+0.00001){
   node('finBillingMessage').textContent='O faturamento ultrapassa o valor contratado para '+tipo+'. Valor restante: '+
-    finMoney(Number(finState.orcamento[tipo])-billed);return;
+    finMoney(teto-billed);return;
  }
  if(!window.confirm('Registrar '+finMoney(value)+' em faturamento de '+tipo+' para '+itens.length+
   ' item(ns)?\n\nDocumento: '+doc+
@@ -10408,7 +10530,9 @@ restaurarSessaoSalva().catch(e=>{
 });
 
 </script>
-<script src="/assets/orcamento-niveis.js?v=20261120c"></script>
+<script src="/assets/orcamento-niveis.js?v=20261122b"></script>
+<script src="/assets/precificacao-core.js?v=20261122a"></script>
+<script src="/assets/precificacao-importacao.js?v=20261122a"></script>
 <script src="/assets/recebimento-manual.js?v=20261121l"></script>
 <script src="/assets/cadastros-hub.js?v=20261121c"></script>
 <script src="/assets/insumos-fisicos.js?v=20261121d"></script>
