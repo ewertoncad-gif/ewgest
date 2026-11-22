@@ -6,10 +6,12 @@ import vm from 'node:vm';
 const html=readFileSync(fileURLToPath(new URL('../app.html',import.meta.url)),'utf8');
 const begin=html.indexOf('function stockReversalBalances(obraId){');
 const mid=html.indexOf('function stockReverseFechar(){',begin);
+const depBegin=html.indexOf('function stockReverseDependenciasMovimento(mov,lista){');
 const hBegin=html.indexOf('function stockReverseHistoryRender(id){');
 const hEnd=html.indexOf('async function stockReverseIndividual(movimentoId){',hBegin);
-assert.ok(begin>0&&mid>begin&&hBegin>mid&&hEnd>hBegin);
+assert.ok(begin>0&&mid>begin&&depBegin>mid&&hBegin>depBegin&&hEnd>hBegin);
 const countFn=html.slice(begin,mid);
+const depFn=html.slice(depBegin,hBegin);
 const renderFn=html.slice(hBegin,hEnd);
 
 const own='obra-ficticia';
@@ -44,6 +46,7 @@ const node=key=>{
 node('stockReverseHistoryFilter').value='pendentes';
 const ctx={
  estoqueObraMovimentos:records,
+ works:[{id:own,codigo:'TREINAMENTO'}],
  node,stockReverseHistoryLimit:60,stockReverseConciliadas:0,
  stockReverseConciliadasNfe:0,stockReverseReady:true,
  stockReverseDescricaoMaterial:m=>({cabecalho:'TESTE MATERIAL',detalhes:m.local_estoque}),
@@ -51,7 +54,7 @@ const ctx={
  stockReverseIndividual:()=>{},
 };
 vm.createContext(ctx);
-vm.runInContext(countFn+'\n'+renderFn,ctx);
+vm.runInContext(countFn+'\n'+depFn+'\n'+renderFn,ctx);
 const balances=ctx.stockReversalBalances(own);
 assert.equal(balances.movimentos,5);
 assert.equal(balances.pendentes,2,'Parcela ESTORNO sem estorno_de_id nunca deve ser pendente');
@@ -88,5 +91,31 @@ assert.match(html,/mov\.origem==='ESTORNO'\|\|mov\.estorno_de_id/,
  'A RPC individual não pode ser disparada pela interface para contrapartidas');
 assert.match(html,/transferencias_conciliadas\?\?ver\?\.resumo\?\.transferencias_nfe_conciliadas/,
  'A tela deve aceitar o resumo de conciliação interna e de NF-e');
+
+const transferencia={...entry,id:'tr-interno',origem:'TRANSFERENCIA',
+ transferencia_id:'op-interna',quantidade_delta:2,
+ criado_em:'2026-11-22T15:00:00.000Z'};
+const remanejamento={...transferencia,id:'tr-posterior',quantidade_delta:-1,
+ transferencia_id:'op-posterior',criado_em:'2026-11-22T15:30:00.000Z'};
+const compra={...entry,id:'compra-posterior',origem:'COMPRA',quantidade_delta:1,
+ criado_em:'2026-11-22T16:00:00.000Z'};
+let dependencias=ctx.stockReverseDependenciasMovimento(
+ transferencia,[transferencia,remanejamento,compra]);
+assert.equal(dependencias.length,1,
+ 'Saldo recomposto por compra não remove a dependência da transferência');
+assert.match(dependencias[0].descricao,/Transferência entre galpões/);
+const baixa={...remanejamento,id:'baixa-posterior',origem:'PLANO_CORTE_LOTE',
+ transferencia_id:null,criado_em:'2026-11-22T15:45:00.000Z'};
+dependencias=ctx.stockReverseDependenciasMovimento(transferencia,
+ [transferencia,baixa,compra]);
+assert.equal(dependencias.length,1,'Baixa de corte ativa deve impedir reversão');
+assert.match(dependencias[0].descricao,/Baixa\/consumo/);
+const estorno={...baixa,id:'reversao-baixa',origem:'ESTORNO',quantidade_delta:1,
+ estorno_de_id:'baixa-posterior',criado_em:'2026-11-22T16:30:00.000Z'};
+assert.equal(ctx.stockReverseDependenciasMovimento(transferencia,
+ [transferencia,baixa,compra,estorno]).length,0,
+ 'Baixa estornada não pode permanecer entre as dependências');
+assert.match(html,/ESTORNO BLOQUEADO — primeiro desfaça as movimentações posteriores/,
+ 'Clique na movimentação deve mostrar a ordem correta, sem executar estorno');
 
 console.log('OK v46.15: contrapartida parcial nunca vira pendência ou opção de estorno, histórico conciliado com saldo zero.');
