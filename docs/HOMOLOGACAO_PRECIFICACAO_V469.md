@@ -219,3 +219,45 @@ O Supabase Advisor (22/11/2026) sinalizou uma função `public.rls_auto_enable()
 **Backup existente, verificado sem baixar dados:** a rotina agendada `EWGEST - Backup criptografado` teve execução **success** em [22/11/2026, run #44988018681](https://github.com/ewertoncad-gif/ewgest/actions/runs/44988018681). O artefato criptografado `ewgest-backup-19` existe no GitHub, com **411.517 bytes**, `expired=false` e retenção indicada até 22/12/2026. Esse resultado comprova que a geração/cifra/upload ocorreram, **não** comprova que o backup restaura integralmente o projeto; exigir ensaio de restauração isolada antes de migrar produção.
 
 Sem alteração em Supabase, obras, backup existente, custo, deploy ou main.
+
+
+## Etapa complementar — CEM real apenas leitura, ZIP sintético e PostgREST local (22/11/2026)
+
+### Conferência do ZIP real fornecido anteriormente
+O arquivo `ALU-3195-GVG-PE.zip` da biblioteca do usuário foi **somente lido em ambiente de análise local**. Não foi incluído, enviado ou copiado para este repositório, nem submetido ao site ou banco. Sem expor dados comerciais do arquivo, observou-se:
+
+- 7 entradas ZIP; `ExpObras.xml` possui cerca de 6,56 MB descomprimidos e compressão DEFLATE;
+- 94 linhas da tabela de itens, das quais **70** pertencem ao conjunto calculado (822 unidades e **2.848,278 m²**);
+- **24** linhas fora do cálculo, que o importador deve ignorar;
+- **103** códigos distintos de perfis necessários e **132** códigos distintos de acessórios necessários;
+- **105** referências de plano de barras, 8 comprimentos comerciais distintos;
+- 3.179 registros SQL relevantes conferidos sem inconsistências de separação Flds1/Flds2; sem medidas de esquadrias inválidas e sem medidas/quantidades inválidas no planejamento de barras.
+
+**Limitação:** esta inspeção utilizou leitura local em Python, reproduzindo as validações essenciais; não é uma importação autenticada nem teste integral do navegador sobre o arquivo real. Nenhum valor de orçamento foi retirado do arquivo.
+
+### Regressão de ponta a ponta com dados 100% fictícios
+`scripts/test-cem-zip-precificacao-v469.mjs` executa o parser JS **real do site**: lê ZIP (armazenado e DEFLATE), identifica `ExpObras.xml`, extrai dados, cria esquadrias e materiais previstos e chama o motor real de rateio. Há ainda uma massa volumétrica **fictícia** de 70 esquadrias, 24 itens não calculados, 103 perfis, 132 acessórios e 105 planos de barras, refletindo somente a cardinalidade observada no arquivo técnico (sem copiar cliente, códigos, nomes ou geometrias reais).
+
+O rateio do cenário volumétrico fecha a distribuição 55% fabricação / 45% instalação em todos os 70 itens, com diferença zero. [CI de regressões #45022402643](https://github.com/ewertoncad-gif/ewgest/actions/runs/45022402643) **success**.
+
+### Teste RPC HTTP e RLS sem contratar Supabase
+`scripts/test-precificacao-postgrest-v469.mjs` e a Action de homologação usam PostgREST v12.2.3 e PostgreSQL 17 em serviços locais e descartáveis do GitHub Actions, com JWT **assinado por chave completamente fictícia**. Verificam:
+- chamada anônima à RPC privilegiada negada;
+- almoxarife autenticado negado;
+- administrador sintético aprova criação da obra + revisão;
+- repetição da operação preserva a obra e a revisão (idempotência);
+- alteração de payload com mesmo ID de operação é recusada;
+- leitura via HTTP por RLS oculta dados financeiros do almoxarife e permite consulta do administrador.
+
+A fixture `auth.uid()` agora aceita `request.jwt.claims` do PostgREST além da chave individual usada nos testes SQL diretos. Isso **não altera auth.uid no Supabase de produção**.
+
+**Essa verificação exercita requisições HTTP reais para PostgREST e as regras locais do banco, mas não substitui uma sessão Supabase Auth real nem garante compatibilidade integral das extensões, triggers, políticas e permissões do schema de produção.**
+
+### Portões ainda necessários antes da publicação
+1. Homologação em um Supabase de teste com estrutura/versões fiéis à produção (o projeto `ewgest-restauracao-teste` possui 35 tabelas públicas e a produção possuía 59 na conferência).
+2. Autenticação real de usuário de teste no Supabase com PostgREST e RLS completo, incluindo importação/faturamento.
+3. Ensaio da interface completa no navegador com ZIP de treinamento real e conferência de categorias, níveis e preços por m².
+4. Restauração efetiva de backup criptografado em ambiente independente e revisão final de segurança.
+5. Somente depois disso aplicar migrações versionadas, revisar PR #64, publicar e validar v46.9.
+
+**Sem upgrade do Supabase, sem alteração de dados/obras em produção e sem merge.**
