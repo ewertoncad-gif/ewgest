@@ -123,6 +123,10 @@ BEGIN
   IF v_valor_linha<0 OR v_valor_linha>999999999999.99 OR
      v_valor_linha<>round(v_valor_linha,2) THEN
    RAISE EXCEPTION 'Nível financeiro fora da precisão em reais.'; END IF;
+  IF v_item->>'categoria_base' IN ('fabricacao','instalacao') AND v_valor_linha>0 AND
+    (jsonb_typeof(v_item->'faturar') IS DISTINCT FROM 'boolean' OR
+     (v_item->>'faturar')::boolean IS DISTINCT FROM true)
+  THEN RAISE EXCEPTION 'Níveis de fabricação e instalação precisam ser faturáveis.'; END IF;
   IF v_item->>'categoria_base'='fabricacao' THEN
    v_fab_origem:=v_fab_origem+(v_valor_linha*100)::bigint;
   ELSIF v_item->>'categoria_base'='instalacao' THEN
