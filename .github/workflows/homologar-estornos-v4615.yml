@@ -75,9 +75,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/estorno_v4615/20_fixture_inspecao.sql
           psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_estornos_inspecao_lote_v4615.sql
           psql -v ON_ERROR_STOP=1 -tAc "SELECT pg_get_functiondef('public.ew_inspecionar_reversao_obra(uuid)'::regprocedure) LIKE '%m.origem<>''ESTORNO''%'" | grep -Fx t
           psql -v ON_ERROR_STOP=1 -tAc "SELECT pg_get_functiondef('public.ew_estornar_estoque_obra(uuid,text,uuid)'::regprocedure) LIKE '%transferências, consumo ou saídas ainda ativos%'" | grep -Fx t
+      - name: Exercitar inspeção real, conciliação e bloqueios de estorno total
+        run: psql -v ON_ERROR_STOP=1 -f tests/estorno_v4615/21_cenarios_inspecao.sql
       - name: Garantir isolamento da producao
         run: |
           echo 'PG17 descartavel; sem variaveis Supabase, dados reais ou acesso ao EWGEST online.'
