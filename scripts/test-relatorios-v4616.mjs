@@ -13,7 +13,7 @@ assert.doesNotThrow(()=>new Function(reports),'Relatórios devem compilar');
 for(const key of [
  'id="navRelatorios"','id="relatorios"','id="reportType"',
  'id="reportWork"','id="reportStart"','id="reportEnd"',
- 'id="reportCsv"','id="reportPrint"','id="romTransfIncludeArchived"',
+ 'id="reportCsv"','id="reportPrint"',
  'relatorios-obras.js?v=20261122c','romaneios-transferencia.js?v=20261122b']){
  assert.ok(app.includes(key),'Componente ausente: '+key);
 }
@@ -67,11 +67,17 @@ assert.match(element('romTransfList').innerHTML,/RM100/);
 assert.doesNotMatch(element('romTransfList').innerHTML,/RM101/,
  'Romaneio de obra arquivada não pode surgir na tela operacional');
 assert.match(element('romTransfList').innerHTML,/data-t-edit="ativo"/);
+// Nem uma simulação de filtro histórico deve fazer o romaneio arquivado voltar.
 element('romTransfIncludeArchived').checked=true;
 win.__testTransfer.render();
-assert.match(element('romTransfList').innerHTML,/RM101/,
- 'Filtro histórico deve permitir consultar documento da obra arquivada');
-assert.match(element('romTransfList').innerHTML,/OBRA ARQUIVADA/);
-assert.doesNotMatch(element('romTransfList').innerHTML,/data-t-edit="historico"|data-t-emit="historico"/,
- 'Documento histórico não pode ser editado/emitido pela operação atual');
-console.log('OK v46.18: romaneios arquivados fora da operação; relatórios somente leitura e acessíveis ao ADM.');
+assert.doesNotMatch(element('romTransfList').innerHTML,/RM101/,
+ 'Romaneio de obra encerrada é definitivo: não existe consulta operacional');
+assert.doesNotMatch(app,/id="romTransfIncludeArchived"/);
+assert.match(reports,/arquivada_em:'is.null'/,
+ 'Relatório consulta somente obras ativas');
+for(const filtro of ['ctx.ativas.has(f.obra_id)','ctx.ativas.has(m.obra_id)',
+ 'ctx.ativas.has(x.elemento.obra_id)','ctx.ativas.has(x.doc.obra_id)',
+ 'ctx.ativas.has(d.obra_id)']){
+ assert.ok(reports.includes(filtro),'Relatório deve impedir soma de obra encerrada: '+filtro);
+}
+console.log('OK v46.18: obras encerradas fora de romaneios, seletores e totais operacionais; auditoria preservada.');
