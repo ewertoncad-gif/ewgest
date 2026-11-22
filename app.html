@@ -3047,6 +3047,11 @@ async function confirmarCancelamentoRomaneio(event){
     node('romaneioCancelError').textContent='Informe um motivo de 10 a 400 caracteres.';
     node('romaneioCancelReason').focus();return;
   }
+  const possuiMateriais=romaneioItens.some(i=>i.romaneio_id===original.id&&i.natureza==='material');
+  if(possuiMateriais&&!window.confirm('Este romaneio contém perfis ou acessórios.\\n\\n' +
+    'Você confirmou a DEVOLUÇÃO FÍSICA dos materiais à mesma obra e ao galpão de origem?\\n' +
+    'O cancelamento devolverá a quantidade ao saldo do estoque e registrará o responsável.\\n\\n' +
+    'Se os materiais ainda estão na obra, NÃO cancele antes da devolução.'))return;
   if(!window.confirm('Confirma o cancelamento definitivo de '+original.numero+' e o estorno das saídas vinculadas?'))return;
   const button=node('romaneioCancelConfirm');
   const obraId=original.obra_id;
@@ -3062,7 +3067,8 @@ async function confirmarCancelamentoRomaneio(event){
     fecharCancelamentoRomaneio();
     await loadPanel();
     const mensagem='Romaneio '+r.numero+' CANCELADO e '+r.saidas_estornadas+
-      ' saída(s) estornadas. Histórico preservado. Confira o retorno físico antes de reenviar.';
+      ' saída(s) de esquadrias estornadas; '+Number(r.materiais_devolvidos||0)+
+      ' saída(s) de materiais devolvidas ao estoque com auditoria. Histórico preservado.';
     if(estaNoHub){
       hubObraId=obraId;renderRomaneioHub();setView('romaneiosPage');
       node('hubRomaneioMessage').textContent=mensagem;
