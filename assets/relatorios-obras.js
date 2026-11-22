@@ -6,7 +6,7 @@ const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const brl=n=>Number(n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const qtd=n=>Number(n||0).toLocaleString('pt-BR',{maximumFractionDigits:3});
 const stamp=d=>{if(!d)return '—';const t=new Date(d);return Number.isFinite(t.getTime())?t.toLocaleString('pt-BR'):'—';};
-let rows=[],headers=[],reportTitle='',running=false;
+let rows=[],headers=[],reportTitle='',running=false,summaryCsv=[],summaryHeaders=[];
 let obras=[],nomeObras=new Map(),nomeUsuarios=new Map();
 const tipos={
  ABERTURA:'Abertura manual de estoque',AJUSTE:'Ajuste de estoque',
@@ -43,18 +43,35 @@ async function carregarCatalogos(){
  obras=ob;nomeObras=new Map(ob.map(o=>[o.id,o.nome+(o.codigo?' · '+o.codigo:'')+(o.arquivada_em?' (arquivada)':'')]));
  nomeUsuarios=new Map(users.map(u=>[u.usuario_id,u.nome||u.login||String(u.usuario_id).slice(0,8)]));
  selectObras();
+ const multi=el('reportWorkChecks');
+ const checked=new Set([...multi.querySelectorAll('input:checked')].map(x=>x.value));
+ multi.replaceChildren();
+ for(const o of obras){
+  const lbl=document.createElement('label'),cb=document.createElement('input');
+  cb.type='checkbox';cb.value=o.id;cb.checked=checked.has(o.id);
+  lbl.append(cb,document.createTextNode(' '+o.nome+(o.codigo?' · '+o.codigo:'')+(o.arquivada_em?' (arquivada)':'')));
+  multi.append(lbl);
+ }
 }
 function obra(id){return nomeObras.get(id)||'Obra histórica '+String(id||'').slice(0,8);}
 function usuario(id){return nomeUsuarios.get(id)||'Usuário '+String(id||'').slice(0,8);}
 function dentro(d){
  if(!d)return false;
+ if(el('reportFullPeriod').checked)return true;
  const dia=String(d).slice(0,10),ini=el('reportStart').value,fim=el('reportEnd').value;
  return (!ini||dia>=ini)&&(!fim||dia<=fim);
 }
 function contexto(){
  const ini=el('reportStart').value,fim=el('reportEnd').value;
- if(ini&&fim&&ini>fim)throw new Error('A data inicial não pode ser posterior à data final.');
- return {empresa:'eq.'+currentCompany.id,obraId:el('reportWork').value};
+ if(!el('reportFullPeriod').checked&&ini&&fim&&ini>fim)
+  throw new Error('A data inicial não pode ser posterior à data final.');
+ const modo=el('reportType').value;
+ let obraIds=null;
+ if(modo==='faturamento'&&el('reportWorkScope').value==='selected'){
+  obraIds=new Set([...el('reportWorkChecks').querySelectorAll('input:checked')].map(x=>x.value));
+  if(!obraIds.size)throw new Error('Marque pelo menos uma obra para consolidar o faturamento.');
+ }
+ return {empresa:'eq.'+currentCompany.id,obraId:modo==='faturamento'?'':el('reportWork').value,obraIds};
 }
 function tabela(cabecalhos,linhas){
  if(!linhas.length)return '<p class="reportsEmpty">Nenhum registro encontrado nos filtros selecionados.</p>';
@@ -83,17 +100,20 @@ async function faturamento(ctx){
  const codes=new Map(esq.map(e=>[e.id,e]));
  const linhasPorFat=new Map();
  for(const item of itens){if(!linhasPorFat.has(item.faturamento_id))linhasPorFat.set(item.faturamento_id,[]);linhasPorFat.get(item.faturamento_id).push(item);}
- const filtro=faturas.filter(f=>(!ctx.obraId||f.obra_id===ctx.obraId)&&dentro(f.data_faturamento));
+ const filtro=faturas.filter(f=>(!ctx.obraIds||ctx.obraIds.has(f.obra_id))&&dentro(f.data_faturamento));
  const ativos=filtro.filter(f=>!f.cancelado_em&&String(f.status).toLowerCase()!=='cancelado');
  const exibidos=el('reportCancelled').checked?filtro:ativos;
  const resumo=agruparPorObra(ativos);
  const totalFab=resumo.reduce((n,x)=>n+x.fab,0),totalInst=resumo.reduce((n,x)=>n+x.inst,0);
+ summaryHeaders=['Obra','Documentos','Fabricação','Instalação','Total'];
+ summaryCsv=[...resumo.map(x=>[x.obra,x.documentos,brl(x.fab),brl(x.inst),brl(x.fab+x.inst)]),
+  ['TOTAL GERAL',ativos.length,brl(totalFab),brl(totalInst),brl(totalFab+totalInst)]];
  let sum='<div class="reportsKpis"><div><span>Faturado ativo</span><strong>'+brl(totalFab+totalInst)+'</strong></div>'+
  '<div><span>Fabricação</span><strong>'+brl(totalFab)+'</strong></div>'+
  '<div><span>Instalação</span><strong>'+brl(totalInst)+'</strong></div>'+
  '<div><span>Documentos ativos</span><strong>'+ativos.length+'</strong></div></div>';
  sum+='<h3>Totais por obra</h3>'+tabela(['Obra','Documentos','Fabricação','Instalação','Total'],
-  resumo.map(x=>[x.obra,x.documentos,brl(x.fab),brl(x.inst),brl(x.fab+x.inst)]));
+  summaryCsv);
  el('reportSummary').innerHTML=sum;
  headers=['Obra','Data','Documento','Categoria','Situação','Esquadria','Descrição','Quantidade','Valor unitário','Valor item','Valor documento','Registrado por','Observações'];
  rows=[];
@@ -166,7 +186,20 @@ async function estoque(ctx){
    (delta>0?'+':'')+qtd(delta),m.unidade,qtd(atual),usuario(m.usuario_id),
    m.observacao||'',String(m.id)]};
  });
- const filtradas=linhaMov.filter(({m})=>(!ctx.obraId||m.obra_id===ctx.obraId)&&dentro(m.criado_em))
+ const filtros=new Set([...document.querySelectorAll('[data-report-stock]:checked')].map(x=>x.dataset.reportStock));
+ if(!filtros.size)throw new Error('Marque pelo menos um tipo de movimentação.');
+ const classificacao=m=>{
+  if(m.origem==='TRANSFERENCIA'){
+   const par=(transfers.get(m.transferencia_id)||[]).find(p=>p.id!==m.id);
+   return par&&par.obra_id!==m.obra_id?'obras':'galpoes';
+  }
+  if(m.origem==='COMPRA'||m.origem==='ABERTURA')return 'recebimento';
+  if(m.origem==='PLANO_CORTE'||m.origem==='PLANO_CORTE_LOTE'||m.origem==='SAIDA_MANUAL')return 'producao';
+  if(m.origem==='SAIDA_OBRA')return 'direto';
+  return 'outros';
+ };
+ const filtradas=linhaMov.filter(({m})=>(!ctx.obraId||m.obra_id===ctx.obraId)&&
+  dentro(m.criado_em)&&filtros.has(classificacao(m)))
   .reverse();
  headers=['Obra','Data/hora','Código','Material','Cor','Barra','Galpão','Operação',
   'Movimento','Unidade','Saldo após movimento','Responsável','Observações','ID movimento'];
@@ -185,7 +218,7 @@ async function estoque(ctx){
 }
 async function gerar(){
  if(running||!canAdministrate()||!currentCompany)return;
- rows=[];headers=[];el('reportCsv').disabled=true;el('reportPrint').disabled=true;
+ rows=[];headers=[];summaryCsv=[];summaryHeaders=[];el('reportCsv').disabled=true;el('reportPrint').disabled=true;
  el('reportTable').replaceChildren();el('reportSummary').replaceChildren();
  const tipo=el('reportType').value;
  running=true;el('reportGenerate').disabled=true;
@@ -196,9 +229,11 @@ async function gerar(){
   await carregarCatalogos();
   if(ctx.obraId && !obras.some(o=>o.id===ctx.obraId))throw new Error('A obra não está mais disponível para consulta.');
   el('reportWork').value=ctx.obraId;
-  const res=tipo==='faturamento'?await faturamento(ctx):await estoque(ctx);
+  const geradores={faturamento,estoque,liberacoes,expedicao,aluminio};
+  if(!geradores[tipo])throw new Error('Relatório inexistente.');
+  const res=await geradores[tipo](ctx);
   el('reportStatus').textContent='Relatório concluído: '+res.contagem+' registro(s) consultado(s). '+
-   (tipo==='faturamento'?'Totais excluem documentos cancelados.':'Nenhum movimento foi alterado.');
+   (tipo==='faturamento'?'Totais excluem documentos cancelados.':'Consulta sem alteração dos registros.');
   el('reportCsv').disabled=!rows.length;el('reportPrint').disabled=!rows.length;
  }catch(e){el('reportStatus').textContent='Não foi possível gerar: '+e.message;}
  finally{running=false;el('reportGenerate').disabled=false;}
@@ -211,10 +246,15 @@ function csv(){
   const seguro=/^[\\s\\r\\n]*[=+@-]/.test(texto)?"'"+texto:texto;
   return '"'+seguro.replace(/"/g,'""')+'"';
  };
- const text='\ufeff'+[headers,...rows].map(r=>r.map(enc).join(';')).join('\r\n');
+ const tabelaPrincipal=[headers,...rows].map(r=>r.map(enc).join(';')).join('\r\n');
+ const resumo=summaryHeaders.length?[
+  'RESUMO POR OBRA',summaryHeaders.map(enc).join(';'),
+  ...summaryCsv.map(r=>r.map(enc).join(';')),'','DETALHAMENTO',''
+ ].join('\r\n'):'';
+ const text='\ufeff'+resumo+tabelaPrincipal;
  const url=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8;'}));
  const a=document.createElement('a');a.href=url;
- a.download=(el('reportType').value==='faturamento'?'faturamento':'movimentacoes_estoque')+
+ a.download=el('reportType').value+
   '_ewgest_'+new Date().toISOString().slice(0,10)+'.csv';
  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
@@ -228,7 +268,7 @@ function imprimir(){
   'th{background:#edf3fa}thead{display:table-header-group}@page{size:landscape;margin:12mm}</style></head><body>'+
   '<h1>EWGEST · '+esc(reportTitle)+'</h1><p>Gerado em '+esc(stamp(new Date().toISOString()))+
   ' · Obra: '+esc(el('reportWork').selectedOptions[0]?.text||'Todas as obras')+'</p>'+
-  tabela(headers,rows)+'</body></html>';
+  el('reportSummary').innerHTML+tabela(headers,rows)+'</body></html>';
  w.document.open();w.document.write(html);w.document.close();w.focus();w.print();
 }
 el('navRelatorios').addEventListener('click',async()=>{
@@ -240,12 +280,26 @@ el('navRelatorios').addEventListener('click',async()=>{
  try{await ensureSession();await carregarCatalogos();}
  catch(e){el('reportStatus').textContent='Erro ao preparar obras e usuários: '+e.message;}
 });
+function exibirFiltros(){
+ const tipo=el('reportType').value,isBilling=tipo==='faturamento',stock=tipo==='estoque';
+ el('reportMultiple').classList.toggle('hidden',!isBilling);
+ el('reportWork').closest('label').classList.toggle('hidden',isBilling);
+ el('reportStockOptions').classList.toggle('hidden',!stock);
+ el('reportCancelledWrap').classList.toggle('hidden',!['faturamento','liberacoes','expedicao'].includes(tipo));
+ el('reportWorkChecks').classList.toggle('hidden',el('reportWorkScope').value!=='selected'||!isBilling);
+}
+function periodo(){
+ const todo=el('reportFullPeriod').checked;
+ el('reportStart').disabled=todo;el('reportEnd').disabled=todo;
+}
+el('reportFullPeriod').addEventListener('change',periodo);
+el('reportWorkScope').addEventListener('change',exibirFiltros);
 el('reportType').addEventListener('change',()=>{
- const isBilling=el('reportType').value==='faturamento';
- el('reportCancelled').parentElement.classList.toggle('hidden',!isBilling);
+ exibirFiltros();
  el('reportSummary').replaceChildren();el('reportTable').replaceChildren();
  el('reportCsv').disabled=true;el('reportPrint').disabled=true;rows=[];
 });
+periodo();exibirFiltros();
 el('reportGenerate').addEventListener('click',gerar);
 el('reportCsv').addEventListener('click',csv);
 el('reportPrint').addEventListener('click',imprimir);
