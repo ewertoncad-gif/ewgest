@@ -21,7 +21,7 @@ BEGIN
  SELECT * INTO v_header FROM public.romaneios WHERE id=p_romaneio_id FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Romaneio não encontrado.'; END IF;
  IF NOT EXISTS(SELECT 1 FROM public.usuarios_empresas ue
-  WHERE ue.empresa_id=v_header.empresa_id AND ue.usuario_id=v_uid AND ue.perfil IN ('administrador','gerenciador')) THEN
+  WHERE ue.empresa_id=v_header.empresa_id AND ue.usuario_id=v_uid AND public.ew_pode(v_header.empresa_id,'romaneios.cancelar')) THEN
    RAISE EXCEPTION 'Apenas um administrador pode cancelar romaneios.';
  END IF;
  IF v_header.status='cancelado' THEN RAISE EXCEPTION 'Este romaneio já foi cancelado.'; END IF;
@@ -108,7 +108,7 @@ BEGIN
  IF NOT FOUND THEN RAISE EXCEPTION 'Obra inexistente.'; END IF;
  IF v_work.arquivada_em IS NOT NULL THEN RAISE EXCEPTION 'Obra arquivada não pode emitir romaneio.';END IF;
  IF NOT EXISTS(SELECT 1 FROM public.usuarios_empresas ue WHERE ue.usuario_id=v_uid
-    AND ue.empresa_id=v_work.empresa_id AND ue.perfil IN ('administrador','gerenciador','supervisor','almoxarife')
+    AND ue.empresa_id=v_work.empresa_id AND public.ew_pode(v_work.empresa_id,'romaneios.emitir')
     AND EXISTS(SELECT 1 FROM public.usuarios_login ul
       WHERE ul.usuario_id=v_uid AND ul.empresa_id=ue.empresa_id
       AND ul.ativo AND ul.perfil=ue.perfil)) THEN
@@ -242,7 +242,7 @@ BEGIN
      IF NOT EXISTS(SELECT 1 FROM public.usuarios_empresas ue
        JOIN public.usuarios_login ul ON ul.empresa_id=ue.empresa_id AND ul.usuario_id=ue.usuario_id
        WHERE ue.usuario_id=v_uid AND ue.empresa_id=v_work.empresa_id
-         AND ue.perfil IN ('administrador','almoxarife')
+         AND public.ew_pode(v_work.empresa_id,'estoque.baixar')
          AND ul.perfil=ue.perfil AND ul.ativo AND ul.excluido_em IS NULL)
        THEN RAISE EXCEPTION 'Somente ADM ou almoxarife pode expedir materiais físicos do estoque.';END IF;
      -- Material avulso NÃO é texto livre: exige estoque real identificado.
@@ -448,7 +448,7 @@ BEGIN
  PERFORM public.ew_exigir_permissao('financeiro.cancelar_despesas');
  PERFORM public.ew_exigir_sessao_atual();
  IF v_uid IS NULL OR NOT EXISTS(SELECT 1 FROM public.usuarios_empresas ue WHERE
-   ue.usuario_id=v_uid AND ue.empresa_id=p_empresa_id AND ue.perfil='administrador')
+   ue.usuario_id=v_uid AND ue.empresa_id=p_empresa_id AND public.ew_pode(p_empresa_id,'financeiro.cancelar_despesas'))
  THEN RAISE EXCEPTION 'Somente ADM pode cancelar despesas aprovadas.';END IF;
  IF length(btrim(coalesce(p_motivo,''))) NOT BETWEEN 5 AND 400
  THEN RAISE EXCEPTION 'Informe o motivo do cancelamento entre 5 e 400 caracteres.';END IF;
@@ -483,7 +483,7 @@ BEGIN
  PERFORM public.ew_exigir_permissao('financeiro.cancelar_faturamento');
  PERFORM public.ew_exigir_sessao_atual();
  IF v_uid IS NULL OR NOT EXISTS(SELECT 1 FROM public.usuarios_empresas ue WHERE
-  ue.usuario_id=v_uid AND ue.empresa_id=p_empresa_id AND ue.perfil='administrador')
+  ue.usuario_id=v_uid AND ue.empresa_id=p_empresa_id AND public.ew_pode(p_empresa_id,'financeiro.cancelar_faturamento'))
  THEN RAISE EXCEPTION 'Somente ADM pode cancelar faturamento.';END IF;
  IF length(btrim(coalesce(p_motivo,''))) NOT BETWEEN 5 AND 400
  THEN RAISE EXCEPTION 'Informe motivo de cancelamento entre 5 e 400 caracteres.';END IF;
@@ -3460,7 +3460,7 @@ begin
  perform public.ew_exigir_sessao_atual();
  if v_uid is null or p_empresa_id is null or p_obra_id is null or p_operacao_id is null
   or not exists(select 1 from public.usuarios_empresas u
-   where u.usuario_id=v_uid and u.empresa_id=p_empresa_id and u.perfil='almoxarife')
+   where u.usuario_id=v_uid and u.empresa_id=p_empresa_id and public.ew_pode(p_empresa_id,'estoque.receber'))
  then raise exception 'Acesso não autorizado ao recebimento.';end if;
  if p_categoria not in ('aluminio','acessorios') or p_valor is null
     or p_valor<=0 or p_valor>999999999999.99 or p_valor<>round(p_valor,2)
@@ -3614,7 +3614,7 @@ BEGIN
    RAISE EXCEPTION 'Vidros e outros insumos: registre a nota pelo Recebimento físico da versão atualizada.';
  END IF;
  IF v_uid IS NULL OR NOT EXISTS(SELECT 1 FROM public.usuarios_empresas ue
-  WHERE ue.usuario_id=v_uid AND ue.empresa_id=p_empresa_id AND ue.perfil='administrador')
+  WHERE ue.usuario_id=v_uid AND ue.empresa_id=p_empresa_id AND public.ew_pode(p_empresa_id,'financeiro.despesas'))
  THEN RAISE EXCEPTION 'Somente ADM registra despesas financeiras.';END IF;
  IF p_operacao_id IS NULL OR p_obra_id IS NULL OR
    NOT EXISTS(SELECT 1 FROM public.ew_obra_orcamento
@@ -3695,7 +3695,7 @@ BEGIN
  PERFORM public.ew_exigir_permissao('financeiro.faturar');
  PERFORM public.ew_exigir_sessao_atual();
  IF v_uid IS NULL OR NOT EXISTS(SELECT 1 FROM public.usuarios_empresas ue
-  WHERE ue.usuario_id=v_uid AND ue.empresa_id=p_empresa_id AND ue.perfil='administrador')
+  WHERE ue.usuario_id=v_uid AND ue.empresa_id=p_empresa_id AND public.ew_pode(p_empresa_id,'financeiro.faturar'))
  THEN RAISE EXCEPTION 'Somente ADM pode registrar faturamentos.';END IF;
  IF p_categoria NOT IN ('fabricacao','instalacao') OR p_operacao_id IS NULL OR p_obra_id IS NULL OR
    p_data_faturamento IS NULL OR length(btrim(coalesce(p_numero_documento,''))) NOT BETWEEN 1 AND 120 OR
