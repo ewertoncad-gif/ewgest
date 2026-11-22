@@ -1,3 +1,5 @@
+-- APLICADA APENAS NO SUPABASE DE TESTES EM 22/11/2026, após dry-run transacional.
+-- NÃO reaplicar no mesmo staging sem revisar as precondições. PRODUÇÃO INTACTA.
 -- EWGEST v46.9 | normalizar grants e RLS das 10 tabelas centrais do importador CEM
 -- Fonte: políticas do banco de produção, lidas sem dados em 22/11/2026.
 -- Destino EXCLUSIVO: ewgest-restauracao-teste Free, 41 tabelas, 0 obras.
