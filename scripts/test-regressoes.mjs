@@ -13,6 +13,7 @@ import './test-estoque-zero-sem-galpao-v4614.mjs';
 import './test-estornos-parcelas-ui-v4615.mjs';
 import './test-relatorios-v4616.mjs';
 import './test-relatorios-romaneios-v4617.mjs';
+import './test-exclusao-definitiva-v4618.mjs';
 const source=readFileSync(fileURLToPath(new URL('../app.html',import.meta.url)),'utf8');
 // Issue #31 — Recebimento separado do Financeiro e operação por perfil.
 const recebimentoSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_recebimento_almoxarife_seguro.sql',import.meta.url)),'utf8');
