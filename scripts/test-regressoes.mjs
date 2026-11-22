@@ -2563,6 +2563,34 @@ assert.ok(Math.abs(calculo.totals([esq]).released-1.38)<0.000001,
  '1 marco + 1 conjunto de folhas = 1,38m²');
 assert.equal(calculo.releaseParts(esq).saldoMarco,4);
 
+// Caso de regressão real: 1 marco EA2 expedido; liberando as folhas depois, aparecem 2 físicas.
+const parteFonte=source.slice(source.indexOf('function releaseParts(item){'),
+ source.indexOf('function totals(',source.indexOf('function releaseParts(item){')));
+const statsFonte=source.slice(source.indexOf('function shipmentStats(item){'),
+ source.indexOf('function suggestedLeaves(item)',source.indexOf('function shipmentStats(item){')));
+const folhasFonte=source.slice(source.indexOf('function suggestedLeaves(item)'),
+ source.indexOf('function romaneioSaldoCompleto(item)',source.indexOf('function suggestedLeaves(item)')));
+const saldoFonte=source.slice(source.indexOf('function romaneioSaldoPorTipo(item,tipo,folhas){'),
+ source.indexOf('function mensagemSemSaldoRomaneio(',source.indexOf('function romaneioSaldoPorTipo(item,tipo,folhas){')));
+const liberacoesEA2=[{esquadria_id:'ea2qa',quantidade:1,tipo_componente:'marco'}];
+const saidasEA2=[{esquadria_id:'ea2qa',tipo:'marco',quantidade:1}];
+const {romaneioSaldoPorTipo:saldoEA2}=new Function('releaseHistory','shipmentHistory','dispatchConfig',
+ parteFonte+statsFonte+folhasFonte+saldoFonte+
+ '\nreturn {romaneioSaldoPorTipo};')(liberacoesEA2,saidasEA2,
+ [{esquadria_id:'ea2qa',folhas_por_unidade:2}]);
+const itemEA2={id:'ea2qa',codigo:'EA2',descricao:'JANELA DE CORRER 2 FOLHAS',
+ quantidade:5,qtd_liberada:1};
+assert.equal(saldoEA2(itemEA2,'folha',2),0,
+ 'Após enviar apenas o marco, sem liberar folhas, impedir emissão das folhas');
+liberacoesEA2.push({esquadria_id:'ea2qa',quantidade:1,tipo_componente:'folhas'});
+assert.equal(saldoEA2(itemEA2,'folha',2),2,
+ 'Após liberar o conjunto das folhas, permitir enviar duas folhas físicas');
+assert.equal(saldoEA2(itemEA2,'completo',2),0,
+ 'Não permitir completa quando o marco já saiu');
+saidasEA2.push({esquadria_id:'ea2qa',tipo:'folha',quantidade:1});
+assert.equal(saldoEA2(itemEA2,'folha',2),1,
+ 'Expedir uma folha física deixa uma folha física pendente');
+
 // v46.5 — explicar a indisponibilidade de folhas quando só o marco foi liberado.
 const semSaldoStart=source.indexOf('function mensagemSemSaldoRomaneio(tipo,candidatos){');
 const semSaldoEnd=source.indexOf('function buscarEsquadriasRomaneio(row){',semSaldoStart);
