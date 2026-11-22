@@ -1,5 +1,6 @@
 -- Teste executado só no PostgreSQL 17 descartável do GitHub Actions.
 \set ON_ERROR_STOP on
+SELECT set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',false);
 CREATE FUNCTION public.test_mov(
  w uuid, q numeric, src text, loc text, op uuid DEFAULT NULL,
  reverse_of uuid DEFAULT NULL
