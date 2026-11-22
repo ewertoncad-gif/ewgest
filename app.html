@@ -7554,7 +7554,7 @@ async function finLoad(){
   const pendentes=(c||[]).filter(x=>x.status==='pendente'),pendingIds=pendentes.map(x=>x.id);
   const aprovadas=(c||[]).filter(x=>x.status==='aprovada'&&['aluminio','acessorios'].includes(x.categoria));
   const approvedIds=aprovadas.map(x=>x.id);
-  const [linhas,romLinhas,pendentesItens,approvedItems,stockReceipts,precoLinhas]=await Promise.all([
+  const [linhas,romLinhas,pendentesItens,approvedItems,stockReceipts,precoLinhas,precoCategorias]=await Promise.all([
    invoiceIds.length?apiGet('ew_obra_faturamentos_itens',{select:'faturamento_id,esquadria_id,quantidade,valor_total',empresa_id:empresa,faturamento_id:'in.('+invoiceIds.join(',')+')',limit:'5000'}):[],
    romaneioIds.length?apiGet('romaneios_itens',{select:'romaneio_id,esquadria_id,quantidade,natureza,tipo_saida',romaneio_id:'in.('+romaneioIds.join(',')+')',limit:'10000'}):[],
    pendingIds.length?apiGet('ew_obra_despesas_itens',{
@@ -7567,14 +7567,18 @@ async function finLoad(){
      empresa_id:empresa,obra_id:obra,limit:'10000'}),
    precificacoes?.[0]?apiGet('ew_precificacao_revisoes_itens',{
      select:'esquadria_id,categoria_nome_snapshot,quantidade,fabricacao_centavos,instalacao_centavos',
-     empresa_id:empresa,obra_id:obra,revisao_id:'eq.'+precificacoes[0].id,limit:'3000'}):[]
+     empresa_id:empresa,obra_id:obra,revisao_id:'eq.'+precificacoes[0].id,limit:'3000'}):[],
+   precificacoes?.[0]?apiGet('ew_precificacao_revisoes_categorias',{
+     select:'categoria_nome_snapshot,preco_base_m2_centavos,area_m2,fabricacao_centavos,instalacao_centavos',
+     empresa_id:empresa,obra_id:obra,revisao_id:'eq.'+precificacoes[0].id,
+     order:'categoria_nome_snapshot.asc',limit:'200'}):[]
   ]);
   const shipped=finEquivalentesExpedidos(romLinhas,composicoes);
   const billed={fabricacao:new Map(),instalacao:new Map()};
   const billedValues={fabricacao:new Map(),instalacao:new Map()};
   const precoPorEsquadria=new Map((precoLinhas||[]).map(x=>[x.esquadria_id,x]));
-  if(precificacoes?.[0]&&!precoPorEsquadria.size)
-   throw new Error('A obra tem precificação aprovada, mas faltam valores individuais. O faturamento foi bloqueado.');
+  if(precificacoes?.[0]&&(!precoPorEsquadria.size||!precoCategorias?.length))
+   throw new Error('A obra tem precificação aprovada, mas seu histórico está incompleto. O faturamento foi bloqueado.');
   const header=new Map((fat||[]).filter(x=>x.status==='emitido').map(x=>[x.id,x]));
   for(const x of linhas||[]){
    const tipo=header.get(x.faturamento_id)?.categoria;
@@ -7586,6 +7590,7 @@ async function finLoad(){
   finState={obraId,orcamento:b[0],despesas:c||[],faturas:fat||[],linhas:linhas||[],perfis:perfis||[],
    acessorios:aces||[],shipped,billed,billedValues,
    precificacao:precificacoes?.[0]||null,precoPorEsquadria,
+   precificacaoCategorias:precoCategorias||[],
    pendentes,pendentesItens:pendentesItens||[],
    aprovadas,approvedItems:approvedItems||[],stockReceipts:stockReceipts||[],
    variacoes:variacoes||[],galpoes:(galpoes||[]).filter(x=>x.ativo).map(x=>x.nome),
@@ -7625,11 +7630,27 @@ function finRenderResumo(){
   '<p class="hint">Os níveis faturáveis identificam valores previstos. A emissão automática de outros níveis além de fabricação e instalação não está disponível nesta versão.</p>'+
   '<h3>Grupos financeiros existentes</h3>':'';
  const resumoPreco=x.precificacao?
-  '<p class="hint"><strong>Precificação aprovada · revisão '+Number(x.precificacao.versao)+'</strong> — '+
-  'fabricação: '+finMoney(Number(x.precificacao.fabricacao_distribuida_centavos)/100)+
-  ', instalação: '+finMoney(Number(x.precificacao.instalacao_distribuida_centavos)/100)+
-  '. Os valores originais do orçamento continuam preservados para histórico. '+
-  'Os limites do faturamento seguem a distribuição aprovada.</p>':'';
+  '<h3>Precificação aprovada · revisão '+Number(x.precificacao.versao)+'</h3>'+
+  '<p class="hint">Aprovada em '+
+  new Date(x.precificacao.aprovado_em).toLocaleDateString('pt-BR')+
+  '. Orçamento original: fabricação '+finMoney(Number(x.precificacao.fabricacao_original_centavos)/100)+
+  ', instalação '+finMoney(Number(x.precificacao.instalacao_original_centavos)/100)+
+  '. Distribuição aprovada: fabricação '+finMoney(Number(x.precificacao.fabricacao_distribuida_centavos)/100)+
+  ', instalação '+finMoney(Number(x.precificacao.instalacao_distribuida_centavos)/100)+
+  '. Os tetos de faturamento seguem a distribuição aprovada.</p>'+
+  '<div class="finTableWrap"><table class="finTable"><thead><tr>'+
+  '<th>Categoria da esquadria</th><th>Área (m²)</th><th>Preço-base/m²</th>'+
+  '<th>Fabricação</th><th>R$/m² fabricação</th><th>Instalação</th><th>R$/m² instalação</th></tr></thead><tbody>'+
+  x.precificacaoCategorias.map(cat=>{
+   const area=Number(cat.area_m2),fab=Number(cat.fabricacao_centavos),inst=Number(cat.instalacao_centavos);
+   const moedaM2=(centavos)=>area>0?finMoney(centavos/100/area):'—';
+   return '<tr><td>'+escapeHTML(cat.categoria_nome_snapshot)+'</td>'+
+    '<td>'+area.toLocaleString('pt-BR',{maximumFractionDigits:6})+'</td>'+
+    '<td>'+finMoney(Number(cat.preco_base_m2_centavos)/100)+'</td>'+
+    '<td>'+finMoney(fab/100)+'</td><td>'+moedaM2(fab)+'</td>'+
+    '<td>'+finMoney(inst/100)+'</td><td>'+moedaM2(inst)+'</td></tr>';
+  }).join('')+'</tbody></table></div>'+
+  '<p class="hint">Os preços-base/m² representam pesos comerciais. Os valores em centavos por esquadria, aprovados na importação, são a referência exata para faturamento; o R$/m² exibido é informativo.</p>':'';
  node('finSummary').innerHTML=resumoNiveis+resumoPreco+'<div class="finTableWrap"><table class="finTable"><thead><tr>'+
    '<th>Categoria</th><th>Controle</th><th align="right">Previsto / teto</th><th align="right">Realizado</th><th align="right">Restante</th></tr></thead><tbody>'+
  finCategories.map(([k,label,tipo])=>{
