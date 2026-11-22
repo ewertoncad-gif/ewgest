@@ -196,7 +196,7 @@ begin
   'transferencias_nfe_conciliadas',v_conciliadas,
   'saldos_nao_zerados',v_saldos,'saldos_insumos_nao_zerados',v_insumos_saldos,
   'referencias_externas',v_refs));
-end;$function$
+end;$function$;
 
 
 CREATE OR REPLACE FUNCTION public.ew_estornar_estoque_obra(p_obra_id uuid, p_motivo text, p_operacao_id uuid)
@@ -321,7 +321,7 @@ begin
   p_operacao_id,v_motivo,jsonb_build_object('movimentos_estornados',v_n,
    'movimentos_originais',v_originais));
  return jsonb_build_object('repetida',false,'estornados',v_n,'historico_preservado',true);
-end;$function$
+end;$function$;
 
 
 -- Manter as concessões originais aos papéis dos RPCs;
