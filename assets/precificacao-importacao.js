@@ -3,7 +3,7 @@
 'use strict';
 const motor=window.ewPrecificacaoCore;
 if(!motor)throw Error('Núcleo de precificação ausente.');
-const $$=id=>document.getElementById(id);
+const priceNode=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nome=v=>String(v||'').trim().toLocaleUpperCase('pt-BR');
 const real=v=>Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -65,9 +65,9 @@ async function abrir(r,values,onSave){
  const ids=new Map(categorias.map(x=>[x.nome,x.id]));
  const emp=currentCompany?.id;
  if(!emp)throw Error('Empresa da sessão não identificada.');
- $$('ewPriceWork').textContent='Carregando categorias do cadastro…';
+ priceNode('ewPriceWork').textContent='Carregando categorias do cadastro…';
  wrapper.classList.remove('hidden');
- $$('ewPriceConfirmar').disabled=true;
+ priceNode('ewPriceConfirmar').disabled=true;
  try{
   await ensureSession();
   // Catálogo da empresa é reutilizado, mas o vínculo de cada esquadria é
@@ -110,10 +110,10 @@ async function abrir(r,values,onSave){
   });
   estado={r,values,fab,inst,categorias,itens,pctBp:null,proxima:5,calculado:null};
   salvar=onSave;gravando=false;
-  $$('ewPriceWork').textContent=r.nomeObra+' · '+r.codigo+' · '+itens.length+' itens';
-  $$('ewPricePercent').value=(fab/(fab+inst)*100).toFixed(2);
-  $$('ewPricePercentHint').textContent='Sugerido a partir do orçamento.';
-  $$('ewPriceNovaCategoria').value='';
+  priceNode('ewPriceWork').textContent=r.nomeObra+' · '+r.codigo+' · '+itens.length+' itens';
+  priceNode('ewPricePercent').value=(fab/(fab+inst)*100).toFixed(2);
+  priceNode('ewPricePercentHint').textContent='Sugerido a partir do orçamento.';
+  priceNode('ewPriceNovaCategoria').value='';
   renderizar();
  }catch(e){
   fechar();
@@ -124,7 +124,7 @@ function renderizar(){
  if(!estado)return;
  const s=estado;
  const ops=s.categorias.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>').join('');
- $$('ewPriceCategorias').innerHTML=
+ priceNode('ewPriceCategorias').innerHTML=
   '<table><thead><tr><th>Categoria</th><th>Área</th><th>Preço-base/m²</th><th>Fabricação</th><th>Instalação</th><th>Fab. R$/m²</th><th>Inst. R$/m²</th><th>Ações</th></tr></thead><tbody>'+
   s.categorias.map(c=>{
    const a=s.itens.filter(x=>x.categoriaId===c.id)
@@ -142,7 +142,7 @@ function renderizar(){
     (temItens?' disabled title="Mova as esquadrias antes de excluir"':'')+'>Excluir</button></td></tr>';
   }).join('')+'</tbody></table>';
  // Exibir esquadrias agrupadas por categoria, com possibilidade de mover cada item.
- $$('ewPriceItens').innerHTML='<table><thead><tr><th>Código</th><th>Descrição</th><th>Qtd.</th><th>Área</th><th>Categoria</th><th>Padrão</th><th>Fabricação</th><th>Instalação</th></tr></thead><tbody>'+
+ priceNode('ewPriceItens').innerHTML='<table><thead><tr><th>Código</th><th>Descrição</th><th>Qtd.</th><th>Área</th><th>Categoria</th><th>Padrão</th><th>Fabricação</th><th>Instalação</th></tr></thead><tbody>'+
  s.categorias.map(cat=>{
   const porGrupo=s.itens.filter(x=>x.categoriaId===cat.id).sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR'));
   if(!porGrupo.length)return '';
@@ -190,29 +190,29 @@ function atualizar(){
    if(i)i.textContent=dinheiro(x.instalacaoCentavos);
   }
   const total=resultado.totais;
-  $$('ewPriceResumo').innerHTML=[
+  priceNode('ewPriceResumo').innerHTML=[
    ['Total combinado',dinheiro(total.totalCentavos)],
    ['Fabricação recalculada',dinheiro(total.fabricacaoCentavos)],
    ['Instalação recalculada',dinheiro(total.instalacaoCentavos)],
    ['Diferença','R$ 0,00']
   ].map((v,i)=>'<div class="ewPriceKpi'+(i===3?' ewPriceHighlighted':'')+'"><small>'+v[0]+'</small><strong>'+v[1]+'</strong></div>').join('');
-  $$('ewPriceFechamento').textContent='Orçamento original: fabricação '+dinheiro(s.fab)+
+  priceNode('ewPriceFechamento').textContent='Orçamento original: fabricação '+dinheiro(s.fab)+
     ' e instalação '+dinheiro(s.inst)+'. Redistribuição: fabricação '+dinheiro(total.fabricacaoCentavos)+
     ' e instalação '+dinheiro(total.instalacaoCentavos)+
     '. Os preços/m² orientam a participação de cada categoria; os valores individuais em centavos são a referência exata.';
-  $$('ewPriceFechamento').classList.remove('ewPriceError');
+  priceNode('ewPriceFechamento').classList.remove('ewPriceError');
  }catch(err){
-  $$('ewPriceResumo').innerHTML='<div class="ewPriceKpi"><small>Conferência</small><strong>Informe os preços por m²</strong></div>';
-  $$('ewPriceFechamento').textContent=err.message;
-  $$('ewPriceFechamento').classList.add('ewPriceError');
+  priceNode('ewPriceResumo').innerHTML='<div class="ewPriceKpi"><small>Conferência</small><strong>Informe os preços por m²</strong></div>';
+  priceNode('ewPriceFechamento').textContent=err.message;
+  priceNode('ewPriceFechamento').classList.add('ewPriceError');
  }
- $$('ewPriceErro').textContent='';
- $$('ewPriceConfirmar').disabled=gravando||!s.calculado;
+ priceNode('ewPriceErro').textContent='';
+ priceNode('ewPriceConfirmar').disabled=gravando||!s.calculado;
 }
 function invalidar(msg){
  if(estado)estado.calculado=null;
- $$('ewPriceErro').textContent=msg;
- $$('ewPriceConfirmar').disabled=true;
+ priceNode('ewPriceErro').textContent=msg;
+ priceNode('ewPriceConfirmar').disabled=true;
 }
 function montarDraft(){
  const s=estado,r=s?.calculado;
@@ -237,16 +237,16 @@ function montarDraft(){
   }))
  };
 }
-$$('ewPriceAdd').addEventListener('click',()=>{
+priceNode('ewPriceAdd').addEventListener('click',()=>{
  if(!estado||gravando)return;
- const novo=nome($$('ewPriceNovaCategoria').value);
+ const novo=nome(priceNode('ewPriceNovaCategoria').value);
  if(novo.length<2||novo.length>120||estado.categorias.some(c=>nome(c.nome)===novo)){
   invalidar('Nome de categoria inválido ou já existente.');return;
  }
  estado.categorias.push({id:'categoria-'+estado.proxima++,nome:novo,precoBaseCentavosM2:0});
- $$('ewPriceNovaCategoria').value='';renderizar();
+ priceNode('ewPriceNovaCategoria').value='';renderizar();
 });
-$$('ewPriceCategorias').addEventListener('change',ev=>{
+priceNode('ewPriceCategorias').addEventListener('change',ev=>{
  if(!estado||gravando)return;
  const id=ev.target.dataset.price||ev.target.dataset.name;
  const cat=estado.categorias.find(x=>x.id===id);if(!cat)return;
@@ -265,16 +265,16 @@ $$('ewPriceCategorias').addEventListener('change',ev=>{
  }
  renderizar();
 });
-$$('ewPriceCategorias').addEventListener('click',ev=>{
+priceNode('ewPriceCategorias').addEventListener('click',ev=>{
  if(!estado||gravando)return;
  const id=ev.target.closest('[data-remove]')?.dataset.remove;if(!id)return;
  if(estado.itens.some(x=>x.categoriaId===id)){
-  $$('ewPriceErro').textContent='Mova os itens desta categoria antes de excluí-la.';return;
+  priceNode('ewPriceErro').textContent='Mova os itens desta categoria antes de excluí-la.';return;
  }
  if(estado.categorias.length<2)return;
  estado.categorias=estado.categorias.filter(x=>x.id!==id);renderizar();
 });
-$('ewPriceItens').addEventListener('change',ev=>{
+priceNode('ewPriceItens').addEventListener('change',ev=>{
  if(!estado||gravando)return;
  if(ev.target.dataset.default){
   const linha=estado.itens.find(x=>x.id===ev.target.dataset.default);
@@ -286,41 +286,41 @@ $('ewPriceItens').addEventListener('change',ev=>{
  if(!row||!estado.categorias.some(c=>c.id===ev.target.value))return;
  row.categoriaId=ev.target.value;renderizar();
 });
-$$('ewPricePercent').addEventListener('change',ev=>{
+priceNode('ewPricePercent').addEventListener('change',ev=>{
  if(!estado||gravando)return;
  const v=String(ev.target.value).trim(),n=Number(v.replace(',','.'));
  if(!v||!Number.isFinite(n)||n<0||n>100||Math.abs(n*100-Math.round(n*100))>1e-7){
   invalidar('Percentual inválido; informe de 0 a 100 com até duas casas.');return;
  }
  estado.pctBp=Math.round(n*100);
- $$('ewPricePercentHint').textContent='Instalação: '+((10000-estado.pctBp)/100).toFixed(2)+'%';
+ priceNode('ewPricePercentHint').textContent='Instalação: '+((10000-estado.pctBp)/100).toFixed(2)+'%';
  atualizar();
 });
-$$('ewPriceVoltar').addEventListener('click',()=>{
+priceNode('ewPriceVoltar').addEventListener('click',()=>{
  if(!estado||gravando)return;
  const r=estado.r;
  r.precificacaoDraft=null;r.confirmacaoInicialFeita=false;
  fechar();
- $$('cemQuoteOverlay')?.classList.remove('hidden');
+ priceNode('cemQuoteOverlay')?.classList.remove('hidden');
 });
-$$('ewPriceConfirmar').addEventListener('click',async()=>{
+priceNode('ewPriceConfirmar').addEventListener('click',async()=>{
  if(!estado||gravando)return;
  let draft;
- try{draft=montarDraft();}catch(e){$$('ewPriceErro').textContent=e.message;return;}
+ try{draft=montarDraft();}catch(e){priceNode('ewPriceErro').textContent=e.message;return;}
  const r=estado.r,cb=salvar;
  if(!window.confirm('Confirmar importação de '+r.nomeObra+' ('+r.codigo+')?\n\n'+
    'Fabricação: '+dinheiro(draft.fabricacao_distribuida_centavos)+'\n'+
    'Instalação: '+dinheiro(draft.instalacao_distribuida_centavos)+'\n'+
    'Itens precificados: '+draft.itens.length+'\n\n'+
    'A obra e a precificação serão gravadas em uma única transação.'))return;
- gravando=true;$$('ewPriceConfirmar').disabled=true;
- $$('ewPriceErro').textContent='Gravando obra e precificação…';
+ gravando=true;priceNode('ewPriceConfirmar').disabled=true;
+ priceNode('ewPriceErro').textContent='Gravando obra e precificação…';
  try{
   await cb(draft);
   if(!r.jaImportado)throw Error('Importação não confirmada. Consulte o histórico antes de repetir.');
   fechar();
  }catch(e){
-  $$('ewPriceErro').textContent=e.message;gravando=false;$$('ewPriceConfirmar').disabled=false;
+  priceNode('ewPriceErro').textContent=e.message;gravando=false;priceNode('ewPriceConfirmar').disabled=false;
  }
 });
 window.ewPrecificacaoImportacao=Object.freeze({abrir,fechar,lerDinheiro});
