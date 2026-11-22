@@ -163,10 +163,25 @@ function renderizar(){
  }).join('')+'</tbody></table>';
  atualizar();
 }
+function lerPercentualBp(){
+ const v=String(priceNode('ewPricePercent').value).trim(),n=Number(v.replace(',','.'));
+ if(!v||!Number.isFinite(n)||n<0||n>100||
+    Math.abs(n*100-Math.round(n*100))>1e-7)return null;
+ return Math.round(n*100);
+}
 function atualizar(){
  if(!estado)return;
  const s=estado;
  s.calculado=null;
+ // Não reabilitar confirmação com o último percentual válido quando o campo
+ // exibe atualmente um valor inválido (ex.: 110% ou campo vazio).
+ if(lerPercentualBp()===null){
+  priceNode('ewPriceResumo').innerHTML='<div class="ewPriceKpi"><small>Conferência</small><strong>Percentual inválido</strong></div>';
+  priceNode('ewPriceFechamento').textContent='Informe fabricação de 0 a 100% com até duas casas decimais.';
+  priceNode('ewPriceFechamento').classList.add('ewPriceError');
+  priceNode('ewPriceConfirmar').disabled=true;
+  return;
+ }
  try{
   const resultado=motor.precificar({
    fabricacaoOriginalCentavos:s.fab,instalacaoOriginalCentavos:s.inst,
@@ -286,16 +301,22 @@ priceNode('ewPriceItens').addEventListener('change',ev=>{
  if(!row||!estado.categorias.some(c=>c.id===ev.target.value))return;
  row.categoriaId=ev.target.value;renderizar();
 });
-priceNode('ewPricePercent').addEventListener('change',ev=>{
+function percentualAlterado(){
  if(!estado||gravando)return;
- const v=String(ev.target.value).trim(),n=Number(v.replace(',','.'));
- if(!v||!Number.isFinite(n)||n<0||n>100||Math.abs(n*100-Math.round(n*100))>1e-7){
-  invalidar('Percentual inválido; informe de 0 a 100 com até duas casas.');return;
+ const pct=lerPercentualBp();
+ if(pct===null){
+  priceNode('ewPricePercentHint').textContent='Percentual inválido';
+  invalidar('Percentual inválido; informe de 0 a 100 com até duas casas.');
+  atualizar();
+  return;
  }
- estado.pctBp=Math.round(n*100);
- priceNode('ewPricePercentHint').textContent='Instalação: '+((10000-estado.pctBp)/100).toFixed(2)+'%';
+ estado.pctBp=pct;
+ priceNode('ewPricePercentHint').textContent='Instalação: '+((10000-pct)/100).toFixed(2)+'%';
  atualizar();
-});
+}
+// Input recalcula sem perder foco; change cobre colagem/seleção final.
+priceNode('ewPricePercent').addEventListener('input',percentualAlterado);
+priceNode('ewPricePercent').addEventListener('change',percentualAlterado);
 priceNode('ewPriceVoltar').addEventListener('click',()=>{
  if(!estado||gravando)return;
  const r=estado.r;
