@@ -8,6 +8,8 @@ const qtd=n=>Number(n||0).toLocaleString('pt-BR',{maximumFractionDigits:3});
 const stamp=d=>{if(!d)return '—';const t=new Date(d);return Number.isFinite(t.getTime())?t.toLocaleString('pt-BR'):'—';};
 let rows=[],headers=[],reportTitle='',running=false,summaryCsv=[],summaryHeaders=[];
 let obras=[],nomeObras=new Map(),nomeUsuarios=new Map();
+// O encerramento não aparece em relatórios operacionais, nem em seus totais.
+let obraAtivaIds=new Set();
 const tipos={
  ABERTURA:'Abertura manual de estoque',AJUSTE:'Ajuste de estoque',
  COMPRA:'Recebimento físico / compra',IMPORTACAO_CEM:'Importação técnica CEM',
@@ -28,7 +30,7 @@ function selectObras(){
  const selecao=el('reportWork').value;
  el('reportWork').replaceChildren(new Option('Todas as obras',''));
  for(const o of obras){
-  const label=o.nome+(o.codigo?' · '+o.codigo:'')+(o.arquivada_em?' (arquivada)':'');
+  const label=o.nome+(o.codigo?' · '+o.codigo:'')+;
   el('reportWork').add(new Option(label,o.id));
  }
  el('reportWork').value=obras.some(o=>o.id===selecao)?selecao:'';
@@ -37,10 +39,10 @@ async function carregarCatalogos(){
  if(!currentCompany)throw new Error('Selecione uma empresa.');
  const empresa='eq.'+currentCompany.id;
  const [ob,users]=await Promise.all([
-  listarTudo('obras',{select:'id,nome,codigo,arquivada_em',empresa_id:empresa,order:'nome.asc'}),
+  listarTudo('obras',{select:'id,nome,codigo',empresa_id:empresa,arquivada_em:'is.null',order:'nome.asc'}),
   listarTudo('usuarios_login',{select:'usuario_id,nome,login',empresa_id:empresa,order:'nome.asc'})
  ]);
- obras=ob;nomeObras=new Map(ob.map(o=>[o.id,o.nome+(o.codigo?' · '+o.codigo:'')+(o.arquivada_em?' (arquivada)':'')]));
+ obras=ob;obraAtivaIds=new Set(ob.map(o=>o.id));nomeObras=new Map(ob.map(o=>[o.id,o.nome+(o.codigo?' · '+o.codigo:'')+]));
  nomeUsuarios=new Map(users.map(u=>[u.usuario_id,u.nome||u.login||String(u.usuario_id).slice(0,8)]));
  selectObras();
  const multi=el('reportWorkChecks');
@@ -49,11 +51,11 @@ async function carregarCatalogos(){
  for(const o of obras){
   const lbl=document.createElement('label'),cb=document.createElement('input');
   cb.type='checkbox';cb.value=o.id;cb.checked=checked.has(o.id);
-  lbl.append(cb,document.createTextNode(' '+o.nome+(o.codigo?' · '+o.codigo:'')+(o.arquivada_em?' (arquivada)':'')));
+  lbl.append(cb,document.createTextNode(' '+o.nome+(o.codigo?' · '+o.codigo:'')+));
   multi.append(lbl);
  }
 }
-function obra(id){return nomeObras.get(id)||'Obra histórica '+String(id||'').slice(0,8);}
+function obra(id){return nomeObras.get(id)||'Obra indisponível';}
 function usuario(id){return nomeUsuarios.get(id)||'Usuário '+String(id||'').slice(0,8);}
 function dentro(d){
  if(!d)return false;
@@ -71,7 +73,7 @@ function contexto(){
   obraIds=new Set([...el('reportWorkChecks').querySelectorAll('input:checked')].map(x=>x.value));
   if(!obraIds.size)throw new Error('Marque pelo menos uma obra para consolidar o faturamento.');
  }
- return {empresa:'eq.'+currentCompany.id,obraId:modo==='faturamento'?'':el('reportWork').value,obraIds};
+ return {empresa:'eq.'+currentCompany.id,obraId:modo==='faturamento'?'':el('reportWork').value,obraIds,ativas:obraAtivaIds};
 }
 function tabela(cabecalhos,linhas){
  if(!linhas.length)return '<p class="reportsEmpty">Nenhum registro encontrado nos filtros selecionados.</p>';
@@ -100,7 +102,7 @@ async function faturamento(ctx){
  const codes=new Map(esq.map(e=>[e.id,e]));
  const linhasPorFat=new Map();
  for(const item of itens){if(!linhasPorFat.has(item.faturamento_id))linhasPorFat.set(item.faturamento_id,[]);linhasPorFat.get(item.faturamento_id).push(item);}
- const filtro=faturas.filter(f=>(!ctx.obraIds||ctx.obraIds.has(f.obra_id))&&dentro(f.data_faturamento));
+ const filtro=faturas.filter(f=>ctx.ativas.has(f.obra_id)&&(!ctx.obraIds||ctx.obraIds.has(f.obra_id))&&dentro(f.data_faturamento));
  const ativos=filtro.filter(f=>!f.cancelado_em&&String(f.status).toLowerCase()!=='cancelado');
  const exibidos=el('reportCancelled').checked?filtro:ativos;
  const resumo=agruparPorObra(ativos);
@@ -198,7 +200,7 @@ async function estoque(ctx){
   if(m.origem==='SAIDA_OBRA')return 'direto';
   return 'outros';
  };
- const filtradas=linhaMov.filter(({m})=>(!ctx.obraId||m.obra_id===ctx.obraId)&&
+ const filtradas=linhaMov.filter(({m})=>ctx.ativas.has(m.obra_id)&&(!ctx.obraId||m.obra_id===ctx.obraId)&&
   dentro(m.criado_em)&&filtros.has(classificacao(m)))
   .reverse();
  headers=['Obra','Data/hora','Código','Material','Cor','Barra','Galpão','Operação',
@@ -228,9 +230,9 @@ async function liberacoes(ctx){
  const esq=new Map(esqs.map(x=>[x.id,x]));
  const incluirCancelados=el('reportCancelled').checked;
  const eventos=releases.map(x=>({...x,elemento:esq.get(x.esquadria_id)}))
-  .filter(x=>x.elemento&&(!ctx.obraId||x.elemento.obra_id===ctx.obraId)&&
+  .filter(x=>x.elemento&&ctx.ativas.has(x.elemento.obra_id)&&(!ctx.obraId||x.elemento.obra_id===ctx.obraId)&&
     dentro(x.data_liberacao)&&(!x.cancelado_em||incluirCancelados));
- const lotes=batches.filter(x=>(!ctx.obraId||x.obra_id===ctx.obraId)&&
+ const lotes=batches.filter(x=>ctx.ativas.has(x.obra_id)&&(!ctx.obraId||x.obra_id===ctx.obraId)&&
   dentro(x.data_liberacao)&&(!x.cancelado_em||incluirCancelados));
  const validas=eventos.filter(x=>!x.cancelado_em);
  headers=['Obra','Data','Tipo','Esquadria / Lote','Descrição','Parte liberada','Quantidade',
@@ -289,7 +291,7 @@ async function expedicao(ctx){
  const partes=new Map(composicoes.map(x=>[x.esquadria_id,x.folhas_por_unidade]));
  const incluirCancelados=el('reportCancelled').checked;
  const filtrados=itens.map(i=>({i,doc:porDoc.get(i.romaneio_id)}))
- .filter(x=>x.doc&&(!ctx.obraId||x.doc.obra_id===ctx.obraId)&&dentro(x.doc.data_saida)&&
+ .filter(x=>x.doc&&ctx.ativas.has(x.doc.obra_id)&&(!ctx.obraId||x.doc.obra_id===ctx.obraId)&&dentro(x.doc.data_saida)&&
  (incluirCancelados||(!x.doc.cancelado_em&&String(x.doc.status).toLowerCase()!=='cancelado')));
  const ativos=filtrados.filter(x=>!x.doc.cancelado_em&&String(x.doc.status).toLowerCase()!=='cancelado');
  const codDocs=new Set(ativos.map(x=>x.doc.id)),area=ativos.reduce((n,x)=>n+Number(areaLinha(x.i,partes)||0),0);
@@ -329,7 +331,7 @@ async function aluminio(ctx){
  const areaPorObra=new Map(),kgPorObra=new Map(),faltaPeso=new Map(),faltaArea=new Map();
  for(const i of itens){
   const d=porDoc.get(i.romaneio_id);
-  if(!d||d.cancelado_em||String(d.status).toLowerCase()==='cancelado'||
+  if(!d||!ctx.ativas.has(d.obra_id)||d.cancelado_em||String(d.status).toLowerCase()==='cancelado'||
     (ctx.obraId&&d.obra_id!==ctx.obraId)||!dentro(d.data_saida)||i.natureza!=='esquadria')continue;
   const m2=areaLinha(i,partes);
   if(m2===null){faltaArea.set(d.obra_id,(faltaArea.get(d.obra_id)||0)+1);continue;}
@@ -340,7 +342,7 @@ async function aluminio(ctx){
  const elegiveis=movs.filter(x=>['PLANO_CORTE','PLANO_CORTE_LOTE','SAIDA_OBRA'].includes(x.origem)&&
   Number(x.quantidade_delta)<0);
  for(const m of elegiveis){
-  if((ctx.obraId&&m.obra_id!==ctx.obraId)||!dentro(m.criado_em)||estornados.has(m.id))continue;
+  if(!ctx.ativas.has(m.obra_id)||(ctx.obraId&&m.obra_id!==ctx.obraId)||!dentro(m.criado_em)||estornados.has(m.id))continue;
   const v=variacoes.get(m.variacao_id);
   if(v?.tipo!=='perfil')continue;
   const p=catalogo.get(v.perfil_id),peso=Number(p?.peso_kg_m);
@@ -388,11 +390,11 @@ async function gerar(){
  el('reportTable').replaceChildren();el('reportSummary').replaceChildren();
  const tipo=el('reportType').value;
  running=true;el('reportGenerate').disabled=true;
- el('reportStatus').textContent='Consultando registros, usuários e obras arquivadas…';
+ el('reportStatus').textContent='Consultando registros das obras em andamento…';
  try{
-  const ctx=contexto();
   await ensureSession();
   await carregarCatalogos();
+  const ctx=contexto();
   if(ctx.obraId && !obras.some(o=>o.id===ctx.obraId))throw new Error('A obra não está mais disponível para consulta.');
   el('reportWork').value=ctx.obraId;
   const geradores={faturamento,estoque,liberacoes,expedicao,aluminio};
