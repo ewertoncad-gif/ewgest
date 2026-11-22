@@ -714,7 +714,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.9</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.10</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -909,7 +909,7 @@
             </form>
             <p id="finBillingMessage" class="feedback" role="status"></p>
           </div>
-          <div class="section panel"><h2>Histórico de despesas e faturamentos</h2><div id="finHistory"></div></div>
+          <div class="section panel"><h2>Histórico de despesas e faturamentos</h2><p id="finHistoryMessage" class="feedback" role="status" aria-live="polite"></p><div id="finHistory"></div></div>
         </div>
       </div>
     </section>
@@ -7964,30 +7964,44 @@ function finRenderHistorico(){
  (isFullAdminUser()&&(r.kind==='faturamento'?r.status==='emitido':r.status==='aprovada')?
    (r.kind==='despesa'&&despesasComEstoque.has(r.id)?
     '<span class="hint">Entrada física vinculada — exige estorno</span>':
-    '<button class="btn secondary" type="button" data-fin-cancel="'+escapeHTML(r.id)+'" data-kind="'+r.kind+'">Cancelar com motivo</button>'):'')+
+    '<button class="btn secondary" type="button" data-fin-cancel="'+escapeHTML(r.id)+'" data-kind="'+r.kind+'">'+
+    (r.kind==='despesa'?'Estornar lançamento':'Cancelar faturamento')+'</button>'):'')+
  '</td></tr>').join('')+'</tbody></table></div>':
  '<p class="hint">Ainda não há notas de despesas nem documentos de faturamento registrados.</p>';
  node('finHistory').querySelectorAll('[data-fin-cancel]').forEach(b=>b.addEventListener('click',()=>finCancelarLancamento(b.dataset.kind,b.dataset.finCancel)));
 }
 async function finCancelarLancamento(tipo,id){
  if(!isFullAdminUser()||!finState)return;
- const motivo=window.prompt('Motivo do cancelamento (mínimo 5 caracteres):','');
- if(motivo===null||motivo.trim().length<5)return;
- if(!window.confirm('Cancelar '+tipo+'? A operação preservará o histórico. Se a nota tiver vidros/insumos recebidos, o EWGEST exigirá saldo no galpão original para estornar as quantidades; se já tiverem sido transferidas, estorne primeiro as transferências.'))return;
+ const motivo=window.prompt(tipo==='despesa'?'Motivo do estorno financeiro (5 a 400 caracteres):':'Motivo do cancelamento (5 a 400 caracteres):','');
+ if(motivo===null)return;
+ if(motivo.trim().length<5||motivo.trim().length>400){
+  node('finMessage').textContent='Informe um motivo de 5 a 400 caracteres.';
+  node('finHistoryMessage').textContent=node('finMessage').textContent;return;
+ }
+ if(!window.confirm(tipo==='despesa'?
+  'Estornar este lançamento de NF-e no financeiro do EWGEST?\\n\\nO histórico será preservado. A NF-e fiscal não será cancelada na SEFAZ. Se ainda houver material recebido, o sistema bloqueará ou exigirá o estorno físico seguro.':
+  'Cancelar este faturamento no EWGEST? O histórico será preservado.'))return;
  try{
   await ensureSession();
-  const despesaOriginal=finState.despesas.find(d=>d.id===id);
-  const possuiInsumos=tipo==='despesa'&&['vidros','outros'].includes(despesaOriginal?.categoria);
+  // Sempre usar o cancelador seguro de NF-e: com vidro/outros ele estorna
+  // movimentos físicos válidos; sem insumos ele encaminha à função financeira
+  // pelo contexto privilegiado restrito a ADM. A chamada direta do navegador
+  // a ew_cancelar_despesa_financeira não pode ler ew_insumos_movimentos.
   const url=tipo==='despesa'?
-   (possuiInsumos?'ew_insumos_cancelar_nota':'ew_cancelar_despesa_financeira'):
-   'ew_cancelar_faturamento_financeiro';
+   'ew_insumos_cancelar_nota':'ew_cancelar_faturamento_financeiro';
   const body=tipo==='despesa'?
    {p_empresa_id:currentCompany.id,p_despesa_id:id,p_motivo:motivo.trim()}:
    {p_empresa_id:currentCompany.id,p_faturamento_id:id,p_motivo:motivo.trim()};
   await request('/rest/v1/rpc/'+url,{method:'POST',token:session.access_token,body});
   await finLoad();
-  node('finMessage').textContent='Lançamento cancelado com histórico preservado.';
- }catch(e){node('finMessage').textContent='Não foi possível cancelar: '+e.message;}
+  const mensagem=tipo==='despesa'?'Lançamento da NF-e estornado no financeiro. Histórico preservado; nenhuma NF-e foi cancelada na SEFAZ.':'Faturamento cancelado com histórico preservado.';
+  node('finMessage').textContent=mensagem;
+  node('finHistoryMessage').textContent=mensagem;
+ }catch(e){
+  const mensagem='Estorno não realizado: '+e.message;
+  node('finMessage').textContent=mensagem;
+  node('finHistoryMessage').textContent=mensagem;
+ }
 }
 // Faturamento parcial: quantidade equivalente de esquadria (1 = conjunto completo).
 // Os romaneios ativos são a evidência da expedição; nenhum valor é faturado automaticamente.
