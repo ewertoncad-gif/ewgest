@@ -72,3 +72,14 @@ Também identificamos 13 outras tabelas que **já** tinham RLS e políticas apen
 O arquivo [`docs/DRIFT_SCHEMA_SUPABASE_V469.md`](DRIFT_SCHEMA_SUPABASE_V469.md) documenta as diferenças reais de catálogo (somente metadados), incluindo **24 tabelas de produção ausentes**, **75 colunas faltantes em tabelas compartilhadas**, **32 colunas com definição divergente**, **54 funções ausentes**, **4 compartilhadas com definição diferente**, **69 políticas RLS faltantes**, **13 triggers e 109 índices ausentes**. A contagem de colunas é abrangente, diferindo do levantamento inicial de 47 colunas restrito a 12 tabelas centrais.
 
 O plano agora é reconstruir **estrutura + constraints + funções + políticas** com dados exclusivamente fictícios; não copiar usuários, empresas reais ou obras de produção. Não aplicar a migração da v46.9 no site ativo antes da homologação efetiva e restauração demonstrada.
+
+
+## Situação mais recente do ambiente de testes
+
+O staging foi preparado para ensaios reais da precificação, **sem alterar produção**. A situação atual é **40 tabelas públicas com RLS ativo**, zero tabelas com `anon SELECT/INSERT` e zero funções públicas executáveis por `anon`. O gatilho de RLS automático foi instalado e conferido.
+
+A migração **somente de estrutura** `20261122_precificacao_categorias_historico_fase1.sql` foi ensaiada com `ROLLBACK` e aplicada no staging: criou cinco tabelas de histórico, protegidas por RLS e, nas revisões, por triggers de imutabilidade. Foram executados ensaios de leitura ADM vs. almoxarife e tentativas de modificação do histórico com dados fictícios, **todos revertidos**.
+
+**Evidência e limites:** [`docs/HOMOLOGACAO_SUPABASE_FREE_V469.md`](HOMOLOGACAO_SUPABASE_FREE_V469.md).
+
+**Não considerar a v46.9 pronta:** ainda faltam as funções de importação/estoque do legado, a restauração de políticas RLS, um teste completo via Supabase Auth/API e o ensaio de restauração do backup. Os números do inventário de drift são a linha-base anterior à criação das cinco tabelas de preço; a lacuna do legado não foi eliminada. PR #64 permanece draft.
