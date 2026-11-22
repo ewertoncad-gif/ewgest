@@ -9806,7 +9806,7 @@ function stockManageRender(){
   const revisar=resumo.movimentos?
     '<button type="button" class="btn secondary" data-stock-reverse="'+escapeHTML(loc.obra_id)+'">'+
     (resumo.pendentes?'Conferir / estornar':'Consultar histórico')+'</button>':'';
-  return '<div class="stockManageRow'+(excluido?' stockManageDeleted':'')+'"><div>'+
+  return '<div class="stockManageRow"><div>'+
    '<strong>'+escapeHTML(obra.nome)+'</strong><div class="hint">'+escapeHTML(obra.codigo||'')+
    ' · '+status+' · '+resumo.movimentos+' movimento(s) no histórico'+
    ' · '+resumo.pendentes+' sem estorno · '+resumo.saldos.length+' saldo(s) pendente(s)</div></div>'+
