@@ -13,4 +13,19 @@ jobs:
         with:
           node-version: '22'
       - name: Verificar classificação e regras
-        run: node scripts/test-regressoes.mjs
+        shell: bash
+        run: |
+          set -uo pipefail
+          if node scripts/test-regressoes.mjs > regressao.log 2>&1; then
+            cat regressao.log
+          else
+            {
+              echo '### Falha na regressão do EWGEST'
+              echo 'Saída final do teste, sem dados de produção:'
+              echo '~~~text'
+              tail -n 65 regressao.log
+              echo '~~~'
+            } >> "$GITHUB_STEP_SUMMARY"
+            cat regressao.log
+            exit 1
+          fi
