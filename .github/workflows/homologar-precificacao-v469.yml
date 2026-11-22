@@ -56,6 +56,7 @@ jobs:
         run: |
           set -euo pipefail
           psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/00_fixture_minima.sql
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/05_fixture_faturamento.sql
           psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_precificacao_categorias_historico_fase1.sql
           psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_precificacao_importacao_rpc_v469.sql
           psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_precificacao_tetos_faturamento_v469.sql
@@ -64,6 +65,11 @@ jobs:
         run: |
           set -euo pipefail
           psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/10_cenarios.sql
+      - name: Executar RPC real de faturamento com marco, folha e tetos 60/40
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/20_faturamento_real.sql
       - name: Revalidar ausencia de servicos externos
         shell: bash
         run: |
