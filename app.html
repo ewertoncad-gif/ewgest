@@ -689,7 +689,7 @@
 <link rel="stylesheet" href="/assets/insumos-fisicos.css?v=20261121a">
 <link rel="stylesheet" href="/assets/entregas-producao.css?v=20261121a">
 <link rel="stylesheet" href="/assets/romaneios-transferencia.css?v=20261121c">
-<link rel="stylesheet" href="/assets/relatorios-obras.css?v=20261122a">
+<link rel="stylesheet" href="/assets/relatorios-obras.css?v=20261122b">
 <link rel="stylesheet" href="/assets/cadastros-pages.css?v=20261121b">
 </head>
 <body>
@@ -716,7 +716,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.16</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.17</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -926,6 +926,9 @@
             <select id="reportType">
               <option value="faturamento">Faturamento por obra</option>
               <option value="estoque">Movimentações de estoque</option>
+              <option value="liberacoes">Liberações para fabricação</option>
+              <option value="expedicao">Expedição / romaneios</option>
+              <option value="aluminio">m² expedidos × alumínio utilizado</option>
             </select>
           </label>
           <label>Obra
@@ -934,7 +937,28 @@
           <label>De <input id="reportStart" type="date"></label>
           <label>Até <input id="reportEnd" type="date"></label>
         </div>
-        <label class="reportsCheck"><input id="reportCancelled" type="checkbox"> Incluir faturamentos cancelados (separados dos totais ativos)</label>
+        <label class="reportsCheck"><input id="reportFullPeriod" type="checkbox" checked> Todo o período da obra (ignorar datas)</label>
+        <div id="reportMultiple" class="reportsExtra">
+          <div class="reportsExtraHead"><strong>Consolidar faturamento de quais obras?</strong>
+            <select id="reportWorkScope" aria-label="Selecionar abrangência do faturamento">
+              <option value="all">Todas as obras</option><option value="selected">Escolher várias obras</option>
+            </select>
+          </div>
+          <div id="reportWorkChecks" class="reportsChoices hidden" role="group" aria-label="Obras para consolidar"></div>
+          <p class="hint">O resultado mostra cada obra separadamente e soma fabricação, instalação e total geral.</p>
+        </div>
+        <fieldset id="reportStockOptions" class="reportsExtra hidden">
+          <legend>Quais movimentações mostrar? Marque uma ou várias.</legend>
+          <div class="reportsChoices">
+            <label><input type="checkbox" data-report-stock="recebimento" checked> Recebimentos / entradas</label>
+            <label><input type="checkbox" data-report-stock="producao" checked> Saídas para fabricação</label>
+            <label><input type="checkbox" data-report-stock="galpoes" checked> Transferências entre galpões</label>
+            <label><input type="checkbox" data-report-stock="obras" checked> Transferências entre obras</label>
+            <label><input type="checkbox" data-report-stock="direto" checked> Materiais enviados direto à obra</label>
+            <label><input type="checkbox" data-report-stock="outros" checked> Ajustes, estornos e demais históricos</label>
+          </div>
+        </fieldset>
+        <label class="reportsCheck" id="reportCancelledWrap"><input id="reportCancelled" type="checkbox"> Incluir documentos cancelados (separados dos totais ativos)</label>
         <div class="topactions reportActions">
           <button id="reportGenerate" class="btn primary" type="button">Gerar relatório</button>
           <button id="reportCsv" class="btn secondary" type="button" disabled>Exportar CSV</button>
@@ -2147,9 +2171,9 @@
       <div id="romaneioRows"></div>
       <div class="romaneioCreateButtons">
         <button type="button" id="romaneioAddEsquadria" class="btn secondary">+ Adicionar esquadria</button>
-        <button type="button" id="romaneioAddMaterial" class="btn secondary">+ Material avulso</button>
+        <button type="button" id="romaneioAddMaterial" class="btn secondary" disabled>+ Adicionar material do estoque</button>
       </div>
-      <p class="hint">Em cada esquadria, escolha <strong>completa, só marco ou só folhas</strong>. Folhas são contadas individualmente; materiais avulsos não alteram o saldo de produção.</p>
+      <p class="hint">Esquadrias: selecione completa, marco ou folhas. Perfis em barras e acessórios são selecionados pelo saldo da obra e do galpão. <strong>A emissão efetua uma única baixa real desses materiais e os vincula ao romaneio.</strong> Essa baixa não altera o percentual de fabricação da esquadria.</p>
       <label for="romaneioNotes">Observações da entrega (opcional)</label>
       <textarea id="romaneioNotes" rows="3" maxlength="1000" placeholder="Ex.: materiais conferidos, responsável pelo recebimento, ressalvas sobre a entrega"></textarea>
       <p class="hint">As observações aparecerão no final do comprovante, antes das assinaturas.</p>
@@ -3023,6 +3047,11 @@ async function confirmarCancelamentoRomaneio(event){
     node('romaneioCancelError').textContent='Informe um motivo de 10 a 400 caracteres.';
     node('romaneioCancelReason').focus();return;
   }
+  const possuiMateriais=romaneioItens.some(i=>i.romaneio_id===original.id&&i.natureza==='material');
+  if(possuiMateriais&&!window.confirm('Este romaneio contém perfis ou acessórios.\\n\\n' +
+    'Você confirmou a DEVOLUÇÃO FÍSICA dos materiais à mesma obra e ao galpão de origem?\\n' +
+    'O cancelamento devolverá a quantidade ao saldo do estoque e registrará o responsável.\\n\\n' +
+    'Se os materiais ainda estão na obra, NÃO cancele antes da devolução.'))return;
   if(!window.confirm('Confirma o cancelamento definitivo de '+original.numero+' e o estorno das saídas vinculadas?'))return;
   const button=node('romaneioCancelConfirm');
   const obraId=original.obra_id;
@@ -3038,7 +3067,8 @@ async function confirmarCancelamentoRomaneio(event){
     fecharCancelamentoRomaneio();
     await loadPanel();
     const mensagem='Romaneio '+r.numero+' CANCELADO e '+r.saidas_estornadas+
-      ' saída(s) estornadas. Histórico preservado. Confira o retorno físico antes de reenviar.';
+      ' saída(s) de esquadrias estornadas; '+Number(r.materiais_devolvidos||0)+
+      ' saída(s) de materiais devolvidas ao estoque com auditoria. Histórico preservado.';
     if(estaNoHub){
       hubObraId=obraId;renderRomaneioHub();setView('romaneiosPage');
       node('hubRomaneioMessage').textContent=mensagem;
@@ -3054,11 +3084,62 @@ async function confirmarCancelamentoRomaneio(event){
       '. Nenhuma confirmação de estorno foi recebida; confira o histórico antes de tentar novamente.';
   }finally{button.disabled=false;}
 }
+let romaneioStockRows=[],romaneioStockLoading=false;
+async function carregarMateriaisDisponiveisRomaneio(){
+ const obraId=selectedWork?.id;
+ romaneioStockLoading=true;romaneioStockRows=[];
+ node('romaneioAddMaterial').disabled=true;
+ try{
+  await ensureSession();
+  if(!(isFullAdminUser()||isAlmoxarife()))return;
+  const empresa='eq.'+currentCompany.id;
+  const [movs,variacoes,perfis,acessorios,galpoes]=await Promise.all([
+   apiGet('ew_estoque_obras_movimentos',{
+    select:'variacao_id,comprimento_mm,unidade,quantidade_delta,local_estoque',
+    empresa_id:empresa,obra_id:'eq.'+obraId,limit:'30000'}),
+   apiGet('ew_materiais_variacoes',{
+    select:'id,tipo,perfil_id,acessorio_id,cor,acabamento,ativo',empresa_id:empresa,limit:'10000'}),
+   apiGet('ew_perfis',{select:'id,codigo,descricao',empresa_id:empresa,limit:'5000'}),
+   apiGet('ew_acessorios',{select:'id,codigo,descricao',empresa_id:empresa,limit:'5000'}),
+   apiGet('ew_locais_fisicos',{select:'nome,ativo',empresa_id:empresa,ativo:'eq.true',limit:'1000'})
+  ]);
+  if(selectedWork?.id!==obraId||node('romaneioModal').classList.contains('hidden'))return;
+  const vs=new Map((variacoes||[]).filter(x=>x.ativo).map(x=>[x.id,x]));
+  const ps=new Map((perfis||[]).map(x=>[x.id,x]));
+  const ac=new Map((acessorios||[]).map(x=>[x.id,x]));
+  const locais=new Set((galpoes||[]).map(x=>x.nome));
+  const sums=new Map();
+  for(const m of movs||[]){
+   const key=JSON.stringify([m.variacao_id,m.comprimento_mm,m.unidade,m.local_estoque]);
+   const old=sums.get(key)||{varId:m.variacao_id,comprimento:m.comprimento_mm,
+    unidade:m.unidade,local:m.local_estoque,saldo:0};
+   old.saldo+=Number(m.quantidade_delta);
+   sums.set(key,old);
+  }
+  romaneioStockRows=[...sums.values()].filter(m=>m.saldo>=1&&locais.has(m.local))
+   .map(m=>{
+    const v=vs.get(m.varId),mat=v?(v.tipo==='perfil'?ps.get(v.perfil_id):ac.get(v.acessorio_id)):null;
+    if(!v||!mat||(v.tipo==='perfil'&&m.unidade!=='BARRA'))return null;
+    const color=v.cor||v.acabamento||'';
+    return {...m,codigo:mat.codigo,descricao:mat.descricao,cor:color,tipo:v.tipo,
+     label:mat.codigo+' · '+mat.descricao+(color?' · '+color:'')+
+      (m.comprimento?' · '+(m.comprimento/1000).toLocaleString('pt-BR')+' m':'')+
+      ' · '+m.local+' · disponível '+m.saldo.toLocaleString('pt-BR',{maximumFractionDigits:3})+' '+m.unidade};
+   }).filter(Boolean).sort((x,y)=>x.label.localeCompare(y.label,'pt-BR'));
+  node('romaneioAddMaterial').disabled=!romaneioStockRows.length;
+  if(!romaneioStockRows.length)node('romaneioError').textContent=
+   'Nenhum perfil ou acessório com pelo menos 1 unidade disponível no estoque desta obra.';
+ }catch(e){
+  if(selectedWork?.id===obraId)node('romaneioError').textContent=
+   'Não foi possível consultar o saldo físico dos materiais: '+e.message;
+ }finally{romaneioStockLoading=false;}
+}
 function abrirEmissaoRomaneio(){
   if(!selectedWork||!dispatchReady||romaneioLoadError||!podeEmitirRomaneio())return;
   node('romaneioWorkInfo').textContent='Cliente: '+(selectedWork.cliente||'Não informado')+
     ' · Obra: '+selectedWork.nome;
   node('romaneioForm').reset();
+  romaneioStockRows=[];node('romaneioAddMaterial').disabled=true;
   preencherTransportesRomaneio();
   node('romaneioDate').value=todayLocal();
   node('romaneioRows').replaceChildren();
@@ -3073,6 +3154,7 @@ function abrirEmissaoRomaneio(){
   if(elements.some(x=>x.obra_id===selectedWork.id))
     adicionarLinhaRomaneio('esquadria');
   node('romaneioDriver').focus();
+  void carregarMateriaisDisponiveisRomaneio();
 }
 function fecharEmissaoRomaneio(){
   node('romaneioModal').classList.add('hidden');
@@ -3272,16 +3354,29 @@ function adicionarLinhaRomaneio(natureza){
     row.querySelector('[data-rom-field="esquadria_id"]').addEventListener('change',()=>atualizarLinhaRomaneio(row));
     row.querySelector('[data-rom-field="folhas_por_unidade"]').addEventListener('input',()=>atualizarLinhaRomaneio(row));
   }else{
-    row.innerHTML='<div class="itemline"><strong>Material avulso</strong>'+removable+'</div>'+
-      '<label>Descrição do material<input data-rom-field="descricao" maxlength="350" placeholder="Ex.: CANTONEIRA 1x1" required></label>'+
-      '<div class="romaneioRowFields">'+
-      '<label>Código (opcional)<input data-rom-field="codigo" maxlength="60"></label>'+
-      '<label>Quantidade<input data-rom-field="quantidade" type="number" min="1" step="1" required></label>'+
-      '<label>Unidade<input data-rom-field="unidade" maxlength="12" value="UNID." required></label>'+
-      '</div><div class="romaneioRowFields">'+
-      '<label>Localização (opcional)<input data-rom-field="localizacao" maxlength="120"></label>'+
-      '<label>Medida (opcional)<input data-rom-field="medida" maxlength="100" placeholder="Ex.: 6 m"></label>'+
-      '</div>';
+    if(!(isFullAdminUser()||isAlmoxarife())||!romaneioStockRows.length){
+      node('romaneioError').textContent='Materiais diretos exigem permissão de ADM ou almoxarife e saldo físico disponível.';
+      return;
+    }
+    row.innerHTML='<div class="itemline"><strong>Material do estoque → obra</strong>'+removable+'</div>'+
+     '<label>Selecione o perfil ou acessório e o galpão</label>'+
+     '<select data-rom-field="estoque_key" required><option value="">Selecione um material com saldo</option>'+
+      romaneioStockRows.map((item,i)=>'<option value="'+i+'">'+escapeHTML(item.label)+'</option>').join('')+
+     '</select><p class="romaneioRowSummary hint">Selecione o material para consultar o saldo disponível.</p>'+
+     '<div class="romaneioRowFields"><label>Quantidade a enviar (unidades inteiras)'+
+      '<input data-rom-field="quantidade" type="number" min="1" step="1" required></label></div>'+
+     '<p class="hint">Ao emitir, a quantidade será debitada do estoque da obra no galpão selecionado. '+
+     'A devolução exige cancelamento auditado do romaneio e confirmação física.</p>';
+    const select=row.querySelector('[data-rom-field="estoque_key"]');
+    const qty=row.querySelector('[data-rom-field="quantidade"]');
+    select.addEventListener('change',()=>{
+      const item=romaneioStockRows[Number(select.value)];
+      if(!item||select.value===''){qty.value='';qty.max='';return;}
+      qty.max=String(Math.floor(item.saldo));qty.value=item.saldo>=1?'1':'';
+      row.querySelector('.romaneioRowSummary').textContent=
+       item.codigo+' · '+item.local+' · '+item.saldo+' '+item.unidade+
+       ' disponíveis. A baixa será feita na emissão.';
+    });
   }
   row.querySelector('[data-remove-rom]').addEventListener('click',()=>row.remove());
   node('romaneioRows').append(row);
@@ -3322,12 +3417,20 @@ function coletarItensRomaneio(){
       return {natureza:'esquadria',esquadria_id:id,quantidade,folhas_por_unidade:folhas,
         tipo_saida:tipo,descricao_romaneio:descricaoRomaneio};
     }
-    const descricao=campo('descricao');
-    if(descricao.length<2)throw new Error('Descreva o material do item '+(index+1)+'.');
-    const unidade=campo('unidade').toUpperCase();
-    if(!unidade)throw new Error('Informe a unidade do item '+(index+1)+'.');
-    return {natureza:'material',descricao,codigo:campo('codigo'),
-      localizacao:campo('localizacao'),medida:campo('medida'),quantidade,unidade};
+    if(!(isFullAdminUser()||isAlmoxarife()))
+      throw new Error('Somente ADM ou almoxarife pode expedir material físico.');
+    const key=campo('estoque_key'),mat=romaneioStockRows[Number(key)];
+    if(key===''||!mat)throw new Error('Selecione um item real do estoque da obra.');
+    if(quantidade>Math.floor(mat.saldo))throw new Error('Saldo insuficiente do material '+mat.codigo+'.');
+    const usedKey='ESTOQUE|'+key;
+    const anteriores=Number([...row.parentElement.querySelectorAll('.romaneioRow')]
+      .filter(x=>x!==row&&x.dataset.natureza==='material'&&
+       x.querySelector('[data-rom-field="estoque_key"]')?.value===key)
+      .reduce((n,x)=>n+Number(x.querySelector('[data-rom-field="quantidade"]')?.value||0),0));
+    if(quantidade+anteriores>mat.saldo)throw new Error(
+       mat.codigo+': a soma das linhas deste romaneio excede o saldo disponível.');
+    return {natureza:'material',variacao_id:mat.varId,comprimento_mm:mat.comprimento,
+      unidade:mat.unidade,local_estoque:mat.local,quantidade};
   });
 }
 // Abreviação só para o comprovante: o cadastro técnico fica intacto.
@@ -10712,7 +10815,7 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/insumos-fisicos.js?v=20261121d"></script>
 <script src="/assets/entregas-producao.js?v=20261121a"></script>
 <script src="/assets/romaneios-transferencia.js?v=20261122a"></script>
-<script src="/assets/relatorios-obras.js?v=20261122a"></script>
+<script src="/assets/relatorios-obras.js?v=20261122b"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>
 </body>
 </html>
