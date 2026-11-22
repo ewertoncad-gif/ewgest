@@ -47,4 +47,4 @@ assert.ok(sql.includes("estorno_movimento_id")&&
 assert.ok(protect.includes("Cancele o romaneio e confirme a devolução física"));
 assert.doesNotMatch(js,/\/rest\/v1\/rpc\/|method\s*:\s*'POST'/,
  'Relatórios continuam somente leitura');
-console.log('OK v46.18: período total, filtros combináveis, relatórios e saídas diretas com vínculo auditável.');
+console.log('OK v46.19: período total, filtros combináveis, relatórios e saídas diretas com vínculo auditável.');
