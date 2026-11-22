@@ -2860,6 +2860,8 @@ assert.ok(precificacaoUI.includes('data-item=')&&
  precificacaoUI.includes("apiGet('ew_precificacao_tipologias_padrao'")&&
  precificacaoUI.includes("apiGet('tipologias'")&&
  precificacaoUI.includes('marque os níveis de fabricação e instalação como faturáveis')&&
+ precificacaoUI.includes('data-default=')&&
+ precificacaoUI.includes('definir_padrao_tipologia:Boolean(')&&
  precificacaoUI.includes('ewPriceGroupRow')&&
  precificacaoUI.includes('s.categorias.map(cat=>'),
  'Tela deve permitir categorias e preços por m² e recalcular fabricação/instalação');
@@ -2873,6 +2875,9 @@ assert.ok(precificacaoSQL.includes('SECURITY DEFINER')&&
  precificacaoSQL.includes("RETURN v_result||jsonb_build_object('precificacao_gravada',true")&&
  precificacaoSQL.includes('REVOKE ALL ON FUNCTION public.ew_importar_obra_cem_precificacao')&&
  precificacaoSQL.includes("Níveis de fabricação e instalação precisam ser faturáveis.")&&
+ precificacaoSQL.includes('ew_precificacao_tipologias_padrao(')&&
+ precificacaoSQL.includes('ON CONFLICT (empresa_id,tipologia_id) DO UPDATE')&&
+ precificacaoSQL.includes('não pode ter duas categorias padrão diferentes')&&
  precificacaoSQL.includes('v_request_hash:=md5(jsonb_build_object(')&&
  precificacaoSQL.includes('v_hash_existente IS DISTINCT FROM v_request_hash')&&
  precificacaoSQL.includes('pg_catalog.pg_advisory_xact_lock')&&
