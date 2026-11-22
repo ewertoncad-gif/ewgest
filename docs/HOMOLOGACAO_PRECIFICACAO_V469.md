@@ -166,3 +166,45 @@ com os contratos mínimos do teste. O importador financeiro **legado continua
 representado por stub**. Não comprova os materiais planejados do CEM real nem
 autenticação/Supabase REST de produção; é insuficiente para autorizar o merge.
 O PR permanece rascunho e o site publicado permanece v46.8.
+
+
+## Integração do importador legado REAL com a precificação — 22/11/2026
+
+**GitHub Actions aprovado:** [run #45021389167](https://github.com/ewertoncad-gif/ewgest/actions/runs/45021389167), branch `feature/categorias-precificacao-fase1-v469`, commit `d77ae314`. Ambos os jobs de PostgreSQL 17 passaram. Os testes geraram somente tabelas e dados **fictícios em runner descartável**; não houve Supabase adicional, migração em produção ou reimportação de obra real.
+
+A antiga ressalva de que **todo** o importador seria stub não se aplica mais a esta nova suíte independente. Ela executa o **código verdadeiro** que estava instalado no Supabase de produção em 22/11/2026, congelado para CI em:
+- `31_importador_legado_real_snapshot.sql`: `ew_criar_obra_estoque`, `ew_importar_obra_cem_financeiro`;
+- `20261122_precificacao_importador_mapeamento_v469.sql`: importador CEM v46.9 baseado na função legada real, adicionando IDs de esquadrias na ordem do ZIP;
+- `34_materiais_legado_real_snapshot.sql`: `importar_materiais_cem`, `ew_importar_cem_conciliado`, `ew_conciliar_codigo_cem`.
+
+A fixture de contratos `30_fixture_legado_real.sql` acrescenta esquema de obras, esquadrias, níveis e locais; `33_fixture_material_real.sql` acrescenta tabelas **mínimas** de perfis, acessórios, variações e vínculos de materiais do CEM. Todas usam identidades sintéticas.
+
+### O que passou com as funções reais
+- Criação de obra, local de estoque, esquadrias, cliente, orçamento e níveis de fabricação e instalação (original 70/30) junto de preço aprovado 60/40, com soma exata;
+- Código técnico de esquadria repetido (EA01) conservando UUID distinto e seus snapshots;
+- Repetição idempotente de `operacao_id`: mesma obra e nenhum cadastro duplicado;
+- Erro tardio de grupo financeiro incompatível: a obra e suas esquadrias já haviam sido criadas dentro da função, mas toda a operação foi revertida;
+- Importação real de **perfil, barras previstas e acessório**, suas variações, códigos, quantidades planejadas e vínculos à obra, sem reportar baixa no estoque físico;
+- Reutilização dos mesmos perfis e acessórios em outra obra: não duplica cadastro, mas cria os vínculos previstos da nova obra;
+- Plano de barras com comprimento duplicado: falha e rollback sem deixar cadastros de obra ou importação parcial.
+
+### Pendências restantes — não publicar ainda
+
+1. As tabelas da suíte são contratos **mínimos**, não um dump do schema completo com seus triggers, RLS e extensão de autenticação. Testar no Supabase de homologação realmente compatível ainda é necessário.
+2. A autenticação é simulada por `request.jwt.claim.sub` do PostgreSQL: não há login real via Supabase Auth/PostgREST, nem execução de requisições HTTP autenticadas por perfis distintos.
+3. Os testes de materiais usam listas sem decisões de conciliação. Embora o código real da função `ew_conciliar_codigo_cem` esteja no snapshot, ainda falta validar seus **efeitos** em um teste de código existente/alias escolhido na interface.
+4. Os testes usam objetos fictícios construídos no SQL, não um arquivo ZIP real do CEM na interface gráfica.
+5. O projeto `ewgest-restauracao-teste` continua defasado; não sobrescrever sem plano de proteção, nem inferir que já é backup restaurável.
+6. Verificar backup restaurável, políticas RLS/GRANT reais, autorização multiempresa por PostgREST e rollback de deploy antes de integrar na `main`.
+
+### Checagem read-only de segurança do projeto de produção
+
+O Supabase Advisor (22/11/2026) sinalizou uma função `public.rls_auto_enable()` do tipo `SECURITY DEFINER` executável por `anon` (WARN); verificar cuidadosamente concessões `EXECUTE` e finalidade antes de qualquer eventual ajuste. Há ainda 8 tabelas com RLS ligado, mas **sem políticas** (INFO): isso normalmente bloqueia acesso direto para papéis comuns; investigar se foi proposital, sem abrir automaticamente políticas permissivas. Alertas genéricos de funções `SECURITY DEFINER` para `authenticated` exigem auditoria da autorização interna caso a caso, não revogação em massa.
+
+**Nenhuma permissão foi alterada em produção nesta análise.**
+
+### Estado ao fim desta etapa
+
+- v46.9 ainda não publicada; PR #64 permanece **draft**.
+- v46.8 publicada permanece sem alterações.
+- Não foi realizado upgrade Supabase, contratação de ambiente pago nem alteração de dados reais.
