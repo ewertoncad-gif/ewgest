@@ -1,3 +1,5 @@
+-- APLICADA APENAS NO SUPABASE DE TESTES EM 22/11/2026, após dry-run transacional.
+-- NÃO reaplicar no mesmo staging sem revisar as precondições. PRODUÇÃO INTACTA.
 -- EWGEST v46.9 | instalar funções REAIS do importador CEM no Supabase Free de testes
 -- Implementações obtidas APENAS do código de funções do banco de produção e proposal v46.9.
 -- Chaves, dados e contas de produção não são lidos ou copiados.
