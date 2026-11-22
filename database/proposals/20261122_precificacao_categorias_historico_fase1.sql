@@ -1,3 +1,5 @@
+-- APLICADO APENAS AO ewgest-restauracao-teste EM 22/11/2026.
+-- NÃO aplicado à produção; fase de importação ainda não publicada.
 -- EWGEST | PROPOSTA DE ESQUEMA — histórico de categorias e precificação.
 -- FASE 1: documentar e versionar somente. NÃO EXECUTAR EM PRODUÇÃO.
 --
