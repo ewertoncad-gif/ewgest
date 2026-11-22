@@ -42,7 +42,7 @@ BEGIN
  THEN RAISE EXCEPTION 'Caso1: retry deve ser idempotente';END IF;
 END $case1$;
 
-TRUNCATE public.ew_auditoria_operacoes,public.ew_estoque_obras_movimentos,public._blockers;
+TRUNCATE public.ew_auditoria_operacoes,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
 DO $case2$
 DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
  b uuid:='aaaaaaaa-0000-4000-8000-000000000002';
@@ -67,7 +67,7 @@ BEGIN
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',op,'Baixa fabricada devidamente estornada',gen_random_uuid());
 END $case2$;
 
-TRUNCATE public.ew_auditoria_operacoes,public.ew_estoque_obras_movimentos,public._blockers;
+TRUNCATE public.ew_auditoria_operacoes,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
 DO $case3$
 DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
  b uuid:='aaaaaaaa-0000-4000-8000-000000000002';
@@ -96,7 +96,7 @@ BEGIN
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',op,'Transferência seguinte já revertida',gen_random_uuid());
 END $case3$;
 
-TRUNCATE public.ew_auditoria_operacoes,public.ew_estoque_obras_movimentos,public._blockers;
+TRUNCATE public.ew_auditoria_operacoes,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
 DO $case4$
 DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
  b uuid:='aaaaaaaa-0000-4000-8000-000000000002';
@@ -119,7 +119,7 @@ BEGIN
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',op,'Romaneio cancelado, saída revertida',gen_random_uuid());
 END $case4$;
 
-TRUNCATE public.ew_auditoria_operacoes,public.ew_estoque_obras_movimentos,public._blockers;
+TRUNCATE public.ew_auditoria_operacoes,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
 DO $case5$
 DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
  original uuid;res jsonb;v numeric;
@@ -137,7 +137,7 @@ BEGIN
  THEN RAISE EXCEPTION 'Caso5: estorno não registra galpão real';END IF;
 END $case5$;
 
-TRUNCATE public.ew_auditoria_operacoes,public.ew_estoque_obras_movimentos,public._blockers;
+TRUNCATE public.ew_auditoria_operacoes,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
 DO $case6$
 DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
  src uuid;consume uuid;err text;
@@ -156,7 +156,7 @@ BEGIN
  PERFORM public.ew_estornar_movimento_obra(a,src,'Material de fabricação revertido',gen_random_uuid());
 END $case6$;
 
-TRUNCATE public.ew_auditoria_operacoes,public.ew_estoque_obras_movimentos,public._blockers;
+TRUNCATE public.ew_auditoria_operacoes,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
 DO $case7$
 DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
  b uuid:='aaaaaaaa-0000-4000-8000-000000000002';
