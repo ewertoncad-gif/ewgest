@@ -366,5 +366,5 @@ jobs:
           grep -Fq 'precificacao-importacao.js?v=20261122a' "$html"
           grep -Fq 'ewPrecificacaoImportacao' "$js"
           grep -Fq 'ewPrecificacaoCore' "$core"
-          grep -Fq 'ewPriceModal' "$css"
+          grep -Fq '.ewPriceDialog' "$css"
           echo 'PUBLICACAO CONFIRMADA: interface de precificacao por m2 v46.9 e todos os assets estao no dominio real.'
