@@ -134,3 +134,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/33_fixture_material_real.sql
           psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/34_materiais_legado_real_snapshot.sql
           psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/35_cenarios_material_real.sql
+      - name: Validar conciliacao real e reuso de codigo CEM alternativo
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/36_conciliacao_alias_real.sql
