@@ -152,6 +152,11 @@ function atualizar(){
  $$('ewPriceErro').textContent='';
  $$('ewPriceConfirmar').disabled=gravando||!s.calculado;
 }
+function invalidar(msg){
+ if(estado)estado.calculado=null;
+ $('ewPriceErro').textContent=msg;
+ $('ewPriceConfirmar').disabled=true;
+}
 function montarDraft(){
  const s=estado,r=s?.calculado;
  if(!r||r.fechamento.diferencaCentavos!==0)throw Error('Não há fechamento válido.');
@@ -177,7 +182,7 @@ $$('ewPriceAdd').addEventListener('click',()=>{
  if(!estado||gravando)return;
  const novo=nome($$('ewPriceNovaCategoria').value);
  if(novo.length<2||novo.length>120||estado.categorias.some(c=>nome(c.nome)===novo)){
-  $$('ewPriceErro').textContent='Nome de categoria inválido ou já existente.';return;
+  invalidar('Nome de categoria inválido ou já existente.');return;
  }
  estado.categorias.push({id:'categoria-'+estado.proxima++,nome:novo,precoBaseCentavosM2:0});
  $$('ewPriceNovaCategoria').value='';renderizar();
@@ -189,13 +194,13 @@ $$('ewPriceCategorias').addEventListener('change',ev=>{
  if(ev.target.dataset.price){
   const cents=lerDinheiro(ev.target.value);
   if(!Number.isSafeInteger(cents)||cents<0||cents>100000000000){
-   $$('ewPriceErro').textContent='Preço inválido: use reais e até duas casas decimais.';return;
+   invalidar('Preço inválido: use reais e até duas casas decimais.');return;
   }
   cat.precoBaseCentavosM2=cents;
  }else{
   const novo=nome(ev.target.value);
   if(novo.length<2||novo.length>120||estado.categorias.some(x=>x.id!==id&&nome(x.nome)===novo)){
-   $$('ewPriceErro').textContent='Nome de categoria inválido ou duplicado.';return;
+   invalidar('Nome de categoria inválido ou duplicado.');return;
   }
   cat.nome=novo;
  }
@@ -220,7 +225,7 @@ $$('ewPricePercent').addEventListener('change',ev=>{
  if(!estado||gravando)return;
  const v=String(ev.target.value).trim(),n=Number(v.replace(',','.'));
  if(!v||!Number.isFinite(n)||n<0||n>100||Math.abs(n*100-Math.round(n*100))>1e-7){
-  $$('ewPriceErro').textContent='Percentual inválido; informe de 0 a 100 com até duas casas.';return;
+  invalidar('Percentual inválido; informe de 0 a 100 com até duas casas.');return;
  }
  estado.pctBp=Math.round(n*100);
  $$('ewPricePercentHint').textContent='Instalação: '+((10000-estado.pctBp)/100).toFixed(2)+'%';
