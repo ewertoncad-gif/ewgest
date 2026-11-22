@@ -81,3 +81,50 @@ jobs:
           set -euo pipefail
           echo "Banco isolado como servico descartavel; nenhum ID, URL ou segredo do Supabase configurado."
           psql -v ON_ERROR_STOP=1 -tAc "select count(*) from public.ew_precificacao_revisoes" | grep -Fx '1'
+
+  importador-legado-real:
+    name: Testar importador CEM e financeiro REAL sem materiais
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: ewgest_integracao_real
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ewgest_integracao_real"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGDATABASE: ewgest_integracao_real
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cliente Postgres
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+      - name: Funcoes LEGADAS reais e ambiente inteiramente ficticio
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/00_fixture_minima.sql
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/30_fixture_legado_real.sql
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/31_importador_legado_real_snapshot.sql
+          psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_precificacao_importador_mapeamento_v469.sql
+          psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_precificacao_categorias_historico_fase1.sql
+          psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_precificacao_importacao_rpc_v469.sql
+      - name: Testar integridade CEM e rollback atraves do codigo real
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/32_cenarios_legado_real_sem_materiais.sql
