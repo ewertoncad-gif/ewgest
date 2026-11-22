@@ -1,38 +1,59 @@
-# EWGEST — Regras de estorno encadeado e disponibilidade física
+# EWGEST v46.15 — Estornos encadeados, parcelas e galpões
 
-**Estado:** regras propostas e em homologação no PostgreSQL 17 fictício. Não confundir esta branch com versão já publicada. **Produção v46.14 não foi alterada por esta proposta.**
+**Situação em 22/11/2026:** versão em desenvolvimento e testes, sem alterações de schema, funções ou movimentos do Supabase de produção. O rodapé publicado permanece v46.14. A PR #70 fica em rascunho até a verificação final.
 
 ## Regra de negócio
 
-O que libera o estorno não é a existência de uma movimentação antiga, e sim a **disponibilidade física atual do item**, com sua obra de origem, variação, unidade e comprimento corretos. Galpão não muda a propriedade da obra.
+**Disponibilidade é por obra, variação do material, comprimento e unidade.** O galpão é a posição física; mudar de galpão não transfere o material para outra obra.
 
-| Situação | Regra de reversão |
+| Dependência | Tratamento |
 |---|---|
-| Entrada/recebimento sem movimentação posterior | Estornar a quantidade disponível; registrar motivo e contrapartida |
-| Movido entre galpões da **mesma obra** | Não exigir que esteja no galpão original. Buscar o saldo real na obra |
-| Transferido de obra A para obra B | Reverter **atomicamente as duas pontas** apenas após confirmar a disponibilidade em B; devolver o saldo para A |
-| B transferiu depois para C | Reverter primeiro a transferência B→C; depois A→B |
-| Usado na fabricação | Não devolver; é preciso reverter a baixa de material e liberar o saldo antes |
-| Já existe romaneio ativo da esquadria | Cancelar primeiro o romaneio, depois a saída de produção, depois a baixa do material e só então a operação original |
-| Quantidade já parcialmente utilizada | Não autorizar estorno integral enquanto houver consumo ainda ativo; estorno parcial requer vínculo explícito de quantidades e lotes |
-| NF-e física | A função `ew_estornar_recebimento_nfe` atual já busca materiais disponíveis em qualquer galpão da **mesma obra**, preserva a nota no financeiro e audita os locais de retirada |
-| Estorno de todo o estoque da obra | A sequência acima deve ser executada para **cada item dependente**. Não inverter movimentações históricas cegamente; transferências entre obras exigem reversão em ambas as obras |
-| Histórico conciliado por NF-e e saldo zero | Conservar como histórico, sem gerar movimentos inversos artificiais nem permitir novo estorno da mesma transferência |
-| Saldo positivo da mesma tipologia vindo de outra nota | **Não presumir** que o lote original está disponível: sem rastreamento de lotes, consumo posterior ainda ativo bloqueia a devolução |
+| Material mudou de galpão dentro da mesma obra | A entrada original pode ser estornada no(s) galpão(ões) com saldo atual, sem devolução fictícia ao galpão antigo |
+| Material saiu de A para B | A reversão atômica retira a quantidade disponível de B e a devolve à obra A; preserva as duas pernas e o motivo |
+| Material de B saiu para C | É preciso estornar B→C antes de A→B |
+| Material foi usado na fabricação | Bloqueado até estornar a baixa de produção (e cancelar romaneio/saída/liberação que dependam dela) |
+| Material está em dois galpões | Repartir a retirada conforme o saldo de cada galpão, com vínculos e auditoria individualizada |
+| Recebimento de NF-e | Continua no fluxo específico `ew_estornar_recebimento_nfe`, que já busca saldo em qualquer galpão da mesma obra e não cancela a NF-e fiscal |
+| Estorno integral da obra | Permitido no lote somente para entradas positivas independentes, sem NF-e e sem operações dependentes ainda ativas. Cadeias complexas devem ser revertidas antes, individualmente |
+| Transferências internas já compensadas e saldo zero | Reconhecer como histórico conciliado, sem criar movimentos inversos artificiais |
+| Existência de compra/reposição posterior | Não prova que a quantidade transferida continua disponível. Sem lote individual, consumo posterior não estornado bloqueia conservadoramente |
 
-## O que a primeira proposta SQL v46.15 efetivamente cobre
+## Implementação preparada na PR #70
 
-- `ew_estornar_movimento_obra`: entrada genérica sem NF com quantidade **inteira disponível em algum galpão** pode ser estornada dali, mesmo que tenha sido registrada em outro local. Bloqueia consumo ou remessa a outra obra não revertidos.
-- `ew_estornar_transferencia_entre_obras`: identifica o galpão com estoque inteiro disponível em B e registra a devolução de B para A com duas contrapartidas vinculadas; bloqueia consumo e nova transferência entre obras ainda não revertidos.
-- Mantém controle de sessão, perfil, lock transacional, UUID de idempotência e vínculos `estorno_de_id`, sem apagar registros.
-- **A proposta ainda não foi aplicada à produção**; validação em PostgreSQL isolado. Não fazer merge antes de cenários aprovados.
+Arquivos versionados:
 
-## Itens ainda necessários antes da implementação completa
+- `database/proposals/20261122_estornos_parcelas_v4615.sql`: tabela interna `ew_estornos_parcelas` com FK para movimento original e contrapartida, quantidade, galpão e operação; RLS ligada e acesso direto revogado a `anon` e `authenticated`.
+- `database/proposals/20261122_estornos_rastreabilidade_v4615.sql`: adapta as RPCs reais de entrada individual e transferência entre obras para devolver quantidades distribuídas em diferentes galpões; locks por obra/material, idempotência, checagem de consumo e transferência posterior e trilha de auditoria.
+- `database/proposals/20261122_transferencias_internas_conciliadas_v4615.sql`: identifica transferências internas com pares íntegros quando não resta outro movimento original aberto nem saldo em galpão.
+- `database/proposals/20261122_estornos_inspecao_lote_v4615.sql`: adapta as RPCs de inspeção e estorno total; contrapartidas `ESTORNO` não são novas pendências; estorno em lote com transferência/consumo ativo é bloqueado; registro de conciliação não cria estoque.
+- `app.html`: no histórico, parcelas extras aparecem como **contrapartidas de estorno**, sem botão para cancelar novamente; transferências internas conciliadas aparecem no histórico completo, não entre pendências.
 
-1. **Estorno por parcelas**: quando a mesma quantidade está distribuída por dois ou mais galpões, uma única contrapartida `estorno_de_id` não representa todas as retiradas (restrição `UNIQUE` no banco). É necessário um mecanismo de alocação de parcelas, idempotência e auditoria sem deixar linhas órfãs.
-2. **Estorno de toda a obra**: a função atual reverte diretamente movimentações não estornadas; precisa de planejamento explícito das dependências e prova de saldos antes de inserir cada lote de contrapartidas. Não deve neutralizar recebimentos de NF-e já tratados pelo fluxo específico.
-3. **Conciliação de transferências internas não ligadas a NF-e**: após estornar entrada em galpão diferente, as pernas antigas de transferência podem continuar no histórico como pendências para arquivar a obra. Precisam ser reconhecidas como compensadas, por critério auditável.
-4. **Rastreabilidade de consumo e lotes**: preferir vínculos explícitos de saída/baixa/romaneio para decisões específicas; até que existam, a nova checagem bloqueia conservadoramente material com consumo posterior ativo daquela variação/medida/unidade.
-5. **UI**: mostrar a cadeia de bloqueio de cada material, retirar o botão de estorno individual de movimentação histórica conciliada e conferir atualização por obra sem agir nas demais.
+Todos os passos financeiros, de produção, liberações e romaneios continuam independentes e não são cancelados automaticamente.
 
-**Nenhuma ação de estorno deve ocorrer automaticamente durante atualização do site.**
+## Verificações isoladas
+
+`Homologar estornos v46.15 sem tocar produção` usa PostgreSQL 17 descartável e IDs inteiramente fictícios. Exercita as funções de estorno de estoque reais, incluindo:
+
+1. Transferência entre obras movida para outro galpão antes do estorno;
+2. Consumo de produção que impede a devolução, mesmo com reposição de saldo posterior;
+3. Transferência A→B→C que deve ser desfeita de trás para a frente;
+4. Romaneio/saída com bloqueio ativo;
+5. Estorno individual de entrada em galpão diferente do original;
+6. Bloqueio de estorno individual enquanto consumo está ativo;
+7. Retirada de parcelas em dois galpões, com três contrapartidas ligadas à mesma transferência, saldo correto e retry idempotente;
+8. Saldo insuficiente sem criação parcial de lançamentos;
+9. Entrada estornada em dois galpões com duas parcelas e proibição de cancelar a própria contrapartida;
+10. Conferência da obra com transferências internas históricas conciliadas e nenhum novo estoque;
+11. Estorno total simples permitido; transferências, consumo e romaneios ativos bloqueados.
+
+**Limitação dos testes:** o PostgreSQL isolado contém contratos mínimos das tabelas, não uma cópia do Supabase inteiro; a parte de conciliação de NF-e é simulada no teste da inspeção, enquanto a função de NF-e real continua inalterada. As funções SQL compilam e são exercitadas em banco descartável, mas isso ainda não equivale a um teste completo com autenticação Supabase real.
+
+## Pendências antes de publicar
+
+- Avaliar **reversão específica de transferências internas com movimentações posteriores**, distinguindo cancelamento lógico de transferência e movimentação física efetiva; o estorno genérico desse tipo de movimento ainda pode exigir saldo no galpão original.
+- Concluir roteiro visual das dependências na tela, para informar exatamente qual romaneio, saída, baixa ou transferência impede a operação.
+- Testar interação HTTP/PostgREST com permissões e autenticação compatíveis com Supabase, conferir concorrência e restaurar backup em ambiente isolado antes de publicar alterações sensíveis ao estoque.
+- Fazer revisão final dos privilégios de funções SECURITY DEFINER, da RLS e da integridade dos vínculos de parcelas.
+- Validar o fluxo completo com obra de treinamento antes de habilitar operações em produção.
+
+**Regra inegociável:** atualizar o sistema jamais executa estornos automaticamente; todo estorno requer motivo, permissão e confirmação explícita.
