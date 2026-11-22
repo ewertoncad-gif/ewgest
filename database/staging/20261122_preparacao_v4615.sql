@@ -111,5 +111,5 @@ BEGIN
  ) THEN RETURN 0; END IF;
  RETURN v_abertos;
 END;
-$function$
+$function$;
 COMMIT;
