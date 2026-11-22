@@ -712,7 +712,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.4</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.5</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -3034,8 +3034,8 @@ function abrirEmissaoRomaneio(){
   node('romaneioNumberMessage').textContent='';
   node('romaneioChangeCode').classList.toggle('hidden',!['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()));
   atualizarCodigoRomaneio();
-  if(elements.some(x=>x.obra_id===selectedWork.id&&Number(x.qtd_liberada)>0&&
-      (romaneioSaldoPorTipo(x,'marco')>0||romaneioSaldoPorTipo(x,'folha',1)>0)))
+  // Mesmo sem saldo, mostrar o seletor e explicar qual liberação está pendente.
+  if(elements.some(x=>x.obra_id===selectedWork.id))
     adicionarLinhaRomaneio('esquadria');
   node('romaneioDriver').focus();
 }
@@ -3099,6 +3099,30 @@ function romaneioSaldoPorTipo(item,tipo,folhas){
   if(!per)return Math.max(0,Math.min(marcos,a.folhasLiberadas-a.completas)); // Composição pendente.
   return Math.max(0,Math.min(marcos,Math.floor(folhasRestantes/per)));
 }
+function mensagemSemSaldoRomaneio(tipo,candidatos){
+  if(!candidatos.length)return 'Nenhuma esquadria corresponde à busca nesta obra.';
+  const liberadas=candidatos.filter(x=>Number(x.qtd_liberada)>0);
+  const grupo=liberadas.length?liberadas:candidatos;
+  const cod=grupo.length===1?grupo[0].codigo+': ':'';
+  if(tipo==='folha'){
+    if(grupo.every(x=>ehMaximArRomaneio(x)))
+      return cod+'MAXIM-AR só pode sair como esquadria completa.';
+    if(grupo.filter(x=>!ehMaximArRomaneio(x)).every(x=>releaseParts(x).folhas<=0))
+      return cod+'As folhas ainda não foram liberadas para fabricação. Faça a liberação técnica do conjunto das folhas antes de emitir o romaneio.';
+    return cod+'As folhas liberadas já foram expedidas ou não há saldo de folhas físicas disponível.';
+  }
+  if(tipo==='marco'){
+    if(grupo.every(x=>ehMaximArRomaneio(x)))
+      return cod+'MAXIM-AR só pode sair como esquadria completa.';
+    if(grupo.filter(x=>!ehMaximArRomaneio(x)).every(x=>releaseParts(x).marcos<=0))
+      return cod+'O marco ainda não foi liberado para fabricação.';
+    return cod+'Os marcos liberados já foram expedidos ou não há saldo disponível.';
+  }
+  if(grupo.every(x=>releaseParts(x).marcos<=0||releaseParts(x).folhas<=0))
+    return cod+'A esquadria completa exige marco e folhas liberados. Escolha a parte já liberada ou conclua a liberação técnica.';
+  return cod+'Não há saldo disponível para saída completa. Confira as expedições anteriores.';
+}
+
 function buscarEsquadriasRomaneio(row){
   const busca=row.querySelector('[data-rom-field="esquadria_search"]');
   const combo=row.querySelector('[data-rom-field="esquadria_id"]');
@@ -3106,17 +3130,20 @@ function buscarEsquadriasRomaneio(row){
   const termo=String(busca.value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .toLocaleUpperCase('pt-BR').trim();
   const antigo=combo.value;
-  const disponiveis=elements.filter(x=>x.obra_id===selectedWork.id&&
+  const candidatos=elements.filter(x=>x.obra_id===selectedWork.id).filter(x=>{
+    const v=(x.codigo+' '+(x.descricao||'')+' '+(x.localizacao||''))
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleUpperCase('pt-BR');
+    return v.includes(termo);
+  });
+  const disponiveis=candidatos.filter(x=>
     Number(x.qtd_liberada)>0 &&
     (tipo==='completo'||!ehMaximArRomaneio(x)) &&
-    romaneioSaldoPorTipo(x,tipo,1)>0).filter(x=>{
-      const v=(x.codigo+' '+(x.descricao||'')+' '+(x.localizacao||''))
-        .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleUpperCase('pt-BR');
-      return v.includes(termo);
-    }).sort((x,y)=>x.codigo.localeCompare(y.codigo,'pt-BR',{numeric:true}));
+    romaneioSaldoPorTipo(x,tipo,1)>0
+  ).sort((x,y)=>x.codigo.localeCompare(y.codigo,'pt-BR',{numeric:true}));
+  row.dataset.mensagemSemSaldo=disponiveis.length?'':mensagemSemSaldoRomaneio(tipo,candidatos);
   combo.replaceChildren();
   const placeholder=document.createElement('option');placeholder.value='';
-  placeholder.textContent=disponiveis.length?'Selecione a esquadria':'Nenhuma esquadria encontrada';
+  placeholder.textContent=disponiveis.length?'Selecione a esquadria':(tipo==='folha'?'Nenhuma folha disponível para expedição':'Nenhuma esquadria com saldo disponível');
   combo.append(placeholder);
   for(const item of disponiveis){
     const option=document.createElement('option');option.value=item.id;
@@ -3150,7 +3177,7 @@ function atualizarLinhaRomaneio(el){
   el.querySelector('[data-rom-maxim-note]').classList.toggle('hidden',!max);
   el.querySelector('[data-rom-hint-folhas]').classList.toggle('hidden',modo!=='folha');
   if(!item){
-    summary.textContent='Busque pelo código ou descrição e selecione uma esquadria liberada.';
+    summary.textContent=el.dataset.mensagemSemSaldo||'Busque pelo código ou descrição e selecione uma esquadria liberada.';
     qty.max='';qty.value='';leaves.value='';
     campoDescricao.value='';
     el.dataset.romaneioDescricaoChave='';
@@ -3310,6 +3337,37 @@ function medidaRomaneioEmMetros(medida){
   });
   return convertido.some(x=>x===null)?original:convertido.join(' × ')+' m';
 }
+// A emissão antiga deixa area_m2 nula quando só marco/folhas são expedidos.
+// Calcular pela medida gravada no próprio romaneio preserva a reimpressão histórica.
+function areaRomaneioEmM2(linha){
+  if(linha.natureza!=='esquadria')return null;
+  const valor=linha.area_m2===null||linha.area_m2===undefined||linha.area_m2===''?
+    null:Number(linha.area_m2);
+  if(Number.isFinite(valor)&&valor>0)return valor;
+  const dimensoes=String(linha.medida||'').trim()
+    .match(/^(\d[\d.,]*)\s*[x×]\s*(\d[\d.,]*)\s*mm$/i);
+  if(!dimensoes)return null;
+  const paraMm=texto=>{
+    let valor=texto;
+    if(valor.includes(','))valor=valor.replace(/\./g,'').replace(',','.');
+    else if(/^\d{1,3}(?:\.\d{3})+$/.test(valor))valor=valor.replace(/\./g,'');
+    return Number(valor);
+  };
+  const largura=paraMm(dimensoes[1]),altura=paraMm(dimensoes[2]);
+  const quantidade=Number(linha.quantidade);
+  if(!Number.isFinite(largura)||largura<=0||!Number.isFinite(altura)||altura<=0||
+      !Number.isSafeInteger(quantidade)||quantidade<1)return null;
+  let fracao=1;
+  if(linha.tipo_saida==='marco')fracao=0.5;
+  else if(linha.tipo_saida==='folha'){
+    const config=dispatchConfig.find(x=>x.esquadria_id===linha.esquadria_id);
+    const folhas=Number(config?.folhas_por_unidade);
+    if(!Number.isSafeInteger(folhas)||folhas<1)return null;
+    fracao=0.5/folhas;
+  }else if(linha.tipo_saida&&linha.tipo_saida!=='completo')return null;
+  return Math.round(largura*altura*quantidade*fracao/1000)/1000;
+}
+
 function construirHTMLRomaneio(header,linhas){
   // O mesmo layout de expedição também atende transferências físicas entre galpões.
   // Não alterar a estrutura, a paginação e as logomarcas do romaneio de esquadrias.
@@ -3342,10 +3400,11 @@ function construirHTMLRomaneio(header,linhas){
   if(paginaAtual.length)paginas.push(paginaAtual);
   const blocos=[];
   function construirVia(numero,parcelas,parte,totalPartes,compacta){
-    const soma=parcelas.reduce((v,x)=>v+(Number(x.area_m2)||0),0);
+    const soma=parcelas.reduce((v,x)=>v+(areaRomaneioEmM2(x)||0),0);
     const rows=parcelas.map(linha=>{
-      const areax=linha.area_m2===null||linha.area_m2===undefined?'—':
-        Number(linha.area_m2).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+      const areaCalculada=areaRomaneioEmM2(linha);
+      const areax=areaCalculada===null?'—':
+        areaCalculada.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
       return '<tr><td class="center">'+Number(linha.sequencia)+'</td>'+
         '<td>'+escapeHTML(linha.codigo||'')+'</td>'+
         '<td class="romaneioDescricao">'+escapeHTML(descricaoImpressa(linha))+'</td>'+

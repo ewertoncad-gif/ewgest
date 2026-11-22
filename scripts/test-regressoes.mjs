@@ -418,9 +418,9 @@ assert.ok(iniciar>=0&&terminar>iniciar,'Funções de romaneios identificadas');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({
  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
 })[c]);
-const montarRomaneio=new Function('works','escapeHTML',
+const montarRomaneio=new Function('works','escapeHTML','window','dispatchConfig',
  source.slice(iniciar,terminar)+'\nreturn construirHTMLRomaneio;'
-)([{id:'obra',nome:'MIRAGE',cliente:'MOURA DUBEUX'}],esc);
+)([{id:'obra',nome:'MIRAGE',cliente:'MOURA DUBEUX'}],esc,{},[]);
 const cabecalho={id:'rm',obra_id:'obra',numero:'RM042',data_saida:'2026-07-08',
  motorista:'IRAN FRANCISCO',placa:'UHQ4A65',observacoes:''};
 const linha=(n)=>({sequencia:n,codigo:'CG 1016',localizacao:'Ático',
@@ -503,7 +503,8 @@ const {ehMaximArRomaneio,romaneioSaldoPorTipo}=new Function('shipmentStats','sug
  source.slice(ehInicio,ehFim)+
  '\nreturn {ehMaximArRomaneio,romaneioSaldoPorTipo};'
 )(x=>({released:Number(x.qtd_liberada),frames:Number(x.marcos||0),
- leaves:Number(x.folhas_enviadas||0),per:x.per||null}),
+ leaves:Number(x.folhas_enviadas||0),per:x.per||null,completas:0,
+ marcosLiberados:Number(x.qtd_liberada),folhasLiberadas:Number(x.qtd_liberada)}),
   x=>Number((x.descricao||'').match(/(\d+)\s*FOLHA/i)?.[1]||0)||null);
 assert.equal(ehMaximArRomaneio({descricao:'MAXIM-AR 1 FOLHA(S) - HYDRO'}),true);
 assert.equal(ehMaximArRomaneio({descricao:'MAXIM AR 1 FOLHA(S)'}),true);
@@ -2072,7 +2073,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.4')&&
+assert.ok(source.includes('v46.5')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2305,7 +2306,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.4</strong>'),
+ source.includes('EWGEST <strong>· v46.5</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2445,7 +2446,7 @@ assert.ok(!emissaoFalhou.chamadas.includes('doc.write'));
 
 
 // v46.3 — transferência usa o exato modelo visual do romaneio de esquadrias.
-const printStart=source.indexOf('function construirHTMLRomaneio(header,linhas){');
+const printStart=source.indexOf('function areaRomaneioEmM2(linha){');
 const printEnd=source.indexOf('function abrirRomaneioDocumento(',printStart);
 assert.ok(printStart>0&&printEnd>printStart);
 const factorySource=source.slice(printStart,printEnd);
@@ -2457,11 +2458,11 @@ for(const phrase of [
 ])assert.ok(factorySource.includes(phrase),'Layout de transferência faltando '+phrase);
 const printWin={};
 const factories=new Function('window','works','escapeHTML','dataRomaneioFormatada',
- 'medidaRomaneioEmMetros','descricaoCurtaRomaneio',factorySource+
- '\nreturn [construirHTMLRomaneio,window.ewConstruirHTMLRomaneioTransferencia];')(
+ 'medidaRomaneioEmMetros','descricaoCurtaRomaneio','dispatchConfig',factorySource+
+ '\nreturn [construirHTMLRomaneio,window.ewConstruirHTMLRomaneioTransferencia,areaRomaneioEmM2];')(
  printWin,[{id:'obraQA',nome:'Obra QA',cliente:'Cliente QA'}],
  x=>String(x??''),x=>String(x).split('-').reverse().join('/'),
- x=>String(x??''),x=>String(x??''));
+ x=>String(x??''),x=>String(x??''),[{esquadria_id:'ea2qa',folhas_por_unidade:2}]);
 const printHeader={numero:'RM009',obra_id:'obraQA',data_saida:'2026-11-21',
  motorista:'IRAN',placa:'ABC1D23',status:'EMITIDO'};
 const printLines=[
@@ -2470,6 +2471,35 @@ const printLines=[
  {sequencia:2,natureza:'material',codigo:'GUA0070PTO',descricao:'GUARNIÇÃO PINGADEIRA',
   medida:'',quantidade:1,unidade:'MT',obra_origem:'ESSENCE CONSTRUÇÕES'}
 ];
+// v46.5 — RM011 com marco expedido deve mostrar 50% da área tanto na linha quanto no total.
+const parcialBase={sequencia:1,natureza:'esquadria',esquadria_id:'ea2qa',codigo:'EA2',
+ descricao:'JANELA CORRER 2F GOLD SLIM (MARCO)',medida:'1200.00 x 1150.00 mm',
+ quantidade:1,unidade:'UNID.',area_m2:null,tipo_saida:'marco'};
+const htmlMarco=factories[0]({...printHeader,numero:'RM011'},[parcialBase]);
+assert.ok(htmlMarco.includes('<td class="right">0,69</td>')&&
+ htmlMarco.includes('Total M²:</strong> 0,69'),
+ 'EA2 só marco: a reimpressão mostra 0,69 m² e não 0,00');
+assert.equal(factories[2](parcialBase),0.69);
+assert.equal(factories[2]({...parcialBase,tipo_saida:'folha',quantidade:1}),0.345,
+ 'Uma folha física de janela 2F equivale a 25% da área total');
+assert.equal(factories[2]({...parcialBase,tipo_saida:'folha',quantidade:2}),0.69,
+ 'Duas folhas físicas somam 50% da área');
+assert.equal(factories[2]({...parcialBase,tipo_saida:'completo'}),1.38,
+ 'Completa = 100% da área');
+assert.equal(factories[2]({...parcialBase,tipo_saida:'completo',quantidade:2}),2.76,
+ 'Múltiplas esquadrias completas respeitam a quantidade');
+assert.equal(factories[2]({...parcialBase,medida:'1.200,00 × 1.150,00 mm'}),0.69,
+ 'Medidas com formatação brasileira são aceitas');
+assert.equal(factories[2]({...parcialBase,area_m2:1.4}),1.4,
+ 'Área histórica positiva já gravada não deve ser recalculada');
+assert.equal(factories[2]({...parcialBase,tipo_saida:'folha',esquadria_id:'sem-config'}),null,
+ 'Sem número cadastrado de folhas não inventar área por folha física');
+assert.equal(factories[2]({...parcialBase,natureza:'material'}),null,
+ 'Materiais não recebem M² de esquadrias');
+const htmlFolhas=factories[0](printHeader,[{...parcialBase,tipo_saida:'folha',quantidade:2}]);
+assert.ok(htmlFolhas.includes('<td class="right">0,69</td>')&&
+ htmlFolhas.includes('Total M²:</strong> 0,69'),
+ 'Duas folhas de EA2: 0,69 m² no romaneio');
 const padrão=factories[0](printHeader,printLines);
 const transferenciaHTML=factories[1]({...printHeader,
  origem_galpao:'AFOGADOS',destino_galpao:'IMBIRIBEIRA'},printLines);
@@ -2532,5 +2562,69 @@ history.push({esquadria_id:'ea2',quantidade:1,tipo_componente:'folhas'});
 assert.ok(Math.abs(calculo.totals([esq]).released-1.38)<0.000001,
  '1 marco + 1 conjunto de folhas = 1,38m²');
 assert.equal(calculo.releaseParts(esq).saldoMarco,4);
+
+// Caso de regressão real: 1 marco EA2 expedido; liberando as folhas depois, aparecem 2 físicas.
+const parteFonte=source.slice(source.indexOf('function releaseParts(item){'),
+ source.indexOf('function totals(',source.indexOf('function releaseParts(item){')));
+const statsFonte=source.slice(source.indexOf('function shipmentStats(item){'),
+ source.indexOf('function suggestedLeaves(item)',source.indexOf('function shipmentStats(item){')));
+const folhasFonte=source.slice(source.indexOf('function suggestedLeaves(item)'),
+ source.indexOf('function romaneioSaldoCompleto(item)',source.indexOf('function suggestedLeaves(item)')));
+const saldoFonte=source.slice(source.indexOf('function romaneioSaldoPorTipo(item,tipo,folhas){'),
+ source.indexOf('function mensagemSemSaldoRomaneio(',source.indexOf('function romaneioSaldoPorTipo(item,tipo,folhas){')));
+const liberacoesEA2=[{esquadria_id:'ea2qa',quantidade:1,tipo_componente:'marco'}];
+const saidasEA2=[{esquadria_id:'ea2qa',tipo:'marco',quantidade:1}];
+const {romaneioSaldoPorTipo:saldoEA2}=new Function('releaseHistory','shipmentHistory','dispatchConfig',
+ parteFonte+statsFonte+folhasFonte+saldoFonte+
+ '\nreturn {romaneioSaldoPorTipo};')(liberacoesEA2,saidasEA2,
+ [{esquadria_id:'ea2qa',folhas_por_unidade:2}]);
+const itemEA2={id:'ea2qa',codigo:'EA2',descricao:'JANELA DE CORRER 2 FOLHAS',
+ quantidade:5,qtd_liberada:1};
+assert.equal(saldoEA2(itemEA2,'folha',2),0,
+ 'Após enviar apenas o marco, sem liberar folhas, impedir emissão das folhas');
+liberacoesEA2.push({esquadria_id:'ea2qa',quantidade:1,tipo_componente:'folhas'});
+assert.equal(saldoEA2(itemEA2,'folha',2),2,
+ 'Após liberar o conjunto das folhas, permitir enviar duas folhas físicas');
+assert.equal(saldoEA2(itemEA2,'completo',2),0,
+ 'Não permitir completa quando o marco já saiu');
+saidasEA2.push({esquadria_id:'ea2qa',tipo:'folha',quantidade:1});
+assert.equal(saldoEA2(itemEA2,'folha',2),1,
+ 'Expedir uma folha física deixa uma folha física pendente');
+
+// v46.5 — explicar a indisponibilidade de folhas quando só o marco foi liberado.
+const semSaldoStart=source.indexOf('function mensagemSemSaldoRomaneio(tipo,candidatos){');
+const semSaldoEnd=source.indexOf('function buscarEsquadriasRomaneio(row){',semSaldoStart);
+assert.ok(semSaldoStart>=0&&semSaldoEnd>semSaldoStart,'Diagnóstico de saldo presente');
+const avaliarSaldo=new Function('ehMaximArRomaneio','releaseParts',
+ source.slice(semSaldoStart,semSaldoEnd)+'\nreturn mensagemSemSaldoRomaneio;')(
+ x=>/MAXIM-AR/i.test(x.descricao||''),
+ x=>({marcos:Number(x.marcosLiberados||0),folhas:Number(x.folhasLiberadas||0)})
+);
+const ea2SemFolhas=[{codigo:'EA2',qtd_liberada:1,marcosLiberados:1,folhasLiberadas:0}];
+assert.ok(avaliarSaldo('folha',ea2SemFolhas).includes('folhas ainda não foram liberadas'),
+ 'EA2 com só marco liberado deve mostrar pendência de liberação das folhas');
+assert.ok(avaliarSaldo('completo',ea2SemFolhas).includes('marco e folhas liberados'),
+ 'Expedição completa requer dois componentes');
+assert.ok(avaliarSaldo('folha',[{...ea2SemFolhas,folhasLiberadas:1}]).includes('já foram expedidas'),
+ 'Distinguir folha sem liberação de folha já expedida');
+assert.ok(avaliarSaldo('marco',[{...ea2SemFolhas,marcosLiberados:0}]).includes('marco ainda não foi liberado'),
+ 'Marco ainda não liberado tem aviso claro');
+assert.ok(source.includes("row.dataset.mensagemSemSaldo=disponiveis.length?'':mensagemSemSaldoRomaneio(tipo,candidatos)")&&
+ source.includes("summary.textContent=el.dataset.mensagemSemSaldo||")&&
+ source.includes("if(elements.some(x=>x.obra_id===selectedWork.id))"),
+ 'Romaneio exibe linha de seleção e explica pendência mesmo quando não há saldo');
+const areaSql=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261122_area_componentes_romaneio_v465.sql',import.meta.url)),'utf8');
+assert.ok(areaSql.includes("CREATE OR REPLACE FUNCTION public.emitir_romaneio_com_saidas")&&
+ areaSql.includes("SECURITY DEFINER")&&
+ areaSql.includes("SET search_path TO ''")&&
+ areaSql.includes('PERFORM public.ew_exigir_sessao_atual();')&&
+ areaSql.includes("when 'marco' then")&&
+ areaSql.includes('v_item.largura_mm*v_item.altura_mm*v_qty/2000000.0')&&
+ areaSql.includes("when 'folha' then")&&
+ areaSql.includes('v_item.largura_mm*v_item.altura_mm*v_qty/(2000000.0*v_per)')&&
+ areaSql.includes("when 'completo' then")&&
+ areaSql.includes('v_item.largura_mm*v_item.altura_mm*v_qty/1000000.0'),
+ 'A proposta SQL deve preservar as guardas e persistir as áreas equivalentes por componente');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
