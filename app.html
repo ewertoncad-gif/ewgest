@@ -909,7 +909,7 @@
             </form>
             <p id="finBillingMessage" class="feedback" role="status"></p>
           </div>
-          <div class="section panel"><h2>Histórico de despesas e faturamentos</h2><div id="finHistory"></div></div>
+          <div class="section panel"><h2>Histórico de despesas e faturamentos</h2><p id="finHistoryMessage" class="feedback" role="status" aria-live="polite"></p><div id="finHistory"></div></div>
         </div>
       </div>
     </section>
@@ -7972,10 +7972,11 @@ function finRenderHistorico(){
 }
 async function finCancelarLancamento(tipo,id){
  if(!isFullAdminUser()||!finState)return;
- const motivo=window.prompt('Motivo do cancelamento (mínimo 5 caracteres):','');
+ const motivo=window.prompt(tipo==='despesa'?'Motivo do estorno financeiro (5 a 400 caracteres):':'Motivo do cancelamento (5 a 400 caracteres):','');
  if(motivo===null)return;
  if(motivo.trim().length<5||motivo.trim().length>400){
-  node('finMessage').textContent='Informe um motivo de 5 a 400 caracteres.';return;
+  node('finMessage').textContent='Informe um motivo de 5 a 400 caracteres.';
+  node('finHistoryMessage').textContent=node('finMessage').textContent;return;
  }
  if(!window.confirm(tipo==='despesa'?
   'Estornar este lançamento de NF-e no financeiro do EWGEST?\\n\\nO histórico será preservado. A NF-e fiscal não será cancelada na SEFAZ. Se ainda houver material recebido, o sistema bloqueará ou exigirá o estorno físico seguro.':
@@ -7993,8 +7994,14 @@ async function finCancelarLancamento(tipo,id){
    {p_empresa_id:currentCompany.id,p_faturamento_id:id,p_motivo:motivo.trim()};
   await request('/rest/v1/rpc/'+url,{method:'POST',token:session.access_token,body});
   await finLoad();
-  node('finMessage').textContent=tipo==='despesa'?'Lançamento da NF-e estornado no financeiro. Histórico preservado; nenhuma NF-e foi cancelada na SEFAZ.':'Faturamento cancelado com histórico preservado.';
- }catch(e){node('finMessage').textContent='Não foi possível cancelar: '+e.message;}
+  const mensagem=tipo==='despesa'?'Lançamento da NF-e estornado no financeiro. Histórico preservado; nenhuma NF-e foi cancelada na SEFAZ.':'Faturamento cancelado com histórico preservado.';
+  node('finMessage').textContent=mensagem;
+  node('finHistoryMessage').textContent=mensagem;
+ }catch(e){
+  const mensagem='Estorno não realizado: '+e.message;
+  node('finMessage').textContent=mensagem;
+  node('finHistoryMessage').textContent=mensagem;
+ }
 }
 // Faturamento parcial: quantidade equivalente de esquadria (1 = conjunto completo).
 // Os romaneios ativos são a evidência da expedição; nenhum valor é faturado automaticamente.
