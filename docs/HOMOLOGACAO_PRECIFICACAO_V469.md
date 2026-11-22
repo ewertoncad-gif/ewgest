@@ -132,3 +132,13 @@ Postgres. Ainda faltam:
 
 **Não criar nem pagar por um ambiente adicional sem nova autorização específica.**
 **Não aplicar migrações permanentemente em produção apenas com esta evidência.**
+
+
+### Revisão adicional: proteção de saldo e cancelamento
+
+- A RPC de faturamento passou a exigir **no servidor** que a esquadria conste na revisão aprovada e que a quantidade continue coerente, mesmo quando alguém chama a API diretamente, sem passar pela interface.
+- A tabela de itens do histórico agora exige `esquadria_id` não nulo e proíbe duplicação do mesmo item numa revisão.
+- Testes específicos no PostgreSQL isolado comprovaram que **um item expedido sem preço aprovado é rejeitado**, uma obra sem precificação continua seguindo as regras legadas e **romaneios cancelados não permitem faturar**.
+- **Última execução verde:** [GitHub Actions #45020360348](https://github.com/ewertoncad-gif/ewgest/actions/runs/45020360348), incluindo as regressões de importação, faturamento, autorização e cancelamento.
+
+As ressalvas sobre a RPC legada simulada e autenticação Supabase real continuam válidas.
