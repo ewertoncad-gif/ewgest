@@ -205,7 +205,12 @@ async function gerar(){
 }
 function csv(){
  if(!rows.length)return;
- const enc=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+ const enc=v=>{
+  const texto=String(v??'');
+  // Impede que códigos, descrições ou observações virem fórmulas ao abrir no Excel.
+  const seguro=/^[\\s\\r\\n]*[=+@-]/.test(texto)?"'"+texto:texto;
+  return '"'+seguro.replace(/"/g,'""')+'"';
+ };
  const text='\ufeff'+[headers,...rows].map(r=>r.map(enc).join(';')).join('\r\n');
  const url=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8;'}));
  const a=document.createElement('a');a.href=url;
