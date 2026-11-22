@@ -216,6 +216,137 @@ async function estoque(ctx){
  el('reportTable').innerHTML='<h3>Histórico de movimentações</h3>'+tabela(headers,rows);
  return {contagem:rows.length};
 }
+function resumoKpi(pares){
+ return '<div class="reportsKpis">'+pares.map(([a,b])=>'<div><span>'+esc(a)+'</span><strong>'+esc(b)+'</strong></div>').join('')+'</div>';
+}
+async function liberacoes(ctx){
+ const [releases,esqs,batches]=await Promise.all([
+  listarTudo('liberacoes_corte',{select:'id,esquadria_id,quantidade,data_liberacao,usuario_id,registrada_em,fabrica,cancelado_em,tipo_componente',order:'registrada_em.asc'}),
+  listarTudo('esquadrias',{empresa_id:ctx.empresa,select:'id,codigo,descricao,obra_id'}),
+  listarTudo('ew_liberacoes_lotes',{empresa_id:ctx.empresa,select:'id,obra_id,data_liberacao,fabrica,arquivo_nome,itens_confirmados,criado_por,criado_em,cancelado_em,entregue_em'})
+ ]);
+ const esq=new Map(esqs.map(x=>[x.id,x]));
+ const incluirCancelados=el('reportCancelled').checked;
+ const eventos=releases.map(x=>({...x,elemento:esq.get(x.esquadria_id)}))
+  .filter(x=>x.elemento&&(!ctx.obraId||x.elemento.obra_id===ctx.obraId)&&
+    dentro(x.data_liberacao)&&(!x.cancelado_em||incluirCancelados));
+ const lotes=batches.filter(x=>(!ctx.obraId||x.obra_id===ctx.obraId)&&
+  dentro(x.data_liberacao)&&(!x.cancelado_em||incluirCancelados));
+ const validas=eventos.filter(x=>!x.cancelado_em);
+ headers=['Obra','Data','Tipo','Esquadria / Lote','Descrição','Parte liberada','Quantidade',
+  'Fábrica','Situação','Material entregue à produção','Responsável','ID'];
+ rows=eventos.map(x=>[obra(x.elemento.obra_id),String(x.data_liberacao), 'Liberação',
+  x.elemento.codigo,x.elemento.descricao||'',x.tipo_componente||'completo',qtd(x.quantidade),
+  x.fabrica||'Não informada',x.cancelado_em?'CANCELADA':'ATIVA','Ver documento de entrega',
+  usuario(x.usuario_id),x.id]);
+ rows.push(...lotes.map(x=>[obra(x.obra_id),String(x.data_liberacao),'Lote técnico',
+  x.arquivo_nome||'Lote CEM','Itens vinculados: '+(Array.isArray(x.itens_confirmados)?x.itens_confirmados.length:'—'),
+  'Lote','—',x.fabrica||'—',x.cancelado_em?'CANCELADO':'ATIVO',
+  x.entregue_em?'Entregue em '+stamp(x.entregue_em):'Aguardando entrega',usuario(x.criado_por),x.id]));
+ reportTitle='Liberações para fabricação';
+ el('reportSummary').innerHTML=resumoKpi([
+  ['Liberações ativas',String(validas.length)],['Quantidades liberadas',qtd(validas.reduce((n,x)=>n+Number(x.quantidade||0),0))],
+  ['Lotes técnicos ativos',String(lotes.filter(x=>!x.cancelado_em).length)],
+  ['Registros no filtro',String(rows.length)]])+
+ '<p class="hint">As quantidades de marcos e folhas não são somadas como unidades completas. '+
+ 'O lote técnico é apresentado em separado; não some sua quantidade com liberações de esquadrias.</p>';
+ el('reportTable').innerHTML=tabela(headers,rows);
+ return {contagem:rows.length};
+}
+async function expedicao(ctx){
+ const [docs,itens]=await Promise.all([
+  listarTudo('romaneios',{empresa_id:ctx.empresa,
+   select:'id,obra_id,numero,data_saida,motorista,placa,status,cancelado_em,criado_por,observacoes',order:'data_saida.asc'}),
+  listarTudo('romaneios_itens',{select:'id,romaneio_id,natureza,esquadria_id,codigo,descricao,tipo_saida,quantidade,unidade,area_m2,fabrica,medida,localizacao',order:'sequencia.asc'})
+ ]);
+ const porDoc=new Map(docs.map(x=>[x.id,x]));
+ const incluirCancelados=el('reportCancelled').checked;
+ const filtrados=itens.map(i=>({i,doc:porDoc.get(i.romaneio_id)}))
+ .filter(x=>x.doc&&(!ctx.obraId||x.doc.obra_id===ctx.obraId)&&dentro(x.doc.data_saida)&&
+ (incluirCancelados||(!x.doc.cancelado_em&&String(x.doc.status).toLowerCase()!=='cancelado')));
+ const ativos=filtrados.filter(x=>!x.doc.cancelado_em&&String(x.doc.status).toLowerCase()!=='cancelado');
+ const codDocs=new Set(ativos.map(x=>x.doc.id)),area=ativos.reduce((n,x)=>n+Number(x.i.area_m2||0),0);
+ headers=['Obra','Data de saída','Romaneio','Status','Tipo','Código','Descrição',
+ 'Componente / natureza','Medida','Quantidade','Unidade','Área expedida m²','Fábrica',
+ 'Motorista','Placa','Emitido por','ID item'];
+ rows=filtrados.map(({doc,i})=>[obra(doc.obra_id),String(doc.data_saida),doc.numero,
+  doc.cancelado_em||String(doc.status).toLowerCase()==='cancelado'?'CANCELADO':doc.status,
+  i.natureza==='esquadria'?'Esquadria':'Material',i.codigo,i.descricao,
+  i.tipo_saida||i.natureza,i.medida||'',qtd(i.quantidade),i.unidade,
+  i.area_m2===null?'':qtd(i.area_m2),i.fabrica||'',doc.motorista,doc.placa,
+  usuario(doc.criado_por),i.id]);
+ reportTitle='Romaneios de expedição fábrica → obra';
+ el('reportSummary').innerHTML=resumoKpi([
+ ['Romaneios ativos',String(codDocs.size)],['Área expedida',qtd(area)+' m²'],
+ ['Itens de esquadrias',String(ativos.filter(x=>x.i.natureza==='esquadria').length)],
+ ['Itens de materiais',String(ativos.filter(x=>x.i.natureza==='material').length)]])+
+ '<p class="hint">O total considera apenas documentos ativos. Área de marco e folhas é parcial. '+
+ 'Perfis e acessórios expedidos separadamente não acrescentam m² de esquadrias.</p>';
+ el('reportTable').innerHTML=tabela(headers,rows);
+ return {contagem:rows.length};
+}
+async function aluminio(ctx){
+ const [docs,itens,movs,vars,perfis]=await Promise.all([
+  listarTudo('romaneios',{empresa_id:ctx.empresa,select:'id,obra_id,data_saida,status,cancelado_em'}),
+  listarTudo('romaneios_itens',{select:'romaneio_id,natureza,area_m2'}),
+  listarTudo('ew_estoque_obras_movimentos',{empresa_id:ctx.empresa,
+    select:'id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,origem,criado_em,estorno_de_id'}),
+  listarTudo('ew_materiais_variacoes',{empresa_id:ctx.empresa,select:'id,perfil_id,tipo'}),
+  listarTudo('ew_perfis',{empresa_id:ctx.empresa,select:'id,codigo,peso_kg_m'})
+ ]);
+ const porDoc=new Map(docs.map(d=>[d.id,d]));
+ const areaPorObra=new Map(),kgPorObra=new Map(),faltaPeso=new Map();
+ for(const i of itens){
+  const d=porDoc.get(i.romaneio_id);
+  if(!d||d.cancelado_em||String(d.status).toLowerCase()==='cancelado'||
+    (ctx.obraId&&d.obra_id!==ctx.obraId)||!dentro(d.data_saida)||i.natureza!=='esquadria')continue;
+  areaPorObra.set(d.obra_id,(areaPorObra.get(d.obra_id)||0)+Number(i.area_m2||0));
+ }
+ const variacoes=new Map(vars.map(x=>[x.id,x])),catalogo=new Map(perfis.map(x=>[x.id,x]));
+ const estornados=new Set(movs.filter(x=>x.estorno_de_id).map(x=>x.estorno_de_id));
+ const elegiveis=movs.filter(x=>['PLANO_CORTE','PLANO_CORTE_LOTE','SAIDA_OBRA'].includes(x.origem)&&
+  Number(x.quantidade_delta)<0);
+ for(const m of elegiveis){
+  if((ctx.obraId&&m.obra_id!==ctx.obraId)||!dentro(m.criado_em)||estornados.has(m.id))continue;
+  const v=variacoes.get(m.variacao_id);
+  if(v?.tipo!=='perfil')continue;
+  const p=catalogo.get(v.perfil_id),peso=Number(p?.peso_kg_m);
+  if(!(peso>0)||!(Number(m.comprimento_mm)>0)||m.unidade!=='BARRA'){
+   faltaPeso.set(m.obra_id,(faltaPeso.get(m.obra_id)||0)+1);continue;
+  }
+  const kg=Math.abs(Number(m.quantidade_delta))*Number(m.comprimento_mm)/1000*peso;
+  kgPorObra.set(m.obra_id,(kgPorObra.get(m.obra_id)||0)+kg);
+ }
+ const obrasRel=new Set([...areaPorObra.keys(),...kgPorObra.keys(),...faltaPeso.keys()]);
+ if(ctx.obraId)obrasRel.add(ctx.obraId);
+ const rel=[...obrasRel].map(id=>({id,area:areaPorObra.get(id)||0,
+  kg:kgPorObra.get(id)||0,naoPesados:faltaPeso.get(id)||0}))
+  .sort((a,b)=>obra(a.id).localeCompare(obra(b.id),'pt-BR'));
+ const somaArea=rel.reduce((n,x)=>n+x.area,0),somaKg=rel.reduce((n,x)=>n+x.kg,0),
+ naoPesados=rel.reduce((n,x)=>n+x.naoPesados,0);
+ headers=['Obra','m² expedidos (parcial + completo)','Alumínio destinado kg',
+  'Alumínio destinado t','kg por m² expedido','Linhas sem peso/tamanho','Qualidade do dado'];
+ rows=rel.map(x=>[obra(x.id),qtd(x.area),qtd(x.kg),qtd(x.kg/1000),
+  x.area>0?qtd(x.kg/x.area):'—',x.naoPesados,
+  x.naoPesados?'Peso incompleto / não conclusivo':'Indicador de expedição + fornecimento']);
+ rows.push(['TOTAL DAS OBRAS',qtd(somaArea),qtd(somaKg),qtd(somaKg/1000),
+  somaArea>0?qtd(somaKg/somaArea):'—',naoPesados,naoPesados?'Peso parcial':'Indicador']);
+ reportTitle='m² expedidos versus alumínio destinado';
+ el('reportSummary').innerHTML=resumoKpi([
+  ['m² expedidos',qtd(somaArea)+' m²'],
+  ['Alumínio destinado',qtd(somaKg/1000)+' t'],
+  ['Consumo específico indicativo',somaArea?qtd(somaKg/somaArea)+' kg/m²':'—'],
+  ['Linhas sem peso',String(naoPesados)]
+ ])+
+ '<p class="hint"><strong>Limitação:</strong> o EWGEST ainda não registra conclusão física de fabricação nem '+
+ 'pesagem real de sucata. O m² corresponde à esquadria <strong>expedida</strong> (marcos/folhas proporcionais); '+
+ 'o alumínio corresponde a barras entregues à produção ou enviadas diretamente à obra. '+
+ 'Transferências entre galpões/obras NÃO contam como consumo. Estornos de consumo integral vinculados '+
+ 'são desconsiderados. Não representa rendimento exato, perda nem índice definitivo até reconciliar '+
+ 'estornos parciais e pesos faltantes.</p>';
+ el('reportTable').innerHTML=tabela(headers,rows);
+ return {contagem:rows.length};
+}
 async function gerar(){
  if(running||!canAdministrate()||!currentCompany)return;
  rows=[];headers=[];summaryCsv=[];summaryHeaders=[];el('reportCsv').disabled=true;el('reportPrint').disabled=true;
