@@ -190,4 +190,37 @@ BEGIN
  RAISE NOTICE 'OK: obra v46.8 sem preços individuais continua faturando';
 END $legacy$;
 RESET ROLE;
-SELECT 'FATURAMENTO PARCIAL, TETOS, ITEM SEM PRECO E OBRA LEGADA APROVADOS' AS status;
+-- Romaneio CANCELADO não autoriza faturar, mesmo que o item tenha sido
+-- fisicamente listado em documento anterior.
+WITH nova_esq AS(
+ INSERT INTO public.esquadrias(empresa_id,obra_id,codigo,descricao,largura_mm,altura_mm,quantidade)
+ SELECT empresa_id,id,'EA-CANCELADA','JANELA DE ROMANEIO CANCELADO',1000,1000,1
+ FROM public.obras WHERE codigo='LEGADO-V468' RETURNING id,obra_id,empresa_id
+),nova_rom AS(
+ INSERT INTO public.romaneios(empresa_id,obra_id,status,cancelado_em)
+ SELECT empresa_id,obra_id,'cancelado',now() FROM nova_esq RETURNING id,obra_id
+)
+INSERT INTO public.romaneios_itens(romaneio_id,esquadria_id,tipo_saida,quantidade)
+SELECT nova_rom.id,nova_esq.id,'completo',1 FROM nova_esq CROSS JOIN nova_rom;
+SET ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',false);
+DO $cancelado$
+DECLARE obra uuid;ea uuid;err text;
+BEGIN
+ SELECT id INTO obra FROM public.obras WHERE codigo='LEGADO-V468';
+ SELECT id INTO ea FROM public.esquadrias WHERE obra_id=obra AND codigo='EA-CANCELADA';
+ BEGIN
+  PERFORM public.ew_registrar_faturamento_financeiro(
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',obra,'fabricacao',current_date,
+   'NF-CANCELADA','',jsonb_build_array(jsonb_build_object(
+    'esquadria_id',ea,'quantidade',1,'valor_unitario',0.01)),
+   'eeeeeeee-2222-4222-8222-222222222222',false);
+  RAISE EXCEPTION 'Aceitou faturamento de romaneio cancelado';
+ EXCEPTION WHEN OTHERS THEN
+  GET STACKED DIAGNOSTICS err=MESSAGE_TEXT;
+  IF err NOT LIKE '%Quantidade equivalente não faturável%' THEN RAISE;END IF;
+ END;
+ RAISE NOTICE 'OK: romaneio cancelado não autoriza faturamento';
+END $cancelado$;
+RESET ROLE;
+SELECT 'FATURAMENTO PARCIAL, TETOS, ITEM SEM PRECO, LEGADO E CANCELAMENTO APROVADOS' AS status;
