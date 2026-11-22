@@ -16,7 +16,7 @@ const createElement=()=>({
  querySelector(){return null}
 });
 const doc={
- body:{appendChild(){}},
+ body:{appendChild(el){elements.set(el.id,el)}},
  createElement,
  getElementById(id){if(!elements.has(id))elements.set(id,createElement());return elements.get(id)}
 };
