@@ -689,7 +689,7 @@
 <link rel="stylesheet" href="/assets/insumos-fisicos.css?v=20261121a">
 <link rel="stylesheet" href="/assets/entregas-producao.css?v=20261121a">
 <link rel="stylesheet" href="/assets/romaneios-transferencia.css?v=20261121c">
-<link rel="stylesheet" href="/assets/relatorios-obras.css?v=20261122a">
+<link rel="stylesheet" href="/assets/relatorios-obras.css?v=20261122b">
 <link rel="stylesheet" href="/assets/cadastros-pages.css?v=20261121b">
 </head>
 <body>
@@ -716,7 +716,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.16</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.17</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -926,6 +926,9 @@
             <select id="reportType">
               <option value="faturamento">Faturamento por obra</option>
               <option value="estoque">Movimentações de estoque</option>
+              <option value="liberacoes">Liberações para fabricação</option>
+              <option value="expedicao">Expedição / romaneios</option>
+              <option value="aluminio">m² expedidos × alumínio utilizado</option>
             </select>
           </label>
           <label>Obra
@@ -934,7 +937,28 @@
           <label>De <input id="reportStart" type="date"></label>
           <label>Até <input id="reportEnd" type="date"></label>
         </div>
-        <label class="reportsCheck"><input id="reportCancelled" type="checkbox"> Incluir faturamentos cancelados (separados dos totais ativos)</label>
+        <label class="reportsCheck"><input id="reportFullPeriod" type="checkbox" checked> Todo o período da obra (ignorar datas)</label>
+        <div id="reportMultiple" class="reportsExtra">
+          <div class="reportsExtraHead"><strong>Consolidar faturamento de quais obras?</strong>
+            <select id="reportWorkScope" aria-label="Selecionar abrangência do faturamento">
+              <option value="all">Todas as obras</option><option value="selected">Escolher várias obras</option>
+            </select>
+          </div>
+          <div id="reportWorkChecks" class="reportsChoices hidden" role="group" aria-label="Obras para consolidar"></div>
+          <p class="hint">O resultado mostra cada obra separadamente e soma fabricação, instalação e total geral.</p>
+        </div>
+        <fieldset id="reportStockOptions" class="reportsExtra hidden">
+          <legend>Quais movimentações mostrar? Marque uma ou várias.</legend>
+          <div class="reportsChoices">
+            <label><input type="checkbox" data-report-stock="recebimento" checked> Recebimentos / entradas</label>
+            <label><input type="checkbox" data-report-stock="producao" checked> Saídas para fabricação</label>
+            <label><input type="checkbox" data-report-stock="galpoes" checked> Transferências entre galpões</label>
+            <label><input type="checkbox" data-report-stock="obras" checked> Transferências entre obras</label>
+            <label><input type="checkbox" data-report-stock="direto" checked> Materiais enviados direto à obra</label>
+            <label><input type="checkbox" data-report-stock="outros" checked> Ajustes, estornos e demais históricos</label>
+          </div>
+        </fieldset>
+        <label class="reportsCheck" id="reportCancelledWrap"><input id="reportCancelled" type="checkbox"> Incluir documentos cancelados (separados dos totais ativos)</label>
         <div class="topactions reportActions">
           <button id="reportGenerate" class="btn primary" type="button">Gerar relatório</button>
           <button id="reportCsv" class="btn secondary" type="button" disabled>Exportar CSV</button>
@@ -10712,7 +10736,7 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/insumos-fisicos.js?v=20261121d"></script>
 <script src="/assets/entregas-producao.js?v=20261121a"></script>
 <script src="/assets/romaneios-transferencia.js?v=20261122a"></script>
-<script src="/assets/relatorios-obras.js?v=20261122a"></script>
+<script src="/assets/relatorios-obras.js?v=20261122b"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>
 </body>
 </html>
