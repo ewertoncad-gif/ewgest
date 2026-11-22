@@ -7577,8 +7577,21 @@ async function finLoad(){
   const billed={fabricacao:new Map(),instalacao:new Map()};
   const billedValues={fabricacao:new Map(),instalacao:new Map()};
   const precoPorEsquadria=new Map((precoLinhas||[]).map(x=>[x.esquadria_id,x]));
-  if(precificacoes?.[0]&&(!precoPorEsquadria.size||!precoCategorias?.length))
-   throw new Error('A obra tem precificação aprovada, mas seu histórico está incompleto. O faturamento foi bloqueado.');
+  if(precificacoes?.[0]){
+   const obraItens=elements.filter(e=>e.obra_id===obraId);
+   const somaCentavos=(lista,chave)=>lista.reduce((s,x)=>s+Number(x[chave]||0),0);
+   const completo=obraItens.length>0&&precoLinhas?.length===obraItens.length&&
+    precoPorEsquadria.size===obraItens.length&&precoCategorias?.length>0&&
+    obraItens.every(e=>precoPorEsquadria.has(e.id)&&
+     Number(precoPorEsquadria.get(e.id).quantidade)===Number(e.quantidade))&&
+    ['fabricacao','instalacao'].every(tipo=>{
+     const campo=tipo+'_centavos',previsto=Number(precificacoes[0][tipo+'_distribuida_centavos']);
+     return somaCentavos(precoLinhas,campo)===previsto&&
+      somaCentavos(precoCategorias,campo)===previsto;
+    });
+   if(!completo)
+    throw new Error('O histórico de precificação está incompleto ou não fecha com as esquadrias da obra. Faturamento bloqueado até conferência.');
+  }
   const header=new Map((fat||[]).filter(x=>x.status==='emitido').map(x=>[x.id,x]));
   for(const x of linhas||[]){
    const tipo=header.get(x.faturamento_id)?.categoria;
@@ -8055,7 +8068,7 @@ function finRenderFaturaveis(){
   const sugestao=finPrecoSugerido(precificacao,tipo,e.quantidade,disponivel,ja,
    finState.billedValues[tipo].get(e.id)||0);
   return {e,enviados,ja,disponivel,precificacao,sugestao};
- }).filter(r=>r.enviados>0&&(!finState.precificacao||r.precificacao));
+ }).filter(r=>r.enviados>0);
  node('finBillingRows').innerHTML=rows.length?'<p class="hint">'+
   (finState.precificacao?'Os preços integrais sugeridos são da precificação aprovada (revisão '+
    Number(finState.precificacao.versao)+'). Podem ser editados antes de faturar.':
