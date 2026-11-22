@@ -165,3 +165,75 @@ await assert.rejects(pipeline.cemExtrairXML(
  gerarZip([['outro.xml','sem ExpObras.xml',0]])),/ExpObras.xml não encontrado/);
 assert.throws(()=>pipeline.cemLerObra('<Outro></Outro>'),/XML de exportação inválido/);
 console.log('OK: ZIP CEM fictício método armazenado e deflate, leitura XML, esquadrias, barras, acessórios e distribuição 60/40.');
+
+// Volume representativo da estrutura encontrada no ZIP técnico (apenas dados
+// inventados): 70 linhas calculadas, 103 códigos de perfis, 132 de acessórios,
+// 105 registros de barras. O arquivo original da GVG NUNCA entra no GitHub.
+function inventarXmlVolume(){
+ const linhas=['<ExportObras><Obra ID="99" Codigo="HOMOLOG-70-ITENS" />',
+  record('OBRA',{ID_OBRA:99,OBR_NOME:'OBRA ARTIFICIAL DE VOLUME',ID_CLIENTE_OBRA:101}),
+  record('CLIENTE',{ID_CLIENTE:101,CLI_NOME:'CLIENTE INEXISTENTE'})];
+ for(let i=1;i<=70;i++){
+  linhas.push(record('OBITENS',{ITEMOBRA:i,TIPO:'EA'+String(i).padStart(3,'0'),
+   CODESQD:i%2?'GOLD-JCR101':'GC100',DESCRICAO:i%2?'JANELA DE CORRER':'GUARDA CORPO',
+   QTDE:1+i%3,L:900+i*11,H:1100+i*7,LOCALIZ:'LOCAL FICTICIO',VARDEFS:''}));
+  linhas.push(record('OBESQD',{ITEMOBRA:i}));
+ }
+ // Os 24 itens não calculados não entram nas áreas nem no orçamento.
+ for(let i=71;i<=94;i++)linhas.push(record('OBITENS',{
+  ITEMOBRA:i,TIPO:'OUT'+i,CODESQD:'SEM-CALCULO',DESCRICAO:'ITEM EXCLUIDO',
+  QTDE:1,L:100,H:100,LOCALIZ:'',VARDEFS:''}));
+ for(let i=1;i<=103;i++){
+  const codigo='CP'+String(i).padStart(3,'0');
+  linhas.push(record('PERF',{CODPERF:codigo,REF:'FABRICANTE FICTICIO',
+   DESCRICAO:'PERFIL PARA TESTE '+i,LINHA:'LINHA TESTE',PESO:'1.5',PRENATP:''}));
+  // Distribuir referência por 70 itens, sem inventar histórico de obra real.
+  linhas.push(record('OBCALCP',{ITEMOBRA:1+((i-1)%70),CODPERF:codigo,
+   CODTRATEXT:'PINTURA',QTDE:2,TAM:2000}));
+  linhas.push(record('OBAPROV',{CODPERF:codigo,
+   CODTRATEXT:'PINTURA',BARRA:6000,NUMBARRAS:2}));
+ }
+ // Mais duas linhas de barras para atingir 105 referências, sem duplicação
+ // do comprimento dentro do mesmo perfil.
+ for(const i of [1,2])linhas.push(record('OBAPROV',{
+  CODPERF:'CP'+String(i).padStart(3,'0'),CODTRATEXT:'PINTURA',
+  BARRA:6500,NUMBARRAS:3}));
+ for(let i=1;i<=132;i++){
+  const codigo='AC'+String(i).padStart(3,'0');
+  linhas.push(record('ACES',{CODACES:codigo,REF:'FABRICANTE FICTICIO',
+   DESCRICAO:'ACESSORIO PARA TESTE '+i,LINHA:'LINHA TESTE',
+   UNID:'PC',UNID_EMB:'CX'}));
+  linhas.push(record('OBCALCA',{ITEMOBRA:1+((i-1)%70),CODACES:codigo,
+   PRENATA:'PRETO',QTDE:3,UNID:'PC'}));
+ }
+ return linhas.join('\n')+'</ExportObras>';
+}
+const zipVolume=gerarZip([['Export/ExpObras.xml',inventarXmlVolume(),8]]);
+const xmlVolume=await pipeline.cemExtrairXML(zipVolume);
+const obraVolume=pipeline.cemLerObra(xmlVolume);
+const esquadriasVolume=pipeline.cemMontarEsquadrias(obraVolume);
+const materiaisVolume=pipeline.cemMontarPayload(obraVolume);
+assert.equal(obraVolume.valid.length,70,'Somente 70 esquadrias calculadas');
+assert.equal(obraVolume.other,24,'Itens fora de cálculo não integram obra');
+assert.equal(esquadriasVolume.length,70);
+assert.equal(materiaisVolume.perfis.length,103);
+assert.equal(materiaisVolume.acessorios.length,132);
+const barrasVolume=materiaisVolume.perfis.flatMap(x=>x.variacoes.flatMap(v=>
+ v.barras_planejadas||[]));
+assert.equal(barrasVolume.length,105);
+const r70=preco.precificar({
+ fabricacaoOriginalCentavos:7000000,instalacaoOriginalCentavos:3000000,
+ percentualFabricacaoBp:5500,
+ categorias:[{id:'esq',nome:'ESQUADRIAS',precoBaseCentavosM2:15000},
+   {id:'gc',nome:'GUARDA-CORPO',precoBaseCentavosM2:25000}],
+ itens:esquadriasVolume.map((x,i)=>({...x,id:'vol-'+i,
+  categoriaId:i%2===0?'esq':'gc'}))
+});
+assert.equal(r70.itens.length,70);
+assert.equal(r70.totais.fabricacaoCentavos,5500000);
+assert.equal(r70.totais.instalacaoCentavos,4500000);
+assert.equal(r70.itens.reduce((s,x)=>s+x.fabricacaoCentavos,0),5500000);
+assert.equal(r70.itens.reduce((s,x)=>s+x.instalacaoCentavos,0),4500000);
+assert.equal(r70.fechamento.diferencaCentavos,0);
+console.log('OK: ZIP CEM sintético de volume — 70 itens, 24 excluídos, 103 perfis, 132 acessórios, 105 planos de barras, rateio 55/45 exato.');
+
