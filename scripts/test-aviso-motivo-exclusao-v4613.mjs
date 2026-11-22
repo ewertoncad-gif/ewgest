@@ -12,13 +12,13 @@ assert.ok(uiStart>0&&uiEnd>uiStart&&clickStart>uiEnd&&clickEnd>clickStart,
  'Funções reais de exclusão de obras precisam estar na página');
 const updater=html.slice(uiStart,uiEnd);
 const handler=html.slice(clickStart,clickEnd);
-assert.match(html,/EWGEST <strong>· v46\.18<\/strong>/);
+assert.match(html,/EWGEST <strong>· v46\.19<\/strong>/);
 assert.match(updater,/!info\?\.permitido\|\|workDeleteSubmitting/);
 assert.match(handler,/window\.alert\(mensagem\)/);
 assert.match(handler,/motivoCampo\.focus\(\)/);
 
-function setup({permitido=true,confirmar=true,codigoDigitado='TESTE-123',erro=false}={}){
- const alerts=[],confirms=[],prompts=[],requests=[],hooks={},elements=new Map();
+function setup({permitido=true,confirmar=true,erro=false}={}){
+ const alerts=[],confirms=[],requests=[],hooks={},elements=new Map();
  const el=id=>{
   if(!elements.has(id))elements.set(id,{
    value:'',disabled:false,textContent:'',
@@ -34,7 +34,6 @@ function setup({permitido=true,confirmar=true,codigoDigitado='TESTE-123',erro=fa
   window:{
    alert(msg){alerts.push(msg)},
    confirm(msg){confirms.push(msg);return confirmar},
-   prompt(msg){prompts.push(msg);return codigoDigitado},
   },
   crypto:{randomUUID:()=> '11111111-1111-4111-8111-111111111111'},
   ensureSession:async()=>{},
@@ -56,7 +55,7 @@ function setup({permitido=true,confirmar=true,codigoDigitado='TESTE-123',erro=fa
  vm.runInContext(updater+'\n'+handler,ctx);
  const update=()=>ctx.atualizarEstadoExclusaoObra();
  const click=()=>hooks['manageWorksDelete:click']();
- return {ctx,alerts,confirms,prompts,requests,el,update,click};
+ return {ctx,alerts,confirms,requests,el,update,click};
 }
 const vazio=setup();
 vazio.update();
@@ -81,26 +80,14 @@ vazio.update();
 assert.equal(vazio.el('manageWorksDeleteBlockedMessage').textContent,'');
 await vazio.click();
 assert.equal(vazio.alerts.length,2,'Motivo válido não precisa de alerta');
-assert.equal(vazio.confirms.length,1,'Manter confirmação final da exclusão');
-assert.equal(vazio.prompts.length,1,'Código da obra deve ser digitado pelo usuário');
-assert.match(vazio.prompts[0],/Digite exatamente o código da obra/);
-assert.equal(vazio.requests.length,1,'Executar apenas depois de motivo, confirmação e código correto');
+assert.equal(vazio.confirms.length,1,'Apenas uma confirmação para a exclusão');
+assert.equal(vazio.confirms[0],'ATENÇÃO: PROCESSO IRREVERSÍVEL. TEM CERTEZA QUE DESEJA ESTORNAR?');
+assert.equal(vazio.requests.length,1,'Executar após motivo e uma confirmação, sem digitação de código');
 assert.equal(vazio.requests[0].path,'/rest/v1/rpc/ew_arquivar_obra_reconciliada');
 assert.equal(vazio.requests[0].options.body.p_motivo,'Exclusão de obra de treinamento');
 assert.equal(vazio.el('manageWorksDelete').disabled,true,'Após exclusão, bloquear botão sem inspeção ativa');
 
-const codigoIncorreto=setup({codigoDigitado:'OUTRA-OBRA'});
-codigoIncorreto.el('manageWorksReason').value='Encerramento definitivo da obra';
-await codigoIncorreto.click();
-assert.equal(codigoIncorreto.requests.length,0,
- 'Código incorreto deve bloquear a exclusão mesmo após aceitar o aviso');
-assert.match(codigoIncorreto.el('manageWorksDeleteBlockedMessage').textContent,/código não confirmado/);
-
-const promptCancelado=setup({codigoDigitado:null});
-promptCancelado.el('manageWorksReason').value='Encerramento definitivo da obra';
-await promptCancelado.click();
-assert.equal(promptCancelado.requests.length,0,
- 'Cancelar a digitação do código não pode gerar exclusão');
+assert.ok(!handler.includes('window.prompt('),'Não pedir código digitado para concluir exclusão');
 
 const negado=setup({permitido:false});
 negado.update();

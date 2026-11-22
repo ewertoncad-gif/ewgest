@@ -716,7 +716,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.18</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.19</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -1571,7 +1571,7 @@
             <li>Romaneios já emitidos mantêm seus dados salvos, sem edição silenciosa. O caminhão foi redesenhado em SVG, sem a linha preta do arquivo anterior.</li>
             <li>O perfil ALMOXARIFE acessa somente a área de romaneios (obra, emissão, histórico e reimpressão), além de Minha senha e Sair. Pode cadastrar motorista e veículo, mas não pode liberar corte nem cancelar romaneios.</li>
             <li>O ADM pode criar e editar o perfil Almoxarife, redefinir sua senha ou desativar o acesso. Para bloqueio imediato, utilizar Desativar acesso, não somente troca de senha.</li>
-            <li><strong>Exclusão de obra é definitiva.</strong> Antes de encerrar, cancelar romaneios, saídas, liberações e estornar o estoque até saldo zero. É obrigatório registrar motivo, confirmar o aviso e digitar o código da obra. Não existe restaurar obra ou estoque: uma nova operação exige nova importação, novo ID e refazer todos os processos. A auditoria anterior permanece.</li>
+            <li><strong>Exclusão de obra é definitiva.</strong> Antes de encerrar, cancelar romaneios, saídas, liberações e estornar o estoque até saldo zero. É obrigatório registrar o motivo e confirmar uma única mensagem de irreversibilidade; não se digita código de obra. Não existe restaurar obra ou estoque: uma nova operação exige nova importação, novo ID e refazer todos os processos. A auditoria anterior permanece.</li>
             <li>Obras encerradas não aparecem em relatórios, totais consolidados, seletores de obras, gestão operacional de estoque ou romaneios. Registros antigos permanecem somente para auditoria, não para restauração.</li>
           </ul>
           <p class="hint">Antes de qualquer atualização: conferir estas regras, testar classificações e vínculos e preservar os dados históricos.</p>
@@ -10653,17 +10653,8 @@ node('manageWorksDelete').addEventListener('click',async()=>{
  }
  const check=workDeleteInspection,operation=workDeleteOperationId,
   confirmacao=String(workDeleteInspection.codigo||workDeleteInspection.nome||'').trim();
- const aviso='ATENÇÃO: ESTA AÇÃO É DEFINITIVA E NÃO PODERÁ SER DESFEITA.\n\n'+
-  'Obra: '+check.nome+' · '+(check.codigo||'sem código')+'\n\n'+
-  'A obra desaparecerá dos cadastros operacionais e de TODOS os relatórios por obra. '+
-  'Para voltar a trabalhar nela, será necessário importar novamente e repetir cada etapa, do zero. '+
-  'Somente o histórico de auditoria ficará preservado.';
+ const aviso='ATENÇÃO: PROCESSO IRREVERSÍVEL. TEM CERTEZA QUE DESEJA ESTORNAR?';
  if(!window.confirm(aviso))return;
- const digitado=window.prompt('ENCERRAMENTO DEFINITIVO.\n\nDigite exatamente o código da obra para confirmar que não haverá restauração:', '');
- if(digitado===null||digitado.trim().toLocaleUpperCase('pt-BR')!==confirmacao.toLocaleUpperCase('pt-BR')){
-  node('manageWorksDeleteBlockedMessage').textContent='Encerramento cancelado: código não confirmado.';
-  return;
- }
  workDeleteSubmitting=true;
  btn.disabled=true;
  node('manageWorksFeedback').textContent='Conferindo novamente e excluindo a obra…';
