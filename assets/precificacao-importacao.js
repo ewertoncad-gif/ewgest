@@ -65,9 +65,9 @@ async function abrir(r,values,onSave){
  const ids=new Map(categorias.map(x=>[x.nome,x.id]));
  const emp=currentCompany?.id;
  if(!emp)throw Error('Empresa da sessão não identificada.');
- $('ewPriceWork').textContent='Carregando categorias do cadastro…';
+ $$('ewPriceWork').textContent='Carregando categorias do cadastro…';
  wrapper.classList.remove('hidden');
- $('ewPriceConfirmar').disabled=true;
+ $$('ewPriceConfirmar').disabled=true;
  try{
   await ensureSession();
   // Catálogo da empresa é reutilizado, mas o vínculo de cada esquadria é
@@ -110,10 +110,10 @@ async function abrir(r,values,onSave){
   });
   estado={r,values,fab,inst,categorias,itens,pctBp:null,proxima:5,calculado:null};
   salvar=onSave;gravando=false;
-  $('ewPriceWork').textContent=r.nomeObra+' · '+r.codigo+' · '+itens.length+' itens';
-  $('ewPricePercent').value=(fab/(fab+inst)*100).toFixed(2);
-  $('ewPricePercentHint').textContent='Sugerido a partir do orçamento.';
-  $('ewPriceNovaCategoria').value='';
+  $$('ewPriceWork').textContent=r.nomeObra+' · '+r.codigo+' · '+itens.length+' itens';
+  $$('ewPricePercent').value=(fab/(fab+inst)*100).toFixed(2);
+  $$('ewPricePercentHint').textContent='Sugerido a partir do orçamento.';
+  $$('ewPriceNovaCategoria').value='';
   renderizar();
  }catch(e){
   fechar();
@@ -142,7 +142,7 @@ function renderizar(){
     (temItens?' disabled title="Mova as esquadrias antes de excluir"':'')+'>Excluir</button></td></tr>';
   }).join('')+'</tbody></table>';
  // Exibir esquadrias agrupadas por categoria, com possibilidade de mover cada item.
- $('ewPriceItens').innerHTML='<table><thead><tr><th>Código</th><th>Descrição</th><th>Qtd.</th><th>Área</th><th>Categoria</th><th>Fabricação</th><th>Instalação</th></tr></thead><tbody>'+
+ $$('ewPriceItens').innerHTML='<table><thead><tr><th>Código</th><th>Descrição</th><th>Qtd.</th><th>Área</th><th>Categoria</th><th>Fabricação</th><th>Instalação</th></tr></thead><tbody>'+
  s.categorias.map(cat=>{
   const porGrupo=s.itens.filter(x=>x.categoriaId===cat.id).sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR'));
   if(!porGrupo.length)return '';
@@ -208,8 +208,8 @@ function atualizar(){
 }
 function invalidar(msg){
  if(estado)estado.calculado=null;
- $('ewPriceErro').textContent=msg;
- $('ewPriceConfirmar').disabled=true;
+ $$('ewPriceErro').textContent=msg;
+ $$('ewPriceConfirmar').disabled=true;
 }
 function montarDraft(){
  const s=estado,r=s?.calculado;
