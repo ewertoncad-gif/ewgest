@@ -2811,6 +2811,8 @@ assert.ok(source.includes("const qtd=Number(row.querySelector('.finQty').value),
  source.includes("valor_unitario:preco")&&
  source.includes('type="text" inputmode="decimal" autocomplete="off" placeholder="R$ 0,00"'),
  'Valor formatado não deve ser transmitido à RPC: apenas o número validado');
+assert.ok(source.includes(".finTable .finPrice{width:140px;min-width:130px;box-sizing:border-box}"),
+ 'Campo de preço deve exibir R$ 1.500,00 inteiro em vez de truncar');
 assert.ok(source.includes("node('finBillingForm').reset();node('finBillingDate').value=todayLocal();")&&
  source.includes('id="finBillingDate" type="date" required')&&
  !source.includes('id="finBillingDate" type="date" readonly')&&
