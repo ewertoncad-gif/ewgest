@@ -27,7 +27,7 @@ assert.ok(js.includes("m.origem==='SAIDA_OBRA'"),
  'Saída direta precisa aparecer no relatório de estoque');
 assert.match(js,/PLANO_CORTE.*PLANO_CORTE_LOTE.*SAIDA_OBRA/s,
  'Perfil entregue à produção e entregue direto para obra entram no peso');
-assert.ok(js.includes("x.i.area_m2"),'Área expedida deve considerar marco e folhas');
+assert.ok(js.includes("areaLinha(x.i,partes)"),'Área expedida deve considerar marco e folhas, inclusive histórico');
 assert.ok(css.includes('.reportsChoices'),'Filtros de seleção de obras precisam da grade');
 assert.match(html,/function carregarMateriaisDisponiveisRomaneio\(\)/,
  'Romaneio precisa carregar saldos reais');
