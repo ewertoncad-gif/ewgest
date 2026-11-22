@@ -27,6 +27,7 @@ DECLARE
  v_count int:=0;
  v_shipped numeric;
  v_seen uuid[]:=ARRAY[]::uuid[];
+ v_precificacao_revisao_id uuid;
 BEGIN
  PERFORM public.ew_exigir_sessao_atual();
  IF v_uid IS NULL OR NOT EXISTS(SELECT 1 FROM public.usuarios_empresas ue
@@ -52,10 +53,10 @@ BEGIN
  IF NOT FOUND THEN RAISE EXCEPTION 'Orçamento financeiro da obra não encontrado.';END IF;
  -- Nas obras precificadas, usar a DISTRIBUIÇÃO aprovada, não os valores
  -- originais 70/30. Obras antigas continuam usando orçamento legado.
- SELECT CASE p_categoria
+ SELECT id,CASE p_categoria
    WHEN 'fabricacao' THEN fabricacao_distribuida_centavos::numeric/100
    ELSE instalacao_distribuida_centavos::numeric/100 END
- INTO v_budget
+ INTO v_precificacao_revisao_id,v_budget
  FROM public.ew_precificacao_revisoes
  WHERE empresa_id=p_empresa_id AND obra_id=p_obra_id AND estado='aprovada'
  ORDER BY versao DESC LIMIT 1;
@@ -76,6 +77,18 @@ BEGIN
   SELECT * INTO v_esquadria FROM public.esquadrias WHERE id=(v_item->>'esquadria_id')::uuid
     AND empresa_id=p_empresa_id AND obra_id=p_obra_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Esquadria do faturamento não pertence à obra.';END IF;
+  -- Segurança no servidor: em obras precificadas, nenhum documento pode
+  -- contornar o cadastro individual aprovado, ainda que o cliente REST seja
+  -- invocado diretamente sem passar pela interface.
+  IF v_precificacao_revisao_id IS NOT NULL AND NOT EXISTS(
+   SELECT 1 FROM public.ew_precificacao_revisoes_itens pi
+   WHERE pi.revisao_id=v_precificacao_revisao_id
+    AND pi.empresa_id=p_empresa_id AND pi.obra_id=p_obra_id
+    AND pi.esquadria_id=v_esquadria.id
+    AND pi.quantidade=v_esquadria.quantidade
+  ) THEN
+   RAISE EXCEPTION 'Esquadria sem precificação individual aprovada ou com quantidade divergente: %.',v_esquadria.codigo;
+  END IF;
   v_quantidade:=(v_item->>'quantidade')::numeric;
   v_unit:=(v_item->>'valor_unitario')::numeric;
   IF v_quantidade<=0 OR v_quantidade>v_esquadria.quantidade OR v_quantidade<>round(v_quantidade,6) OR
