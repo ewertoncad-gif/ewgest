@@ -712,7 +712,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.6</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.7</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -890,7 +890,7 @@
           <div id="finSummary"></div>
           <div class="section panel" id="finBillingPanel">
             <h2>Faturamento por esquadria</h2>
-            <p class="hint">Romaneio confirma a saída, mas NÃO gera faturamento. Marque os itens, informe o valor unitário de cada um e registre fabricação ou instalação separadamente. Apenas itens com romaneio completo podem ser faturados nesta etapa.</p>
+            <p class="hint">Romaneio confirma a saída, mas NÃO gera faturamento. Marque os itens e informe o preço unitário da esquadria inteira (100%): a quantidade equivalente indicará a fração a faturar. Registre fabricação ou instalação separadamente. É possível faturar esquadrias parcialmente expedidas; a quantidade faturável acompanha marco (50%) e folhas físicas (50% dividido pelo número de folhas).</p>
             <form id="finBillingForm">
               <div class="finFormRows">
                 <label>Faturar
@@ -7518,7 +7518,7 @@ async function finLoad(){
  node('finMessage').textContent='Consultando orçamento, despesas e faturamentos…';
  try{
   await ensureSession();
-  const [b,c,fat,perfis,aces,roms,variacoes,galpoes,niveis,materiaisObra,comprimentos,barraCem,fornecedores]=await Promise.all([
+  const [b,c,fat,perfis,aces,roms,variacoes,galpoes,niveis,materiaisObra,comprimentos,barraCem,fornecedores,composicoes]=await Promise.all([
    apiGet('ew_obra_orcamento',{select:'*',empresa_id:empresa,obra_id:obra,limit:'1'}),
    apiGet('ew_obra_despesas',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
    apiGet('ew_obra_faturamentos',{select:'*',empresa_id:empresa,obra_id:obra,order:'criado_em.desc',limit:'1000'}),
@@ -7531,7 +7531,8 @@ async function finLoad(){
    apiGet('ew_cem_obras_materiais',{select:'*',empresa_id:empresa,obra_id:obra,limit:'10000'}),
    apiGet('ew_comprimentos_comerciais',{select:'comprimento_mm',empresa_id:empresa,order:'comprimento_mm.asc',limit:'100'}),
    apiGet('ew_estoque_obras_movimentos',{select:'variacao_id,comprimento_mm,quantidade_delta,origem',empresa_id:empresa,obra_id:obra,origem:'eq.IMPORTACAO_CEM',unidade:'eq.BARRA',limit:'3000'}),
-   apiGet('ew_fornecedores',{select:'id,nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'1000'})
+   apiGet('ew_fornecedores',{select:'id,nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'1000'}),
+   apiGet('esquadrias_saida_config',{select:'esquadria_id,folhas_por_unidade',limit:'10000'})
   ]);
   if(node('finWork').value!==obraId)return;
   if(!b?.length){node('finMessage').textContent='Esta obra ainda não possui orçamento cadastrado. As novas importações agora exigem essa etapa.';return;}
@@ -7551,9 +7552,7 @@ async function finLoad(){
    apiGet('ew_nfe_recebimentos',{select:'id,despesa_item_id,variacao_id,quantidade,unidade,comprimento_mm,local_estoque,criado_em,estornado_em,estorno_motivo,estorno_detalhes',
      empresa_id:empresa,obra_id:obra,limit:'10000'})
   ]);
-  const shipped=new Map();
-  for(const x of romLinhas||[])if(x.esquadria_id&&x.natureza==='esquadria'&&x.tipo_saida==='completo')
-    shipped.set(x.esquadria_id,(shipped.get(x.esquadria_id)||0)+Number(x.quantidade||0));
+  const shipped=finEquivalentesExpedidos(romLinhas,composicoes);
   const billed={fabricacao:new Map(),instalacao:new Map()};
   const header=new Map((fat||[]).filter(x=>x.status==='emitido').map(x=>[x.id,x]));
   for(const x of linhas||[]){
@@ -7919,6 +7918,32 @@ async function finCancelarLancamento(tipo,id){
   node('finMessage').textContent='Lançamento cancelado com histórico preservado.';
  }catch(e){node('finMessage').textContent='Não foi possível cancelar: '+e.message;}
 }
+// Faturamento parcial: quantidade equivalente de esquadria (1 = conjunto completo).
+// Os romaneios ativos são a evidência da expedição; nenhum valor é faturado automaticamente.
+function finEquivalentesExpedidos(linhas,composicoes){
+ const folhasPorItem=new Map((composicoes||[]).map(c=>[c.esquadria_id,Number(c.folhas_por_unidade)]));
+ const enviados=new Map();
+ for(const x of linhas||[]){
+  if(x.natureza!=='esquadria'||!x.esquadria_id)continue;
+  const q=Number(x.quantidade);
+  if(!Number.isSafeInteger(q)||q<1)throw new Error('Quantidade de expedição inválida no histórico do faturamento.');
+  let equiv;
+  if(x.tipo_saida==='completo')equiv=q;
+  else if(x.tipo_saida==='marco')equiv=q/2;
+  else if(x.tipo_saida==='folha'){
+   const per=folhasPorItem.get(x.esquadria_id);
+   if(!Number.isSafeInteger(per)||per<1||per>12)
+    throw new Error('Composição das folhas indisponível para uma esquadria expedida parcialmente.');
+   equiv=q/(2*per);
+  }else throw new Error('Tipo de saída não reconhecido no histórico financeiro.');
+  enviados.set(x.esquadria_id,(enviados.get(x.esquadria_id)||0)+equiv);
+ }
+ return enviados;
+}
+// Arredondar para baixo (6 casas) evita faturar centésimos de unidade ainda não enviados.
+function finEquivDisponivel(v){return Math.max(0,Math.floor((Number(v)||0)*1000000+1e-8)/1000000);}
+function finEquivFormat(v){return Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:6});}
+
 function finRenderFaturaveis(){
  if(!finState)return;
  const tipo=node('finBillingCategory').value,items=elements.filter(e=>e.obra_id===finState.obraId);
@@ -7926,19 +7951,19 @@ function finRenderFaturaveis(){
  const rows=items.map(e=>{
   const enviados=Math.min(Number(e.quantidade),finState.shipped.get(e.id)||0);
   const ja=finState.billed[tipo].get(e.id)||0;
-  const disponivel=Math.max(0,enviados-ja);
+  const disponivel=finEquivDisponivel(Math.min(Number(e.quantidade)-ja,enviados-ja));
   return {e,enviados,ja,disponivel};
  }).filter(r=>r.enviados>0);
  node('finBillingRows').innerHTML=rows.length?'<div class="finTableWrap"><table class="finTable"><thead><tr>'+
-  '<th>Faturar</th><th>Esquadria</th><th>Romaneios completos</th><th>Já faturado ('+
-  (tipo==='fabricacao'?'fab.':'inst.')+')</th><th>Disponível</th><th>Qtd.</th><th>Valor/un. (R$)</th></tr></thead><tbody>'+
+  '<th>Faturar</th><th>Esquadria</th><th>Expedido (equiv.)</th><th>Já faturado ('+
+  (tipo==='fabricacao'?'fab.':'inst.')+')</th><th>Disponível</th><th>Qtd. equivalente</th><th>Valor/un. integral (R$)</th></tr></thead><tbody>'+
  rows.map(r=>'<tr class="finInvoiceRow" data-esq="'+escapeHTML(r.e.id)+'" data-max="'+r.disponivel+'">'+
   '<td class="finRowCheck"><input class="finSelected" type="checkbox"'+(r.disponivel===0?' disabled':'')+'></td>'+
   '<td><strong>'+escapeHTML(r.e.codigo)+'</strong><div class="hint">'+escapeHTML(r.e.descricao||'')+'</div></td>'+
-  '<td>'+r.enviados+'</td><td>'+r.ja+'</td><td>'+r.disponivel+'</td>'+
-  '<td><input class="finQty finSmallInput" type="number" min="1" max="'+r.disponivel+'" step="1" value="'+(r.disponivel||'')+'"'+(r.disponivel===0?' disabled':'')+'></td>'+
-  '<td><input class="finPrice finSmallInput" type="number" min="0.0001" step="0.0001" placeholder="Valor"'+(r.disponivel===0?' disabled':'')+'></td></tr>').join('')+
-  '</tbody></table></div>':'<p class="hint">Nenhuma esquadria com saída completa em romaneio ativo está disponível nesta obra.</p>';
+  '<td>'+finEquivFormat(r.enviados)+'</td><td>'+finEquivFormat(r.ja)+'</td><td>'+finEquivFormat(r.disponivel)+'</td>'+
+  '<td><input class="finQty finSmallInput" type="number" min="0.000001" max="'+r.disponivel+'" step="0.000001" value="'+(r.disponivel||'')+'"'+(r.disponivel===0?' disabled':'')+'></td>'+
+  '<td><input class="finPrice finSmallInput" type="number" min="0.0001" step="0.0001" placeholder="Preço total da esquadria"'+(r.disponivel===0?' disabled':'')+'></td></tr>').join('')+
+  '</tbody></table></div>':'<p class="hint">Nenhuma esquadria com saída registrada em romaneio ativo está disponível nesta obra.</p>';
  node('finBillingRows').querySelectorAll('input').forEach(x=>x.addEventListener('input',finAtualizarSomaFatura));
  finAtualizarSomaFatura();
 }
@@ -8088,9 +8113,10 @@ async function finRegistrarFaturamento(event){
  for(const row of node('finBillingRows').querySelectorAll('.finInvoiceRow')){
   if(!row.querySelector('.finSelected').checked)continue;
   const qtd=Number(row.querySelector('.finQty').value),preco=Number(row.querySelector('.finPrice').value);
-  if(!Number.isSafeInteger(qtd)||qtd<1||qtd>Number(row.dataset.max)||
+  if(!Number.isFinite(qtd)||qtd<=0||qtd>Number(row.dataset.max)+1e-9||
+     Math.abs(qtd*1000000-Math.round(qtd*1000000))>0.00001||
      !Number.isFinite(preco)||preco<=0||Math.abs(preco*10000-Math.round(preco*10000))>0.00001){
-   node('finBillingMessage').textContent='Verifique as quantidades e os valores unitários dos itens marcados.';return;
+   node('finBillingMessage').textContent='Verifique as quantidades equivalentes (até 6 casas) e os preços das esquadrias completas.';return;
   }
   itens.push({esquadria_id:row.dataset.esq,quantidade:qtd,valor_unitario:preco});
  }
