@@ -304,4 +304,50 @@ BEGIN
  END;
 END $security$;
 
-SELECT 'OK v46.15: galpão alternativo, consumo, romaneio, cadeia entre obras, entrada e usuário' AS resultado;
+-- Perfil ADM sem login ativo não autoriza estorno, mesmo com vínculo
+-- em usuarios_empresas e JWT de uma sessão anteriormente autenticada.
+DO $security_inactive$
+DECLARE adm uuid:='11111111-1111-4111-8111-111111111111';
+ empresa uuid:='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+ op uuid:='aaaa0008-0000-4000-8000-000000000008';
+ err text;antes int;apos int;
+BEGIN
+ PERFORM set_config('request.jwt.claim.sub',adm::text,false);
+ SELECT count(*) INTO antes FROM public.ew_estoque_obras_movimentos;
+ UPDATE public.usuarios_login SET ativo=false
+ WHERE usuario_id=adm AND empresa_id=empresa;
+ BEGIN
+  PERFORM public.ew_estornar_transferencia_entre_obras(
+   empresa,op,'Login ADM desativado deve impedir estorno',gen_random_uuid());
+  RAISE EXCEPTION 'Segurança: login ADM inativo foi aceito';
+ EXCEPTION WHEN OTHERS THEN
+  GET STACKED DIAGNOSTICS err=MESSAGE_TEXT;
+  IF err NOT LIKE 'Somente ADM%' THEN RAISE; END IF;
+ END;
+ UPDATE public.usuarios_login SET ativo=true,excluido_em=now()
+ WHERE usuario_id=adm AND empresa_id=empresa;
+ BEGIN
+  PERFORM public.ew_estornar_transferencia_entre_obras(
+   empresa,op,'Login ADM excluído deve impedir estorno',gen_random_uuid());
+  RAISE EXCEPTION 'Segurança: login ADM excluído foi aceito';
+ EXCEPTION WHEN OTHERS THEN
+  GET STACKED DIAGNOSTICS err=MESSAGE_TEXT;
+  IF err NOT LIKE 'Somente ADM%' THEN RAISE; END IF;
+ END;
+ UPDATE public.usuarios_login SET excluido_em=NULL,perfil='almoxarife'
+ WHERE usuario_id=adm AND empresa_id=empresa;
+ BEGIN
+  PERFORM public.ew_estornar_transferencia_entre_obras(
+   empresa,op,'Perfil divergente deve impedir estorno',gen_random_uuid());
+  RAISE EXCEPTION 'Segurança: perfis divergentes foram aceitos';
+ EXCEPTION WHEN OTHERS THEN
+  GET STACKED DIAGNOSTICS err=MESSAGE_TEXT;
+  IF err NOT LIKE 'Somente ADM%' THEN RAISE; END IF;
+ END;
+ UPDATE public.usuarios_login SET perfil='administrador'
+ WHERE usuario_id=adm AND empresa_id=empresa;
+ SELECT count(*) INTO apos FROM public.ew_estoque_obras_movimentos;
+ IF antes<>apos THEN RAISE EXCEPTION 'Segurança: tentativa negada modificou estoque';END IF;
+END $security_inactive$;
+
+SELECT 'OK v46.15: galpão alternativo, consumo, romaneio, cadeia entre obras, entrada e usuário, login ativo/perfil' AS resultado;
