@@ -2073,7 +2073,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.7')&&
+assert.ok(source.includes('v46.8')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2306,7 +2306,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.7</strong>'),
+ source.includes('EWGEST <strong>· v46.8</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2778,5 +2778,48 @@ for(const trecho467 of [
 ])assert.ok(financeiroSQL467.includes(trecho467),'Proteção financeira ausente no SQL: '+trecho467);
 assert.ok(!financeiroSQL467.includes('v_quantidade::integer,v_unit'),
  'Persistência de fração não pode truncar para unidade inteira');
+
+
+// EWGEST v46.8 — data local automática e preço integral formatado em BRL.
+const fnPrecoStart=source.indexOf('function finPrecoValor(texto){');
+const fnPrecoEnd=source.indexOf('function finRenderFaturaveis(){',fnPrecoStart);
+assert.ok(fnPrecoStart>=0&&fnPrecoEnd>fnPrecoStart,'Conversão BRL deve estar no módulo financeiro');
+const {finPrecoValor:precoValor468,finPrecoFormatar:precoFormatar468,
+ finPrecoEdicao:precoEdicao468}=new Function(source.slice(fnPrecoStart,fnPrecoEnd)+
+ '\nreturn {finPrecoValor,finPrecoFormatar,finPrecoEdicao};')();
+for(const [texto,numero] of [
+ ['1500',1500],['1500,00',1500],['R$ 1.500,00',1500],
+ ['1.500,25',1500.25],['1500,25',1500.25],['1500.25',1500.25],
+ ['1500,1234',1500.1234],['0,0001',0.0001],['1.500',1500]
+])assert.ok(Math.abs(precoValor468(texto)-numero)<1e-8,'Preço incorreto: '+texto);
+for(const ruim of ['-10','1.000,12345','1.23.45','R$abc','1500x'])assert.ok(
+ Number.isNaN(precoValor468(ruim)),'Não aceitar preço inválido: '+ruim);
+assert.match(precoFormatar468(1500),/R\$\s*1\.500,00/,
+ 'Preço de R$ 1.500,00 deve usar separador de milhares e decimal brasileiro');
+assert.match(precoFormatar468(1500.25),/1\.500,25/,
+ 'Centavos não podem ser perdidos');
+assert.match(precoFormatar468(1500.1234),/1\.500,1234/,
+ 'Precisão de quatro casas permitida pela RPC não pode ser perdida pela máscara');
+assert.equal(precoEdicao468(1500.25),'1500,25',
+ 'Ao focar, o preço deve retornar a formato fácil de editar');
+assert.equal(precoValor468(precoFormatar468(1500)),1500,
+ 'Preço brasileiro deve voltar como número 1500 para a RPC');
+assert.equal(Math.round(.75*precoValor468('R$ 1.500,00')*100)/100,1125,
+ 'EA2 75% × preço integral R$ 1.500,00 = R$ 1.125,00');
+assert.ok(source.includes("const qtd=Number(row.querySelector('.finQty').value),preco=finPrecoValor(row.querySelector('.finPrice').value)")&&
+ source.includes("const valor=finPrecoValor(row.querySelector('.finPrice').value)")&&
+ source.includes("valor_unitario:preco")&&
+ source.includes('type="text" inputmode="decimal" autocomplete="off" placeholder="R$ 0,00"'),
+ 'Valor formatado não deve ser transmitido à RPC: apenas o número validado');
+assert.ok(source.includes("node('finBillingForm').reset();node('finBillingDate').value=todayLocal();")&&
+ source.includes('id="finBillingDate" type="date" required')&&
+ !source.includes('id="finBillingDate" type="date" readonly')&&
+ !source.includes('id="finBillingDate" type="date" disabled'),
+ 'Data deve iniciar com hoje após reset e continuar editável');
+const inicioHoje468=source.indexOf('function todayLocal(){'),fimHoje468=source.indexOf('let releaseOperationId=',inicioHoje468);
+assert.ok(inicioHoje468>=0&&fimHoje468>inicioHoje468,'Data local deve ser calculada no navegador');
+const calendario468=new Function('Date',source.slice(inicioHoje468,fimHoje468)+'\nreturn todayLocal();')(
+ class DataFalsa{getFullYear(){return 2026;}getMonth(){return 10;}getDate(){return 22;}});
+assert.equal(calendario468,'2026-11-22','Data local independente de UTC e meia-noite');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
