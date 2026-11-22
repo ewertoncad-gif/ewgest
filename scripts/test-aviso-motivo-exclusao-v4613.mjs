@@ -12,7 +12,7 @@ assert.ok(uiStart>0&&uiEnd>uiStart&&clickStart>uiEnd&&clickEnd>clickStart,
  'Funções reais de exclusão de obras precisam estar na página');
 const updater=html.slice(uiStart,uiEnd);
 const handler=html.slice(clickStart,clickEnd);
-assert.match(html,/EWGEST <strong>· v46\.17<\/strong>/);
+assert.match(html,/EWGEST <strong>· v46\.18<\/strong>/);
 assert.match(updater,/!info\?\.permitido\|\|workDeleteSubmitting/);
 assert.match(handler,/window\.alert\(mensagem\)/);
 assert.match(handler,/motivoCampo\.focus\(\)/);
