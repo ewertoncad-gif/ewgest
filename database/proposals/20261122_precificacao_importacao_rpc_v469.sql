@@ -207,6 +207,8 @@ BEGIN
      NOT EXISTS(SELECT 1 FROM jsonb_array_elements(p_precificacao->'categorias') c
           WHERE c->>'id_local'=v_item->>'categoria_id_local')
   THEN RAISE EXCEPTION 'Item % diverge do CEM ou da categoria selecionada.',v_idx+1; END IF;
+  IF jsonb_typeof(v_item->'definir_padrao_tipologia') IS DISTINCT FROM 'boolean'
+  THEN RAISE EXCEPTION 'Definição de categoria padrão inválida no item %.',v_idx+1; END IF;
   IF jsonb_typeof(v_item->'fabricacao_centavos') IS DISTINCT FROM 'number' OR
      jsonb_typeof(v_item->'instalacao_centavos') IS DISTINCT FROM 'number' OR
      (v_item->>'fabricacao_centavos')::numeric<0 OR
@@ -355,6 +357,25 @@ BEGIN
    (v_item->>'quantidade')::integer,round((v_item->>'area_m2')::numeric,6),
    (v_item->>'fabricacao_centavos')::bigint,(v_item->>'instalacao_centavos')::bigint
   );
+  IF (v_item->>'definir_padrao_tipologia')::boolean THEN
+   IF v_tipo_id IS NULL THEN
+    RAISE EXCEPTION 'Só é possível salvar categoria padrão para tipologia cadastrada e identificada sem ambiguidades (%).',v_item->>'referencia_tipologia';
+   END IF;
+   IF EXISTS(
+    SELECT 1 FROM jsonb_array_elements(p_precificacao->'itens') outro
+    WHERE upper(btrim(coalesce(outro->>'referencia_tipologia','')))=
+          upper(btrim(coalesce(v_item->>'referencia_tipologia','')))
+      AND outro->>'categoria_id_local' IS DISTINCT FROM v_item->>'categoria_id_local'
+      AND (outro->>'definir_padrao_tipologia')::boolean IS TRUE
+   ) THEN RAISE EXCEPTION 'A mesma tipologia não pode ter duas categorias padrão diferentes na importação.';END IF;
+   INSERT INTO public.ew_precificacao_tipologias_padrao(
+    empresa_id,tipologia_id,categoria_id,alterado_por)
+   VALUES(p_empresa_id,v_tipo_id,v_categoria_uuid,v_uid)
+   ON CONFLICT (empresa_id,tipologia_id) DO UPDATE
+    SET categoria_id=EXCLUDED.categoria_id,
+        alterado_por=EXCLUDED.alterado_por,
+        atualizado_em=now();
+  END IF;
   v_idx:=v_idx+1;
  END LOOP;
 
