@@ -87,7 +87,7 @@ assert.equal(vazio.requests[0].path,'/rest/v1/rpc/ew_arquivar_obra_reconciliada'
 assert.equal(vazio.requests[0].options.body.p_motivo,'Exclusão de obra de treinamento');
 assert.equal(vazio.el('manageWorksDelete').disabled,true,'Após exclusão, bloquear botão sem inspeção ativa');
 
-assert.doesNotMatch(handler,/window\\.prompt\\(/,'Não pedir código digitado para concluir exclusão');
+assert.ok(!handler.includes('window.prompt('),'Não pedir código digitado para concluir exclusão');
 
 const negado=setup({permitido:false});
 negado.update();
