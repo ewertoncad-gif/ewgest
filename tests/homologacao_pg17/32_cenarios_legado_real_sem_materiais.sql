@@ -61,6 +61,7 @@ BEGIN
 
  -- Códigos CEM repetidos não podem colidir os IDs, posições ou preços.
  d:=jsonb_set(p,'{codigo_obra}',to_jsonb('HOMOLOG-EA-IGUAL-REAL'::text));
+ d:=jsonb_set(d,'{nome_obra}',to_jsonb('OBRA FICTICIA DUPLICADOS'::text));
  d:=jsonb_set(d,'{operacao_id}',to_jsonb('f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f1f1'::text));
  d:=jsonb_set(d,'{esquadrias,1,codigo}',to_jsonb('EA01'::text));
  d:=jsonb_set(d,'{precificacao,itens,1,codigo}',to_jsonb('EA01'::text));
@@ -82,6 +83,7 @@ BEGIN
  SELECT count(*) INTO old_esquadrias FROM public.esquadrias;
  SELECT count(*) INTO old_precos FROM public.ew_precificacao_revisoes;
  d:=jsonb_set(p,'{codigo_obra}',to_jsonb('HOMOLOG-ERRO-REAL'::text));
+ d:=jsonb_set(d,'{nome_obra}',to_jsonb('OBRA FICTICIA ERRO NO ORCAMENTO'::text));
  d:=jsonb_set(d,'{operacao_id}',to_jsonb('f2f2f2f2-f2f2-42f2-82f2-f2f2f2f2f2f2'::text));
  d:=jsonb_set(d,'{orcamento,niveis,0,nivel}',to_jsonb('INSTALACAO'::text));
  BEGIN
