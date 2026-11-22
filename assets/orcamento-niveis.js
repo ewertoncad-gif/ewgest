@@ -212,7 +212,7 @@
     r.orcamentoDraft=values;r.precificacaoDraft=null;
     node('cemQuoteError').textContent='';
     node('cemQuoteOverlay').classList.add('hidden');
-    window.ewPrecificacaoImportacao.abrir(r,values,async(draft)=>{
+    await window.ewPrecificacaoImportacao.abrir(r,values,async(draft)=>{
      r.precificacaoDraft=draft;r.confirmacaoInicialFeita=true;
      await cemImportarSelecionados();
      if(!r.jaImportado)throw new Error(node('cemImportResult').textContent||'A gravação não foi confirmada.');
@@ -232,7 +232,7 @@
    node('cemQuoteError').textContent='';
    node('cemQuoteOverlay').classList.add('hidden');
    await cemImportarSelecionados();
-  }catch(e){node('cemQuoteError').textContent=e.message;}
+  }catch(e){node('cemQuoteOverlay').classList.remove('hidden');node('cemQuoteError').textContent=e.message;}
  };
  node('cemQuoteTotal').addEventListener('focus',event=>{
   // Quando o browser preenche o campo sem input/change, corrige ao receber foco.
@@ -322,11 +322,16 @@
    if(temPreco){
     if(!window.ewPrecificacaoImportacao?.abrir)
      throw new Error('Tela de precificação não disponível. Atualize a página.');
-    window.ewPrecificacaoImportacao.abrir(r,r.orcamentoDraft,async(draft)=>{
-     r.precificacaoDraft=draft;r.confirmacaoInicialFeita=true;
-     await cemImportarSelecionados();
-     if(!r.jaImportado)throw new Error(node('cemImportResult').textContent||'A gravação não foi confirmada.');
-    });
+    try{
+     await window.ewPrecificacaoImportacao.abrir(r,r.orcamentoDraft,async(draft)=>{
+      r.precificacaoDraft=draft;r.confirmacaoInicialFeita=true;
+      await cemImportarSelecionados();
+      if(!r.jaImportado)throw new Error(node('cemImportResult').textContent||'A gravação não foi confirmada.');
+     });
+    }catch(e){
+     node('cemQuoteOverlay').classList.remove('hidden');
+     node('cemQuoteError').textContent='Não foi possível abrir a precificação: '+e.message;
+    }
     return;
    }
   }
