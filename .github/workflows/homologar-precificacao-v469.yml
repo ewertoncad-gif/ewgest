@@ -102,8 +102,8 @@ jobs:
         run: |
           set -euo pipefail
           echo "Banco isolado como servico descartavel; nenhum ID, URL ou segredo do Supabase configurado."
-          # 1 revisão dos testes SQL + 1 importada por HTTP; nenhum retry duplica.
-          psql -v ON_ERROR_STOP=1 -tAc "select count(*) from public.ew_precificacao_revisoes" | grep -Fx '2'
+          # 1 revisão SQL + 1 importação HTTP + 1 concorrente simultânea; nenhum retry duplica.
+          psql -v ON_ERROR_STOP=1 -tAc "select count(*) from public.ew_precificacao_revisoes" | grep -Fx '3'
 
   importador-legado-real:
     name: Testar importador CEM e financeiro REAL sem materiais
