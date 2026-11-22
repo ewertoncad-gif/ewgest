@@ -176,6 +176,13 @@ BEGIN
          round((v_item.largura_mm*v_item.altura_mm*v_qty/(2000000.0*v_per))::numeric,3)
        else null end;
    ELSE
+     -- A baixa de material é atribuição do almoxarife ou ADM.
+     IF NOT EXISTS(SELECT 1 FROM public.usuarios_empresas ue
+       JOIN public.usuarios_login ul ON ul.empresa_id=ue.empresa_id AND ul.usuario_id=ue.usuario_id
+       WHERE ue.usuario_id=v_uid AND ue.empresa_id=v_work.empresa_id
+         AND ue.perfil IN ('administrador','almoxarife')
+         AND ul.perfil=ue.perfil AND ul.ativo AND ul.excluido_em IS NULL)
+       THEN RAISE EXCEPTION 'Somente ADM ou almoxarife pode expedir materiais físicos do estoque.';END IF;
      -- Material avulso NÃO é texto livre: exige estoque real identificado.
      v_tipo_saida:=NULL;
      IF v_line->>'variacao_id' IS NULL OR v_line->>'local_estoque' IS NULL
