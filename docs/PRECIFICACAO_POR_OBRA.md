@@ -70,3 +70,18 @@ Para indicadores de galpão, registrar fábrica designada, liberação, início 
 4. Validar com obra de treinamento recém-importada sem apagar histórico indevidamente.
 
 **Não excluir a obra atual apenas para desenvolver ou validar o núcleo de cálculo.**
+
+## Atualização — etapa visual e integração preparada (22/11/2026)
+
+- [x] Modal `assets/precificacao-importacao.js` e CSS: categorias individuais, criar/renomear/remover categorias sem itens, preço por m², percentual editável, resumos por categoria e item, comparação com orçamento original e fechamento exato.
+- [x] Etapa de orçamento por níveis (`assets/orcamento-niveis.js`) encaminha obras com fabricação/instalação para a precificação, antes de qualquer gravação. Obras sem esses níveis conservam o fluxo anterior; transferências de materiais de obras existentes não abrem a etapa.
+- [x] O frontend (`app.html`) chama a RPC nova `ew_importar_obra_cem_precificacao` apenas com rascunho aprovado e exige `precificacao_gravada=true` na resposta. Nada é gravado apenas por abrir a prévia.
+- [x] Proposta `database/proposals/20261122_precificacao_importador_mapeamento_v469.sql`: adicionar à resposta de importação os UUIDs das esquadrias na **ordem exata do CEM**, sem confundir códigos EA repetidos. DDL original preservado em `20261122_rollback_importador_original_v469.sql`.
+- [x] Proposta `database/proposals/20261122_precificacao_importacao_rpc_v469.sql`: recalcular o rateio determinístico por maiores restos **no servidor** e exigir confirmação de todos os totais, categorias, quantidades, áreas, usuário/empresa e orçamento antes de chamar a importação transacional; persistir somente depois da validação.
+- [x] Testes integrados à suíte do GitHub (static integration, sintaxe JS, motor de cálculo, regressões anteriores).
+- [ ] Validar DDL e execução no Supabase de **homologação compatível com produção**. Não considerar testes estáticos prova de que a RPC funciona no PostgreSQL real.
+- [ ] Aplicar as 3 migrações na ordem, com backup, revisão de segurança, testes de repetição/cancelamento e plano de recuperação. **Não foram aplicadas a produção.**
+- [ ] Adequar o faturamento: usar os valores individuais aprovados como sugestão editável e conciliar os **limites por categoria** com a distribuição ajustada, mantendo original contratual intacto. Sem isso, mudar 70/30 para 60/40 poderia divergir do teto financeiro legado.
+- [ ] Homologar experiência em desktop/celular e importação completa com ZIP de treinamento. **Nenhuma obra foi apagada/reimportada.**
+
+**Restrição de publicação:** o PR permanece em rascunho e não deve ser integrado à `main` antes de ter backend compatível e fluxo financeiro ajustado; caso contrário o botão final encontraria RPC inexistente.
