@@ -1,3 +1,5 @@
+-- APLICADA APENAS NO SUPABASE DE TESTES EM 22/11/2026, após dry-run transacional.
+-- NÃO reaplicar no mesmo staging sem revisar as precondições. PRODUÇÃO INTACTA.
 -- EWGEST v46.9 | reconstrução ADITIVA de contratos essenciais do importador CEM no staging Free
 -- Destino EXCLUSIVO: ewgest-restauracao-teste. Não executar na produção.
 -- Capturado em 22/11/2026 por comparação read-only com esquema real de produção.
