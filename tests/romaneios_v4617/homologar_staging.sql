@@ -21,6 +21,17 @@ INSERT INTO public.ew_estoque_obras_movimentos
  VALUES('9ea7617c-6603-4bc1-91e1-c5e274c334d9','b1111111-1111-4111-8111-111111111111',
  'b3333333-3333-4333-8333-333333333333',6000,'BARRA',5,'ABERTURA',
  gen_random_uuid(),'fixture de homologacao','040b8754-8557-449c-8ad4-eaa34155c920','IMBIRIBEIRA');
+INSERT INTO public.ew_acessorios(id,empresa_id,codigo,descricao,fabricante)
+ VALUES('b8888888-8888-4888-8888-888888888888','9ea7617c-6603-4bc1-91e1-c5e274c334d9',
+ 'TESTE-AC','Acessório de teste','TESTE');
+INSERT INTO public.ew_materiais_variacoes(id,empresa_id,tipo,acessorio_id,ativo)
+ VALUES('b9999999-9999-4999-8999-999999999999','9ea7617c-6603-4bc1-91e1-c5e274c334d9',
+ 'acessorio','b8888888-8888-4888-8888-888888888888',true);
+INSERT INTO public.ew_estoque_obras_movimentos(empresa_id,obra_id,variacao_id,
+ comprimento_mm,unidade,quantidade_delta,origem,operacao_id,observacao,usuario_id,local_estoque)
+ VALUES('9ea7617c-6603-4bc1-91e1-c5e274c334d9','b1111111-1111-4111-8111-111111111111',
+ 'b9999999-9999-4999-8999-999999999999',null,'PC',3,'ABERTURA',gen_random_uuid(),
+ 'fixture de acessório','040b8754-8557-449c-8ad4-eaa34155c920','IMBIRIBEIRA');
 DO $check$
 DECLARE result jsonb;repeated jsonb;c jsonb;saldo numeric;n integer;v_rom_id uuid;err text;
   v_items jsonb:='[{"natureza":"material","variacao_id":"b3333333-3333-4333-8333-333333333333",
@@ -45,6 +56,17 @@ BEGIN
  EXCEPTION WHEN OTHERS THEN
   GET STACKED DIAGNOSTICS err=MESSAGE_TEXT;
   IF err NOT LIKE '%deve ser escolhido do estoque%' THEN RAISE; END IF;
+ END;
+ BEGIN
+  PERFORM public.emitir_romaneio_com_saidas(
+    'b7777777-7777-4777-8777-777777777777','b1111111-1111-4111-8111-111111111111',
+    current_date,'Motorista ficticio','ABC1D23','Duplicação de saldo no mesmo romaneio',
+    jsonb_build_array(jsonb_set(v_items,'{0,quantidade}','3'::jsonb)->0,
+      jsonb_set(v_items,'{0,quantidade}','3'::jsonb)->0));
+  RAISE EXCEPTION 'FALHA: permitiu duas linhas que somavam acima do saldo';
+ EXCEPTION WHEN OTHERS THEN
+  GET STACKED DIAGNOSTICS err=MESSAGE_TEXT;
+  IF err NOT LIKE '%sem saldo%' THEN RAISE; END IF;
  END;
  result:=public.emitir_romaneio_com_saidas(
     'b5555555-5555-4555-8555-555555555555','b1111111-1111-4111-8111-111111111111',
@@ -83,6 +105,22 @@ BEGIN
  SELECT count(*) INTO n FROM public.ew_romaneios_materiais_saidas x
   WHERE x.romaneio_id=v_rom_id AND x.estorno_movimento_id IS NOT NULL;
  IF n<>1 THEN RAISE EXCEPTION 'Estorno sem vínculo auditável';END IF;
+ result:=public.emitir_romaneio_com_saidas(
+    'baaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','b1111111-1111-4111-8111-111111111111',
+    current_date,'Motorista ficticio','ABC1D23','Acessório direto',
+    '[{"natureza":"material","variacao_id":"b9999999-9999-4999-8999-999999999999",
+    "local_estoque":"IMBIRIBEIRA","unidade":"PC","quantidade":2}]'::jsonb);
+ SELECT coalesce(sum(m.quantidade_delta),0) INTO saldo
+ FROM public.ew_estoque_obras_movimentos m
+ WHERE m.obra_id='b1111111-1111-4111-8111-111111111111'
+   AND m.variacao_id='b9999999-9999-4999-8999-999999999999';
+ IF saldo<>1 THEN RAISE EXCEPTION 'Acessório deveria ficar com saldo 1, obtido %',saldo;END IF;
+ PERFORM public.cancelar_romaneio_com_estorno((result->>'id')::uuid,'Devolução física de acessório ao galpão fictício');
+ SELECT coalesce(sum(m.quantidade_delta),0) INTO saldo
+ FROM public.ew_estoque_obras_movimentos m
+ WHERE m.obra_id='b1111111-1111-4111-8111-111111111111'
+   AND m.variacao_id='b9999999-9999-4999-8999-999999999999';
+ IF saldo<>3 THEN RAISE EXCEPTION 'Acessório não foi devolvido; saldo %',saldo;END IF;
  UPDATE public.usuarios_empresas SET perfil='supervisor'
   WHERE usuario_id='040b8754-8557-449c-8ad4-eaa34155c920';
  UPDATE public.usuarios_login SET perfil='supervisor'
