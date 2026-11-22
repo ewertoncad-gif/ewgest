@@ -1,0 +1,67 @@
+name: Homologar estornos v46.15 sem tocar producao
+
+on:
+  push:
+    branches:
+      - feature/estornos-cadeia-dependencias-v4615
+    paths:
+      - '.github/workflows/homologar-estornos-v4615.yml'
+      - 'tests/estorno_v4615/**'
+      - 'database/proposals/20261122_estornos_rastreabilidade_v4615.sql'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pg17-estornos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: ewgest_estornos_ficticios
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ewgest_estornos_ficticios"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGDATABASE: ewgest_estornos_ficticios
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - name: Obter o codigo
+        uses: actions/checkout@v4
+      - name: Conferir cliente PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+          psql --version
+      - name: Criar exclusivamente dados ficticios
+        run: psql -v ON_ERROR_STOP=1 -f tests/estorno_v4615/00_fixture.sql
+      - name: Compilar as RPCs reais atualizadas
+        run: psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_estornos_rastreabilidade_v4615.sql
+      - name: Verificar isolamento anon e perfil
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -tAc "SELECT NOT has_function_privilege('anon','public.ew_estornar_transferencia_entre_obras(uuid,uuid,text,uuid)','EXECUTE')" | grep -Fx t
+          psql -v ON_ERROR_STOP=1 -tAc "SELECT has_function_privilege('authenticated','public.ew_estornar_transferencia_entre_obras(uuid,uuid,text,uuid)','EXECUTE')" | grep -Fx t
+          psql -v ON_ERROR_STOP=1 -tAc "SELECT NOT has_function_privilege('anon','public.ew_estornar_movimento_obra(uuid,uuid,text,uuid)','EXECUTE')" | grep -Fx t
+      - name: Exercitar estornos reais com dependencias e saldo entre galpoes
+        run: psql -v ON_ERROR_STOP=1 -f tests/estorno_v4615/10_casos.sql
+      - name: Garantir isolamento da producao
+        run: |
+          echo 'PG17 descartavel; sem variaveis Supabase, dados reais ou acesso ao EWGEST online.'
