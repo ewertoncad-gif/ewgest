@@ -8,6 +8,7 @@ on:
       - '.github/workflows/homologar-estornos-v4615.yml'
       - 'tests/estorno_v4615/**'
       - 'database/proposals/20261122_estornos_rastreabilidade_v4615.sql'
+      - 'database/proposals/20261122_estornos_parcelas_v4615.sql'
   workflow_dispatch:
 
 permissions:
@@ -51,6 +52,8 @@ jobs:
           psql --version
       - name: Criar exclusivamente dados ficticios
         run: psql -v ON_ERROR_STOP=1 -f tests/estorno_v4615/00_fixture.sql
+      - name: Criar vínculo auditável e isolado de parcelas
+        run: psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_estornos_parcelas_v4615.sql
       - name: Compilar as RPCs reais atualizadas
         run: psql -v ON_ERROR_STOP=1 -f database/proposals/20261122_estornos_rastreabilidade_v4615.sql
       - name: Verificar isolamento anon e perfil
@@ -60,6 +63,8 @@ jobs:
           psql -v ON_ERROR_STOP=1 -tAc "SELECT NOT has_function_privilege('anon','public.ew_estornar_transferencia_entre_obras(uuid,uuid,text,uuid)','EXECUTE')" | grep -Fx t
           psql -v ON_ERROR_STOP=1 -tAc "SELECT has_function_privilege('authenticated','public.ew_estornar_transferencia_entre_obras(uuid,uuid,text,uuid)','EXECUTE')" | grep -Fx t
           psql -v ON_ERROR_STOP=1 -tAc "SELECT NOT has_function_privilege('anon','public.ew_estornar_movimento_obra(uuid,uuid,text,uuid)','EXECUTE')" | grep -Fx t
+          psql -v ON_ERROR_STOP=1 -tAc "SELECT NOT has_table_privilege('authenticated','public.ew_estornos_parcelas','SELECT')" | grep -Fx t
+          psql -v ON_ERROR_STOP=1 -tAc "SELECT relrowsecurity FROM pg_class WHERE oid='public.ew_estornos_parcelas'::regclass" | grep -Fx t
       - name: Exercitar estornos reais com dependencias e saldo entre galpoes
         run: psql -v ON_ERROR_STOP=1 -f tests/estorno_v4615/10_casos.sql
       - name: Garantir isolamento da producao
