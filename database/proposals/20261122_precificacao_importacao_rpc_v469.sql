@@ -54,6 +54,7 @@ DECLARE
  v_request_hash text;
  v_ids jsonb;
  v_esquadria_id uuid;
+ v_tipo_id uuid;
  v_categoria_nome text;
  v_categoria_base int;
  v_categoria_fab bigint;
@@ -199,6 +200,7 @@ BEGIN
      (v_item->>'indice_importacao')::integer<>v_idx OR
      v_item->>'codigo' IS DISTINCT FROM v_origem->>'codigo' OR
      v_item->>'descricao' IS DISTINCT FROM v_origem->>'descricao' OR
+     v_item->>'referencia_tipologia' IS DISTINCT FROM coalesce(v_origem->>'referencia_tipologia','') OR
      (v_item->>'largura_mm')::numeric<>(v_origem->>'largura_mm')::numeric OR
      (v_item->>'altura_mm')::numeric<>(v_origem->>'altura_mm')::numeric OR
      (v_item->>'quantidade')::integer<>(v_origem->>'quantidade')::integer OR
@@ -330,18 +332,25 @@ BEGIN
   v_origem:=p_esquadrias->v_idx;
   v_esquadria_id:=(v_ids->>v_idx)::uuid;
   v_categoria_uuid:=(v_cat_map->>(v_item->>'categoria_id_local'))::uuid;
+  -- Vínculo por código técnico somente se houver exatamente uma tipologia
+  -- correspondente da mesma empresa. Nunca escolher arbitrariamente.
+  SELECT CASE WHEN count(*)=1 THEN (array_agg(t.id))[1] ELSE NULL END
+   INTO v_tipo_id FROM public.tipologias t
+   WHERE t.empresa_id=p_empresa_id AND
+    upper(btrim(t.codigo))=upper(btrim(coalesce(v_origem->>'referencia_tipologia','')));
   SELECT c->>'nome' INTO v_categoria_nome FROM jsonb_array_elements(p_precificacao->'categorias') c
     WHERE c->>'id_local'=v_item->>'categoria_id_local';
   INSERT INTO public.ew_precificacao_revisoes_itens(
    empresa_id,obra_id,revisao_id,indice_importacao,
    esquadria_id,tipologia_id,categoria_id,categoria_nome_snapshot,
-   codigo_snapshot,descricao_snapshot,linha_snapshot,
+   codigo_snapshot,descricao_snapshot,referencia_tipologia_snapshot,linha_snapshot,
    largura_mm,altura_mm,quantidade,area_m2,
    fabricacao_centavos,instalacao_centavos)
   VALUES(
    p_empresa_id,v_obra_id,v_revisao_id,v_idx,
-   v_esquadria_id,NULL,v_categoria_uuid,upper(btrim(v_categoria_nome)),
-   v_item->>'codigo',coalesce(v_item->>'descricao',''),NULL,
+   v_esquadria_id,v_tipo_id,v_categoria_uuid,upper(btrim(v_categoria_nome)),
+   v_item->>'codigo',coalesce(v_item->>'descricao',''),
+   coalesce(v_item->>'referencia_tipologia',''),NULL,
    (v_item->>'largura_mm')::numeric,(v_item->>'altura_mm')::numeric,
    (v_item->>'quantidade')::integer,round((v_item->>'area_m2')::numeric,6),
    (v_item->>'fabricacao_centavos')::bigint,(v_item->>'instalacao_centavos')::bigint
