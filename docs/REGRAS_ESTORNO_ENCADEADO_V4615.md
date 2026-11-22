@@ -27,6 +27,7 @@ Arquivos versionados:
 - `database/proposals/20261122_transferencias_internas_conciliadas_v4615.sql`: identifica transferências internas com pares íntegros quando não resta outro movimento original aberto nem saldo em galpão.
 - `database/proposals/20261122_estornos_inspecao_lote_v4615.sql`: adapta as RPCs de inspeção e estorno total; contrapartidas `ESTORNO` não são novas pendências; estorno em lote com transferência/consumo ativo é bloqueado; registro de conciliação não cria estoque.
 - `app.html`: no histórico, parcelas extras aparecem como **contrapartidas de estorno**, sem botão para cancelar novamente; transferências internas conciliadas aparecem no histórico completo, não entre pendências.
+- **Segurança (revisão adicional):** o estorno de transferência entre obras confere tanto o vínculo de administrador/gerenciador em `usuarios_empresas` quanto o cadastro `usuarios_login` ativo, não excluído e com perfil consistente. O PostgreSQL 17 fictício verifica bloqueio de login inativo, excluído e perfil divergente, sem gerar movimentações.
 
 Todos os passos financeiros, de produção, liberações e romaneios continuam independentes e não são cancelados automaticamente.
 
