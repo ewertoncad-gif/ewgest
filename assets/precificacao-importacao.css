@@ -34,3 +34,6 @@
 @media(max-width:530px){.ewPriceDialog .ewPriceGrid{grid-template-columns:1fr 1fr;gap:6px}.ewPriceDialog .ewPriceActions label{width:100%;max-width:none}}
 
 .ewPriceDialog .ewPriceGroupRow td{background:#e8f1fb;color:#234d78;padding:10px 12px;font-weight:700;border-top:2px solid #c8ddf0}
+
+.ewPriceDialog .ewPriceDefault{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font-size:11px;color:#33536c}
+.ewPriceDialog .ewPriceDefault input{width:auto;min-width:0;margin:0}
