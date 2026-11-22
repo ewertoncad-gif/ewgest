@@ -11,6 +11,7 @@ import './test-contador-liberacoes-gerenciar-obras-v4612.mjs';
 import './test-aviso-motivo-exclusao-v4613.mjs';
 import './test-estoque-zero-sem-galpao-v4614.mjs';
 import './test-estornos-parcelas-ui-v4615.mjs';
+import './test-relatorios-v4616.mjs';
 const source=readFileSync(fileURLToPath(new URL('../app.html',import.meta.url)),'utf8');
 // Issue #31 — Recebimento separado do Financeiro e operação por perfil.
 const recebimentoSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_recebimento_almoxarife_seguro.sql',import.meta.url)),'utf8');
@@ -2089,7 +2090,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.15')&&
+assert.ok(source.includes('v46.16')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2138,7 +2139,7 @@ assert.ok(source.includes('id="stockTransferPickLocal">Transferência entre galp
  source.includes('id="romTransfMerge"')&&
  source.includes('id="romTransfExtras"')&&
  source.includes('romaneios-transferencia.css?v=20261121c')&&
- source.includes('romaneios-transferencia.js?v=20261121d')&&
+ source.includes('romaneios-transferencia.js?v=20261122a')&&
  source.includes("if(window.ewTransferRomaneiosReload)window.ewTransferRomaneiosReload()"),
  'Transferencia entre galpoes deve ter romaneio na guia de expedicao');
 for(const token of [
@@ -2322,7 +2323,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.15</strong>'),
+ source.includes('EWGEST <strong>· v46.16</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2395,7 +2396,7 @@ assert.ok(transferTransport.includes("apiGet('romaneios_motoristas'")&&
  transferTransport.includes("if(editVersion!==version||editId!==id)return")&&
  transferTransport.includes("void carregarTransporteEdicao(id,version,d.motorista||'',d.placa||'')"),
  'Romaneios de transferencia precisam carregar cadastros ativos, preservar valores validos e bloquear texto livre');
-assert.ok(source.includes('romaneios-transferencia.js?v=20261121d')&&
+assert.ok(source.includes('romaneios-transferencia.js?v=20261122a')&&
  source.includes('romaneios-transferencia.css?v=20261121c')&&
  transferTransportCSS.includes('.romTransfFields select'),
  'O deploy da versao 46.1 precisa atualizar o cache e o estilo do seletor');
