@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS public.ew_precificacao_revisoes (
  empresa_id uuid NOT NULL REFERENCES public.empresas(id) ON DELETE RESTRICT,
  obra_id uuid NOT NULL,
  versao integer NOT NULL CHECK(versao>=1),
+ operacao_id uuid NOT NULL,
  revisao_anterior_id uuid,
  fabricacao_original_centavos bigint NOT NULL CHECK(fabricacao_original_centavos>=0),
  instalacao_original_centavos bigint NOT NULL CHECK(instalacao_original_centavos>=0),
@@ -59,6 +60,7 @@ CREATE TABLE IF NOT EXISTS public.ew_precificacao_revisoes (
  aprovado_por uuid NOT NULL REFERENCES auth.users(id),
  aprovado_em timestamptz NOT NULL DEFAULT now(),
  UNIQUE(empresa_id,obra_id,versao),
+ UNIQUE(empresa_id,operacao_id),
  UNIQUE(id,empresa_id,obra_id),
  FOREIGN KEY(empresa_id,obra_id) REFERENCES public.obras(empresa_id,id)
   ON DELETE RESTRICT,
