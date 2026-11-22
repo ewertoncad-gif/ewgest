@@ -101,7 +101,8 @@ async function abrir(r,values,onSave){
    const tipoId=duplicados.has(codigoReferencia)?null:codigoTipo.get(codigoReferencia);
    return {
     id:'item-'+String(i).padStart(6,'0'),indiceImportacao:i,codigo:x.codigo,
-    descricao:x.descricao,largura_mm:Number(x.largura_mm),altura_mm:Number(x.altura_mm),
+    descricao:x.descricao,referencia_tipologia:String(x.referencia_tipologia||''),
+    largura_mm:Number(x.largura_mm),altura_mm:Number(x.altura_mm),
     quantidade:Number(x.quantidade),
     categoriaId:(tipoId&&padraoPorTipo.get(tipoId))||
      ids.get(motor.sugerirCategoria(x.descricao))||ids.get('OUTROS')
@@ -225,6 +226,7 @@ function montarDraft(){
   itens:r.itens.map(x=>({
    indice_importacao:s.itens.find(y=>y.id===x.id).indiceImportacao,
    categoria_id_local:x.categoriaId,codigo:x.codigo,descricao:x.descricao,
+   referencia_tipologia:s.itens.find(y=>y.id===x.id).referencia_tipologia,
    largura_mm:x.largura_mm,altura_mm:x.altura_mm,quantidade:x.quantidade,
    area_m2:x.areaM2,fabricacao_centavos:x.fabricacaoCentavos,
    instalacao_centavos:x.instalacaoCentavos
