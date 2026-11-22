@@ -65,6 +65,11 @@ jobs:
         run: |
           set -euo pipefail
           psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/10_cenarios.sql
+      - name: Conferir EA repetido, rollback tardio e isolamento multiempresa
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/homologacao_pg17/15_casos_criticos.sql
       - name: Executar RPC real de faturamento com marco, folha e tetos 60/40
         shell: bash
         run: |
