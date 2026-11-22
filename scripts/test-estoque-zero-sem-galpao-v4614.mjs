@@ -10,7 +10,7 @@ assert.ok(start>0&&end>start,'Localizar função real de renderização de estoq
 const source=html.slice(start,end);
 assert.match(source,/const gruposComSaldo=\[\.\.\.grupos.values\(\)\]\.filter/);
 assert.match(source,/local_estoque:'',quantidade:0,informado:false/);
-assert.match(html,/EWGEST <strong>· v46\.14<\/strong>/);
+assert.match(html,/EWGEST <strong>· v46\.15<\/strong>/);
 
 const variation=(id,tipo,code,plan,perWork=[])=>({
  v:{id,tipo,cor:'ANOD-1002',acabamento:'ANODIZADO'},
