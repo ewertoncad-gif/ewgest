@@ -5,7 +5,7 @@
 const el=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:3});
-let docs=[],editId=null,busy=false;
+let docs=[],editId=null,busy=false,archivedNames=new Map();
 let editVersion=0,motoristas=[],veiculos=[],transporteCarregado=false;
 function empresa(){return typeof currentCompany!=='undefined'&&currentCompany?currentCompany.id:null;}
 function dataHoje(){const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');}
@@ -17,7 +17,12 @@ function avisoDocumento(id,message){
  if(alvo)alvo.textContent=String(message||'');
 }
 function rota(d){return d.origem+' → '+d.destino;}
-function obra(id){return (typeof works!=='undefined'&&works||[]).find(w=>w.id===id)?.nome||'Obra '+String(id||'').slice(0,8);}
+function obra(id){
+ return (typeof works!=='undefined'&&works||[]).find(w=>w.id===id)?.nome||
+  archivedNames.get(id)||'Obra histórica '+String(id||'').slice(0,8);
+}
+function obraArquivada(id){return !(typeof works!=='undefined'&&works||[]).some(w=>w.id===id);}
+function incluirArquivados(){return !!el('romTransfIncludeArchived')?.checked;}
 function ativo(d){return d.status==='RASCUNHO'||d.status==='EMITIDO';}
 function estaEstornado(d){return (d.itens||[]).some(i=>i.tipo==='TRANSFERENCIA'&&i.estornado);}
 function itemResumo(i){
@@ -30,22 +35,29 @@ function itemResumo(i){
 function render(){
  const box=el('romTransfList');
  if(!box)return;
- if(!docs.length){box.innerHTML='<p class="hint">Nenhuma transferência documentada após a ativação deste recurso.</p>';return;}
- box.innerHTML=docs.map(d=>{
+ const exibidos=docs.filter(d=>incluirArquivados()||!obraArquivada(d.obra_id));
+ if(!exibidos.length){
+  box.innerHTML='<p class="hint">Nenhum romaneio de transferência de obra ativa. '+
+   'Os documentos das obras arquivadas estão preservados no histórico e podem ser consultados ativando o filtro acima.</p>';
+  return;
+ }
+ box.innerHTML=exibidos.map(d=>{
  const emitted=d.status==='EMITIDO';
  const grouped=d.status==='AGRUPADO';
+ const historico=obraArquivada(d.obra_id);
  return '<div class="romTransfDoc'+(grouped?' grouped':'')+'"><div class="romTransfDocHead">'+
- '<label class="romTransfPick">'+(d.status==='RASCUNHO'?
+ '<label class="romTransfPick">'+(d.status==='RASCUNHO'&&!historico?
  '<input type="checkbox" data-transf-pick="'+esc(d.id)+'" aria-label="Selecionar '+esc(d.numero)+' para juntar">':'')+
  '<strong>'+esc(d.numero)+'</strong></label><span class="romTransfState">'+
  esc(grouped?'AGRUPADO':d.status)+'</span></div><div class="romTransfMeta"><strong>'+esc(rota(d))+
  '</strong> · '+esc(d.data||'')+' · '+(d.itens||[]).length+' item(ns) · '+esc(obra(d.obra_id))+
+ (historico?' · <strong>OBRA ARQUIVADA · SOMENTE HISTÓRICO</strong>':'')+
  (estaEstornado(d)?' · <strong class="romTransfWarning">TRANSFERÊNCIA ESTORNADA</strong>':'')+
  (grouped?' · Agrupado no '+esc(docs.find(x=>x.id===d.agrupado_em)?.numero||'romaneio principal'):'')+
  '</div><div class="romTransfBtns">'+
  '<button type="button" class="btn secondary" data-t-view="'+esc(d.id)+'">Consultar</button>'+
- (d.status==='RASCUNHO'?'<button type="button" class="btn secondary" data-t-edit="'+esc(d.id)+'">Editar / incluir itens</button>':'')+
- (d.status==='RASCUNHO'?'<button type="button" class="btn primary" data-t-emit="'+esc(d.id)+'">Emitir e imprimir</button>':'')+
+ (d.status==='RASCUNHO'&&!historico?'<button type="button" class="btn secondary" data-t-edit="'+esc(d.id)+'">Editar / incluir itens</button>':'')+
+ (d.status==='RASCUNHO'&&!historico?'<button type="button" class="btn primary" data-t-emit="'+esc(d.id)+'">Emitir e imprimir</button>':'')+
  (emitted?'<button type="button" class="btn secondary" data-t-print="'+esc(d.id)+'">Imprimir / reimprimir</button>':'')+
  '</div><p class="romTransfDocMessage" data-t-status="'+esc(d.id)+'" role="status"></p></div>';
  }).join('');
@@ -64,10 +76,20 @@ async function carregar(){
  try{
   const response=await rpc('ew_romaneios_transferencia_listar',{p_empresa_id:empresa()});
   docs=Array.isArray(response)?response:[];
-  erro('Transferências entre galpões documentadas: '+docs.filter(ativo).length+'.');
+  if(incluirArquivados())await carregarNomesArquivados();
+  erro('Transferências entre galpões de obras ativas: '+
+   docs.filter(d=>ativo(d)&&!obraArquivada(d.obra_id)).length+'.'+
+   (docs.some(d=>obraArquivada(d.obra_id))?' Histórico de obras arquivadas disponível no filtro.':''));
   render();
  }catch(e){erro('Não foi possível consultar romaneios de transferência: '+e.message);}
  finally{busy=false;}
+}
+async function carregarNomesArquivados(){
+ try{
+  const rows=await apiGet('obras',{select:'id,nome,codigo,arquivada_em',
+   empresa_id:'eq.'+empresa(),arquivada_em:'not.is.null',limit:'1000'});
+  archivedNames=new Map((rows||[]).map(w=>[w.id,w.nome]));
+ }catch(e){/* Falha de rótulo histórico não torna documento operacional. */}
 }
 function close(){editVersion++;el('romTransfOverlay').classList.add('hidden');editId=null;transporteCarregado=false;}
 function addRow(value={}){
@@ -322,6 +344,10 @@ function visualizar(id){
  el('romTransfViewOverlay').classList.remove('hidden');
 }
 el('romTransfReload').addEventListener('click',carregar);
+el('romTransfIncludeArchived').addEventListener('change',async()=>{
+ if(incluirArquivados())await carregarNomesArquivados();
+ render();
+});
 el('romTransfMerge').addEventListener('click',juntar);
 el('romTransfClose').addEventListener('click',close);
 el('romTransfAddExtra').addEventListener('click',()=>addRow());
