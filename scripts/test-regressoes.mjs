@@ -2074,7 +2074,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.8')&&
+assert.ok(source.includes('v46.9')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2307,7 +2307,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.8</strong>'),
+ source.includes('EWGEST <strong>· v46.9</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2824,5 +2824,50 @@ assert.ok(inicioHoje468>=0&&fimHoje468>inicioHoje468,'Data local deve ser calcul
 const calendario468=new Function('Date',source.slice(inicioHoje468,fimHoje468)+'\nreturn todayLocal();')(
  class DataFalsa{getFullYear(){return 2026;}getMonth(){return 10;}getDate(){return 22;}});
 assert.equal(calendario468,'2026-11-22','Data local independente de UTC e meia-noite');
+
+
+// EWGEST v46.9 — nova etapa de categorias e m², com backend fechado.
+const precificacaoUI=readFileSync(fileURLToPath(new URL('../assets/precificacao-importacao.js',import.meta.url)),'utf8');
+const precificacaoOrc=readFileSync(fileURLToPath(new URL('../assets/orcamento-niveis.js',import.meta.url)),'utf8');
+const precificacaoSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261122_precificacao_importacao_rpc_v469.sql',import.meta.url)),'utf8');
+const precificacaoMapeamento=readFileSync(fileURLToPath(new URL('../database/proposals/20261122_precificacao_importador_mapeamento_v469.sql',import.meta.url)),'utf8');
+const precificacaoSchema=readFileSync(fileURLToPath(new URL('../database/proposals/20261122_precificacao_categorias_historico_fase1.sql',import.meta.url)),'utf8');
+new Function(precificacaoUI);
+new Function(precificacaoOrc);
+assert.ok(source.includes('precificacao-core.js?v=20261122a')&&
+ source.includes('precificacao-importacao.js?v=20261122a')&&
+ source.includes('precificacao-importacao.css?v=20261122a')&&
+ source.includes("ew_importar_obra_cem_precificacao")&&
+ source.includes("r.precificacaoDraft&&answer.precificacao_gravada!==true")&&
+ source.includes("Conclua a etapa de categorias e preços antes da importação."),
+ 'A importação nova não pode contornar a etapa nem aceitar resposta sem precificação gravada');
+assert.ok(precificacaoOrc.includes("window.ewPrecificacaoImportacao.abrir(r,values")&&
+ precificacaoOrc.includes("const fabricacao=values.niveis.filter")&&
+ precificacaoOrc.includes("r.precificacaoDraft=draft")&&
+ precificacaoOrc.includes("await cemImportarSelecionados()"),
+ 'O orçamento precisa abrir a precificação antes da importação');
+assert.ok(precificacaoUI.includes('data-item=')&&
+ precificacaoUI.includes('data-price=')&&
+ precificacaoUI.includes('ewPricePercent')&&
+ precificacaoUI.includes('precoAjustadoFabricacaoM2')&&
+ precificacaoUI.includes('precoAjustadoInstalacaoM2')&&
+ precificacaoUI.includes("const resultado=motor.precificar("),
+ 'Tela deve permitir categorias e preços por m² e recalcular fabricação/instalação');
+assert.ok(precificacaoSQL.includes('SECURITY DEFINER')&&
+ precificacaoSQL.includes('PERFORM public.ew_exigir_sessao_atual()')&&
+ precificacaoSQL.includes("ue.perfil='administrador'")&&
+ precificacaoSQL.includes("p_precificacao jsonb")&&
+ precificacaoSQL.includes("row_number() OVER(ORDER BY fr DESC,idx ASC)")&&
+ precificacaoSQL.includes("row_number() OVER(ORDER BY ir DESC,idx ASC)")&&
+ precificacaoSQL.includes("v_result:=public.ew_importar_obra_cem_financeiro(")&&
+ precificacaoSQL.includes("RETURN v_result||jsonb_build_object('precificacao_gravada',true")&&
+ precificacaoSQL.includes('REVOKE ALL ON FUNCTION public.ew_importar_obra_cem_precificacao'),
+ 'Proposta de RPC deve validar saldos e autorizar a gravação em uma só transação');
+assert.ok(precificacaoMapeamento.includes("RETURNING id INTO v_esquadria_id")&&
+ precificacaoMapeamento.includes("'esquadrias_ids',v_esquadrias_ids")&&
+ precificacaoSchema.includes("ew_precificacao_revisoes_itens")&&
+ precificacaoSchema.includes("ew_precificacao_no_update_delete")&&
+ precificacaoSchema.includes("ENABLE ROW LEVEL SECURITY"),
+ 'A proposta de banco precisa mapear os IDs exatos e preservar históricos com RLS');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
