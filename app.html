@@ -712,7 +712,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.3</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.4</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -1031,7 +1031,7 @@
         <div class="stat"><div class="label">A liberar</div><div class="number" id="detailPending">—</div></div>
         <div class="stat"><div class="label">Fabricada</div><div class="number" id="detailMade">—</div></div>
       </div>
-      <div class="qtystats" aria-label="Quantidades de esquadrias"><div class="stat"><div class="label">Unidades totais</div><div class="number" id="detailUnitsTotal">—</div></div><div class="stat"><div class="label">Liberadas para corte</div><div class="number" id="detailUnitsReleased">—</div></div><div class="stat"><div class="label">Aguardando liberação</div><div class="number" id="detailUnitsPending">—</div></div></div>
+      <div class="qtystats" aria-label="Quantidades de esquadrias"><div class="stat"><div class="label">Unidades totais</div><div class="number" id="detailUnitsTotal">—</div></div><div class="stat"><div class="label">Com alguma parte liberada</div><div class="number" id="detailUnitsReleased">—</div></div><div class="stat"><div class="label">Sem liberação</div><div class="number" id="detailUnitsPending">—</div></div></div>
       <div class="section panel">
         <div class="detailSticky">
         <div class="detailtabs"><button type="button" class="btn secondary active" id="tabRelease" aria-pressed="true">Liberações para corte</button><button type="button" class="btn secondary" id="tabShip" aria-pressed="false">Saídas para obra</button></div>
@@ -1981,7 +1981,17 @@
         <option value="IMBIRIBEIRA">IMBIRIBEIRA</option>
       </select>
       <p class="hint">A fábrica será registrada nesta liberação para apurar o prazo até a saída da produção.</p>
-      <div class="releaseMirrorIntro">
+      <label for="releaseComponent">4. Qual parte da esquadria está sendo liberada?</label>
+      <select id="releaseComponent" required>
+        <option value="">Selecione a parte</option>
+        <option value="completo">Esquadria completa (100%)</option>
+        <option value="marco">Somente o marco (50%)</option>
+        <option value="folhas">Conjunto das folhas (50%)</option>
+      </select>
+      <p id="releaseComponentBalance" class="hint" role="status"></p>
+      <p class="hint">Marco = 100% da parte; folhas = 100% da parte. Somados são 200% e, divididos por 2, representam 100% da esquadria.</p>
+      <p class="hint"><strong>Liberação somente técnica.</strong> Não movimenta nem baixa materiais. O almoxarife registra a saída física ao entregar à produção.</p>
+      <div class="releaseMirrorIntro hidden">
         <h3>4. Como deseja registrar a relação de materiais?</h3>
         <label class="releaseMethod"><input name="releaseMethod" type="radio" value="manual"> Preencher o espelho de materiais manualmente</label>
         <label class="releaseMethod"><input name="releaseMethod" type="radio" value="sem"> Somente liberação técnica (sem lista de materiais)</label>
@@ -2001,7 +2011,7 @@
         <button id="releaseAddMaterial" class="btn secondary" type="button">+ Adicionar material à liberação</button>
       </div>
       <div id="releaseError" class="feedback" role="alert"></div>
-      <div class="modalbuttons"><button type="button" id="releaseCancel" class="btn secondary">Cancelar</button><button type="submit" id="releaseSave" class="btn primary">Conferir e confirmar liberação</button></div>
+      <div class="modalbuttons"><button type="button" id="releaseCancel" class="btn secondary">Cancelar</button><button type="submit" id="releaseSave" class="btn primary">Confirmar liberação técnica</button></div>
     </form>
   </div>
 </div>
@@ -2598,7 +2608,7 @@ async function loadPanel(){
       typologyOrigins=[];typologyOriginReady=false;
     }
   }
-  releaseHistory=somenteRomaneios?[]:await apiGet('liberacoes_corte',{select:'esquadria_id,quantidade,data_liberacao,fabrica',cancelado_em:'is.null',order:'data_liberacao.desc'});
+  releaseHistory=await apiGet('liberacoes_corte',{select:'esquadria_id,quantidade,data_liberacao,fabrica,tipo_componente',cancelado_em:'is.null',order:'data_liberacao.desc'});
   try{
     const [config,history]=await Promise.all([
       apiGet('esquadrias_saida_config',{select:'esquadria_id,folhas_por_unidade'}),
@@ -2640,7 +2650,31 @@ async function loadPanel(){
     setView('dashboard');
   }
 }
-function totals(list){return list.reduce((a,x)=>{const q=Number(x.quantidade)||0;const liberadas=Number(x.qtd_liberada)||0;a.total+=area(x,q);a.released+=area(x,liberadas);a.made+=area(x,x.qtd_fabricada);a.unitsTotal+=q;a.unitsReleased+=liberadas;return a;},{total:0,released:0,made:0,unitsTotal:0,unitsReleased:0});}
+// Componentes liberados: marco 50%, conjunto das folhas 50%, completo 100%.
+ function releaseParts(item){
+  const partes={completo:0,marco:0,folhas:0};
+  for(const h of releaseHistory){
+   if(h.esquadria_id!==item.id)continue;
+   const tipo=['completo','marco','folhas'].includes(h.tipo_componente)?h.tipo_componente:'completo';
+   partes[tipo]+=Math.max(0,Number(h.quantidade)||0);
+  }
+  const qtd=Math.max(0,Number(item.quantidade)||0);
+  const marcos=Math.min(qtd,partes.completo+partes.marco);
+  const folhas=Math.min(qtd,partes.completo+partes.folhas);
+  const equivalente=Math.min(qtd,partes.completo+(partes.marco+partes.folhas)/2);
+  return {...partes,marcos,folhas,equivalente,
+   saldoCompleto:Math.max(0,qtd-Math.max(marcos,folhas)),
+   saldoMarco:Math.max(0,qtd-marcos),
+   saldoFolhas:Math.max(0,qtd-folhas)};
+ }
+ function totals(list){return list.reduce((a,x)=>{
+  const q=Number(x.quantidade)||0,liberadas=Number(x.qtd_liberada)||0;
+  a.total+=area(x,q);
+  a.released+=area(x,releaseParts(x).equivalente);
+  a.made+=area(x,x.qtd_fabricada);
+  a.unitsTotal+=q;a.unitsReleased+=liberadas;
+  return a;
+ },{total:0,released:0,made:0,unitsTotal:0,unitsReleased:0});}
 function renderUnitCounters(prefix,t){node(prefix+"UnitsTotal").textContent=t.unitsTotal.toLocaleString("pt-BR");node(prefix+"UnitsReleased").textContent=t.unitsReleased.toLocaleString("pt-BR");node(prefix+"UnitsPending").textContent=(t.unitsTotal-t.unitsReleased).toLocaleString("pt-BR");}
 // Somente conjuntos completos (inclusive marco + todas as folhas) contam como enviados.
  // Saídas parciais continuam registradas, mas não superestimam a área entregue.
@@ -2663,7 +2697,10 @@ function progressoExpedicao(list){
       Math.min(m.marco,Math.floor(m.folha/per)):0;
     const enviadas=Math.min(q,Math.max(0,m.completo+recombinadas));
     unidadesEnviadas+=enviadas;
-    areaEnviada+=area(item,enviadas);
+    // Marco e conjunto das folhas recebem 50% cada no progresso parcial.
+    const equivalentes=Math.min(q,m.completo+m.marco/2+
+      (Number.isInteger(per)&&per>0?m.folha/per/2:0));
+    areaEnviada+=area(item,equivalentes);
   }
   return {disponivel:true,areaEnviada,unidadesEnviadas,unidadesTotais};
 }
@@ -2696,8 +2733,8 @@ function renderList(){
       <div class="line"><span>Total</span><strong>${amount(sum.total)} m²</strong></div>
       <div class="line"><span>Liberada</span><strong>${amount(sum.released)} m²</strong></div>
       <div class="line"><span>A liberar</span><strong>${amount(sum.total-sum.released)} m²</strong></div>
-      <div class="line"><span>Unidades liberadas</span><strong>${sum.unitsReleased.toLocaleString("pt-BR")} / ${sum.unitsTotal.toLocaleString("pt-BR")}</strong></div>
-      <div class="line"><span>Unidades aguardando</span><strong>${(sum.unitsTotal-sum.unitsReleased).toLocaleString("pt-BR")}</strong></div>
+      <div class="line"><span>Com alguma parte liberada</span><strong>${sum.unitsReleased.toLocaleString("pt-BR")} / ${sum.unitsTotal.toLocaleString("pt-BR")}</strong></div>
+      <div class="line"><span>Sem liberação</span><strong>${(sum.unitsTotal-sum.unitsReleased).toLocaleString("pt-BR")}</strong></div>
       <div class="expeditionProgressLabel"><span>Progresso de liberação</span><strong>${pct}%</strong></div>
       <div class="progress"><div class="bar" style="width:${pct}%"></div></div>
       ${envioInfo}
@@ -2836,19 +2873,21 @@ function applyDetailVisibility(){
 function shipmentStats(item){
   const config=dispatchConfig.find(c=>c.esquadria_id===item.id);
   const per=config?Number(config.folhas_por_unidade):null;
-  let frames=0,leaves=0,events=0,last=null;
+  let frames=0,leaves=0,completas=0,events=0,last=null;
   for(const h of shipmentHistory){
     if(h.esquadria_id!==item.id)continue;
     const q=Number(h.quantidade)||0;
     events++;
     if(!last)last=h;
-    if(h.tipo==='completo'){frames+=q;leaves+=q*(per||0);}
+    if(h.tipo==='completo'){frames+=q;leaves+=q*(per||0);completas+=q;}
     else if(h.tipo==='marco')frames+=q;
     else if(h.tipo==='folha')leaves+=q;
   }
+  const partes=releaseParts(item);
   const released=Number(item.qtd_liberada)||0;
-  const maxLeaves=per===null?null:released*per;
-  return {frames,leaves,events,last,per,released,maxLeaves};
+  const maxLeaves=per===null?null:partes.folhas*per;
+  return {frames,leaves,completas,events,last,per,released,maxLeaves,
+   marcosLiberados:partes.marcos,folhasLiberadas:partes.folhas};
 }
 function suggestedLeaves(item) {
   const match=String(item.descricao||'').match(/(\d{1,2})\s*FOLHA/i);
@@ -2858,9 +2897,10 @@ function suggestedLeaves(item) {
 
 function romaneioSaldoCompleto(item){
   const a=shipmentStats(item);
-  const marco=Math.max(0,a.released-a.frames);
-  return a.per===null?marco:Math.max(0,Math.min(marco,
-    Math.floor(Math.max(0,a.maxLeaves-a.leaves)/a.per)));
+  const marco=Math.max(0,a.marcosLiberados-a.frames);
+  const folhas=Math.max(0,a.folhasLiberadas-
+    (a.per?Math.floor(a.leaves/a.per):a.completas));
+  return Math.max(0,Math.min(marco,folhas));
 }
 function renderResumoRomaneios(obraId){
   const cabecalhos=romaneios.filter(r=>r.obra_id===obraId);
@@ -2874,10 +2914,11 @@ function renderResumoRomaneios(obraId){
     const media=n?dados.reduce((s,x)=>s+Number(x.prazo_liberacao_saida_dias)*Number(x.quantidade),0)/n:null;
     const idsObra=new Set(elements.filter(e=>e.obra_id===obraId).map(e=>e.id));
     const liberadas=releaseHistory.filter(h=>h.fabrica===nome&&idsObra.has(h.esquadria_id))
-      .reduce((v,h)=>v+Number(h.quantidade||0),0);
+      .reduce((v,h)=>v+Number(h.quantidade||0)*
+        (h.tipo_componente==='completo'||!h.tipo_componente?1:0.5),0);
     return '<strong>'+nome+'</strong>: '+(media===null?'média ainda indisponível':
       media.toLocaleString('pt-BR',{maximumFractionDigits:1})+' dia(s) em '+n+' unidade(s) expedida(s)')+
-      ' · '+liberadas+' liberada(s)';
+      ' · '+liberadas.toLocaleString('pt-BR',{maximumFractionDigits:1})+' unidade(s) equivalente(s) liberada(s)';
   });
   const idsDaObra=new Set(elements.filter(e=>e.obra_id===obraId).map(e=>e.id));
   const historicas=releaseHistory.filter(h=>!h.fabrica&&idsDaObra.has(h.esquadria_id))
@@ -3051,11 +3092,11 @@ function ehMaximArRomaneio(item){
 function romaneioSaldoPorTipo(item,tipo,folhas){
   const a=shipmentStats(item);
   const per=a.per||Number(folhas)||suggestedLeaves(item)||null;
-  const marcos=Math.max(0,a.released-a.frames);
-  const folhasRestantes=per?Math.max(0,a.released*per-a.leaves):null;
+  const marcos=Math.max(0,a.marcosLiberados-a.frames);
+  const folhasRestantes=per?Math.max(0,a.folhasLiberadas*per-a.leaves):null;
   if(tipo==='marco')return marcos;
   if(tipo==='folha')return folhasRestantes;
-  if(!per)return marcos; // Somente prévia. Confirmar folhas/unidade é obrigatório.
+  if(!per)return Math.max(0,Math.min(marcos,a.folhasLiberadas-a.completas)); // Composição pendente.
   return Math.max(0,Math.min(marcos,Math.floor(folhasRestantes/per)));
 }
 function buscarEsquadriasRomaneio(row){
@@ -3625,6 +3666,7 @@ function renderDetail(w){
   renderUnitCounters('detail',t);
   const canEdit=['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase());
   const shipping=detailMode==='shipment';
+  const exibidos=shipping?list.filter(x=>Number(x.qtd_liberada)>0):list;
   node('tabRelease').classList.toggle('active',!shipping);
   node('tabRelease').setAttribute('aria-pressed',String(!shipping));
   node('tabShip').classList.toggle('active',shipping);
@@ -3638,7 +3680,7 @@ function renderDetail(w){
   if(shipping)renderResumoRomaneios(w.id);
   node('itemListTitle').textContent=shipping?'Saídas da produção':'Itens da obra';
   node('detailIntro').textContent=shipping
-    ?'Clique em uma esquadria para registrar o envio completo, somente do marco ou somente das folhas. Cada saída fica registrada com sua data.'
+    ?'Somente esquadrias com liberação técnica aparecem aqui. Registre a saída apenas das partes liberadas para fabricação.'
     :'Clique em um item para registrar uma liberação para corte.';
   node('detailError').textContent=shipping&&!dispatchReady
     ?'O controle de saída ainda não está habilitado no banco: '+dispatchLoadError
@@ -3653,27 +3695,29 @@ function renderDetail(w){
   }
   if(!shipping){
     node('items').innerHTML=list.length?list.map(x=>{
-      const pending=Math.max(0,Number(x.quantidade)-Number(x.qtd_liberada));
+      const part=releaseParts(x);
+      const pending=Math.max(part.saldoCompleto,part.saldoMarco,part.saldoFolhas);
       const latest=releaseHistory.find(r=>r.esquadria_id===x.id);
-      return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><div class="hint" style="margin-top:8px">${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Liberadas: ${Number(x.qtd_liberada)||0}</span><span>Aguardando: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline" style="margin-top:8px"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/'))+
+      return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><div class="hint" style="margin-top:8px">${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Com alguma parte liberada: ${Number(x.qtd_liberada)||0}</span><span>Marcos: ${part.marcos} · Folhas (conj.): ${part.folhas}</span><span>Restam por liberar: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline" style="margin-top:8px"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/'))+
   (latest.fabrica?' · '+escapeHTML(latest.fabrica):' · fábrica não informada (histórico)'):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button></div>`;
     }).join(''):'<div class="empty">Nenhuma esquadria nesta obra.</div>';
     node('items').querySelectorAll('[data-esq]').forEach(b=>b.addEventListener('click',()=>openRelease(b.dataset.esq)));
   }else{
-    node('items').innerHTML=list.length?list.map(x=>{
+    node('items').innerHTML=exibidos.length?exibidos.map(x=>{
       const s=shipmentStats(x);
-      const pendingFrames=Math.max(0,s.released-s.frames);
+      const pendingFrames=Math.max(0,s.marcosLiberados-s.frames);
       const pendingLeaves=s.maxLeaves===null?null:Math.max(0,s.maxLeaves-s.leaves);
-      const canShip=dispatchReady&&canEdit&&s.released>0&&(pendingFrames>0||pendingLeaves===null||pendingLeaves>0);
+      const canShip=dispatchReady&&canEdit&&s.released>0&&
+        (pendingFrames>0||(pendingLeaves===null?s.folhasLiberadas>0:pendingLeaves>0));
       const sheetText=s.per===null
         ?'Folhas: composição a confirmar na primeira saída'
         :'Folhas enviadas: '+s.leaves+' / '+s.maxLeaves+' ( '+s.per+' por unidade )';
       const dateText=s.last?'Última saída: '+s.last.data_saida.split('-').reverse().join('/'):'Nenhuma saída registrada';
-      return `<div class="item"><button type="button" class="itemclick" data-ship="${escapeHTML(x.id)}" ${!canShip?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Liberadas para corte: ${s.released}</span><span>Marcos enviados: ${s.frames} / ${s.released}</span><span>${escapeHTML(sheetText)}</span></div><div class="itemline" style="margin-top:8px"><span class="hint">${escapeHTML(dateText)}</span><span class="tap">${!dispatchReady?'Configuração pendente':!canEdit?'Somente consulta':s.released===0?'Ainda não liberada':canShip?'Registrar saída':'Tudo expedido'}</span></div></button></div>`;
-    }).join(''):'<div class="empty">Nenhuma esquadria nesta obra.</div>';
+      return `<div class="item"><button type="button" class="itemclick" data-ship="${escapeHTML(x.id)}" ${!canShip?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Com alguma parte liberada: ${s.released}</span><span>Marcos enviados: ${s.frames} / ${s.marcosLiberados}</span><span>${escapeHTML(sheetText)}</span></div><div class="itemline" style="margin-top:8px"><span class="hint">${escapeHTML(dateText)}</span><span class="tap">${!dispatchReady?'Configuração pendente':!canEdit?'Somente consulta':s.released===0?'Ainda não liberada':canShip?'Registrar saída':'Tudo expedido'}</span></div></button></div>`;
+    }).join(''):'<div class="empty">Nenhuma esquadria liberada para fabricação nesta obra.</div>';
     node('items').querySelectorAll('[data-ship]').forEach(b=>b.addEventListener('click',()=>openShipment(b.dataset.ship)));
   }
-  groupRenderedItems(list);
+  groupRenderedItems(exibidos);
   applyDetailVisibility();
   applyItemFilter();
   setView('detail');
@@ -3737,8 +3781,8 @@ function shipmentType(){return node('shipmentKind').value==='completo'?'completo
 function shipmentAvailability(item){
   const s=shipmentStats(item);
   const per=s.per||Number(node('shipmentLeaves').value)||0;
-  const pendingFrames=Math.max(0,s.released-s.frames);
-  const pendingLeaves=per?Math.max(0,s.released*per-s.leaves):null;
+  const pendingFrames=Math.max(0,s.marcosLiberados-s.frames);
+  const pendingLeaves=per?Math.max(0,s.folhasLiberadas*per-s.leaves):null;
   return {s,per,pendingFrames,pendingLeaves};
 }
 
@@ -3759,10 +3803,13 @@ function updateShipmentForm(){
   node('shipmentLeaves').disabled=!precisaComposicao;
   node('shipmentQtyLabel').textContent=kind==='completo'?'Quantas esquadrias completas saíram?':kind==='marco'?'Quantos marcos saíram?':'Quantas folhas físicas saíram?';
   const remaining=kind==='marco'?pendingFrames:kind==='folha'?pendingLeaves:
-    per?Math.min(pendingFrames,Math.floor(pendingLeaves/per)):pendingFrames;
+    per?Math.min(pendingFrames,Math.floor(pendingLeaves/per)):
+      Math.min(pendingFrames,s.folhasLiberadas);
   node('shipmentQty').max=remaining===null?'':String(remaining);
-  node('shipmentBalance').textContent='Liberadas para corte: '+s.released+' unidade(s). Marcos expedidos: '+s.frames+'/'+s.released+
-    (per?'. Folhas expedidas: '+s.leaves+'/'+s.released*per+'.':'. Composição de folhas não informada.')+
+  node('shipmentBalance').textContent='Unidades com alguma parte liberada: '+s.released+
+    '. Marcos liberados: '+s.marcosLiberados+'. Marcos expedidos: '+s.frames+'/'+s.marcosLiberados+
+    (per?'. Conjuntos de folhas liberados: '+s.folhasLiberadas+'. Folhas expedidas: '+s.leaves+'/'+s.maxLeaves+'.':
+      '. Conjuntos de folhas liberados: '+s.folhasLiberadas+'. Composição física ainda não informada.')+
     (remaining===null?' Informe a composição para envio desmembrado.':' Saldo desta opção: '+remaining+'.');
   node('shipmentError').textContent='';
 }
@@ -4140,81 +4187,113 @@ async function confirmReleaseCancelAll(){
 }
 node('releaseCancelAllClose').addEventListener('click',closeReleaseCancelAll);
 node('releaseCancelAllConfirm').addEventListener('click',confirmReleaseCancelAll);
+function releaseComponentSaldo(partes,tipo){
+ return tipo==='completo'?partes.saldoCompleto:
+  tipo==='marco'?partes.saldoMarco:tipo==='folhas'?partes.saldoFolhas:0;
+}
+function releaseComponentAtualizar(){
+ if(!selectedItem)return;
+ const parts=releaseParts(selectedItem);
+ const tipo=node('releaseComponent').value;
+ const pending=releaseComponentSaldo(parts,tipo);
+ const qty=node('releaseQty');
+ qty.max=String(pending);
+ if(!tipo||pending<=0)qty.value='';
+ else if(!Number.isSafeInteger(Number(qty.value))||Number(qty.value)<1||Number(qty.value)>pending)
+  qty.value='1';
+ node('releaseComponentBalance').textContent=
+  'Marcos liberados: '+parts.marcos+'/'+selectedItem.quantidade+
+  ' · Conjuntos das folhas liberados: '+parts.folhas+'/'+selectedItem.quantidade+
+  (tipo?' · Disponíveis nesta opção: '+pending:' · Selecione a parte a liberar.');
+}
 function openRelease(id){
-  if(!['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
-  selectedItem=elements.find(e=>e.id===id);if(!selectedItem)return;
-  const pending=Number(selectedItem.quantidade)-Number(selectedItem.qtd_liberada);
-  if(pending<=0)return;
-  releaseOperationId=crypto.randomUUID();releaseCatalogReady=false;releaseMirrorData=[];releaseMirrorSaldo=new Map();
-  releaseCemChecked=false;releaseCemFileName='';
-  node('releaseItem').textContent=selectedItem.codigo+' · '+labeledDescription(selectedItem)+' · '+(selectedItem.localizacao||'');
-  node('releaseBalance').textContent='Aguardando liberação: '+pending+' de '+selectedItem.quantidade+' unidades.';
-  node('releaseQty').value='';node('releaseQty').max=String(pending);
-  node('releaseDate').value=todayLocal();node('releaseFactory').value='';node('releaseError').textContent='';
-  node('releaseMirrorRows').innerHTML='';node('releaseCemZip').value='';node('releaseCemPreview').classList.add('hidden');
-  document.querySelectorAll('input[name="releaseMethod"]').forEach(x=>x.checked=false);
-  node('releaseMirrorPanel').classList.add('hidden');node('releaseModal').classList.remove('hidden');
-  node('releaseQty').focus();
+ if(!['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
+ selectedItem=elements.find(e=>e.id===id);if(!selectedItem)return;
+ const parts=releaseParts(selectedItem);
+ if(Math.max(parts.saldoCompleto,parts.saldoMarco,parts.saldoFolhas)<=0)return;
+ releaseOperationId=crypto.randomUUID();
+ node('releaseItem').textContent=selectedItem.codigo+' · '+labeledDescription(selectedItem)+' · '+(selectedItem.localizacao||'');
+ node('releaseBalance').textContent='Esquadrias: '+selectedItem.quantidade+
+  ' · Marcos liberados: '+parts.marcos+' · Conjuntos de folhas liberados: '+parts.folhas+'.';
+ const select=node('releaseComponent');
+ const permitePartes=Boolean(suggestedLeaves(selectedItem))&&!ehMaximArRomaneio(selectedItem);
+ for(const option of select.options){
+  if(!option.value)continue;
+  option.disabled=releaseComponentSaldo(parts,option.value)<=0||
+   (!permitePartes&&option.value!=='completo');
+  option.hidden=!permitePartes&&option.value!=='completo';
+ }
+ select.value=permitePartes?'':'completo';
+ node('releaseQty').value='';
+ node('releaseDate').value=todayLocal();
+ node('releaseFactory').value='';
+ node('releaseError').textContent='';
+ node('releaseMirrorPanel').classList.add('hidden');
+ node('releaseModal').classList.remove('hidden');
+ releaseComponentAtualizar();
+ (select.value?node('releaseQty'):select).focus();
 }
 function closeRelease(){node('releaseModal').classList.add('hidden');selectedItem=null;}
 node('releaseCancel').addEventListener('click',closeRelease);
-document.querySelectorAll('input[name="releaseMethod"]').forEach(x=>x.addEventListener('change',releaseMetodoAtualizar));
-node('releaseAddMaterial').addEventListener('click',()=>releaseAddRow());
-node('releaseCemRead').addEventListener('click',releaseLerCem);
-node('releaseCemZip').addEventListener('change',()=>{releaseCemChecked=false;releaseCemFileName='';node('releaseCemPreview').classList.add('hidden');});
+node('releaseComponent').addEventListener('change',releaseComponentAtualizar);
+// O formulário manual de materiais permanece indisponível neste fluxo.
+// A liberação técnica não baixa estoque; o almoxarife confirma a entrega em Recebimento.
 node('releaseForm').addEventListener('submit',async event=>{
-  event.preventDefault();if(!selectedItem)return;
-  const qty=Number(node('releaseQty').value),date=node('releaseDate').value;
-  const fabrica=node('releaseFactory').value;
-  const pending=Number(selectedItem.quantidade)-Number(selectedItem.qtd_liberada);
-  const metodo=document.querySelector('input[name="releaseMethod"]:checked')?.value;
-  if(!Number.isSafeInteger(qty)||qty<=0||qty>pending){
-    node('releaseError').textContent='Quantidade inválida. Máximo: '+pending+'.';return;}
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date>todayLocal()){
-    node('releaseError').textContent='Data inválida ou futura.';return;}
-  if(!['AFOGADOS','IMBIRIBEIRA'].includes(fabrica)){
-    node('releaseError').textContent='Escolha Afogados ou Imbiribeira.';return;}
-  if(!metodo){node('releaseError').textContent='Escolha como deseja fazer a liberação.';return;}
-  let materiais=[];
+ event.preventDefault();if(!selectedItem)return;
+ const qty=Number(node('releaseQty').value),date=node('releaseDate').value;
+ const fabrica=node('releaseFactory').value,componente=node('releaseComponent').value;
+ const pending=releaseComponentSaldo(releaseParts(selectedItem),componente);
+ if(!['completo','marco','folhas'].includes(componente)||
+    node('releaseComponent').selectedOptions[0]?.disabled){
+  node('releaseError').textContent='Selecione a parte da esquadria que será liberada.';return;
+ }
+ if(!Number.isSafeInteger(qty)||qty<=0||qty>pending){
+  node('releaseError').textContent='Quantidade inválida para esta parte. Máximo: '+pending+'.';return;
+ }
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date>todayLocal()){
+  node('releaseError').textContent='Data inválida ou futura.';return;
+ }
+ if(!['AFOGADOS','IMBIRIBEIRA'].includes(fabrica)){
+  node('releaseError').textContent='Escolha Afogados ou Imbiribeira.';return;
+ }
+ const escopo={completo:'esquadria completa (100%)',marco:'somente marco (50%)',
+  folhas:'conjunto das folhas (50%)'}[componente];
+ if(!window.confirm('Confirma a liberação de '+qty+' unidade(s) da parte '+escopo+
+     ' de '+selectedItem.codigo+' para '+fabrica+'?\n\n'+
+     'Nenhum material será baixado do estoque agora. A baixa é feita pelo almoxarife na entrega à produção.'))return;
+ const button=node('releaseSave');button.disabled=true;button.textContent='Registrando…';
+ node('releaseError').textContent='';
+ try{
+  await ensureSession();
+  const ans=await request('/rest/v1/rpc/ew_liberar_plano_corte_componente',{
+   method:'POST',token:session.access_token,timeoutMs:45000,
+   body:{p_esquadria_id:selectedItem.id,p_quantidade:qty,p_data_liberacao:date,
+    p_fabrica:fabrica,p_materiais:[],p_fonte:'SEM_BAIXA',p_arquivo_nome:null,
+    p_operacao_id:releaseOperationId,p_componente:componente}});
+  const workId=selectedItem.obra_id;
+  closeRelease();
+  node('detailError').textContent=ans.repetida?
+   'Esta liberação já havia sido registrada. Nenhuma nova operação foi efetuada.':
+   'Liberação técnica registrada: '+qty+' unidade(s) · '+escopo+'. Nenhum material baixado.';
   try{
-    if(metodo!=='sem'){
-      if(!releaseCatalogReady)throw new Error('Os materiais ainda não foram carregados.');
-      if(metodo==='cem'&&!releaseCemChecked)throw new Error('Analise o arquivo ZIP ou selecione a liberação manual.');
-      materiais=releaseColetarMateriais();
-    }
-  }catch(err){node('releaseError').textContent=err.message;return;}
-  const aviso='Confirma a liberação de '+qty+' unidade(s) de '+selectedItem.codigo+
-    ' para '+fabrica+'?\n'+(materiais.length?'Serão listadas '+materiais.length+' linha(s) para entrega futura pelo almoxarife. Sem baixa agora.':
-      'Esta liberação não terá materiais a entregar.')+
-    '\nA baixa só ocorrerá quando o almoxarife confirmar a entrega física.';
-  if(!window.confirm(aviso))return;
-  const button=node('releaseSave');button.disabled=true;button.textContent='Registrando…';
-  node('releaseError').textContent='';
-  try{
-    await ensureSession();
-    // Mesmo registro de registrar_liberacao_corte_fabrica, com revisão de materiais na mesma transação.
-    const ans=await request('/rest/v1/rpc/ew_liberar_plano_corte_revisado',{method:'POST',
-      token:session.access_token,timeoutMs:45000,
-      body:{p_esquadria_id:selectedItem.id,p_quantidade:qty,p_data_liberacao:date,
-        p_fabrica:fabrica,p_materiais:materiais,
-        // Arquivo CEM serve de referência. Até validar exportação de plano otimizado, o consumo é manual.
-        p_fonte:materiais.length?'MANUAL':'SEM_BAIXA',
-        p_arquivo_nome:metodo==='cem'?releaseCemFileName:null,p_operacao_id:releaseOperationId}});
-    const workId=selectedItem.obra_id;
-    closeRelease();
-    node('detailError').textContent=ans.repetida?
-      'Esta operação já havia sido registrada. Nenhuma nova baixa foi efetuada.':
-      'Liberação registrada ('+qty+' unidade(s)) e '+(ans.linhas_baixadas||0)+' linha(s) de material baixada(s). Atualizando…';
-    try{await loadPanel();const w=works.find(x=>x.id===workId);
-      if(w){renderDetail(w);node('detailError').textContent=ans.repetida?
-        'Operação já registrada anteriormente; sem nova baixa.':
-        'Liberação confirmada: '+qty+' unidade(s), fábrica '+fabrica+'; '+(ans.linhas_baixadas||0)+' material(is) baixado(s).';}}
-    catch(e){node('detailError').textContent='Liberação salva, mas atualização falhou: '+e.message+'. Não repita o lançamento.';}
+   await loadPanel();
+   const w=works.find(x=>x.id===workId);
+   if(w){
+    detailMode='release';renderDetail(w);
+    node('detailError').textContent=ans.repetida?'Operação já registrada, sem duplicação.':
+     'Liberação confirmada: '+qty+' unidade(s), '+escopo+', fábrica '+fabrica+
+     '. Estoque inalterado; a entrega física será confirmada pelo almoxarife.';
+   }
   }catch(e){
-    node('releaseError').textContent='Não foi possível confirmar: '+e.message+
-      '. Confira o histórico antes de repetir; a operação mantém o mesmo identificador.';
-  }finally{button.disabled=false;button.textContent='Conferir e confirmar liberação';}
+   node('detailError').textContent='Liberação salva, mas a atualização falhou: '+e.message+
+    '. Não repita o lançamento; atualize a obra.';
+  }
+ }catch(e){
+  node('releaseError').textContent='Não foi possível confirmar: '+e.message+
+   '. Confira o histórico antes de repetir; a tentativa mantém o mesmo identificador.';
+ }finally{button.disabled=false;button.textContent='Confirmar liberação técnica';}
 });
+
 window.EWGEST_LOGIN=async function(event){event.preventDefault();setError('');setStatus('Botão funcionando. Conferindo usuário e senha…');const b=node('loginButton');b.disabled=true;b.textContent='Verificando…';try{
   const login=node('email').value.trim();
   const pass=node('password').value;

@@ -160,7 +160,7 @@ for(const token of [
  'id="releaseFactory"',
  'AFOGADOS',
  'IMBIRIBEIRA',
- '/rest/v1/rpc/ew_liberar_plano_corte_revisado',
+ '/rest/v1/rpc/ew_liberar_plano_corte_componente',
  'p_fabrica:fabrica',
  'id="romaneioModal"',
  'id="romaneioForm"',
@@ -737,9 +737,11 @@ assert.ok(!source.includes('rows.slice(0,6)'), 'Exibe a lista completa de materi
 
 assert.ok(source.includes('id="stockManualForm"')&&source.includes('id="stockManualWork"')&&
  source.includes('id="stockNewMaterialCode"'), 'Cadastro manual de obra e material deve existir');
-assert.ok(source.includes('id="releaseMirrorRows"')&&source.includes('name="releaseMethod"')&&
- !source.includes('name="releaseMethod" type="radio" value="cem"'),
- 'Liberação individual tem espelho manual, sem importação de lote CEM');
+assert.ok(source.includes('class="releaseMirrorIntro hidden"')&&
+ source.includes('id="releaseComponent" required')&&
+ source.includes('id="releaseMirrorPanel" class="hidden"')&&
+ source.includes("p_materiais:[],p_fonte:'SEM_BAIXA'"),
+ 'Liberação individual é somente técnica, com parte selecionada e sem baixa');
 assert.ok(source.includes('id="releaseBatchOpen"')&&source.includes('id="releaseBatchPreview"')&&
  source.includes("'/rest/v1/rpc/ew_liberar_lote_cem'")&&source.includes('function releaseBatchCollect()'),
  'Liberação em lote CEM deve ter espelho editável, validação e confirmação única');
@@ -752,8 +754,8 @@ assert.ok(source.includes('id="stockFactoryFilter"')&&source.includes('id="stock
  'Estoque transferível com seletor centralizado e tabela sem coluna Ação');
 assert.ok(source.includes('const obrasParaRomaneio=works.filter'),
  'Romaneios escondem obra de estoque arquivado sem esquadrias e sem histórico');
-assert.ok(source.includes("'/rest/v1/rpc/ew_liberar_plano_corte_revisado'"),
- 'Liberação confirma materiais em operação atômica');
+assert.ok(source.includes("'/rest/v1/rpc/ew_liberar_plano_corte_componente'"),
+ 'Liberação confirma parte e quantidade em operação atômica');
 assert.ok(source.includes("'/rest/v1/rpc/ew_movimentar_estoque_obra_local'")&&
  source.includes("'/rest/v1/rpc/ew_cadastrar_material_manual_estoque_local'"),
  'Cadastro existente e novos materiais exigem local físico do estoque');
@@ -2070,7 +2072,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.3')&&
+assert.ok(source.includes('v46.4')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2303,7 +2305,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.3</strong>'),
+ source.includes('EWGEST <strong>· v46.4</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2487,5 +2489,48 @@ assert.ok(!transferenciaHTML.includes('Total M²:')&&
  transferTransport.includes("html.replace('<body>','<body>'+toolbar)")&&
  transferTransport.includes("imprimirBtn.addEventListener('click',()=>janela.print())"),
  'Impressão de transferência deve usar template comum, e não layout genérico');
+
+
+// EWGEST v46.4: marco equivale a 50%, conjunto das folhas 50%, sem movimentar estoque.
+const componentMigration=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261121_liberacao_por_partes_v464.sql',import.meta.url)),'utf8');
+for(const token of [
+ 'tipo_componente text not null default',
+ 'ew_registrar_liberacao_componente',
+ 'ew_liberar_plano_corte_componente',
+ 'marcos_liberados','conjuntos_folhas_liberados',
+ 'v_marcos_liberados','v_folhas_liberadas',
+ 'ew_cancelar_liberacoes_obra',
+ 'CORRIGIR_ESCOPO_LIBERACAO',
+ 'TESTE-TREINAMENTO'
+])assert.ok(componentMigration.includes(token),
+ 'Proteção de liberação/saída por componentes ausente: '+token);
+assert.ok(!/insert into public\.ew_estoque_obras_movimentos/i.test(componentMigration)&&
+ !/insert into public\.ew_insumos_movimentos/i.test(componentMigration),
+ 'Liberação parcial não pode movimentar estoque');
+assert.ok(source.includes('id="releaseComponent" required')&&
+ source.includes("p_materiais:[],p_fonte:'SEM_BAIXA'")&&
+ source.includes('p_componente:componente')&&
+ source.includes("const exibidos=shipping?list.filter(x=>Number(x.qtd_liberada)>0):list;")&&
+ source.includes('groupRenderedItems(exibidos)')&&
+ source.includes('Nenhuma esquadria liberada para fabricação nesta obra.'),
+ 'Saída somente exibe liberadas; nova liberação não baixa estoque');
+const componentStart=source.indexOf('function releaseParts(item){');
+const componentEnd=source.indexOf('function renderUnitCounters(',componentStart);
+assert.ok(componentStart>0&&componentEnd>componentStart);
+const componentCode=source.slice(componentStart,componentEnd);
+const history=[{esquadria_id:'ea2',quantidade:1,tipo_componente:'marco'}];
+const calculo=new Function('history',
+ 'const releaseHistory=history;'+
+ 'const area=(item,q)=>Number(item.largura_mm)*Number(item.altura_mm)*q/1000000;'+
+ componentCode+'\nreturn {releaseParts,totals};')(history);
+const esq={id:'ea2',quantidade:5,qtd_liberada:1,largura_mm:1200,altura_mm:1150,qtd_fabricada:0};
+assert.ok(Math.abs(calculo.totals([esq]).released-0.69)<0.000001,
+ 'EA2 marco = 0,69m² (50% de 1,38m²)');
+assert.equal(calculo.releaseParts(esq).saldoFolhas,5);
+history.push({esquadria_id:'ea2',quantidade:1,tipo_componente:'folhas'});
+assert.ok(Math.abs(calculo.totals([esq]).released-1.38)<0.000001,
+ '1 marco + 1 conjunto de folhas = 1,38m²');
+assert.equal(calculo.releaseParts(esq).saldoMarco,4);
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
