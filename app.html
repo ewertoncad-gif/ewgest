@@ -2171,9 +2171,9 @@
       <div id="romaneioRows"></div>
       <div class="romaneioCreateButtons">
         <button type="button" id="romaneioAddEsquadria" class="btn secondary">+ Adicionar esquadria</button>
-        <button type="button" id="romaneioAddMaterial" class="btn secondary">+ Material avulso</button>
+        <button type="button" id="romaneioAddMaterial" class="btn secondary" disabled>+ Adicionar material do estoque</button>
       </div>
-      <p class="hint">Em cada esquadria, escolha <strong>completa, só marco ou só folhas</strong>. Folhas são contadas individualmente; materiais avulsos não alteram o saldo de produção.</p>
+      <p class="hint">Esquadrias: selecione completa, marco ou folhas. Perfis em barras e acessórios são selecionados pelo saldo da obra e do galpão. <strong>A emissão efetua uma única baixa real desses materiais e os vincula ao romaneio.</strong> Essa baixa não altera o percentual de fabricação da esquadria.</p>
       <label for="romaneioNotes">Observações da entrega (opcional)</label>
       <textarea id="romaneioNotes" rows="3" maxlength="1000" placeholder="Ex.: materiais conferidos, responsável pelo recebimento, ressalvas sobre a entrega"></textarea>
       <p class="hint">As observações aparecerão no final do comprovante, antes das assinaturas.</p>
@@ -3078,11 +3078,62 @@ async function confirmarCancelamentoRomaneio(event){
       '. Nenhuma confirmação de estorno foi recebida; confira o histórico antes de tentar novamente.';
   }finally{button.disabled=false;}
 }
+let romaneioStockRows=[],romaneioStockLoading=false;
+async function carregarMateriaisDisponiveisRomaneio(){
+ const obraId=selectedWork?.id;
+ romaneioStockLoading=true;romaneioStockRows=[];
+ node('romaneioAddMaterial').disabled=true;
+ try{
+  await ensureSession();
+  if(!(isFullAdminUser()||isAlmoxarife()))return;
+  const empresa='eq.'+currentCompany.id;
+  const [movs,variacoes,perfis,acessorios,galpoes]=await Promise.all([
+   apiGet('ew_estoque_obras_movimentos',{
+    select:'variacao_id,comprimento_mm,unidade,quantidade_delta,local_estoque',
+    empresa_id:empresa,obra_id:'eq.'+obraId,limit:'30000'}),
+   apiGet('ew_materiais_variacoes',{
+    select:'id,tipo,perfil_id,acessorio_id,cor,acabamento,ativo',empresa_id:empresa,limit:'10000'}),
+   apiGet('ew_perfis',{select:'id,codigo,descricao',empresa_id:empresa,limit:'5000'}),
+   apiGet('ew_acessorios',{select:'id,codigo,descricao',empresa_id:empresa,limit:'5000'}),
+   apiGet('ew_locais_fisicos',{select:'nome,ativo',empresa_id:empresa,ativo:'eq.true',limit:'1000'})
+  ]);
+  if(selectedWork?.id!==obraId||node('romaneioModal').classList.contains('hidden'))return;
+  const vs=new Map((variacoes||[]).filter(x=>x.ativo).map(x=>[x.id,x]));
+  const ps=new Map((perfis||[]).map(x=>[x.id,x]));
+  const ac=new Map((acessorios||[]).map(x=>[x.id,x]));
+  const locais=new Set((galpoes||[]).map(x=>x.nome));
+  const sums=new Map();
+  for(const m of movs||[]){
+   const key=JSON.stringify([m.variacao_id,m.comprimento_mm,m.unidade,m.local_estoque]);
+   const old=sums.get(key)||{varId:m.variacao_id,comprimento:m.comprimento_mm,
+    unidade:m.unidade,local:m.local_estoque,saldo:0};
+   old.saldo+=Number(m.quantidade_delta);
+   sums.set(key,old);
+  }
+  romaneioStockRows=[...sums.values()].filter(m=>m.saldo>=1&&locais.has(m.local))
+   .map(m=>{
+    const v=vs.get(m.varId),mat=v?(v.tipo==='perfil'?ps.get(v.perfil_id):ac.get(v.acessorio_id)):null;
+    if(!v||!mat||(v.tipo==='perfil'&&m.unidade!=='BARRA'))return null;
+    const color=v.cor||v.acabamento||'';
+    return {...m,codigo:mat.codigo,descricao:mat.descricao,cor:color,tipo:v.tipo,
+     label:mat.codigo+' · '+mat.descricao+(color?' · '+color:'')+
+      (m.comprimento?' · '+(m.comprimento/1000).toLocaleString('pt-BR')+' m':'')+
+      ' · '+m.local+' · disponível '+m.saldo.toLocaleString('pt-BR',{maximumFractionDigits:3})+' '+m.unidade};
+   }).filter(Boolean).sort((x,y)=>x.label.localeCompare(y.label,'pt-BR'));
+  node('romaneioAddMaterial').disabled=!romaneioStockRows.length;
+  if(!romaneioStockRows.length)node('romaneioError').textContent=
+   'Nenhum perfil ou acessório com pelo menos 1 unidade disponível no estoque desta obra.';
+ }catch(e){
+  if(selectedWork?.id===obraId)node('romaneioError').textContent=
+   'Não foi possível consultar o saldo físico dos materiais: '+e.message;
+ }finally{romaneioStockLoading=false;}
+}
 function abrirEmissaoRomaneio(){
   if(!selectedWork||!dispatchReady||romaneioLoadError||!podeEmitirRomaneio())return;
   node('romaneioWorkInfo').textContent='Cliente: '+(selectedWork.cliente||'Não informado')+
     ' · Obra: '+selectedWork.nome;
   node('romaneioForm').reset();
+  romaneioStockRows=[];node('romaneioAddMaterial').disabled=true;
   preencherTransportesRomaneio();
   node('romaneioDate').value=todayLocal();
   node('romaneioRows').replaceChildren();
@@ -3097,6 +3148,7 @@ function abrirEmissaoRomaneio(){
   if(elements.some(x=>x.obra_id===selectedWork.id))
     adicionarLinhaRomaneio('esquadria');
   node('romaneioDriver').focus();
+  void carregarMateriaisDisponiveisRomaneio();
 }
 function fecharEmissaoRomaneio(){
   node('romaneioModal').classList.add('hidden');
@@ -3296,16 +3348,29 @@ function adicionarLinhaRomaneio(natureza){
     row.querySelector('[data-rom-field="esquadria_id"]').addEventListener('change',()=>atualizarLinhaRomaneio(row));
     row.querySelector('[data-rom-field="folhas_por_unidade"]').addEventListener('input',()=>atualizarLinhaRomaneio(row));
   }else{
-    row.innerHTML='<div class="itemline"><strong>Material avulso</strong>'+removable+'</div>'+
-      '<label>Descrição do material<input data-rom-field="descricao" maxlength="350" placeholder="Ex.: CANTONEIRA 1x1" required></label>'+
-      '<div class="romaneioRowFields">'+
-      '<label>Código (opcional)<input data-rom-field="codigo" maxlength="60"></label>'+
-      '<label>Quantidade<input data-rom-field="quantidade" type="number" min="1" step="1" required></label>'+
-      '<label>Unidade<input data-rom-field="unidade" maxlength="12" value="UNID." required></label>'+
-      '</div><div class="romaneioRowFields">'+
-      '<label>Localização (opcional)<input data-rom-field="localizacao" maxlength="120"></label>'+
-      '<label>Medida (opcional)<input data-rom-field="medida" maxlength="100" placeholder="Ex.: 6 m"></label>'+
-      '</div>';
+    if(!(isFullAdminUser()||isAlmoxarife())||!romaneioStockRows.length){
+      node('romaneioError').textContent='Materiais diretos exigem permissão de ADM ou almoxarife e saldo físico disponível.';
+      return;
+    }
+    row.innerHTML='<div class="itemline"><strong>Material do estoque → obra</strong>'+removable+'</div>'+
+     '<label>Selecione o perfil ou acessório e o galpão</label>'+
+     '<select data-rom-field="estoque_key" required><option value="">Selecione um material com saldo</option>'+
+      romaneioStockRows.map((item,i)=>'<option value="'+i+'">'+escapeHTML(item.label)+'</option>').join('')+
+     '</select><p class="romaneioRowSummary hint">Selecione o material para consultar o saldo disponível.</p>'+
+     '<div class="romaneioRowFields"><label>Quantidade a enviar (unidades inteiras)'+
+      '<input data-rom-field="quantidade" type="number" min="1" step="1" required></label></div>'+
+     '<p class="hint">Ao emitir, a quantidade será debitada do estoque da obra no galpão selecionado. '+
+     'A devolução exige cancelamento auditado do romaneio e confirmação física.</p>';
+    const select=row.querySelector('[data-rom-field="estoque_key"]');
+    const qty=row.querySelector('[data-rom-field="quantidade"]');
+    select.addEventListener('change',()=>{
+      const item=romaneioStockRows[Number(select.value)];
+      if(!item||select.value===''){qty.value='';qty.max='';return;}
+      qty.max=String(Math.floor(item.saldo));qty.value=item.saldo>=1?'1':'';
+      row.querySelector('.romaneioRowSummary').textContent=
+       item.codigo+' · '+item.local+' · '+item.saldo+' '+item.unidade+
+       ' disponíveis. A baixa será feita na emissão.';
+    });
   }
   row.querySelector('[data-remove-rom]').addEventListener('click',()=>row.remove());
   node('romaneioRows').append(row);
@@ -3346,12 +3411,20 @@ function coletarItensRomaneio(){
       return {natureza:'esquadria',esquadria_id:id,quantidade,folhas_por_unidade:folhas,
         tipo_saida:tipo,descricao_romaneio:descricaoRomaneio};
     }
-    const descricao=campo('descricao');
-    if(descricao.length<2)throw new Error('Descreva o material do item '+(index+1)+'.');
-    const unidade=campo('unidade').toUpperCase();
-    if(!unidade)throw new Error('Informe a unidade do item '+(index+1)+'.');
-    return {natureza:'material',descricao,codigo:campo('codigo'),
-      localizacao:campo('localizacao'),medida:campo('medida'),quantidade,unidade};
+    if(!(isFullAdminUser()||isAlmoxarife()))
+      throw new Error('Somente ADM ou almoxarife pode expedir material físico.');
+    const key=campo('estoque_key'),mat=romaneioStockRows[Number(key)];
+    if(key===''||!mat)throw new Error('Selecione um item real do estoque da obra.');
+    if(quantidade>Math.floor(mat.saldo))throw new Error('Saldo insuficiente do material '+mat.codigo+'.');
+    const usedKey='ESTOQUE|'+key;
+    const anteriores=Number([...row.parentElement.querySelectorAll('.romaneioRow')]
+      .filter(x=>x!==row&&x.dataset.natureza==='material'&&
+       x.querySelector('[data-rom-field="estoque_key"]')?.value===key)
+      .reduce((n,x)=>n+Number(x.querySelector('[data-rom-field="quantidade"]')?.value||0),0));
+    if(quantidade+anteriores>mat.saldo)throw new Error(
+       mat.codigo+': a soma das linhas deste romaneio excede o saldo disponível.');
+    return {natureza:'material',variacao_id:mat.varId,comprimento_mm:mat.comprimento,
+      unidade:mat.unidade,local_estoque:mat.local,quantidade};
   });
 }
 // Abreviação só para o comprovante: o cadastro técnico fica intacto.
