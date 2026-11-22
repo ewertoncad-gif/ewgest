@@ -252,6 +252,9 @@ BEGIN
  IF EXISTS(SELECT 1 FROM public.ew_estoque_obras_movimentos m WHERE m.obra_id=a
     GROUP BY m.local_estoque HAVING sum(m.quantidade_delta)<>0)
  THEN RAISE EXCEPTION 'Caso9: sobrou saldo em um dos galpões';END IF;
+ IF public.ew_transferencias_internas_conciliadas(a)<>2 THEN
+  RAISE EXCEPTION 'Caso9: duas pernas históricas internas deveriam estar conciliadas.';
+ END IF;
  SELECT m.id INTO extra FROM public.ew_estornos_parcelas p
  JOIN public.ew_estoque_obras_movimentos m ON m.id=p.movimento_estorno_id
  WHERE p.operacao_id=rev AND m.estorno_de_id IS NULL;
