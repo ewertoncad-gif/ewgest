@@ -2073,7 +2073,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.6')&&
+assert.ok(source.includes('v46.7')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2306,7 +2306,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.6</strong>'),
+ source.includes('EWGEST <strong>· v46.7</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2705,5 +2705,78 @@ assert.ok(duasPartesNoRomaneio466.includes('Total M²:</strong> 1,04')&&
  duasPartesNoRomaneio466.includes('<td class="right">0,69</td>')&&
  duasPartesNoRomaneio466.includes('<td class="right">0,35</td>'),
  'Mesmo romaneio com marco e uma folha física calcula 1,035m² e exibe 1,04m² arredondado');
+
+// EWGEST v46.7 — faturamento parcial de esquadria, sem exigir saída completa.
+const finStart467=source.indexOf('function finEquivalentesExpedidos(linhas,composicoes){');
+const finEnd467=source.indexOf('function finRenderFaturaveis(){',finStart467);
+assert.ok(finStart467>=0&&finEnd467>finStart467,'Funções de equivalência financeira disponíveis');
+const finCalc467=new Function(source.slice(finStart467,finEnd467)+
+ '\nreturn {finEquivalentesExpedidos,finEquivDisponivel};')();
+const cfg467=[{esquadria_id:'ea2-fat',folhas_por_unidade:2},
+ {esquadria_id:'ea3-fat',folhas_por_unidade:3}];
+const expedicao467=[];
+const doc467=(id,tipo,q)=>({esquadria_id:id,natureza:'esquadria',tipo_saida:tipo,quantidade:q});
+function equivalentes467(id){
+ return finCalc467.finEquivalentesExpedidos(expedicao467,cfg467).get(id)||0;
+}
+expedicao467.push(doc467('ea2-fat','marco',1));
+assert.equal(equivalentes467('ea2-fat'),0.5,
+ 'Marco 50% já deve aparecer como faturável antes de enviar folhas');
+const precoIntegral467=1000;
+const jaFaturado467=0.5;
+assert.equal(finCalc467.finEquivDisponivel(equivalentes467('ea2-fat')-jaFaturado467),0,
+ 'Faturar 50% do marco consome apenas o saldo expedido correspondente');
+expedicao467.push(doc467('ea2-fat','folha',1));
+assert.equal(equivalentes467('ea2-fat'),0.75,
+ 'Marco + 1 folha física de 2 = 75%');
+assert.equal(finCalc467.finEquivDisponivel(equivalentes467('ea2-fat')-jaFaturado467),0.25,
+ 'Restante faturável após marco faturado + uma folha expedida = 25%');
+assert.equal(Math.round(jaFaturado467*precoIntegral467*100)/100,500);
+expedicao467.push(doc467('ea2-fat','folha',1));
+assert.equal(equivalentes467('ea2-fat'),1,
+ 'Marco + 2 folhas físicas representa 100% da esquadria');
+assert.equal(finCalc467.finEquivDisponivel(equivalentes467('ea2-fat')-jaFaturado467),0.5,
+ 'Se foi faturado só o marco, restam 50% faturáveis após folhas');
+expedicao467.splice(0);
+expedicao467.push(doc467('ea2-fat','folha',1));
+assert.equal(equivalentes467('ea2-fat'),0.25,'Folha pode ser faturada antes do marco');
+expedicao467.push(doc467('ea2-fat','marco',1));
+assert.equal(equivalentes467('ea2-fat'),0.75,'Ordem inversa mantém 75%');
+expedicao467.splice(0);
+expedicao467.push(doc467('ea3-fat','folha',1));
+assert.equal(finCalc467.finEquivDisponivel(equivalentes467('ea3-fat')),0.166666,
+ '1 de 3 folhas: disponibiliza valor aproximado por baixo (1/6) sem exceder expedição');
+expedicao467.push(doc467('ea3-fat','folha',2));
+assert.equal(finCalc467.finEquivDisponivel(equivalentes467('ea3-fat')),0.5,
+ '3 folhas expedidas somam 50%');
+expedicao467.splice(0);
+expedicao467.push(doc467('ea2-fat','completo',1));
+assert.equal(equivalentes467('ea2-fat'),1,
+ 'Romaneio completo legado continua equivalendo a uma unidade inteira');
+assert.throws(()=>finCalc467.finEquivalentesExpedidos(
+ [doc467('sem-folhas','folha',1)],cfg467),/Composição das folhas/,
+ 'Não inventar quantidade de folhas sem configuração conhecida');
+assert.ok(source.includes("filter(x=>x.status==='emitido'&&!x.cancelado_em)")&&
+ source.includes("const shipped=finEquivalentesExpedidos(romLinhas,composicoes);")&& source.includes("step=\"0.000001\"")&&
+ source.includes("const disponivel=finEquivDisponivel("),
+ 
+ 'Somente romaneios emitidos e ativos compõem o faturamento parcial');
+const financeiroSQL467=readFileSync(fileURLToPath(new URL(
+ '../database/proposals/20261122_faturamento_parcial_esquadrias_v467.sql',import.meta.url)),'utf8');
+for(const trecho467 of [
+ 'ALTER COLUMN quantidade TYPE numeric(14,6)',
+ 'CREATE OR REPLACE FUNCTION public.ew_registrar_faturamento_financeiro',
+ "p_categoria='instalacao' AND p_instalacao_confirmada",
+ "ue.perfil='administrador'",
+ 'pg_catalog.pg_advisory_xact_lock',
+ 'v_quantidade<>round(v_quantidade,6)',
+ "WHEN 'marco' THEN ri.quantidade::numeric/2",
+ "WHEN 'folha' THEN ri.quantidade::numeric/(2*cfg.folhas_por_unidade)",
+ "rr.status='emitido' AND rr.cancelado_em IS NULL",
+ 'v_total_invoiced+v_quantidade>v_shipped',
+ "v_quantidade,v_unit,round(v_quantidade*v_unit,2)"
+])assert.ok(financeiroSQL467.includes(trecho467),'Proteção financeira ausente no SQL: '+trecho467);
+assert.ok(!financeiroSQL467.includes('v_quantidade::integer,v_unit'),
+ 'Persistência de fração não pode truncar para unidade inteira');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
