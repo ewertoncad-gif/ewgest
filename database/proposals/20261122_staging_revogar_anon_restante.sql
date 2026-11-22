@@ -1,4 +1,5 @@
--- EWGEST v46.9 — endurecimento adicional SOMENTE do staging Supabase Free
+-- EWGEST v46.9 — APLICADO AO STAGING TESTE EM 22/11/2026.
+-- Endurecimento adicional SOMENTE do Supabase Free. NÃO REAPLICAR sem auditoria.
 -- PR #64, projeto alvo: ewgest-restauracao-teste (35 tabelas public).
 -- 13 tabelas já tinham RLS e apenas políticas 'authenticated',
 -- mas conservavam privilégios desnecessários do papel anon.
