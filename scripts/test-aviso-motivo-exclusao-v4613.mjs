@@ -12,7 +12,7 @@ assert.ok(uiStart>0&&uiEnd>uiStart&&clickStart>uiEnd&&clickEnd>clickStart,
  'Funções reais de exclusão de obras precisam estar na página');
 const updater=html.slice(uiStart,uiEnd);
 const handler=html.slice(clickStart,clickEnd);
-assert.match(html,/EWGEST <strong>· v46\.13<\/strong>/);
+assert.match(html,/EWGEST <strong>· v46\.14<\/strong>/);
 assert.match(updater,/!info\?\.permitido\|\|workDeleteSubmitting/);
 assert.match(handler,/window\.alert\(mensagem\)/);
 assert.match(handler,/motivoCampo\.focus\(\)/);
@@ -103,4 +103,4 @@ assert.equal(erro.requests.length,1);
 assert.match(erro.el('manageWorksFeedback').textContent,/Cancelamento negado pelo banco de dados/);
 assert.equal(erro.el('manageWorksDelete').disabled,false,'Erro deve permitir corrigir e tentar novamente');
 
-console.log('OK v46.13: motivo vazio/curto mostra alerta e foca, motivo válido confirma, bloqueio de servidor preservado.');
+console.log('OK v46.14: motivo vazio/curto mostra alerta e foca, motivo válido confirma, bloqueio de servidor preservado.');
