@@ -1227,7 +1227,9 @@ assert.ok(source.includes('stockReverseHistoryLimit=60')&&
  source.includes("filtrados.slice(0,stockReverseHistoryLimit)")&&
  source.includes("resumo.saldos.slice(0,stockReverseBalancesLimit)"),
  'As listagens extensas precisam ser exibidas progressivamente sem cortar histórico');
-assert.ok(source.includes("estornados.has(m.id)?'Estornado':conciliada?'Histórico conciliado pelo estorno da NF-e':'Não estornado'")&&
+assert.ok(source.includes("m.origem==='ESTORNO'||m.estorno_de_id?'Contrapartida de estorno'")&&
+ source.includes('Histórico conciliado pelo estorno da NF-e')&&
+ source.includes('Histórico conciliado (saldo zero)')&&
  source.includes('Estornar todos os lançamentos sem estorno')&&
  source.includes('⚠ ESTORNO BLOQUEADO')&&
  source.includes("node('stockReverseOpenWorks').classList.remove('hidden')"),
