@@ -64,6 +64,26 @@ change('ewPricePercent',{},'60');
 assert.match(el('ewPriceResumo').innerHTML,/R\$\s*6\.000,00/);
 assert.match(el('ewPriceResumo').innerHTML,/R\$\s*4\.000,00/);
 assert.match(el('ewPriceItens').innerHTML,/ewPriceGroupRow/);
+// O percentual precisa recalcular durante a digitação, sem perder foco.
+el('ewPricePercent').value='55.25';
+el('ewPricePercent').handlers.input({target:el('ewPricePercent')});
+assert.match(el('ewPriceResumo').innerHTML,/R\\$\\s*5\\.525,00/,
+ 'Digitar 55,25% altera o total de fabricação imediatamente');
+assert.match(el('ewPriceResumo').innerHTML,/R\\$\\s*4\\.475,00/,
+ 'Instalação atualiza automaticamente para 44,75%');
+assert.equal(el('ewPriceConfirmar').disabled,false);
+// Um percentual inválido não pode voltar a habilitar o envio após editar um preço.
+el('ewPricePercent').value='110';
+el('ewPricePercent').handlers.input({target:el('ewPricePercent')});
+assert.equal(el('ewPriceConfirmar').disabled,true);
+assert.match(el('ewPriceFechamento').textContent,/Informe fabricação/);
+change('ewPriceCategorias',{price:'categoria-1'},'1400');
+assert.equal(el('ewPriceConfirmar').disabled,true,
+ 'Outra edição não pode validar silenciosamente o percentual anterior');
+el('ewPricePercent').value='60';
+el('ewPricePercent').handlers.input({target:el('ewPricePercent')});
+assert.equal(el('ewPriceConfirmar').disabled,false);
+
 const click=async()=>el('ewPriceConfirmar').handlers.click();
 await click();
 assert.equal(obra.jaImportado,true);
