@@ -42,7 +42,7 @@ BEGIN
  THEN RAISE EXCEPTION 'Caso1: retry deve ser idempotente';END IF;
 END $case1$;
 
-TRUNCATE public.ew_auditoria_operacoes,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
+TRUNCATE public.ew_auditoria_operacoes,public.ew_estornos_parcelas,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
 DO $case2$
 DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
  b uuid:='aaaaaaaa-0000-4000-8000-000000000002';
@@ -67,7 +67,7 @@ BEGIN
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',op,'Baixa fabricada devidamente estornada',gen_random_uuid());
 END $case2$;
 
-TRUNCATE public.ew_auditoria_operacoes,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
+TRUNCATE public.ew_auditoria_operacoes,public.ew_estornos_parcelas,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
 DO $case3$
 DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
  b uuid:='aaaaaaaa-0000-4000-8000-000000000002';
@@ -96,7 +96,7 @@ BEGIN
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',op,'Transferência seguinte já revertida',gen_random_uuid());
 END $case3$;
 
-TRUNCATE public.ew_auditoria_operacoes,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
+TRUNCATE public.ew_auditoria_operacoes,public.ew_estornos_parcelas,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
 DO $case4$
 DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
  b uuid:='aaaaaaaa-0000-4000-8000-000000000002';
@@ -119,7 +119,7 @@ BEGIN
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',op,'Romaneio cancelado, saída revertida',gen_random_uuid());
 END $case4$;
 
-TRUNCATE public.ew_auditoria_operacoes,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
+TRUNCATE public.ew_auditoria_operacoes,public.ew_estornos_parcelas,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
 DO $case5$
 DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
  original uuid;res jsonb;v numeric;
@@ -137,7 +137,7 @@ BEGIN
  THEN RAISE EXCEPTION 'Caso5: estorno não registra galpão real';END IF;
 END $case5$;
 
-TRUNCATE public.ew_auditoria_operacoes,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
+TRUNCATE public.ew_auditoria_operacoes,public.ew_estornos_parcelas,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
 DO $case6$
 DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
  src uuid;consume uuid;err text;
@@ -156,28 +156,80 @@ BEGIN
  PERFORM public.ew_estornar_movimento_obra(a,src,'Material de fabricação revertido',gen_random_uuid());
 END $case6$;
 
-TRUNCATE public.ew_auditoria_operacoes,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
+TRUNCATE public.ew_auditoria_operacoes,public.ew_estornos_parcelas,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
 DO $case7$
 DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
  b uuid:='aaaaaaaa-0000-4000-8000-000000000002';
- op uuid:='aaaa0008-0000-4000-8000-000000000008';err text;
+ op uuid:='aaaa0008-0000-4000-8000-000000000008';
+ rev uuid:='eeee0008-0000-4000-8000-000000000008';
+ r jsonb;v numeric;
 BEGIN
  PERFORM public.test_mov(a,2,'ABERTURA','AFOGADOS');
  PERFORM public.test_mov(a,-2,'TRANSFERENCIA','AFOGADOS',op);
  PERFORM public.test_mov(b,2,'TRANSFERENCIA','IMBIRIBEIRA',op);
  PERFORM public.test_mov(b,-1,'TRANSFERENCIA','IMBIRIBEIRA','aaaa0009-0000-4000-8000-000000000009');
  PERFORM public.test_mov(b,1,'TRANSFERENCIA','AFOGADOS','aaaa0009-0000-4000-8000-000000000009');
+ r:=public.ew_estornar_transferencia_entre_obras(
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',op,
+   'Quantidades divididas por galpão sem consumo',rev);
+ IF (r->>'estornados')::int<>3 OR jsonb_array_length(r->'parcelas')<>2 THEN
+   RAISE EXCEPTION 'Caso7: estorno deveria ter 2 parcelas + 1 devolução: %',r;END IF;
+ IF (SELECT count(*) FROM public.ew_estornos_parcelas WHERE operacao_id=rev)<>3 THEN
+   RAISE EXCEPTION 'Caso7: vínculos auditáveis incompletos'; END IF;
+ IF (SELECT sum(quantidade) FROM public.ew_estornos_parcelas
+     WHERE operacao_id=rev AND obra_id=b)<>2 THEN
+   RAISE EXCEPTION 'Caso7: parcelas da obra destino não somam a transferência';END IF;
+ IF (SELECT count(DISTINCT local_estoque) FROM public.ew_estornos_parcelas
+     WHERE operacao_id=rev AND obra_id=b)<>2 THEN
+   RAISE EXCEPTION 'Caso7: galpões de origem física não foram registrados';END IF;
+ IF (SELECT count(*) FROM public.ew_estoque_obras_movimentos WHERE
+    transferencia_id=rev AND origem='ESTORNO' AND estorno_de_id IS NULL)<>1 THEN
+   RAISE EXCEPTION 'Caso7: apenas a parcela adicional deve ficar sem link direto';END IF;
+ SELECT coalesce(sum(quantidade_delta),0) INTO v FROM public.ew_estoque_obras_movimentos WHERE obra_id=b;
+ IF v<>0 THEN RAISE EXCEPTION 'Caso7: obra destino não zerou: %',v;END IF;
+ SELECT coalesce(sum(quantidade_delta),0) INTO v FROM public.ew_estoque_obras_movimentos WHERE obra_id=a;
+ IF v<>2 THEN RAISE EXCEPTION 'Caso7: origem não recuperou a quantidade: %',v;END IF;
+ r:=public.ew_estornar_transferencia_entre_obras(
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',op,
+   'Quantidades divididas por galpão sem consumo',rev);
+ IF (r->>'repetida')::boolean IS DISTINCT FROM true OR
+    (r->>'estornados')::int<>3 THEN
+   RAISE EXCEPTION 'Caso7: retry deve voltar idempotente com três movimentos: %',r;END IF;
+ IF (SELECT count(*) FROM public.ew_estoque_obras_movimentos WHERE
+    transferencia_id=rev AND origem='ESTORNO')<>3 THEN
+   RAISE EXCEPTION 'Caso7: retry duplicou lançamentos';END IF;
+END $case7$;
+
+-- Saldo total insuficiente nunca pode criar parcelas parciais.
+TRUNCATE public.ew_auditoria_operacoes,public.ew_estornos_parcelas,public.ew_nfe_recebimentos,public.ew_estoque_obras_movimentos,public._blockers;
+DO $case8$
+DECLARE a uuid:='aaaaaaaa-0000-4000-8000-000000000001';
+ b uuid:='aaaaaaaa-0000-4000-8000-000000000002';
+ op uuid:='aaaa0010-0000-4000-8000-000000000010';
+ rev uuid:='eeee0010-0000-4000-8000-000000000010';
+ err text;
+BEGIN
+ PERFORM public.test_mov(a,3,'ABERTURA','AFOGADOS');
+ PERFORM public.test_mov(a,-3,'TRANSFERENCIA','AFOGADOS',op);
+ PERFORM public.test_mov(b,3,'TRANSFERENCIA','IMBIRIBEIRA',op);
+ PERFORM public.test_mov(b,-1,'TRANSFERENCIA','IMBIRIBEIRA','aaaa0011-0000-4000-8000-000000000011');
+ PERFORM public.test_mov(b,1,'TRANSFERENCIA','AFOGADOS','aaaa0011-0000-4000-8000-000000000011');
+ -- Simula uma saída não documentada que deixou menos de 3 barras, sem
+ -- mascarar o problema por compras posteriores.
+ PERFORM public.test_mov(b,-2,'ESTORNO','IMBIRIBEIRA');
  BEGIN
   PERFORM public.ew_estornar_transferencia_entre_obras(
-   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',op,'Quantidades divididas por galpão',gen_random_uuid());
-  RAISE EXCEPTION 'Caso7: saldo fragmentado aceito sem alocação auditável';
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',op,
+   'Quantidade indisponível na obra destino',rev);
+  RAISE EXCEPTION 'Caso8: estornou além do saldo disponível';
  EXCEPTION WHEN OTHERS THEN
   GET STACKED DIAGNOSTICS err=MESSAGE_TEXT;
-  IF err NOT LIKE '%Saldo dividido%' THEN RAISE;END IF;
+  IF err NOT LIKE '%Saldo insuficiente%' THEN RAISE;END IF;
  END;
- IF (SELECT count(*) FROM public.ew_estoque_obras_movimentos WHERE origem='ESTORNO')<>0
- THEN RAISE EXCEPTION 'Caso7: rejeição deixou registros parciais';END IF;
-END $case7$;
+ IF EXISTS(SELECT 1 FROM public.ew_estornos_parcelas WHERE operacao_id=rev) OR
+    EXISTS(SELECT 1 FROM public.ew_estoque_obras_movimentos WHERE transferencia_id=rev)
+ THEN RAISE EXCEPTION 'Caso8: operação rejeitada não pode deixar movimentações';END IF;
+END $case8$;
 
 -- Isolamento empresarial e perfil de autorização.
 DO $security$
