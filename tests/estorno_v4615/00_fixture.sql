@@ -1,10 +1,10 @@
 -- EWGEST v46.15: PostgreSQL 17 DESCARTÁVEL, apenas obras e IDs fictícios.
 \set ON_ERROR_STOP on
 CREATE SCHEMA auth;
-DO $ BEGIN
+DO $roles$ BEGIN
  IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF;
  IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
-END $;
+END $roles$;
 CREATE TABLE auth.users (id uuid PRIMARY KEY);
 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE
 AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
