@@ -5,9 +5,10 @@ INSERT INTO public.obras(id,empresa_id,nome,codigo,arquivada_em)
  VALUES('c1111111-1111-4111-8111-111111111111',
  '9ea7617c-6603-4bc1-91e1-c5e274c334d9',
  'Obra encerrada fictícia','OBRA-V4618',now());
-INSERT INTO public.ew_estoques_locais(empresa_id,obra_id,excluido_em)
+INSERT INTO public.ew_estoques_locais(empresa_id,obra_id,excluido_em,excluido_por,restauravel_ate)
  VALUES('9ea7617c-6603-4bc1-91e1-c5e274c334d9',
- 'c1111111-1111-4111-8111-111111111111',now());
+ 'c1111111-1111-4111-8111-111111111111',now(),
+ '040b8754-8557-449c-8ad4-eaa34155c920',now()+interval '48 hours');
 DO $test$
 DECLARE erro text;n integer;
 BEGIN
