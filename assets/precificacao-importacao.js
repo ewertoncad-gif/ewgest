@@ -35,7 +35,7 @@ wrapper.innerHTML=[
  '<button class="btn secondary" type="button" id="ewPriceAdd">+ Criar categoria</button>',
  '<label>Fabricação <input type="number" id="ewPricePercent" min="0" max="100" step="0.01" inputmode="decimal"> %</label>',
  '<span class="hint" id="ewPricePercentHint"></span></div>',
- '<div class="ewPriceStep"><strong>2. Conferir cada esquadria</strong><span class="hint">Altere a categoria individualmente quando necessário</span></div>',
+ '<div class="ewPriceStep"><strong>2. Conferir cada esquadria</strong><span class="hint">Altere a categoria individualmente. Marque Padrão para repetir a escolha nas próximas obras.</span></div>',
  '<div id="ewPriceItens" class="ewPriceItems"></div>',
  '<div id="ewPriceFechamento" class="ewPriceInfo" aria-live="polite"></div>',
  '<p id="ewPriceErro" class="feedback" role="alert"></p>',
@@ -103,7 +103,7 @@ async function abrir(r,values,onSave){
     id:'item-'+String(i).padStart(6,'0'),indiceImportacao:i,codigo:x.codigo,
     descricao:x.descricao,referencia_tipologia:String(x.referencia_tipologia||''),
     largura_mm:Number(x.largura_mm),altura_mm:Number(x.altura_mm),
-    quantidade:Number(x.quantidade),
+    quantidade:Number(x.quantidade),tipologiaId:tipoId||null,padrao:false,
     categoriaId:(tipoId&&padraoPorTipo.get(tipoId))||
      ids.get(motor.sugerirCategoria(x.descricao))||ids.get('OUTROS')
    };
@@ -142,18 +142,21 @@ function renderizar(){
     (temItens?' disabled title="Mova as esquadrias antes de excluir"':'')+'>Excluir</button></td></tr>';
   }).join('')+'</tbody></table>';
  // Exibir esquadrias agrupadas por categoria, com possibilidade de mover cada item.
- $$('ewPriceItens').innerHTML='<table><thead><tr><th>Código</th><th>Descrição</th><th>Qtd.</th><th>Área</th><th>Categoria</th><th>Fabricação</th><th>Instalação</th></tr></thead><tbody>'+
+ $$('ewPriceItens').innerHTML='<table><thead><tr><th>Código</th><th>Descrição</th><th>Qtd.</th><th>Área</th><th>Categoria</th><th>Padrão</th><th>Fabricação</th><th>Instalação</th></tr></thead><tbody>'+
  s.categorias.map(cat=>{
   const porGrupo=s.itens.filter(x=>x.categoriaId===cat.id).sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR'));
   if(!porGrupo.length)return '';
   const areaGrupo=porGrupo.reduce((sum,x)=>sum+x.largura_mm*x.altura_mm*x.quantidade/1000000,0);
-  return '<tr class="ewPriceGroupRow"><td colspan="7"><strong>'+esc(cat.nome)+'</strong> · '+
+  return '<tr class="ewPriceGroupRow"><td colspan="8"><strong>'+esc(cat.nome)+'</strong> · '+
    porGrupo.length+' linhas · '+area(areaGrupo)+'</td></tr>'+
   porGrupo.map(x=>{
    const options=ops.replace('value="'+esc(x.categoriaId)+'"','value="'+esc(x.categoriaId)+'" selected');
    return '<tr><td><strong>'+esc(x.codigo)+'</strong></td><td>'+esc(x.descricao)+'</td>'+
     '<td class="ewPriceNum">'+x.quantidade+'</td><td class="ewPriceNum">'+area(x.largura_mm*x.altura_mm*x.quantidade/1000000)+'</td>'+
     '<td><select aria-label="Categoria de '+esc(x.codigo)+'" data-item="'+esc(x.id)+'">'+options+'</select></td>'+
+    '<td><label class="ewPriceDefault"><input type="checkbox" data-default="'+esc(x.id)+'"'+
+      (x.padrao?' checked':'')+(x.tipologiaId?'':' disabled title="Tipologia não identificada de forma única no catálogo"')+
+     '> Usar depois</label></td>'+
     '<td class="ewPriceNum" data-item-fab="'+esc(x.id)+'">—</td>'+
     '<td class="ewPriceNum" data-item-inst="'+esc(x.id)+'">—</td></tr>';
   }).join('');
@@ -227,6 +230,7 @@ function montarDraft(){
    indice_importacao:s.itens.find(y=>y.id===x.id).indiceImportacao,
    categoria_id_local:x.categoriaId,codigo:x.codigo,descricao:x.descricao,
    referencia_tipologia:s.itens.find(y=>y.id===x.id).referencia_tipologia,
+   definir_padrao_tipologia:Boolean(s.itens.find(y=>y.id===x.id).padrao),
    largura_mm:x.largura_mm,altura_mm:x.altura_mm,quantidade:x.quantidade,
    area_m2:x.areaM2,fabricacao_centavos:x.fabricacaoCentavos,
    instalacao_centavos:x.instalacaoCentavos
@@ -270,8 +274,14 @@ $$('ewPriceCategorias').addEventListener('click',ev=>{
  if(estado.categorias.length<2)return;
  estado.categorias=estado.categorias.filter(x=>x.id!==id);renderizar();
 });
-$$('ewPriceItens').addEventListener('change',ev=>{
+$('ewPriceItens').addEventListener('change',ev=>{
  if(!estado||gravando)return;
+ if(ev.target.dataset.default){
+  const linha=estado.itens.find(x=>x.id===ev.target.dataset.default);
+  if(!linha||!linha.tipologiaId)return;
+  linha.padrao=Boolean(ev.target.checked);
+  return;
+ }
  const row=estado.itens.find(x=>x.id===ev.target.dataset.item);
  if(!row||!estado.categorias.some(c=>c.id===ev.target.value))return;
  row.categoriaId=ev.target.value;renderizar();
