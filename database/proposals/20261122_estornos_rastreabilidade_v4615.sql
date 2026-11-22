@@ -297,7 +297,8 @@ begin
  if found then
   if v_audit.acao <> 'ESTORNAR_ESTOQUE'
    or v_audit.obra_id is distinct from p_obra_id or v_audit.usuario_id <> v_uid
-   or v_audit.referencia_id is distinct from p_movimento_id then
+   or v_audit.referencia_id is distinct from p_movimento_id
+   or v_audit.detalhes->>'modo' IS DISTINCT FROM 'individual' then
    raise exception 'Identificador de operação já usado em outro estorno.';
   end if;
   return jsonb_build_object('repetida',true,
