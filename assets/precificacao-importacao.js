@@ -49,7 +49,7 @@ function totalNiveis(v,grupo){
  return v.niveis.filter(x=>x.categoria_base===grupo)
  .reduce((sum,x)=>sum+Math.round(Number(x.valor||0)*100),0);
 }
-function abrir(r,values,onSave){
+async function abrir(r,values,onSave){
  if(!r||r.obraExistente||r.jaImportado||!r.esquadriasPayload?.length)
   throw Error('A precificação requer uma nova obra com esquadrias analisadas.');
  if(!values||!Array.isArray(values.niveis)||typeof onSave!=='function')
@@ -60,19 +60,61 @@ function abrir(r,values,onSave){
  const grupoNomes=['ESQUADRIAS','GUARDA-CORPO','GRADIL','FACHADAS','OUTROS'];
  const categorias=grupoNomes.map((n,i)=>({id:'categoria-'+i,nome:n,precoBaseCentavosM2:0}));
  const ids=new Map(categorias.map(x=>[x.nome,x.id]));
- const itens=r.esquadriasPayload.map((x,i)=>({
-  id:'item-'+String(i).padStart(6,'0'),indiceImportacao:i,codigo:x.codigo,
-  descricao:x.descricao,largura_mm:Number(x.largura_mm),altura_mm:Number(x.altura_mm),
-  quantidade:Number(x.quantidade),categoriaId:ids.get(motor.sugerirCategoria(x.descricao))||ids.get('OUTROS')
- }));
- estado={r,values,fab,inst,categorias,itens,pctBp:null,proxima:5,calculado:null};
- salvar=onSave;gravando=false;
- $$('ewPriceWork').textContent=r.nomeObra+' · '+r.codigo+' · '+itens.length+' itens';
- $$('ewPricePercent').value=(fab/(fab+inst)*100).toFixed(2);
- $$('ewPricePercentHint').textContent='Sugerido a partir do orçamento.';
- $$('ewPriceNovaCategoria').value='';
+ const emp=currentCompany?.id;
+ if(!emp)throw Error('Empresa da sessão não identificada.');
+ $('ewPriceWork').textContent='Carregando categorias do cadastro…';
  wrapper.classList.remove('hidden');
- renderizar();
+ $('ewPriceConfirmar').disabled=true;
+ try{
+  await ensureSession();
+  // Catálogo da empresa é reutilizado, mas o vínculo de cada esquadria é
+  // específico desta obra. O nome de categoria fica congelado na revisão.
+  const empresa='eq.'+emp;
+  const [salvas,tipos,padroes]=await Promise.all([
+   apiGet('ew_precificacao_categorias',{select:'id,nome,ativo',empresa_id:empresa,ativo:'eq.true',limit:'500'}),
+   apiGet('tipologias',{select:'id,codigo',empresa_id:empresa,limit:'5000'}),
+   apiGet('ew_precificacao_tipologias_padrao',{select:'tipologia_id,categoria_id',empresa_id:empresa,limit:'5000'})
+  ]);
+  if(cemParsed!==r||currentCompany?.id!==emp)throw Error('A obra ou a empresa foi alterada durante a conferência.');
+  const porUuid=new Map();
+  for(const c of salvas||[]){
+   const n=nome(c.nome);if(!n)continue;
+   let grupo=categorias.find(x=>x.nome===n);
+   if(!grupo){
+    grupo={id:'catalogo-'+c.id,nome:n,precoBaseCentavosM2:0};
+    categorias.push(grupo);
+   }
+   porUuid.set(c.id,grupo.id);
+  }
+  const codigoTipo=new Map(),duplicados=new Set();
+  for(const t of tipos||[]){
+   const cod=nome(t.codigo);
+   if(codigoTipo.has(cod))duplicados.add(cod);
+   else codigoTipo.set(cod,t.id);
+  }
+  const padraoPorTipo=new Map((padroes||[]).map(x=>[x.tipologia_id,porUuid.get(x.categoria_id)]));
+  const itens=r.esquadriasPayload.map((x,i)=>{
+   const codigoReferencia=nome(x.referencia_tipologia);
+   const tipoId=duplicados.has(codigoReferencia)?null:codigoTipo.get(codigoReferencia);
+   return {
+    id:'item-'+String(i).padStart(6,'0'),indiceImportacao:i,codigo:x.codigo,
+    descricao:x.descricao,largura_mm:Number(x.largura_mm),altura_mm:Number(x.altura_mm),
+    quantidade:Number(x.quantidade),
+    categoriaId:(tipoId&&padraoPorTipo.get(tipoId))||
+     ids.get(motor.sugerirCategoria(x.descricao))||ids.get('OUTROS')
+   };
+  });
+  estado={r,values,fab,inst,categorias,itens,pctBp:null,proxima:5,calculado:null};
+  salvar=onSave;gravando=false;
+  $('ewPriceWork').textContent=r.nomeObra+' · '+r.codigo+' · '+itens.length+' itens';
+  $('ewPricePercent').value=(fab/(fab+inst)*100).toFixed(2);
+  $('ewPricePercentHint').textContent='Sugerido a partir do orçamento.';
+  $('ewPriceNovaCategoria').value='';
+  renderizar();
+ }catch(e){
+  fechar();
+  throw e;
+ }
 }
 function renderizar(){
  if(!estado)return;
