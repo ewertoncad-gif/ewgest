@@ -806,9 +806,9 @@ assert.ok(source.includes('OBAPROV:[],OBACES:[]'),
 assert.ok(!source.includes('id="stockImportCem"')&&source.includes('id="stockManageLocations"'),
  'Remover botão de importar quantidades da tela de estoque, preservando administração');
 assert.ok(source.includes("'/rest/v1/rpc/ew_importar_saldo_obra_cem'")&&
- source.includes("'/rest/v1/rpc/ew_excluir_estoque_local'")&&
- source.includes("'/rest/v1/rpc/ew_restaurar_estoque_local'"),
- 'Integração com importação e recuperação do Supabase');
+ !source.includes("'/rest/v1/rpc/ew_excluir_estoque_local'")&&
+ !source.includes("'/rest/v1/rpc/ew_restaurar_estoque_local'"),
+ 'Importar saldo permanece possível somente em obra ativa; restauração e arquivamento isolado estão desativados');
 assert.ok(source.includes('id="stockManualNote" rows="2" maxlength="500"'),
  'Observação do cadastro manual deve ser opcional');
 assert.ok(source.includes('id="stockManualQty" type="number" min="1" step="1"'),
