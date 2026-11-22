@@ -30,7 +30,7 @@ function selectObras(){
  const selecao=el('reportWork').value;
  el('reportWork').replaceChildren(new Option('Todas as obras',''));
  for(const o of obras){
-  const label=o.nome+(o.codigo?' · '+o.codigo:'')+;
+  const label=o.nome+(o.codigo?' · '+o.codigo:'');
   el('reportWork').add(new Option(label,o.id));
  }
  el('reportWork').value=obras.some(o=>o.id===selecao)?selecao:'';
@@ -42,7 +42,7 @@ async function carregarCatalogos(){
   listarTudo('obras',{select:'id,nome,codigo',empresa_id:empresa,arquivada_em:'is.null',order:'nome.asc'}),
   listarTudo('usuarios_login',{select:'usuario_id,nome,login',empresa_id:empresa,order:'nome.asc'})
  ]);
- obras=ob;obraAtivaIds=new Set(ob.map(o=>o.id));nomeObras=new Map(ob.map(o=>[o.id,o.nome+(o.codigo?' · '+o.codigo:'')+]));
+ obras=ob;obraAtivaIds=new Set(ob.map(o=>o.id));nomeObras=new Map(ob.map(o=>[o.id,o.nome+(o.codigo?' · '+o.codigo:'')]));
  nomeUsuarios=new Map(users.map(u=>[u.usuario_id,u.nome||u.login||String(u.usuario_id).slice(0,8)]));
  selectObras();
  const multi=el('reportWorkChecks');
@@ -51,7 +51,7 @@ async function carregarCatalogos(){
  for(const o of obras){
   const lbl=document.createElement('label'),cb=document.createElement('input');
   cb.type='checkbox';cb.value=o.id;cb.checked=checked.has(o.id);
-  lbl.append(cb,document.createTextNode(' '+o.nome+(o.codigo?' · '+o.codigo:'')+));
+  lbl.append(cb,document.createTextNode(' '+o.nome+(o.codigo?' · '+o.codigo:'')));
   multi.append(lbl);
  }
 }
