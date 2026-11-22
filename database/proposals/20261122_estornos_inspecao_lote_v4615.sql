@@ -113,7 +113,7 @@ CREATE OR REPLACE FUNCTION public.ew_estornar_estoque_obra(p_obra_id uuid, p_mot
 AS $function$
 declare v_uid uuid:=auth.uid();v_ob public.obras%rowtype;
  v_motivo text:=btrim(coalesce(p_motivo,''));v_n int;v_audit public.ew_auditoria_operacoes%rowtype;
- v_originais jsonb;v_status jsonb;v_conciliadas int:=0;
+ v_originais jsonb;v_status jsonb;v_conciliadas int:=0;v_chave record;
 begin
  perform public.ew_exigir_sessao_atual();
  if p_operacao_id is null then raise exception 'Identificador de operação obrigatório.';end if;
@@ -122,11 +122,23 @@ begin
  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_obra_id::text,977124));
  select * into v_ob from public.obras where id=p_obra_id for update;
  if not found or v_ob.arquivada_em is not null then raise exception 'Obra inexistente ou arquivada.';end if;
+ -- Sincronizar a reversão total com as travas por material de transferências,
+ -- entradas NF-e e estornos individuais. Ordem estável para evitar deadlock.
+ FOR v_chave IN
+  SELECT DISTINCT m.variacao_id::text||'|'||
+    coalesce(m.comprimento_mm::text,'-')||'|'||m.unidade AS chave
+  FROM public.ew_estoque_obras_movimentos m WHERE m.obra_id=p_obra_id
+  ORDER BY chave
+ LOOP
+  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+   p_obra_id::text||'|'||v_chave.chave,34777));
+ END LOOP;
  v_status:=public.ew_inspecionar_reversao_obra(p_obra_id);
  select * into v_audit from public.ew_auditoria_operacoes where operacao_id=p_operacao_id;
  if found then
   if v_audit.acao<>'ESTORNAR_ESTOQUE' or v_audit.obra_id<>p_obra_id or v_audit.usuario_id<>v_uid
-   then raise exception 'Identificador de operação já utilizado.';end if;
+    or coalesce(v_audit.detalhes->>'modo','') IN ('individual','transferencia_entre_obras')
+   then raise exception 'Identificador de operação já utilizado em outro tipo de estorno.';end if;
   return jsonb_build_object('repetida',true,'estornados',
     v_audit.detalhes->'movimentos_estornados',
     'conciliados',coalesce((v_audit.detalhes->>'transferencias_conciliadas')::int,0),
