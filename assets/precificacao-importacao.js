@@ -54,6 +54,9 @@ async function abrir(r,values,onSave){
   throw Error('A precificação requer uma nova obra com esquadrias analisadas.');
  if(!values||!Array.isArray(values.niveis)||typeof onSave!=='function')
   throw Error('Orçamento ou confirmação não disponíveis.');
+ if(values.niveis.some(x=>['fabricacao','instalacao'].includes(x.categoria_base)&&
+    Math.round(Number(x.valor||0)*100)>0&&!x.faturar))
+  throw Error('Para precificar, marque os níveis de fabricação e instalação como faturáveis no orçamento. Use Outros para gastos que não serão faturados.');
  const fab=totalNiveis(values,'fabricacao'),inst=totalNiveis(values,'instalacao');
  if(!Number.isSafeInteger(fab)||!Number.isSafeInteger(inst)||fab+inst<=0)
   throw Error('Cadastre níveis com valores de fabricação e/ou instalação.');
