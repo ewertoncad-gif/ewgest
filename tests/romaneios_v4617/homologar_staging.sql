@@ -63,6 +63,17 @@ BEGIN
    THEN RAISE EXCEPTION 'Idempotência não funcionou';END IF;
  SELECT count(*) INTO n FROM public.ew_romaneios_materiais_saidas x WHERE x.romaneio_id=v_rom_id;
  IF n<>1 THEN RAISE EXCEPTION 'Idempotência criou vínculo duplicado';END IF;
+ BEGIN
+  PERFORM public.ew_estornar_movimento_obra(
+    'b1111111-1111-4111-8111-111111111111',
+    (SELECT x.movimento_id FROM public.ew_romaneios_materiais_saidas x
+     WHERE x.romaneio_id=v_rom_id),
+    'Tentativa de estorno sem cancelar o romaneio',gen_random_uuid());
+  RAISE EXCEPTION 'FALHA: permitiu estorno isolado de material ainda expedido';
+ EXCEPTION WHEN OTHERS THEN
+  GET STACKED DIAGNOSTICS err=MESSAGE_TEXT;
+  IF err NOT LIKE '%Cancele o romaneio%' THEN RAISE; END IF;
+ END;
  c:=public.cancelar_romaneio_com_estorno(v_rom_id,'Devolução física confirmada na obra fictícia');
  SELECT coalesce(sum(m.quantidade_delta),0) INTO saldo
   FROM public.ew_estoque_obras_movimentos m
