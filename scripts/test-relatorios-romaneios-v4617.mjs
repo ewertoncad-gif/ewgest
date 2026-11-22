@@ -13,7 +13,7 @@ for(const token of ['value="liberacoes"','value="expedicao"','value="aluminio"',
  'data-report-stock="recebimento"','data-report-stock="producao"',
  'data-report-stock="galpoes"','data-report-stock="obras"',
  'data-report-stock="direto"','data-report-stock="outros"',
- 'relatorios-obras.js?v=20261122b','relatorios-obras.css?v=20261122b']){
+ 'relatorios-obras.js?v=20261122c','relatorios-obras.css?v=20261122b']){
  assert.ok(html.includes(token),'Falta componente no relatório: '+token);
 }
 assert.ok(js.includes("async function liberacoes(ctx)")&&
@@ -47,4 +47,4 @@ assert.ok(sql.includes("estorno_movimento_id")&&
 assert.ok(protect.includes("Cancele o romaneio e confirme a devolução física"));
 assert.doesNotMatch(js,/\/rest\/v1\/rpc\/|method\s*:\s*'POST'/,
  'Relatórios continuam somente leitura');
-console.log('OK v46.17: período total, filtros combináveis, relatórios e saídas diretas com vínculo auditável.');
+console.log('OK v46.18: período total, filtros combináveis, relatórios e saídas diretas com vínculo auditável.');

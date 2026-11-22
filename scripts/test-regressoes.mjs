@@ -13,6 +13,7 @@ import './test-estoque-zero-sem-galpao-v4614.mjs';
 import './test-estornos-parcelas-ui-v4615.mjs';
 import './test-relatorios-v4616.mjs';
 import './test-relatorios-romaneios-v4617.mjs';
+import './test-exclusao-definitiva-v4618.mjs';
 const source=readFileSync(fileURLToPath(new URL('../app.html',import.meta.url)),'utf8');
 // Issue #31 — Recebimento separado do Financeiro e operação por perfil.
 const recebimentoSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_recebimento_almoxarife_seguro.sql',import.meta.url)),'utf8');
@@ -806,9 +807,9 @@ assert.ok(source.includes('OBAPROV:[],OBACES:[]'),
 assert.ok(!source.includes('id="stockImportCem"')&&source.includes('id="stockManageLocations"'),
  'Remover botão de importar quantidades da tela de estoque, preservando administração');
 assert.ok(source.includes("'/rest/v1/rpc/ew_importar_saldo_obra_cem'")&&
- source.includes("'/rest/v1/rpc/ew_excluir_estoque_local'")&&
- source.includes("'/rest/v1/rpc/ew_restaurar_estoque_local'"),
- 'Integração com importação e recuperação do Supabase');
+ !source.includes("'/rest/v1/rpc/ew_excluir_estoque_local'")&&
+ !source.includes("'/rest/v1/rpc/ew_restaurar_estoque_local'"),
+ 'Importar saldo permanece possível somente em obra ativa; restauração e arquivamento isolado estão desativados');
 assert.ok(source.includes('id="stockManualNote" rows="2" maxlength="500"'),
  'Observação do cadastro manual deve ser opcional');
 assert.ok(source.includes('id="stockManualQty" type="number" min="1" step="1"'),
@@ -1156,9 +1157,9 @@ assert.ok(source.includes('function stockReversalBalances(obraId)')&&
  source.includes("request('/rest/v1/rpc/ew_inspecionar_reversao_obra'"),
  'Estornos do estoque requerem saldo, conferência de pendências e RPC auditada');
 assert.ok(source.includes('const ativas=new Set(stockLocais.filter(l=>!l.excluido_em)')&&
- source.includes('root.innerHTML=stockLocais.map(loc=>')&&
+ source.includes('root.innerHTML=stockLocais.filter(loc=>!loc.excluido_em&&works.some(w=>w.id===loc.obra_id))')&&
  source.includes('stockReverseSelectedWorkId'),
- 'Estoques arquivados não entram nas movimentações comuns e permanecem consultáveis');
+ 'Estoques de obras encerradas desaparecem da administração operacional; auditoria preservada');
 // Obra com estoque arquivado permanece selecionável exclusivamente para consulta.
 for(const id of ['stockWorkHistory','stockArchivedHint','stockReverseHistoryList','stockReverseHistoryFilter']){
  assert.ok(source.includes('id="'+id+'"'),'Histórico de estoque por obra precisa de '+id);
@@ -1182,7 +1183,7 @@ for(const parte of ['ew_estornar_movimento_obra','estorno_de_id',
 }
 // A confirmação de estorno de estoque é única e explica o efeito da operação.
 const confirmacaoUnica=source.slice(source.indexOf('async function stockReverseIndividual(movimentoId)'),
- source.indexOf('async function stockManageDelete(id)'));
+ source.indexOf("node('stockManageLocations').addEventListener('click',stockManageOpen);"));
 assert.ok(confirmacaoUnica.includes('Tem certeza que deseja estornar esta movimentação?')&&
  confirmacaoUnica.includes('Tem certeza que deseja estornar todas as movimentações ainda não estornadas?')&&
  !confirmacaoUnica.includes('Digite ESTORNAR')&&
@@ -1194,27 +1195,31 @@ const revGerenciar=source.slice(source.indexOf('async function executarReversaoO
 assert.ok(revGerenciar.includes("const aviso=tipo==='estoque'?")&&
  !revGerenciar.includes("tipo==='estoque'?'ESTORNAR'"),
  'Gerenciar obras também não pode exigir palavra digitada para estornar estoque');
-// A exclusão da obra requer motivo e uma confirmação: não pede código digitado nem pressupõe nova importação.
+// v46.18: exclusão é definitiva, confirmada por aviso e código DIGITADO.
 const formExcluir=source.slice(source.indexOf('<div id="manageWorksDeleteForm"'),
  source.indexOf('<section id="romaneiosPage"'));
 const fluxoExcluir=source.slice(source.indexOf("node('manageWorksDelete').addEventListener"),
  source.indexOf("window.addEventListener('error'"));
-assert.ok(formExcluir.includes('>Excluir obra</button>')&&
- !formExcluir.includes('manageWorksConfirmation')&&
- !formExcluir.toLowerCase().includes('reimportar'),
- 'Excluir obra deve ter botão simples, sem código ou reimportação');
-assert.ok(fluxoExcluir.includes('Tem certeza que deseja excluir esta obra?')&&
+assert.ok(formExcluir.includes('>Excluir obra definitivamente</button>')&&
+ formExcluir.includes('faça uma nova importação')&&
+ !formExcluir.includes('Restaurar obra'),
+ 'Exclusão exige aviso inequívoco, sem oferecer restauração');
+assert.ok(fluxoExcluir.includes('ESTA AÇÃO É DEFINITIVA')&&
  fluxoExcluir.includes('window.confirm(aviso)')&&
- fluxoExcluir.includes("confirmacao=String(workDeleteInspection.codigo||workDeleteInspection.nome||'').trim()")&&
- fluxoExcluir.includes("p_confirmacao:confirmacao")&&
- !fluxoExcluir.includes("node('manageWorksConfirmation')"),
- 'Confirmar exclusão uma única vez e validar código automaticamente para compatibilidade com RPC');
+ fluxoExcluir.includes('window.prompt(')&&
+ fluxoExcluir.includes('Digite exatamente o código da obra')&&
+ fluxoExcluir.includes('digitado.trim().toLocaleUpperCase')&&
+ fluxoExcluir.includes("p_confirmacao:confirmacao"),
+ 'É obrigatório digitar o código correto para encerrar a obra sem volta');
 assert.ok(source.includes("node('manageWorksDelete').disabled=!info?.permitido||workDeleteSubmitting")&&
  fluxoExcluir.includes("if(motivo.length<5||motivo.length>300)")&&
  fluxoExcluir.includes('window.alert(mensagem)')&&
- fluxoExcluir.includes('motivoCampo.focus()')&&
- !source.includes('Digite exatamente o código da obra para confirmar'),
- 'Sem motivo o clique deve avisar e focar o campo; exclusão só após motivo válido');
+ fluxoExcluir.includes('motivoCampo.focus()'),
+ 'Sem motivo válido o encerramento não pode prosseguir');
+assert.ok(!source.includes('stockManageRestore(')&&
+ !source.includes("data-stock-restore")&&
+ !source.includes("romTransfIncludeArchived"),
+ 'Nenhuma tela deve oferecer restauração ou histórico operacional de obra encerrada');
 // v43.6: motivo de 5 caracteres, estados claros e listas paginadas para obras grandes.
 for(const id of ['stockReverseBalancesCount','stockReverseBalancesMore','stockReverseHistoryCount',
  'stockReverseHistoryMore','stockReverseOpenWorks']){
@@ -2091,7 +2096,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.17')&&
+assert.ok(source.includes('v46.18')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2140,7 +2145,7 @@ assert.ok(source.includes('id="stockTransferPickLocal">Transferência entre galp
  source.includes('id="romTransfMerge"')&&
  source.includes('id="romTransfExtras"')&&
  source.includes('romaneios-transferencia.css?v=20261121c')&&
- source.includes('romaneios-transferencia.js?v=20261122a')&&
+ source.includes('romaneios-transferencia.js?v=20261122b')&&
  source.includes("if(window.ewTransferRomaneiosReload)window.ewTransferRomaneiosReload()"),
  'Transferencia entre galpoes deve ter romaneio na guia de expedicao');
 for(const token of [
@@ -2324,7 +2329,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.17</strong>'),
+ source.includes('EWGEST <strong>· v46.18</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2397,7 +2402,7 @@ assert.ok(transferTransport.includes("apiGet('romaneios_motoristas'")&&
  transferTransport.includes("if(editVersion!==version||editId!==id)return")&&
  transferTransport.includes("void carregarTransporteEdicao(id,version,d.motorista||'',d.placa||'')"),
  'Romaneios de transferencia precisam carregar cadastros ativos, preservar valores validos e bloquear texto livre');
-assert.ok(source.includes('romaneios-transferencia.js?v=20261122a')&&
+assert.ok(source.includes('romaneios-transferencia.js?v=20261122b')&&
  source.includes('romaneios-transferencia.css?v=20261121c')&&
  transferTransportCSS.includes('.romTransfFields select'),
  'O deploy da versao 46.1 precisa atualizar o cache e o estilo do seletor');

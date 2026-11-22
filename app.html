@@ -716,7 +716,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.17</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.18</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -918,7 +918,7 @@
     
     <section id="relatorios" class="hidden">
       <div class="head"><div><h1>Relatórios por obra</h1>
-        <p class="muted">Faturamentos registrados e histórico completo das movimentações de materiais, inclusive obras arquivadas. Consulta sem alteração de estoque.</p>
+        <p class="muted">Faturamentos e movimentações somente das obras em andamento. Obras encerradas definitivamente não aparecem nos relatórios operacionais; sua auditoria permanece preservada.</p>
       </div></div>
       <div class="section panel">
         <div class="reportsFilters">
@@ -981,7 +981,7 @@
     <section id="manageWorks" class="hidden">
       <div class="head"><div>
         <h1>Gerenciar obras cadastradas</h1>
-        <p class="muted">Para excluir uma obra das telas operacionais do EWGEST, cancele as operações ativas e estorne os saldos do estoque. O histórico permanece salvo para auditoria.</p>
+        <p class="muted">Encerrar uma obra é DEFINITIVO. Cancele os romaneios e liberações, reverta as movimentações e zere o estoque. Para trabalhar novamente, será necessário importar a obra do início e refazer os processos. Somente os registros de auditoria serão preservados.</p>
       </div></div>
       <div class="section panel">
         <div class="rowHead"><h2>Obras da empresa</h2>
@@ -1009,13 +1009,13 @@
         </div>
         <div id="manageWorksDeleteForm" class="hidden">
           <div id="manageWorksDeleteReasonBox" class="hidden">
-            <p class="hint">Após a exclusão, esta obra deixará de aparecer nas telas operacionais do EWGEST. Seus históricos, movimentações, cadastros gerais e registros de auditoria permanecerão preservados.</p>
+            <p class="hint"><strong>Exclusão definitiva e sem restauração:</strong> a obra será retirada de todas as seleções operacionais, inclusive dos relatórios. Para voltar a trabalhar, faça uma nova importação e repita as liberações, baixas, romaneios e demais processos. Histórico de auditoria preservado.</p>
             <label>Por que deseja excluir esta obra?
               <textarea id="manageWorksReason" rows="4" minlength="5" maxlength="300" placeholder="Informe o motivo da exclusão (mínimo de 5 caracteres)"></textarea>
             </label>
           </div>
           <div class="topactions" style="margin-top:16px">
-            <button type="button" id="manageWorksDelete" class="btn secondary" disabled style="border-color:#bd6b61;color:#c66b62">Excluir obra</button>
+            <button type="button" id="manageWorksDelete" class="btn secondary" disabled style="border-color:#bd6b61;color:#c66b62">Excluir obra definitivamente</button>
           </div>
           <p id="manageWorksDeleteBlockedMessage" class="hint" role="status"></p>
         </div>
@@ -1043,7 +1043,7 @@
             <button type="button" class="btn secondary" id="romTransfReload">Atualizar transferências</button>
             <button type="button" class="btn secondary" id="romTransfMerge">Juntar romaneios selecionados</button>
           </div>
-          <label class="hint" style="display:flex;align-items:center;gap:8px;margin:12px 0"><input id="romTransfIncludeArchived" type="checkbox" style="width:auto"> Consultar histórico de romaneios de obras arquivadas</label>
+          <p class="hint">Romaneios de obras encerradas não aparecem aqui. Os registros de auditoria permanecem preservados no sistema.</p>
           <p id="romTransfStatus" class="hint" role="status"></p>
           <div id="romTransfList" aria-live="polite"><p class="hint">Abra esta guia para consultar transferências entre galpões.</p></div>
         </div>
@@ -1418,7 +1418,7 @@
           <button type="button" class="btn primary" id="stockCreateAnother">+ Criar estoque vazio</button>
           <button type="button" class="btn secondary" id="stockTransferPickLocal">Transferência entre galpões</button>
           <button type="button" class="btn secondary" id="stockTransferPickWork">Transferência entre obras</button>
-          <button type="button" class="btn secondary" id="stockManageLocations" title="Consultar movimentos e saldos, estornar lançamentos, arquivar ou restaurar estoques">Gerenciar estoques</button>
+          <button type="button" class="btn secondary" id="stockManageLocations" title="Consultar saldos e estornar lançamentos; exclusão definitiva da obra em Gerenciar obras">Gerenciar estoques</button>
           <button type="button" class="btn secondary hidden" id="stockArchivedReview">Saldos e estornos</button>
           <button type="button" class="btn secondary" id="stockRefresh">Atualizar</button>
         </div></div>
@@ -1556,11 +1556,11 @@
             <li>MOD-xxxxxx continua sendo o identificador interno. Croquis legados permanecem no respectivo cadastro; divergências entre descrições exigem conferência administrativa.</li>
             <li>Se a tipologia técnica já estiver correta, diferenças de escrita permitem: confirmar a mesma configuração, registrar nova variação, corrigir a descrição com histórico ou adiar. Nenhuma opção bloqueia o andamento da obra.</li>
             <li>Cada liberação para corte exige a fábrica AFOGADOS ou IMBIRIBEIRA; as liberações antigas sem fábrica não são presumidas retroativamente.</li>
-            <li>Emitir romaneio é confirmar expedição real: registra as saídas completas de uma vez, sem duplicidade. Materiais avulsos só constam no comprovante. Duas vias em A4 quando couber.</li>
+            <li>Emitir romaneio é confirmar expedição real: registra saídas de esquadrias e, quando selecionados do estoque, a baixa auditada de perfis e acessórios. Emissão transacional, sem duplicidade. Duas vias em A4 quando couber.</li>
             <li>A média por fábrica mede dias corridos da liberação até a saída e usa apenas registros com fábrica identificada sem ambiguidade; não representa as horas efetivas de fabricação.</li>
             <li>O romaneio permite escolher motoristas e placas cadastrados, pesquisar esquadrias e selecionar envio completo, apenas marco ou apenas folhas; folhas são contadas individualmente.</li>
             <li>Esquadria completa não pergunta folhas por unidade nem inventa composição; o número só é solicitado quando necessário para desmembrar. MAXIM-AR é sempre expedido completo.</li>
-            <li>Cancelar romaneio exige ADM, confirmação e motivo; marca documento e saídas como cancelados, devolve saldo lógico sem apagar o histórico. Cancelar não significa retorno físico da carga.</li>
+            <li>Cancelar romaneio exige ADM, confirmação e motivo. Quando houver material físico, confirme a devolução efetiva antes do cancelamento; somente então o sistema recompõe o estoque e preserva os lançamentos de auditoria.</li>
             <li>Romaneio impresso: descrição ampliada, sem Localização ou Valor; medidas originalmente em mm são mostradas em metros. Preservar duas vias no A4 quando couber.</li>
             <li>Na impressão, o caminhão fica DENTRO do mesmo quadro do título, com espaço reservado. Cabeçalho e rodapé do Chrome dependem também da opção de impressão do navegador.</li>
             <li>O histórico oferece Consultar (nova guia, sem impressão automática) e Reimprimir (abre a impressão). A consulta não gera saída nem modifica dados.</li>
@@ -1571,6 +1571,8 @@
             <li>Romaneios já emitidos mantêm seus dados salvos, sem edição silenciosa. O caminhão foi redesenhado em SVG, sem a linha preta do arquivo anterior.</li>
             <li>O perfil ALMOXARIFE acessa somente a área de romaneios (obra, emissão, histórico e reimpressão), além de Minha senha e Sair. Pode cadastrar motorista e veículo, mas não pode liberar corte nem cancelar romaneios.</li>
             <li>O ADM pode criar e editar o perfil Almoxarife, redefinir sua senha ou desativar o acesso. Para bloqueio imediato, utilizar Desativar acesso, não somente troca de senha.</li>
+            <li><strong>Exclusão de obra é definitiva.</strong> Antes de encerrar, cancelar romaneios, saídas, liberações e estornar o estoque até saldo zero. É obrigatório registrar motivo, confirmar o aviso e digitar o código da obra. Não existe restaurar obra ou estoque: uma nova operação exige nova importação, novo ID e refazer todos os processos. A auditoria anterior permanece.</li>
+            <li>Obras encerradas não aparecem em relatórios, totais consolidados, seletores de obras, gestão operacional de estoque ou romaneios. Registros antigos permanecem somente para auditoria, não para restauração.</li>
           </ul>
           <p class="hint">Antes de qualquer atualização: conferir estas regras, testar classificações e vínculos e preservar os dados históricos.</p>
         </details>
@@ -1678,7 +1680,7 @@
 <div id="stockManageOverlay" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockManageTitle" style="max-width:1100px;width:min(96vw,1100px);max-height:92vh">
     <h2 id="stockManageTitle">Gerenciar estoques — saldos, histórico e estornos</h2>
-    <p class="hint">Estoques arquivados ficam fora do seletor de movimentações, mas permanecem aqui para consulta e conferência dos saldos. É possível estornar lançamentos de uma obra somente após cancelar as operações dependentes. O estorno é total, auditado e não apaga o histórico. A restauração de um estoque é permitida por até 48 horas após seu arquivamento.</p>
+    <p class="hint">Esta tela exibe somente os estoques das obras em andamento. Para encerrar uma obra definitivamente, utilize Gerenciar obras após cancelar todas as operações dependentes. Não existe restauração de estoque ou de obra excluída.</p>
     <p id="stockManageStatus" class="hint" role="status"></p>
     <div id="stockManageRecords"></div>
     <div id="stockReversePanel" class="stockReversePanel hidden">
@@ -9797,31 +9799,22 @@ function stockManageRender(){
   root.innerHTML='<div class="materialEmpty">Ainda não há estoques cadastrados.</div>';
   return;
  }
- root.innerHTML=stockLocais.map(loc=>{
+ root.innerHTML=stockLocais.filter(loc=>!loc.excluido_em&&works.some(w=>w.id===loc.obra_id)).map(loc=>{
   const obra=works.find(x=>x.id===loc.obra_id);
   if(!obra)return '';
   const resumo=stockReversalBalances(loc.obra_id);
-  const excluido=Boolean(loc.excluido_em);
-  const valido=excluido&&loc.restauravel_ate&&new Date(loc.restauravel_ate).getTime()>Date.now();
-  const status=excluido?'Estoque arquivado'+
-   (valido?' · recuperável até '+new Date(loc.restauravel_ate).toLocaleString('pt-BR'):' · restauração indisponível'):
-   'Estoque ativo';
-  const button=excluido?
-    (valido?'<button type="button" class="btn secondary" data-stock-restore="'+escapeHTML(loc.obra_id)+'">Restaurar estoque</button>':''):
-    '<button type="button" class="btn secondary" data-stock-delete="'+escapeHTML(loc.obra_id)+'">Arquivar estoque</button>';
+  const status='Estoque de obra ativa';
+  // O encerramento é definitivo e ocorre exclusivamente em Gerenciar obras.
   const revisar=resumo.movimentos?
     '<button type="button" class="btn secondary" data-stock-reverse="'+escapeHTML(loc.obra_id)+'">'+
     (resumo.pendentes?'Conferir / estornar':'Consultar histórico')+'</button>':'';
-  return '<div class="stockManageRow'+(excluido?' stockManageDeleted':'')+'"><div>'+
+  return '<div class="stockManageRow"><div>'+
    '<strong>'+escapeHTML(obra.nome)+'</strong><div class="hint">'+escapeHTML(obra.codigo||'')+
    ' · '+status+' · '+resumo.movimentos+' movimento(s) no histórico'+
    ' · '+resumo.pendentes+' sem estorno · '+resumo.saldos.length+' saldo(s) pendente(s)</div></div>'+
-   '<div class="stockManageRowActions">'+revisar+button+'</div></div>';
+   '<div class="stockManageRowActions">'+revisar+'</div></div>';
  }).join('');
- root.querySelectorAll('[data-stock-delete]').forEach(btn=>btn.addEventListener('click',
-  ()=>stockManageDelete(btn.dataset.stockDelete)));
- root.querySelectorAll('[data-stock-restore]').forEach(btn=>btn.addEventListener('click',
-  ()=>stockManageRestore(btn.dataset.stockRestore)));
+ // Sem ações de arquivar/restaurar estoque isoladamente: usar o encerramento da obra.
  root.querySelectorAll('[data-stock-reverse]').forEach(btn=>btn.addEventListener('click',
   ()=>stockReverseRevisar(btn.dataset.stockReverse)));
 }
@@ -10174,42 +10167,7 @@ node('stockReverseOpenWorks').addEventListener('click',async()=>{
 });
 node('stockReverseBack').addEventListener('click',stockReverseFechar);
 node('stockReverseApply').addEventListener('click',stockReverseExecutar);
-async function stockManageDelete(id){
- if(!matIsAdmin())return;
- const obra=works.find(x=>x.id===id);
- const materials=new Set(estoqueObraMovimentos.filter(x=>x.obra_id===id).map(x=>x.variacao_id)).size;
- if(!obra)return;
- const question='CUIDADO: deseja excluir o estoque '+obra.nome+'?\n\n'+
-  (materials?'EXISTEM '+materials+' MATERIAIS COM MOVIMENTAÇÕES NESTE ESTOQUE.\n':'Este estoque não possui movimentações.\n')+
-  'A obra, suas esquadrias e seu histórico NÃO serão excluídos.\n'+
-  'O estoque sairá da lista e poderá ser restaurado pelo ADM em até 48 horas.';
- if(!window.confirm(question))return;
- const status=node('stockManageStatus');status.textContent='Arquivando o estoque…';
- try{
-  await ensureSession();
-  await request('/rest/v1/rpc/ew_excluir_estoque_local',{
-   method:'POST',token:session.access_token,body:{p_empresa_id:currentCompany.id,p_obra_id:id}
-  });
-  await abrirEstoque();
-  status.textContent='Estoque arquivado. O ADM tem 48 horas para recuperá-lo.';
-  stockManageRender();
- }catch(e){status.textContent='Erro ao excluir: '+e.message;}
-}
-async function stockManageRestore(id){
- if(!matIsAdmin())return;
- const obra=works.find(x=>x.id===id);
- if(!obra||!window.confirm('Restaurar o estoque da obra '+obra.nome+' com seu saldo e histórico?'))return;
- const status=node('stockManageStatus');status.textContent='Restaurando estoque…';
- try{
-  await ensureSession();
-  await request('/rest/v1/rpc/ew_restaurar_estoque_local',{
-   method:'POST',token:session.access_token,body:{p_empresa_id:currentCompany.id,p_obra_id:id}
-  });
-  await abrirEstoque();
-  status.textContent='Estoque restaurado com o histórico original.';
-  stockManageRender();
- }catch(e){status.textContent='Erro ao restaurar: '+e.message;}
-}
+// Arquivamento/restauração isolados removidos: encerramento somente por Gerenciar obras.
 node('stockManageLocations').addEventListener('click',stockManageOpen);
 node('stockManageClose').addEventListener('click',()=>node('stockManageOverlay').classList.add('hidden'));
 
@@ -10695,11 +10653,17 @@ node('manageWorksDelete').addEventListener('click',async()=>{
  }
  const check=workDeleteInspection,operation=workDeleteOperationId,
   confirmacao=String(workDeleteInspection.codigo||workDeleteInspection.nome||'').trim();
- const aviso='Tem certeza que deseja excluir esta obra?\n\n'+
+ const aviso='ATENÇÃO: ESTA AÇÃO É DEFINITIVA E NÃO PODERÁ SER DESFEITA.\n\n'+
   'Obra: '+check.nome+' · '+(check.codigo||'sem código')+'\n\n'+
-  'A obra deixará de aparecer nas telas operacionais do EWGEST. '+
-  'As movimentações, os cadastros gerais e os registros históricos continuarão preservados para auditoria.';
+  'A obra desaparecerá dos cadastros operacionais e de TODOS os relatórios por obra. '+
+  'Para voltar a trabalhar nela, será necessário importar novamente e repetir cada etapa, do zero. '+
+  'Somente o histórico de auditoria ficará preservado.';
  if(!window.confirm(aviso))return;
+ const digitado=window.prompt('ENCERRAMENTO DEFINITIVO.\n\nDigite exatamente o código da obra para confirmar que não haverá restauração:', '');
+ if(digitado===null||digitado.trim().toLocaleUpperCase('pt-BR')!==confirmacao.toLocaleUpperCase('pt-BR')){
+  node('manageWorksDeleteBlockedMessage').textContent='Encerramento cancelado: código não confirmado.';
+  return;
+ }
  workDeleteSubmitting=true;
  btn.disabled=true;
  node('manageWorksFeedback').textContent='Conferindo novamente e excluindo a obra…';
@@ -10717,7 +10681,7 @@ node('manageWorksDelete').addEventListener('click',async()=>{
   await loadPanel();abrirGerenciamentoObras();
   node('manageWorksFeedback').textContent=result.repetida?
    'Esta obra já havia sido removida; não houve duplicação.':
-   'Obra '+result.nome+' excluída das telas operacionais. Registros históricos preservados para auditoria.';
+   'Obra '+result.nome+' encerrada definitivamente. Nova operação exige reimportação e novos registros. Auditoria preservada.';
  }catch(err){
   node('manageWorksFeedback').textContent=
    'Não foi possível concluir a exclusão: '+err.message+
@@ -10814,8 +10778,8 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/cadastros-hub.js?v=20261121c"></script>
 <script src="/assets/insumos-fisicos.js?v=20261121d"></script>
 <script src="/assets/entregas-producao.js?v=20261121a"></script>
-<script src="/assets/romaneios-transferencia.js?v=20261122a"></script>
-<script src="/assets/relatorios-obras.js?v=20261122b"></script>
+<script src="/assets/romaneios-transferencia.js?v=20261122b"></script>
+<script src="/assets/relatorios-obras.js?v=20261122c"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>
 </body>
 </html>

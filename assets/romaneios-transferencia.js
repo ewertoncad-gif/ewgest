@@ -5,7 +5,7 @@
 const el=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:3});
-let docs=[],editId=null,busy=false,archivedNames=new Map();
+let docs=[],editId=null,busy=false;
 let editVersion=0,motoristas=[],veiculos=[],transporteCarregado=false;
 function empresa(){return typeof currentCompany!=='undefined'&&currentCompany?currentCompany.id:null;}
 function dataHoje(){const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');}
@@ -18,11 +18,9 @@ function avisoDocumento(id,message){
 }
 function rota(d){return d.origem+' → '+d.destino;}
 function obra(id){
- return (typeof works!=='undefined'&&works||[]).find(w=>w.id===id)?.nome||
-  archivedNames.get(id)||'Obra histórica '+String(id||'').slice(0,8);
+ return (typeof works!=='undefined'&&works||[]).find(w=>w.id===id)?.nome||'Obra indisponível';
 }
 function obraArquivada(id){return !(typeof works!=='undefined'&&works||[]).some(w=>w.id===id);}
-function incluirArquivados(){return !!el('romTransfIncludeArchived')?.checked;}
 function ativo(d){return d.status==='RASCUNHO'||d.status==='EMITIDO';}
 function estaEstornado(d){return (d.itens||[]).some(i=>i.tipo==='TRANSFERENCIA'&&i.estornado);}
 function itemResumo(i){
@@ -35,10 +33,9 @@ function itemResumo(i){
 function render(){
  const box=el('romTransfList');
  if(!box)return;
- const exibidos=docs.filter(d=>incluirArquivados()||!obraArquivada(d.obra_id));
+ const exibidos=docs.filter(d=>!obraArquivada(d.obra_id));
  if(!exibidos.length){
-  box.innerHTML='<p class="hint">Nenhum romaneio de transferência de obra ativa. '+
-   'Os documentos das obras arquivadas estão preservados no histórico e podem ser consultados ativando o filtro acima.</p>';
+  box.innerHTML='<p class="hint">Nenhum romaneio de transferência de obra em andamento. Os documentos encerrados permanecem apenas na auditoria.</p>';
   return;
  }
  box.innerHTML=exibidos.map(d=>{
@@ -76,20 +73,11 @@ async function carregar(){
  try{
   const response=await rpc('ew_romaneios_transferencia_listar',{p_empresa_id:empresa()});
   docs=Array.isArray(response)?response:[];
-  if(incluirArquivados())await carregarNomesArquivados();
-  erro('Transferências entre galpões de obras ativas: '+
-   docs.filter(d=>ativo(d)&&!obraArquivada(d.obra_id)).length+'.'+
-   (docs.some(d=>obraArquivada(d.obra_id))?' Histórico de obras arquivadas disponível no filtro.':''));
+  erro('Transferências entre galpões de obras em andamento: '+
+   docs.filter(d=>ativo(d)&&!obraArquivada(d.obra_id)).length+'.');
   render();
  }catch(e){erro('Não foi possível consultar romaneios de transferência: '+e.message);}
  finally{busy=false;}
-}
-async function carregarNomesArquivados(){
- try{
-  const rows=await apiGet('obras',{select:'id,nome,codigo,arquivada_em',
-   empresa_id:'eq.'+empresa(),arquivada_em:'not.is.null',limit:'1000'});
-  archivedNames=new Map((rows||[]).map(w=>[w.id,w.nome]));
- }catch(e){/* Falha de rótulo histórico não torna documento operacional. */}
 }
 function close(){editVersion++;el('romTransfOverlay').classList.add('hidden');editId=null;transporteCarregado=false;}
 function addRow(value={}){
@@ -344,10 +332,6 @@ function visualizar(id){
  el('romTransfViewOverlay').classList.remove('hidden');
 }
 el('romTransfReload').addEventListener('click',carregar);
-el('romTransfIncludeArchived').addEventListener('change',async()=>{
- if(incluirArquivados())await carregarNomesArquivados();
- render();
-});
 el('romTransfMerge').addEventListener('click',juntar);
 el('romTransfClose').addEventListener('click',close);
 el('romTransfAddExtra').addEventListener('click',()=>addRow());
