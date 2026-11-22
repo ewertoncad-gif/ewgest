@@ -142,3 +142,27 @@ Postgres. Ainda faltam:
 - **Última execução verde:** [GitHub Actions #45020360348](https://github.com/ewertoncad-gif/ewgest/actions/runs/45020360348), incluindo as regressões de importação, faturamento, autorização e cancelamento.
 
 As ressalvas sobre a RPC legada simulada e autenticação Supabase real continuam válidas.
+
+
+## Ampliação de cobertura — 22/11/2026, continuação
+
+No PostgreSQL 17 descartável, `tests/homologacao_pg17/15_casos_criticos.sql`
+adiciona verificações de:
+- **Mesmo código EA repetido:** duas linhas de CEM com código igual precisam receber UUIDs diferentes, manter `indice_importacao` e seus preços/snapshots individuais.
+- **Falha tardia + atomicidade:** categorias padrão conflitantes na mesma tipologia provocam erro **após o início da gravação**, sem deixar obra, revisão ou esquadria extra; o teste compara contagens antes/depois.
+- **RLS multiempresa:** ADM da empresa fictícia B não enxerga categorias/revisões da A nem pode importar no nome da A.
+- **Sem sessão:** chamada sem `auth.uid()` é rejeitada.
+
+O script inicia uma transação externa e faz `ROLLBACK` após os cenários,
+não deixando obras fictícias adicionais nem na própria fixture. O GitHub
+Actions executa esse arquivo **entre** os cenários de importação e os de
+faturamento.
+
+**Evidência do commit `e2122e5f`:** [homologação isolada #45020664258](https://github.com/ewertoncad-gif/ewgest/actions/runs/45020664258)
+concluída com **success**. As verificações gerais do EWGEST também passaram.
+
+**Atenção:** esta ampliação confirma o comportamento da RPC nova em PostgreSQL
+com os contratos mínimos do teste. O importador financeiro **legado continua
+representado por stub**. Não comprova os materiais planejados do CEM real nem
+autenticação/Supabase REST de produção; é insuficiente para autorizar o merge.
+O PR permanece rascunho e o site publicado permanece v46.8.
