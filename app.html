@@ -712,7 +712,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.4</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.5</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -3310,6 +3310,37 @@ function medidaRomaneioEmMetros(medida){
   });
   return convertido.some(x=>x===null)?original:convertido.join(' × ')+' m';
 }
+// A emissão antiga deixa area_m2 nula quando só marco/folhas são expedidos.
+// Calcular pela medida gravada no próprio romaneio preserva a reimpressão histórica.
+function areaRomaneioEmM2(linha){
+  if(linha.natureza!=='esquadria')return null;
+  const valor=linha.area_m2===null||linha.area_m2===undefined||linha.area_m2===''?
+    null:Number(linha.area_m2);
+  if(Number.isFinite(valor)&&valor>0)return valor;
+  const dimensoes=String(linha.medida||'').trim()
+    .match(/^(\d[\d.,]*)\s*[x×]\s*(\d[\d.,]*)\s*mm$/i);
+  if(!dimensoes)return null;
+  const paraMm=texto=>{
+    let valor=texto;
+    if(valor.includes(','))valor=valor.replace(/\./g,'').replace(',','.');
+    else if(/^\d{1,3}(?:\.\d{3})+$/.test(valor))valor=valor.replace(/\./g,'');
+    return Number(valor);
+  };
+  const largura=paraMm(dimensoes[1]),altura=paraMm(dimensoes[2]);
+  const quantidade=Number(linha.quantidade);
+  if(!Number.isFinite(largura)||largura<=0||!Number.isFinite(altura)||altura<=0||
+      !Number.isSafeInteger(quantidade)||quantidade<1)return null;
+  let fracao=1;
+  if(linha.tipo_saida==='marco')fracao=0.5;
+  else if(linha.tipo_saida==='folha'){
+    const config=dispatchConfig.find(x=>x.esquadria_id===linha.esquadria_id);
+    const folhas=Number(config?.folhas_por_unidade);
+    if(!Number.isSafeInteger(folhas)||folhas<1)return null;
+    fracao=0.5/folhas;
+  }else if(linha.tipo_saida&&linha.tipo_saida!=='completo')return null;
+  return Math.round(largura*altura*quantidade*fracao/1000)/1000;
+}
+
 function construirHTMLRomaneio(header,linhas){
   // O mesmo layout de expedição também atende transferências físicas entre galpões.
   // Não alterar a estrutura, a paginação e as logomarcas do romaneio de esquadrias.
@@ -3342,10 +3373,11 @@ function construirHTMLRomaneio(header,linhas){
   if(paginaAtual.length)paginas.push(paginaAtual);
   const blocos=[];
   function construirVia(numero,parcelas,parte,totalPartes,compacta){
-    const soma=parcelas.reduce((v,x)=>v+(Number(x.area_m2)||0),0);
+    const soma=parcelas.reduce((v,x)=>v+(areaRomaneioEmM2(x)||0),0);
     const rows=parcelas.map(linha=>{
-      const areax=linha.area_m2===null||linha.area_m2===undefined?'—':
-        Number(linha.area_m2).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+      const areaCalculada=areaRomaneioEmM2(linha);
+      const areax=areaCalculada===null?'—':
+        areaCalculada.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
       return '<tr><td class="center">'+Number(linha.sequencia)+'</td>'+
         '<td>'+escapeHTML(linha.codigo||'')+'</td>'+
         '<td class="romaneioDescricao">'+escapeHTML(descricaoImpressa(linha))+'</td>'+
