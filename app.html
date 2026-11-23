@@ -7646,7 +7646,7 @@ const finMoney=n=>Number(n||0).toLocaleString('pt-BR',{style:'currency',currency
 /* Recebimento tem navegação própria. O almoxarife só busca dados técnicos,
    fornecedores e quantidades físicas, nunca orçamento, tetos ou faturamentos. */
 async function abrirRecebimento(prefer=null){
- if(!(isAlmoxarife()||isFullAdminUser())||!currentCompany)return;
+ if(!temPermissao('estoque.receber')||!currentCompany)return;
  const sel=node('recebimentoWork');
  const anterior=prefer||sel.value||'';
  sel.innerHTML='<option value="">Escolha a obra</option>'+works.map(w=>
@@ -7656,7 +7656,7 @@ async function abrirRecebimento(prefer=null){
  await carregarRecebimento();
 }
 async function carregarRecebimento(){
- if(!(isAlmoxarife()||isFullAdminUser())||!currentCompany)return;
+ if(!temPermissao('estoque.receber')||!currentCompany)return;
  const obraId=node('recebimentoWork').value;
  const msg=node('recebimentoMessage');
  node('finExpensePanel').classList.add('hidden');
@@ -7671,8 +7671,8 @@ async function carregarRecebimento(){
  if(!obraId){msg.textContent='Selecione uma obra para iniciar o recebimento.';return;}
  msg.textContent='Consultando materiais previstos e recebidos…';
  try{
-  if(isFullAdminUser()){
-   finOptionsObras(obraId);
+  if(temPermissao('financeiro.consultar')){
+    finOptionsObras(obraId);
    await finLoad();
    if(node('recebimentoWork').value!==obraId)return;
    if(!finState){msg.textContent=node('finMessage').textContent||'Não foi possível carregar os materiais da obra.';return;}
@@ -7697,8 +7697,8 @@ async function carregarRecebimento(){
    window.ewRecebimentoManualInit();
   }
   if(node('recebimentoWork').value!==obraId)return;
-  node('finSupplierAdd').classList.toggle('hidden',!isFullAdminUser());
-  node('finWarehouseAdd').classList.toggle('hidden',!isFullAdminUser());
+  node('finSupplierAdd').classList.toggle('hidden',!temPermissao('cadastros.editar'));
+  node('finWarehouseAdd').classList.toggle('hidden',!temPermissao('cadastros.editar'));
   node('finExpensePanel').classList.remove('hidden');
   msg.textContent='Informe apenas materiais efetivamente recebidos. Os valores digitados não dão acesso ao orçamento da obra.';
   if(window.ewCarregarEntregasProducao)await window.ewCarregarEntregasProducao(obraId);
@@ -7807,8 +7807,8 @@ async function finLoad(){
    fornecedores:(fornecedores||[]).filter(x=>x.ativo).map(x=>({id:x.id,nome:x.nome})),orcamentoNiveis:niveis||[],
    materiaisObra:materiaisObra||[],comprimentosComerciais:(comprimentos||[]).map(x=>x.comprimento_mm),barrasCem:barraCem||[]};
   box.classList.remove('hidden');node('finMessage').textContent='';
-  node('finExpensePanel').classList.toggle('hidden',false);
-  node('finBillingPanel').classList.toggle('hidden',!isFullAdminUser());
+  node('finExpensePanel').classList.toggle('hidden',!temPermissao('financeiro.despesas'));
+  node('finBillingPanel').classList.toggle('hidden',!temPermissao('financeiro.faturar'));
   finRenderResumo();finRenderPendentes();finRenderRecebimentos();finRenderFaturaveis();finRenderHistorico();
  }catch(e){node('finMessage').textContent='Não foi possível carregar o financeiro: '+e.message;}
 }
@@ -7878,7 +7878,7 @@ function finRenderResumo(){
 function finRenderPendentes(){
  const box=node('finPendingPanel'),state=finState;
  const selected=node('recebimentoWork').value;
- if(!isFullAdminUser()||!state||!selected||state.obraId!==selected||
+ if(!temPermissao('financeiro.despesas')||!state||!selected||state.obraId!==selected||
     node('recebimento').classList.contains('hidden')||!state.pendentes.length){
    box.classList.add('hidden');box.innerHTML='';return;
  }
@@ -7914,7 +7914,7 @@ function finRenderPendentes(){
  box.querySelectorAll('[data-fin-reject]').forEach(b=>b.addEventListener('click',()=>finRevisarNota(b.dataset.finReject,'rejeitar')));
 }
 async function finRevisarNota(id,acao){
- if(!finState||!isFullAdminUser())return;
+ if(!finState||!temPermissao('financeiro.despesas'))return;
  const d=finState.pendentes.find(x=>x.id===id),panel=[...node('finPendingPanel').querySelectorAll('.finPendingNote')].find(x=>x.dataset.note===id);
  if(!d||!panel)return;
  let justificativa='';
@@ -7959,7 +7959,7 @@ async function finRevisarNota(id,acao){
 function finRenderRecebimentos(){
  const el=node('finReceivePanel'),x=finState;
  const selected=node('recebimentoWork').value;
- if(!isFullAdminUser()||!x||!selected||x.obraId!==selected||
+ if(!temPermissao('estoque.receber')||!x||!selected||x.obraId!==selected||
     node('recebimento').classList.contains('hidden')){
    el.classList.add('hidden');el.replaceChildren();return;
  }
@@ -8070,7 +8070,7 @@ function finRenderRecebimentos(){
  });
 }
 async function finEstornarRecebimentoFisico(recebimentoId){
- if(!isFullAdminUser()||!finState||!node('recebimentoWork').value)return;
+ if(!temPermissao('estoque.estornar')||!finState||!node('recebimentoWork').value)return;
  const motivo=window.prompt('Motivo do estorno da entrada física da NF-e (mínimo 5 caracteres):','');
  if(motivo===null)return;
  if(motivo.trim().length<5||motivo.trim().length>400){
@@ -8096,7 +8096,7 @@ async function finEstornarRecebimentoFisico(recebimentoId){
  }finally{if(b){b.disabled=false;b.textContent='Estornar recebimento';}}
 }
 async function finConfirmarRecebimento(row){
- if(!finState||!isFullAdminUser())return;
+ if(!finState||!temPermissao('estoque.receber'))return;
  const itemId=row.dataset.receiveItem,tipo=row.dataset.receiveType;
  const materialId=row.querySelector('.finReceiveMaterial').value;
  const variationId=row.querySelector('.finReceiveVariation').value;
@@ -8158,7 +8158,7 @@ function finRenderHistorico(){
  escapeHTML(finCategories.find(x=>x[0]===r.tipo)?.[1]||r.tipo)+'</td><td>'+escapeHTML(r.doc)+
  (r.desc?' · '+escapeHTML(r.desc):'')+'</td><td align="right">'+finMoney(r.valor)+
  '</td><td>'+escapeHTML(r.status)+'</td><td>'+
- (isFullAdminUser()&&(r.kind==='faturamento'?r.status==='emitido':r.status==='aprovada')?
+ (temPermissao(r.kind==='faturamento'?'financeiro.cancelar_faturamento':'financeiro.cancelar_despesas')&&(r.kind==='faturamento'?r.status==='emitido':r.status==='aprovada')?
    (r.kind==='despesa'&&despesasComEstoque.has(r.id)?
     '<span class="hint">Entrada física vinculada — exige estorno</span>':
     '<button class="btn secondary" type="button" data-fin-cancel="'+escapeHTML(r.id)+'" data-kind="'+r.kind+'">'+
@@ -8168,7 +8168,7 @@ function finRenderHistorico(){
  node('finHistory').querySelectorAll('[data-fin-cancel]').forEach(b=>b.addEventListener('click',()=>finCancelarLancamento(b.dataset.kind,b.dataset.finCancel)));
 }
 async function finCancelarLancamento(tipo,id){
- if(!isFullAdminUser()||!finState)return;
+ if(!temPermissao(tipo==='despesa'?'financeiro.cancelar_despesas':'financeiro.cancelar_faturamento')||!finState)return;
  const motivo=window.prompt(tipo==='despesa'?'Motivo do estorno financeiro (5 a 400 caracteres):':'Motivo do cancelamento (5 a 400 caracteres):','');
  if(motivo===null)return;
  if(motivo.trim().length<5||motivo.trim().length>400){
@@ -8426,7 +8426,7 @@ async function finXMLSelecionar(){
  }
 }
 async function finRegistrarCusto(event){
- event.preventDefault();if(!finState||!isFullAdminUser())return;
+ event.preventDefault();if(!finState||!temPermissao('financeiro.despesas'))return;
  const btn=node('finCostSubmit');
  const val=Number(node('finCostTotal').value),cat=node('finCostCategory').value;
  if(!Number.isFinite(val)||val<=0||Math.abs(val*100-Math.round(val*100))>0.00001){
@@ -8471,7 +8471,7 @@ async function finRegistrarCusto(event){
  finally{btn.disabled=false;}
 }
 async function finRegistrarFaturamento(event){
- event.preventDefault();if(!finState||!isFullAdminUser())return;
+ event.preventDefault();if(!finState||!temPermissao('financeiro.faturar'))return;
  const tipo=node('finBillingCategory').value,doc=node('finBillingDoc').value.trim();
  const date=node('finBillingDate').value;
  const itens=[];
