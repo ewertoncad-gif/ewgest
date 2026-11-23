@@ -1,0 +1,12 @@
+
+.accessLevelTabs{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
+.accessLevelTab{border:1px solid #d2e0ec;background:#f5f9fd;border-radius:8px;color:#264760;padding:10px 13px;cursor:pointer;font:600 12px system-ui}
+.accessLevelTab.active{background:#dcecfb;border-color:#74a8da;color:#174b82}
+.accessLevelGroups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.accessLevelGroup{border:1px solid #dce6f0;border-radius:11px;padding:14px;background:#f9fbfe;min-width:0}
+.accessLevelGroup legend{font-size:13px;font-weight:750;color:#214a71;padding:0 6px}
+.accessFlags{display:grid;gap:10px}
+.accessFlag{display:flex;gap:10px;align-items:center;margin:0;font-size:13px;color:#274968;cursor:pointer;line-height:1.4}
+.accessFlag input{flex:none;width:16px;height:16px;accent-color:#2378c5}
+.accessFlag input:disabled{cursor:not-allowed;opacity:.75}
+@media(max-width:820px){.accessLevelGroups{grid-template-columns:1fr}}
