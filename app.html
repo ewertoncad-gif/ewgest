@@ -1179,7 +1179,12 @@
             <div><label for="createUserName">Nome para exibição</label>
               <input id="createUserName" type="text" autocomplete="off" minlength="2" maxlength="100"
                  placeholder="Ex.: João Silva" required></div>
-            <div><label for="createUserRole">Perfil de acesso</label>
+            <div><label for="createUserLevel">Nível de acesso</label>
+              <select id="createUserLevel" required><option value="1">01 — Administrador</option><option value="2">02 — Gerência</option>
+                <option value="3" selected>03 — Técnico</option><option value="4">04 — Almoxarifado</option>
+                <option value="5">05 — Financeiro</option><option value="6">06 — Consulta completa</option>
+                <option value="7">07 — Consulta sem financeiro</option><option value="8">08 — Sem permissões</option></select></div>
+            <div class="hidden"><label for="createUserRole">Perfil interno de compatibilidade</label>
               <select id="createUserRole" required>
                 <option value="tecnico">Técnico</option>
                 <option value="almoxarife">Almoxarife — somente romaneios</option>
@@ -1193,7 +1198,7 @@
           </div>
           <div class="userActions"><button id="createUserSubmit" class="btn primary" type="submit">Cadastrar usuário</button></div>
           <p class="hint">A senha deve ter pelo menos 6 caracteres. O administrador pode redefinir a senha inicial ou escolher outra, sem visualizar a anterior. O usuário pode trocá-la em Minha senha.</p>
-          <p class="hint">Administrador possui controle completo; Gerenciador pode operar e administrar contas, exceto alterar usuários ADM. Técnico, Almoxarife e Consulta têm acesso conforme suas permissões.</p>
+          <p class="hint">As permissões são definidas pelas flags do nível. O nível 01 é protegido; os níveis 02 a 08 podem ser configurados. Alterações nos acessos são verificadas no banco.</p>
         </form>
         <div id="createUserMessage" class="feedback" role="status" aria-live="polite"></div>
       </div>
@@ -1204,6 +1209,18 @@
         </div>
         <div id="usersMessage" class="hint" role="status" aria-live="polite"></div>
         <div id="usersList" class="section"></div>
+      </div>
+      <div id="userLevelsPanel" class="section panel hidden">
+        <div class="row" style="justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <div><h2>Níveis de acesso e permissões</h2>
+            <p class="hint">Escolha um nível e marque as atividades permitidas. O nível 01 possui todas as permissões e é protegido.</p></div>
+          <button id="userLevelsReload" type="button" class="btn secondary">Atualizar níveis</button>
+        </div>
+        <div id="userLevelsTabs" class="accessLevelTabs"></div>
+        <p id="userLevelsInfo" class="hint"></p>
+        <div id="userLevelsGroups" class="accessLevelGroups"></div>
+        <div class="userActions"><button id="userLevelsSave" type="button" class="btn primary" disabled>Salvar permissões do nível</button></div>
+        <p id="userLevelsStatus" class="feedback" role="status" aria-live="polite"></p>
       </div>
       <p class="notice">Desativar um usuário bloqueia seu acesso, mas preserva seu histórico de liberações, saídas e outras alterações. Não são armazenadas senhas no banco de cadastro.</p>
     </section>
@@ -2357,8 +2374,13 @@
       <input id="userEditLogin" type="text" autocomplete="off" minlength="3" maxlength="100" required>
       <label for="userEditName">Nome para exibição</label>
       <input id="userEditName" type="text" autocomplete="off" minlength="2" maxlength="100" required>
-      <label for="userEditRole">Perfil</label>
-      <select id="userEditRole">
+      <label for="userEditLevel">Nível de acesso</label>
+      <select id="userEditLevel" required><option value="1">01 — Administrador</option><option value="2">02 — Gerência</option>
+                <option value="3" selected>03 — Técnico</option><option value="4">04 — Almoxarifado</option>
+                <option value="5">05 — Financeiro</option><option value="6">06 — Consulta completa</option>
+                <option value="7">07 — Consulta sem financeiro</option><option value="8">08 — Sem permissões</option></select>
+      <label for="userEditRole" class="hidden">Perfil interno</label>
+      <select id="userEditRole" class="hidden">
         <option value="gerenciador">Gerenciador — não altera ADM</option>
                 <option value="administrador">Administrador</option>
         <option value="tecnico">Técnico</option>
@@ -4594,7 +4616,9 @@ function accessLogClear(){
 }
 let managedAccounts=[];
 let editingManagedAccount=null;
-function canManageUsers(){return canAdministrate();}
+function canManageUsers(){return canAdministrate()&&temPermissao('usuarios.gerenciar');}
+function levelLabel(value){return ({1:'Administrador',2:'Gerência',3:'Técnico',4:'Almoxarifado',
+ 5:'Financeiro',6:'Consulta completa',7:'Consulta sem financeiro',8:'Sem permissões'})[Number(value)]||'Sem nível';}
 function roleLabel(value){
   return ({administrador:'Administrador',gerenciador:'Gerenciador',supervisor:'Supervisor',tecnico:'Técnico',almoxarife:'Almoxarife',consulta:'Consulta'})[value]||value;
 }
@@ -4611,7 +4635,8 @@ function renderManagedAccounts(){
     return '<button type="button" class="userCard" data-user-id="'+escapeHTML(user.usuario_id)+'"'+
       (protectedAdm?' disabled title="Conta ADM protegida: não pode ser alterada pelo Gerenciador"':'')+'>'+
       '<div><div class="userCardName">'+escapeHTML(user.nome)+'</div>'+
-      '<div class="userCardLogin">Login: '+escapeHTML(user.login)+' · '+escapeHTML(roleLabel(user.perfil))+'</div></div>'+
+      '<div class="userCardLogin">Login: '+escapeHTML(user.login)+' · Nível '+String(user.nivel_acesso||8).padStart(2,'0')+
+     ' · '+escapeHTML(levelLabel(user.nivel_acesso))+'</div></div>'+
       '<span class="userStatus '+(user.ativo?'':'disabled')+'">'+
         (protectedAdm?'ADM protegido':user.ativo?'Ativo':'Desativado')+'</span></button>';
   }).join('');
@@ -4624,7 +4649,7 @@ async function reloadManagedUsers(){
   await ensureSession();
   // Leitura direta protegida por RLS: mostra inclusive a conta do próprio ADM.
   managedAccounts=await apiGet('usuarios_login',{
-    select:'usuario_id,empresa_id,login,nome,perfil,ativo,criado_em',
+    select:'usuario_id,empresa_id,login,nome,perfil,nivel_acesso,ativo,criado_em',
     empresa_id:'eq.'+currentCompany.id,excluido_em:'is.null',order:'login.asc'
   });
   renderManagedAccounts();
@@ -4711,7 +4736,7 @@ async function operationReportLoad(){
   if(node('userOperationsType').value)params.acao='eq.'+node('userOperationsType').value;
   const [registros,usuarios]=await Promise.all([
     apiGet('ew_auditoria_operacoes',params),
-    apiGet('usuarios_login',{select:'usuario_id,nome,login,perfil,ativo,excluido_em',
+    apiGet('usuarios_login',{select:'usuario_id,nome,login,perfil,nivel_acesso,ativo,excluido_em',
       empresa_id:'eq.'+currentCompany.id,limit:'1000'}).catch(()=>managedAccounts)
   ]);
   if(seq!==operationReportSeq)return;
@@ -4853,7 +4878,9 @@ function openManagedUserEdit(id){
   node('userEditLogin').value=account.login;
   node('userEditName').value=account.nome;
   node('userEditRole').value=account.perfil;
-  node('userEditRole').disabled=self;
+  node('userEditLevel').value=String(account.nivel_acesso||8);
+  node('userEditLevel').disabled=self||(!isFullAdminUser()&&Number(account.nivel_acesso)<=2);
+  node('userEditRole').disabled=true;
   node('userEditRole').querySelector('[value="administrador"]').disabled=!isFullAdminUser();
   node('userResetPassword').value='';maskPassword('userResetPassword');
   node('userEditMessage').textContent='';
@@ -4937,6 +4964,7 @@ node('createUserForm').addEventListener('submit',async(event)=>{
   const login=node('createUserLogin').value.trim();
   const nome=node('createUserName').value.trim();
   const perfil=node('createUserRole').value;
+  const nivel_acesso=Number(node('createUserLevel').value);
   const senha=node('createUserPassword').value;
   if(senha.length<6){node('createUserMessage').textContent='O Supabase exige uma senha com pelo menos 6 caracteres.';return;}
   if(!isFullAdminUser()&&perfil==='administrador'){
@@ -4948,12 +4976,12 @@ node('createUserForm').addEventListener('submit',async(event)=>{
   node('createUserMessage').textContent='';
   let saved=false;
   try{
-    await userApi({acao:'criar',login,nome,perfil,senha});
+    await userApi({acao:'criar',login,nome,perfil,nivel_acesso,senha});
     saved=true;
     node('createUserPassword').value='';maskPassword('createUserPassword');
     node('createUserLogin').value='';
     node('createUserName').value='';
-    node('createUserRole').value='tecnico';
+    node('createUserRole').value='tecnico';node('createUserLevel').value='3';
     node('createUserMessage').textContent='Usuário '+login+' cadastrado. Informe a senha inicial a ele por um canal seguro.';
     try{await reloadManagedUsers();}
     catch(e){node('usersMessage').textContent='Usuário criado, mas a lista não atualizou: '+e.message;}
@@ -4969,14 +4997,14 @@ node('userEditForm').addEventListener('submit',async(event)=>{
   const target=editingManagedAccount;
   const login=node('userEditLogin').value.trim();
   const nome=node('userEditName').value.trim();
-  const perfil=node('userEditRole').value;
-  if(!isFullAdminUser()&&(target.perfil==='administrador'||perfil==='administrador')){
+  const perfil=node('userEditRole').value,nivel_acesso=Number(node('userEditLevel').value);
+  if(!isFullAdminUser()&&(Number(target.nivel_acesso)<=2||nivel_acesso<=2)){
     node('userEditMessage').textContent='Gerenciador não pode alterar ou conceder perfil ADM.';return;
   }
   const button=node('userEditSubmit');
   button.disabled=true;button.textContent='Salvando…';
   try{
-    await userApi({acao:'editar',usuario_id:target.usuario_id,login,nome,perfil});
+    await userApi({acao:'editar',usuario_id:target.usuario_id,login,nome,perfil,nivel_acesso});
     closeManagedUserEdit();
     node('usersMessage').textContent='Dados salvos no banco.';
     try{await reloadManagedUsers();}
@@ -10798,5 +10826,6 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/romaneios-transferencia.js?v=20261122b"></script>
 <script src="/assets/relatorios-obras.js?v=20261122c"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>
+<script src="/assets/niveis-acesso.js?v=20261122a"></script>
 </body>
 </html>
