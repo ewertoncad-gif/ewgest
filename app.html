@@ -692,6 +692,7 @@
 <link rel="stylesheet" href="/assets/relatorios-obras.css?v=20261122b">
 <link rel="stylesheet" href="/assets/niveis-acesso.css?v=20261122a">
 <link rel="stylesheet" href="/assets/cadastros-pages.css?v=20261121b">
+<link rel="stylesheet" href="/assets/compras-estoque.css?v=20261123a">
 </head>
 <body>
 <div class="wrap">
@@ -708,6 +709,7 @@
     <button id="navHome" class="workspaceLink" type="button"><span class="navSymbol">⌂</span> Tela inicial</button>
     <button id="navWorks" class="workspaceLink" type="button"><span class="navSymbol">▦</span> Obras</button>
     <button id="navRomaneios" class="workspaceLink" type="button"><span class="navSymbol">▤</span> Romaneios e expedição</button>
+    <button id="navCompras" class="workspaceLink hidden" type="button"><span class="navSymbol">▧</span> Compras</button>
     <button id="navRecebimento" class="workspaceLink hidden" type="button"><span class="navSymbol">▧</span> Recebimento</button>
     <button id="navEnviarNotas" class="workspaceLink hidden" type="button"><span class="navSymbol">▧</span> Enviar notas fiscais</button>
     <div class="workspaceNavCaption workspaceNavCaptionSecond">ADMINISTRAÇÃO</div>
@@ -777,6 +779,18 @@
         <p id="almoxNotaMensagem" class="feedback" role="status"></p>
       </div>
     </section>
+    <section id="compras" class="hidden">
+      <div class="head"><div><h1>Compras</h1><p class="muted">Da solicitação ao pedido, com histórico por local de estoque e recebimentos parciais.</p></div></div>
+      <div class="section panel">
+        <div class="ewComprasTabs" role="tablist" aria-label="Etapas de compras">
+          <button type="button" class="btn secondary" id="comprasTabSolicitacao">Solicitação</button>
+          <button type="button" class="btn secondary" id="comprasTabCotacao">Cotação</button>
+          <button type="button" class="btn secondary" id="comprasTabPedido">Pedido</button>
+        </div>
+        <p id="comprasMensagem" class="feedback" role="status"></p>
+        <div id="comprasConteudo"></div>
+      </div>
+    </section>
     <section id="recebimento" class="hidden">
       <div class="head"><div>
         <h1>Recebimento</h1>
@@ -791,7 +805,8 @@
         </div>
         <p class="feedback" id="recebimentoMessage" role="status"></p>
       </div>
-          <div id="finPendingPanel" class="section panel hidden"></div>
+          <div id="ewComprasRecebimento" class="section panel hidden"></div>
+           <div id="finPendingPanel" class="section panel hidden"></div>
           <div id="finReceivePanel" class="section panel hidden"></div>
         <div id="entregasProducaoPanel" class="section panel hidden">
           <h2>Entregas de materiais à produção</h2>
@@ -1429,8 +1444,8 @@
     </section>
     <section id="stock" class="hidden">
       <div class="head"><div>
-        <h1>Estoque por obra</h1>
-        <p class="muted">Perfis em barras inteiras, acessórios, vidros e outros insumos por obra e galpão.</p>
+        <h1>Estoque por local</h1>
+        <p class="muted">Saldos por local de estoque (obra ou empresa) e galpão físico.</p>
       </div>
       <div class="stockTopActions">
           <button type="button" class="btn primary" id="stockCreateAnother">+ Criar estoque vazio</button>
@@ -1446,10 +1461,10 @@
         <div class="stat"><div class="label">Materiais com quantidade lançada</div><div class="number" id="stockCounted">—</div></div>
       </div>
       <div class="section panel">
-        <h2>Materiais da obra selecionada</h2>
+        <h2>Materiais do local selecionado</h2>
         <p class="hint">O cadastro da obra contém os materiais previstos do CEM e seus saldos físicos separados. Entrada física apenas após recebimento confirmado; perfis são controlados por barras inteiras e comprimento comercial.</p>
         <div class="stockFilters">
-          <label>Obra <select id="stockWork"><option value="">Todas as obras</option></select></label>
+          <label>Local de estoque <select id="stockWork"><option value="">Todas as obras</option></select></label>
           <label>Local do estoque <select id="stockFactoryFilter"><option value="">Todos os galpões</option></select></label>
           <label>Categoria <select id="stockType"><option value="">Todos os materiais</option><option value="perfil">Perfis</option><option value="acessorio">Acessórios</option><option value="vidros">Vidros</option><option value="outros">Outros insumos</option></select></label>
           <label>Buscar material <input id="stockSearch" type="search" placeholder="Código, descrição ou cor"></label>
@@ -1464,6 +1479,7 @@
         <p id="stockArchivedHint" class="hint hidden" role="status"></p>
         <div id="stockMessage" class="feedback" role="status"></div>
         <div id="stockRecords"></div>
+        <div id="ewEstoqueEmpresaPainel" class="hidden"></div>
         <div id="insumosStockPanel" class="section panel" style="margin-top:16px">
           <div class="rowHead"><h3>Vidros e outros insumos — estoque físico</h3>
             <button id="insumosStockRefresh" type="button" class="btn secondary">Atualizar</button>
@@ -2435,6 +2451,7 @@ function permissaoParaTela(view){
   materials:'cadastros.consultar',stock:'estoque.consultar',financeiro:'financeiro.consultar',
   cemImport:'obras.importar',users:'usuarios.gerenciar'};
  if(view==='relatorios')return podeVerRelatorios();
+  if(view==='compras')return temPermissao('compras.consultar');
  return !requires[view]||temPermissao(requires[view]);
 }
 let detailBackTarget='dashboard';
@@ -2478,7 +2495,7 @@ function setView(view){
   node('startup').classList.add('hidden');
   if(view!=='login'&&view!=='dashboard'&&view!=='myPassword'&&accessReady&&!permissaoParaTela(view))
     view='dashboard';
-  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','recebimento','almoxNotas','cadastros','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','typologies','manufacturers','materials','stock','financeiro','relatorios','cemImport','users','myPassword'])
+  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','compras','recebimento','almoxNotas','cadastros','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','typologies','manufacturers','materials','stock','financeiro','relatorios','cemImport','users','myPassword'])
     node(id).classList.toggle('hidden',id!==view);
   node('logout').classList.toggle('hidden',view==='login');
   node('myPasswordHeader').classList.toggle('hidden',view==='login');
@@ -2486,7 +2503,7 @@ function setView(view){
   node('workspaceNav').classList.toggle('hidden',!autenticado);
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
   const ativo=view==='detail'?'worksPage':view;
-  for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],['navRecebimento','recebimento'],['navEnviarNotas','almoxNotas'],['navCadastros','cadastros'],
+  for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],['navCompras','compras'],['navRecebimento','recebimento'],['navEnviarNotas','almoxNotas'],['navCadastros','cadastros'],
       ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navRelatorios','relatorios'],['navCem','cemImport'],['navUsers','users'],['navManageWorks','manageWorks']]){
     const button=node(id);
     const selecionado=ativo===target||(id==='navCadastros'&&
@@ -2655,6 +2672,7 @@ async function loadPanel(){
   node('navRomaneios').classList.toggle('hidden',!temPermissao('romaneios.consultar'));
   node('navEnviarNotas').classList.add('hidden'); // Fluxo antigo preservado internamente; nova entrada no Recebimento.
   node('navRecebimento').classList.toggle('hidden',!temPermissao('estoque.receber'));
+   node('navCompras').classList.toggle('hidden',!temPermissao('compras.consultar'));
   node('recebimentoXmlLegacy').classList.toggle('hidden',!isAlmoxarife());
   const navFlags={
     navCadastros:'cadastros.consultar',navTypologies:'cadastros.consultar',
@@ -7668,7 +7686,8 @@ async function carregarRecebimento(){
  node('entregasProducaoLista').replaceChildren();
  finState=null;
  finCostOpId=null;
- if(!obraId){msg.textContent='Selecione uma obra para iniciar o recebimento.';return;}
+ if(window.ewCompras)void window.ewCompras.atualizarRecebimento(obraId);
+  if(!obraId){msg.textContent='Selecione uma obra para iniciar o recebimento.';return;}
  msg.textContent='Consultando materiais previstos e recebidos…';
  try{
   if(temPermissao('financeiro.consultar')){
@@ -8589,6 +8608,7 @@ node('almoxNotaForm').addEventListener('submit',almoxNotaEnviar);
 
 node('navFinanceiro').addEventListener('click',()=>abrirFinanceiro());
 node('navRecebimento').addEventListener('click',()=>abrirRecebimento());
+ node('navCompras').addEventListener('click',()=>window.ewCompras?.abrir());
 node('recebimentoWork').addEventListener('change',()=>carregarRecebimento());
 node('recebimentoRefresh').addEventListener('click',()=>carregarRecebimento());
 node('recebimentoXmlLegacy').addEventListener('click',abrirAlmoxNotas);
@@ -8678,6 +8698,7 @@ async function abrirEstoque(){
     if(obrasEstoque.some(w=>w.id===previous))dropdown.value=previous;
     else if(obrasEstoque.length)dropdown.value=obrasEstoque.find(w=>w.codigo==='ALU-3195-GVG-PE')?.id||obrasEstoque[0].id;
     renderEstoque();
+    if(window.ewCompras)await window.ewCompras.carregarLocaisEstoque();
     stockReportRender();
     node('stockMessage').textContent='';
   }catch(e){node('stockMessage').textContent='Não foi possível carregar estoque: '+e.message;}
@@ -8783,6 +8804,9 @@ function stockNecessidade(item){
 }
 function renderEstoque(){
   const out=node('stockRecords'),obra=node('stockWork').value;
+  if(obra.startsWith('empresa:')){window.ewCompras?.renderEstoqueEmpresa();return;}
+  node('ewEstoqueEmpresaPainel')?.classList.add('hidden');
+  out.classList.remove('hidden');
   if(!out)return;
   const local=stockLocais.find(l=>l.obra_id===obra);
   const arquivado=Boolean(local?.excluido_em);
@@ -10832,5 +10856,6 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/relatorios-obras.js?v=20261122c"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>
 <script src="/assets/niveis-acesso.js?v=20261122a"></script>
+<script src="/assets/compras-estoque.js?v=20261123a"></script>
 </body>
 </html>
