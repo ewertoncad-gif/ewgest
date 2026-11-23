@@ -690,6 +690,7 @@
 <link rel="stylesheet" href="/assets/entregas-producao.css?v=20261121a">
 <link rel="stylesheet" href="/assets/romaneios-transferencia.css?v=20261121c">
 <link rel="stylesheet" href="/assets/relatorios-obras.css?v=20261122b">
+<link rel="stylesheet" href="/assets/niveis-acesso.css?v=20261122a">
 <link rel="stylesheet" href="/assets/cadastros-pages.css?v=20261121b">
 </head>
 <body>
@@ -3905,7 +3906,7 @@ function renderDetail(w){
   const list=elements.filter(x=>x.obra_id===w.id).sort(sortWorkItems);
   const t=totals(list);
   node('workName').textContent=w.nome;
-  node('detailFinanceiro').classList.toggle('hidden',!canAdministrate());
+  node('detailFinanceiro').classList.toggle('hidden',!temPermissao('financeiro.consultar'));
   node('workMeta').textContent=[w.codigo,w.cliente,w.situacao,w.prazo_previsto?'Prazo: '+w.prazo_previsto:''].filter(Boolean).join(' · ');
   node('detailTotal').textContent=amount(t.total);
   node('detailReleased').textContent=amount(t.released);
@@ -4664,6 +4665,8 @@ async function openManagedUsersPage(){
     await userApi({acao:'meu_perfil'});
     setView('users');
     await reloadManagedUsers();
+    if(typeof window.nivelAcessoPreparar==='function')
+      window.nivelAcessoPreparar().catch(e=>node('userLevelsStatus').textContent=e.message);
   }catch(e){
     if(session){
       setView('users');
@@ -6546,7 +6549,9 @@ node('goHome').addEventListener('click',()=>setView('dashboard'));
 node('detailFinanceiro').addEventListener('click',()=>selectedWork&&abrirFinanceiro(selectedWork.id));
 
 /* Cadastros editáveis por ADM. Não registra saldo e não importa automaticamente materiais. */
-const matIsAdmin=()=>canAdministrate()&&temPermissao('estoque.consultar');
+const matIsAdmin=()=>temPermissao('estoque.receber')||temPermissao('estoque.baixar')||
+ temPermissao('estoque.transferir_galpoes')||temPermissao('estoque.transferir_obras')||
+ temPermissao('estoque.estornar');
 const matTable=()=>matTipo==='perfil'?'ew_perfis':'ew_acessorios';
 const matEntries=()=>matTipo==='perfil'?matPerfis:matAcessorios;
 const matLbl=()=>matTipo==='perfil'?'perfil':'acessório';
