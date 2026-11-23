@@ -97,7 +97,8 @@ CREATE POLICY ew_nivel_select_restrito ON public.ew_historico_acessos AS RESTRIC
  FOR SELECT TO authenticated USING(public.ew_pode(empresa_id,'auditoria.consultar'));
 DROP POLICY IF EXISTS ew_nivel_select_restrito ON public.usuarios_login;
 CREATE POLICY ew_nivel_select_restrito ON public.usuarios_login AS RESTRICTIVE
- FOR SELECT TO authenticated USING((usuario_id=(SELECT auth.uid()) OR public.ew_pode(empresa_id,'usuarios.gerenciar') OR public.ew_pode(empresa_id,'auditoria.consultar')));
+ FOR SELECT TO authenticated USING((usuario_id=(SELECT auth.uid()) OR public.ew_pode(empresa_id,'usuarios.gerenciar') OR public.ew_pode(empresa_id,'auditoria.consultar')
+ OR public.ew_pode(empresa_id,'relatorios.operacionais')));
 -- Tabelas sem empresa_id: consulta depende da empresa da esquadria/romaneio.
 DROP POLICY IF EXISTS ew_nivel_select_restrito ON public.liberacoes_corte;
 CREATE POLICY ew_nivel_select_restrito ON public.liberacoes_corte AS RESTRICTIVE
