@@ -14,11 +14,11 @@ BEGIN
  IF jsonb_array_length(r->'niveis')<>8 OR jsonb_array_length(r->'catalogo')<>28
  THEN RAISE EXCEPTION 'Matriz incompleta: %',r;END IF;
  res:=public.ew_salvar_nivel('9ea7617c-6603-4bc1-91e1-c5e274c334d9',
- 7,ARRAY['obras.consultar','relatorios.operacionais']);
+ 7::smallint,ARRAY['obras.consultar','relatorios.operacionais']);
  IF (res->'flags'->>'relatorios.financeiros')::boolean
  THEN RAISE EXCEPTION 'Nivel 07 ganhou financeiro';END IF;
  BEGIN
-  PERFORM public.ew_salvar_nivel('9ea7617c-6603-4bc1-91e1-c5e274c334d9',1,ARRAY[]::text[]);
+  PERFORM public.ew_salvar_nivel('9ea7617c-6603-4bc1-91e1-c5e274c334d9',1::smallint,ARRAY[]::text[]);
   RAISE EXCEPTION 'Permitiu alteração do nível 01';
  EXCEPTION WHEN OTHERS THEN
   IF SQLERRM NOT LIKE 'Nível 01 é protegido%' THEN RAISE; END IF;
@@ -45,7 +45,7 @@ BEGIN
   IF SQLERRM NOT LIKE 'PERMISSAO_NEGADA%' THEN RAISE; END IF;
  END;
  BEGIN
-  PERFORM public.ew_salvar_nivel('9ea7617c-6603-4bc1-91e1-c5e274c334d9',7,ARRAY['financeiro.faturar']);
+  PERFORM public.ew_salvar_nivel('9ea7617c-6603-4bc1-91e1-c5e274c334d9',7::smallint,ARRAY['financeiro.faturar']);
   RAISE EXCEPTION 'Consulta alterou a matriz';
  EXCEPTION WHEN OTHERS THEN
   IF SQLERRM NOT LIKE 'PERMISSAO_NEGADA%' THEN RAISE; END IF;
