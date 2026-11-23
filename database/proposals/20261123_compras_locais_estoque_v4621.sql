@@ -193,6 +193,8 @@ begin
     v_unit not in ('BARRA','PC','PR','CJ','UN','MT','KG') or
     (v_var.tipo='perfil' and (v_unit<>'BARRA' or v_length not between 100 and 20000)) or
     (v_var.tipo<>'perfil' and (v_unit='BARRA' or v_length is not null)) or
+    (v_var.tipo='acessorio' and v_unit<>coalesce((select upper(btrim(a.unidade_item))
+      from public.ew_acessorios a where a.id=v_var.acessorio_id and a.empresa_id=p_empresa_id),'')) or
     (v_unit in ('BARRA','MT','PC','PR','CJ','UN') and v_q<>trunc(v_q))
   then raise exception 'Quantidade, unidade ou barra inválida.';end if;
   v_clean:=v_clean||jsonb_build_array(jsonb_build_object('chave',v_key,
@@ -226,7 +228,7 @@ begin
   select value into v_price from jsonb_array_elements(p_precos) where value->>'chave'=v_i->>'chave';
   if not found then raise exception 'Falta preço de item da solicitação.';end if;
   v_value:=(v_price->>'preco_unitario_centavos')::bigint;
-  if v_value<0 or v_value>100000000000 then raise exception 'Preço inválido.';end if;
+  if v_value is null or v_value<0 or v_value>100000000000 then raise exception 'Preço inválido.';end if;
   v_total:=v_total+round((v_i->>'quantidade')::numeric*v_value)::bigint;
   v_items:=v_items||jsonb_build_array(v_i||jsonb_build_object('preco_unitario_centavos',v_value));
  end loop;
@@ -282,6 +284,15 @@ begin
  if v_p.local_empresa_id is not null and not exists(select 1 from public.ew_compras_locais_empresa
  where id=v_p.local_empresa_id and empresa_id=v_p.empresa_id and ativo)
  then raise exception 'Local empresarial inativo ou inválido.';end if;
+ -- Uma obra verdadeira recebe um cadastro de estoque se ainda não possuía um.
+ if v_p.obra_id is not null then
+  insert into public.ew_estoques_locais(empresa_id,obra_id,criado_por)
+  values(v_p.empresa_id,v_p.obra_id,auth.uid())
+  on conflict (empresa_id,obra_id) do nothing;
+  if not exists(select 1 from public.ew_estoques_locais
+   where empresa_id=v_p.empresa_id and obra_id=v_p.obra_id and excluido_em is null)
+  then raise exception 'Estoque da obra encontra-se arquivado.';end if;
+ end if;
  if jsonb_typeof(p_itens) is distinct from 'array' or jsonb_array_length(p_itens) not between 1 and 200
  then raise exception 'Informe itens recebidos.';end if;
  for v_i in select value from jsonb_array_elements(p_itens) loop
