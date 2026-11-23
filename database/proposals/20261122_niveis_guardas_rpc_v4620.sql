@@ -1049,7 +1049,7 @@ begin
   join public.usuarios_login ul
    on ul.usuario_id=ue.usuario_id and ul.empresa_id=ue.empresa_id
   where ue.usuario_id=v_uid and ue.empresa_id=v_obra.empresa_id
-   and ue.perfil in ('administrador','gerenciador')
+   and public.ew_pode(v_obra.empresa_id,'estoque.estornar')
    and ul.perfil=ue.perfil and ul.ativo and ul.excluido_em is null
  ) then raise exception 'Somente ADM e Gerenciador podem realizar estornos.'; end if;
  select * into v_audit from public.ew_auditoria_operacoes where operacao_id=p_operacao_id;
@@ -3160,7 +3160,7 @@ BEGIN
   PERFORM public.ew_exigir_sessao_atual();
  IF v_usuario IS NULL OR p_empresa_id IS NULL OR p_operacao_id IS NULL
   OR NOT EXISTS(SELECT 1 FROM public.usuarios_empresas ue WHERE ue.usuario_id=v_usuario
-     AND ue.empresa_id=p_empresa_id AND ue.perfil IN ('administrador','gerenciador'))
+     AND ue.empresa_id=p_empresa_id AND public.ew_pode(p_empresa_id,'estoque.baixar'))
  THEN RAISE EXCEPTION 'Somente ADM pode movimentar o estoque da obra.'; END IF;
  SELECT id INTO v_id FROM public.ew_estoque_obras_movimentos
   WHERE operacao_id=p_operacao_id AND empresa_id=p_empresa_id AND usuario_id=v_usuario;
@@ -3219,7 +3219,7 @@ BEGIN
  PERFORM public.ew_exigir_permissao('estoque.baixar');
   PERFORM public.ew_exigir_sessao_atual();
  if v_uid is null or not exists(select 1 from public.usuarios_empresas u where
-   u.empresa_id=p_empresa_id and u.usuario_id=v_uid and u.perfil IN ('administrador','gerenciador'))
+   u.empresa_id=p_empresa_id and u.usuario_id=v_uid and public.ew_pode(p_empresa_id,'estoque.baixar'))
  then raise exception 'Somente o ADM pode movimentar estoque.';end if;
  if not exists(select 1 from public.ew_locais_fisicos l where l.empresa_id=p_empresa_id
    and l.nome=v_local and l.ativo)
@@ -3361,7 +3361,7 @@ BEGIN
  PERFORM public.ew_exigir_sessao_atual();
  IF v_uid IS NULL OR p_empresa_id IS NULL OR p_operacao_id IS NULL OR
    NOT EXISTS(SELECT 1 FROM public.usuarios_empresas ue WHERE
-     ue.usuario_id=v_uid AND ue.empresa_id=p_empresa_id AND ue.perfil='administrador')
+     ue.usuario_id=v_uid AND ue.empresa_id=p_empresa_id AND public.ew_pode(p_empresa_id,'estoque.receber'))
  THEN RAISE EXCEPTION 'Somente ADM confirma entradas físicas provenientes de NF-e.';END IF;
  IF p_despesa_item_id IS NULL OR p_variacao_id IS NULL OR
    p_quantidade IS NULL OR p_quantidade<=0 OR p_quantidade>1000000 OR
@@ -4306,7 +4306,7 @@ BEGIN
  IF v_usuario IS NULL OR p_empresa_id IS NULL OR p_operacao_id IS NULL OR
   NOT EXISTS (SELECT 1 FROM public.usuarios_empresas u
     WHERE u.empresa_id=p_empresa_id AND u.usuario_id=v_usuario
-     AND u.perfil IN ('administrador','gerenciador'))
+     AND public.ew_pode(p_empresa_id,'estoque.transferir_obras'))
  THEN RAISE EXCEPTION 'Somente ADM pode transferir estoque entre obras.'; END IF;
 
  IF p_origem_obra_id IS NULL OR p_destino_obra_id IS NULL OR
@@ -4432,7 +4432,7 @@ BEGIN
  PERFORM public.ew_exigir_permissao('estoque.transferir_galpoes');
   PERFORM public.ew_exigir_sessao_atual();
  if v_uid is null or p_operacao_id is null or not exists(select 1 from public.usuarios_empresas ue
-   where ue.empresa_id=p_empresa_id and ue.usuario_id=v_uid and ue.perfil IN ('administrador','gerenciador'))
+   where ue.empresa_id=p_empresa_id and ue.usuario_id=v_uid and public.ew_pode(p_empresa_id,'estoque.transferir_galpoes'))
  then raise exception 'Somente ADM pode transferir estoque.';end if;
  if exists(select 1 from public.ew_estoque_obras_movimentos where transferencia_id=p_operacao_id and empresa_id=p_empresa_id)
  then return jsonb_build_object('repetida',true);end if;
