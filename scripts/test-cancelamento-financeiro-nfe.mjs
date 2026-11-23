@@ -17,6 +17,7 @@ async function scenario(kind,id,{admin=true,motivo='Corrigir lançamento incorre
  const calls=[],feedback=new Map(),events=[];
  const ctx={
   isFullAdminUser:()=>admin,
+  temPermissao:chave=>admin&&['financeiro.cancelar_despesas','financeiro.cancelar_faturamento'].includes(chave),
   finState:{despesas:[
    {id:'nf-123',categoria:'aluminio'},
    {id:'nf-125',categoria:'acessorios'},
@@ -58,7 +59,7 @@ const faturamento=await scenario('faturamento','fat-1');
 assert.equal(faturamento.calls[0].url,'/rest/v1/rpc/ew_cancelar_faturamento_financeiro',
  'Não mudar a RPC de cancelamento de faturamentos');
 assert.equal((await scenario('despesa','nf-123',{admin:false})).calls.length,0,
- 'Não autorizar interface sem ADM');
+ 'Sem flag de cancelamento não pode disparar RPC');
 assert.equal((await scenario('despesa','nf-123',{ok:false})).calls.length,0,
  'Cancelar diálogo não pode executar RPC');
 assert.equal((await scenario('despesa','nf-123',{motivo:'x'})).calls.length,0,
