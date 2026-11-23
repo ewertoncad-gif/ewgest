@@ -4617,7 +4617,7 @@ function accessLogClear(){
 }
 let managedAccounts=[];
 let editingManagedAccount=null;
-function canManageUsers(){return canAdministrate()&&temPermissao('usuarios.gerenciar');}
+function canManageUsers(){return temPermissao('usuarios.gerenciar');}
 function levelLabel(value){return ({1:'Administrador',2:'Gerência',3:'Técnico',4:'Almoxarifado',
  5:'Financeiro',6:'Consulta completa',7:'Consulta sem financeiro',8:'Sem permissões'})[Number(value)]||'Sem nível';}
 function roleLabel(value){
@@ -4632,7 +4632,7 @@ function renderManagedAccounts(){
   const rows=managedAccounts.slice().sort((a,b)=>String(a.login).localeCompare(String(b.login),'pt-BR'));
   node('usersMessage').textContent=rows.length+' usuário(s) cadastrado(s). Clique para editar.';
   node('usersList').innerHTML=rows.map(user=>{
-    const protectedAdm=!isFullAdminUser()&&user.perfil==='administrador';
+    const protectedAdm=!isFullAdminUser()&&Number(user.nivel_acesso)<=2;
     return '<button type="button" class="userCard" data-user-id="'+escapeHTML(user.usuario_id)+'"'+
       (protectedAdm?' disabled title="Conta ADM protegida: não pode ser alterada pelo Gerenciador"':'')+'>'+
       '<div><div class="userCardName">'+escapeHTML(user.nome)+'</div>'+
@@ -4871,7 +4871,7 @@ function openManagedUserEdit(id){
   if(!canManageUsers())return;
   const account=managedAccounts.find(x=>x.usuario_id===id);
   if(!account)return;
-  if(!isFullAdminUser()&&account.perfil==='administrador'){
+  if(!isFullAdminUser()&&Number(account.nivel_acesso)<=2){
     node('usersMessage').textContent='A conta ADM é protegida e não pode ser alterada pelo Gerenciador.';
     return;
   }
@@ -4888,7 +4888,7 @@ function openManagedUserEdit(id){
   node('userResetPassword').value='';maskPassword('userResetPassword');
   node('userEditMessage').textContent='';
   node('userToggleActive').classList.toggle('hidden',self);
-  node('userDeleteButton').classList.toggle('hidden',self||account.perfil==='administrador');
+  node('userDeleteButton').classList.toggle('hidden',self||Number(account.nivel_acesso)<=2);
   node('userToggleActive').textContent=account.ativo?'Desativar acesso':'Reativar acesso';
   node('userEditOverlay').classList.remove('hidden');
   node('userEditLogin').focus();
