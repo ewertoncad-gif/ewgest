@@ -92,7 +92,11 @@ async function accountForToken(req) {
   if (sessionError) throw new Error('Não foi possível consultar o controle de sessões. Tente novamente.');
   if (active?.sessao_auth_id !== sid)
     throw new Error('Sessão substituída por outro dispositivo. Entre novamente.');
-  return { user, account, member };
+  const {data:grants,error:grantError}=await admin.from('ew_niveis_permissoes')
+    .select('chave').eq('empresa_id',account.empresa_id)
+    .eq('nivel',account.nivel_acesso).eq('permitido',true);
+  if(grantError)throw new Error('Não foi possível validar as permissões do nível.');
+  return { user, account, member, flags:new Set((grants||[]).map(x=>x.chave)) };
 }
 function isFullAdmin(caller) {
   return caller.member.perfil === 'administrador' && caller.account.perfil === 'administrador' && caller.account.nivel_acesso === 1 && caller.member.nivel_acesso === 1;
@@ -100,7 +104,8 @@ function isFullAdmin(caller) {
 function requireManager(caller) {
   if (caller.member.perfil !== caller.account.perfil ||
       caller.member.nivel_acesso !== caller.account.nivel_acesso ||
-      ![1,2].includes(caller.member.nivel_acesso)) {
+      ![1,2].includes(caller.member.nivel_acesso) ||
+      !caller.flags.has('usuarios.gerenciar')) {
     throw new Error('Somente ADM ou Gerenciador podem administrar usuários.');
   }
 }
