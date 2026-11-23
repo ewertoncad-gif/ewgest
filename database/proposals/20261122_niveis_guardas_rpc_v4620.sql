@@ -515,7 +515,7 @@ begin
   select 1 from public.usuarios_empresas u join public.usuarios_login ul
    on ul.usuario_id=u.usuario_id and ul.empresa_id=u.empresa_id
   where u.usuario_id=v_uid and u.empresa_id=v_ob.empresa_id
-   and u.perfil in ('administrador','gerenciador') and ul.perfil=u.perfil and ul.ativo
+   and public.ew_pode(v_ob.empresa_id,'liberacoes.cancelar') and ul.perfil=u.perfil and ul.ativo
    and ul.excluido_em is null
  ) then raise exception 'Somente ADM e Gerenciador podem cancelar liberações.';end if;
  perform 1 from public.esquadrias where obra_id=p_obra_id order by id for update;
@@ -711,7 +711,7 @@ begin
  if v_uid is null or p_empresa_id is null or p_obra_id is null or p_referencia_id is null
   or p_operacao_id is null or p_tipo not in ('PLANO','LOTE')
   or not exists(select 1 from public.usuarios_empresas u where u.usuario_id=v_uid
-   and u.empresa_id=p_empresa_id and u.perfil in ('administrador','almoxarife'))
+   and u.empresa_id=p_empresa_id and public.ew_pode(p_empresa_id,'estoque.baixar'))
  then raise exception 'Sem permissão para baixar materiais da produção.';end if;
  if not exists(select 1 from public.obras o where o.id=p_obra_id and o.empresa_id=p_empresa_id
    and o.arquivada_em is null)
@@ -2943,7 +2943,7 @@ BEGIN
  select empresa_id into v_empresa from public.obras where id=p_obra_id;
  if v_empresa is null then raise exception 'Obra não encontrada.';end if;
  if not exists(select 1 from public.usuarios_empresas u where u.usuario_id=v_uid
-  and u.empresa_id=v_empresa and u.perfil in ('administrador','gerenciador','supervisor'))
+  and u.empresa_id=v_empresa and public.ew_pode(v_empresa,'liberacoes.criar'))
  then raise exception 'Usuário sem permissão para liberar corte.';end if;
  if p_data_liberacao is null or p_data_liberacao<date '2000-01-01'
   or p_data_liberacao>current_date or p_fabrica not in ('IMBIRIBEIRA','AFOGADOS')
@@ -3035,7 +3035,7 @@ BEGIN
  SELECT * INTO v_item FROM public.esquadrias WHERE id=p_esquadria_id FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Esquadria não encontrada.';END IF;
  IF NOT EXISTS(SELECT 1 FROM public.usuarios_empresas ue WHERE ue.usuario_id=v_usuario
-     AND ue.empresa_id=v_item.empresa_id AND ue.perfil IN ('administrador','gerenciador','supervisor'))
+     AND ue.empresa_id=v_item.empresa_id AND public.ew_pode(v_item.empresa_id,'liberacoes.criar'))
  THEN RAISE EXCEPTION 'Usuário não autorizado para esta liberação.';END IF;
  IF jsonb_typeof(p_materiais) IS DISTINCT FROM 'array' THEN
    RAISE EXCEPTION 'Lista de materiais inválida.';END IF;
@@ -3101,7 +3101,7 @@ BEGIN
  SELECT * INTO v_item FROM public.esquadrias WHERE id=p_esquadria_id FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Esquadria não encontrada.';END IF;
  IF NOT EXISTS(SELECT 1 FROM public.usuarios_empresas ue WHERE ue.usuario_id=v_usuario
-     AND ue.empresa_id=v_item.empresa_id AND ue.perfil IN ('administrador','gerenciador','supervisor'))
+     AND ue.empresa_id=v_item.empresa_id AND public.ew_pode(v_item.empresa_id,'liberacoes.criar'))
  THEN RAISE EXCEPTION 'Usuário não autorizado para esta liberação.';END IF;
  IF jsonb_typeof(p_materiais) IS DISTINCT FROM 'array' THEN
    RAISE EXCEPTION 'Lista de materiais inválida.';END IF;
@@ -3847,7 +3847,7 @@ begin
  select * into v_e from public.esquadrias where id=p_esquadria_id for update;
  if not found then raise exception 'Esquadria não encontrada.';end if;
  if not exists(select 1 from public.usuarios_empresas ue where ue.usuario_id=v_uid
-   and ue.empresa_id=v_e.empresa_id and ue.perfil in ('administrador','gerenciador','supervisor'))
+   and ue.empresa_id=v_e.empresa_id and public.ew_pode(v_e.empresa_id,'liberacoes.criar'))
  then raise exception 'Usuário não autorizado para liberar esta esquadria.';end if;
  if v_tipo<>'completo' and
     (v_e.descricao !~* '[0-9]{1,2}[[:space:]-]*FOLHA' or
