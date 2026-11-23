@@ -129,4 +129,27 @@ CREATE POLICY ew_nivel_insert_restrito ON public.ew_estoque_obras_movimentos AS 
  OR public.ew_pode(empresa_id,'estoque.transferir_obras')
  OR public.ew_pode(empresa_id,'estoque.transferir_galpoes')
  OR public.ew_pode(empresa_id,'estoque.estornar'));
+
+-- Escrever diretamente via REST também depende das flags; uma ação
+-- não deve ser autorizada só porque o botão está escondido.
+DO $guardas$
+DECLARE registro record;
+BEGIN
+ FOR registro IN SELECT * FROM (VALUES
+   ('ew_perfis','cadastros.editar'),
+   ('ew_acessorios','cadastros.editar'),
+   ('ew_materiais_variacoes','cadastros.editar'),
+   ('ew_cem_obras_materiais','obras.importar'),
+   ('esquadrias','obras.importar')
+ ) v(tabela,chave) LOOP
+  EXECUTE format('DROP POLICY IF EXISTS ew_nivel_insert_restrito ON public.%I',registro.tabela);
+  EXECUTE format('CREATE POLICY ew_nivel_insert_restrito ON public.%I AS RESTRICTIVE FOR INSERT TO authenticated WITH CHECK (public.ew_pode(empresa_id,%L))',registro.tabela,registro.chave);
+  EXECUTE format('DROP POLICY IF EXISTS ew_nivel_update_restrito ON public.%I',registro.tabela);
+  EXECUTE format('CREATE POLICY ew_nivel_update_restrito ON public.%I AS RESTRICTIVE FOR UPDATE TO authenticated USING (public.ew_pode(empresa_id,%L)) WITH CHECK (public.ew_pode(empresa_id,%L))',registro.tabela,registro.chave,registro.chave);
+ END LOOP;
+END;
+$guardas$;
+DROP POLICY IF EXISTS ew_nivel_insert_restrito ON public.ew_nfe_recebimentos;
+CREATE POLICY ew_nivel_insert_restrito ON public.ew_nfe_recebimentos AS RESTRICTIVE
+ FOR INSERT TO authenticated WITH CHECK(public.ew_pode(empresa_id,'estoque.receber'));
 COMMIT;
