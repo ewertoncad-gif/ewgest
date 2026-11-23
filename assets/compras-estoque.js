@@ -16,6 +16,11 @@ const validQty=(v,un)=>{const q=Number(v);return Number.isFinite(q)&&q>0&&q<=100
 const parseMoney=v=>{const s=String(v||'').replace(/^R\\$\\s*/,'').replace(/\\s/g,'');
  if(!/^\\d+(?:[.,]\\d{1,2})?$/.test(s))return null;const c=Math.round(Number(s.replace(',','.'))*100);
  return Number.isSafeInteger(c)&&c>=0?c:null;};
+const pendingOps=new Map();
+function operationToken(kind,payload){const signature=JSON.stringify(payload);const old=pendingOps.get(kind);
+ if(old&&old.signature===signature)return old.id;
+ const id=crypto.randomUUID();pendingOps.set(kind,{signature,id});return id;
+}
 let tab='solicitacao',locals=[],suppliers=[],galpoes=[],variations=[],sols=[],quotes=[],orders=[],receipts=[],stockEpoch=0,loaded=false;
 function titleLocal(row){const work=works.find(w=>w.id===row.obra_id);
  const loc=locals.find(x=>x.id===row.local_empresa_id);
@@ -92,7 +97,9 @@ function renderRequest(){
  const [kind,id]=value.split(':');const btn=$('comprasSolicitarForm').querySelector('[type="submit"]');btn.disabled=true;
  try{await ensureSession();await rpc('ew_compras_criar_solicitacao',{p_empresa_id:currentCompany.id,
   p_obra_id:kind==='obra'?id:null,p_local_empresa_id:kind==='empresa'?id:null,
-  p_itens:lines,p_observacoes:$('comprasObservacoes').value,p_operacao_id:crypto.randomUUID()});
+  p_itens:lines,p_observacoes:$('comprasObservacoes').value,
+  p_operacao_id:operationToken('solicitar',{value,lines,obs:$('comprasObservacoes').value})});
+  pendingOps.delete('solicitar');
   await reload();renderRequest();say('comprasMensagem','Solicitação registrada.');
  }catch(e){say('comprasMensagem','Erro: '+e.message)}finally{btn.disabled=false;}};
  }}
@@ -112,7 +119,8 @@ function renderQuote(){
  const precos=[...document.querySelectorAll('[data-quote-key]')].map(row=>({chave:row.dataset.quoteKey,preco_unitario_centavos:parseMoney(row.querySelector('input').value)}));
  if(!s||precos.some(x=>x.preco_unitario_centavos===null)){say('comprasMensagem','Valores inválidos.');return;}
  try{await rpc('ew_compras_criar_cotacao',{p_solicitacao_id:s.id,p_fornecedor_id:$('comprasCotacaoFornecedor').value,
- p_precos:precos,p_operacao_id:crypto.randomUUID()});await reload();renderQuote();say('comprasMensagem','Cotação registrada.');
+ p_precos:precos,p_operacao_id:operationToken('cotar',{id:s.id,fornecedor:$('comprasCotacaoFornecedor').value,precos})});
+ pendingOps.delete('cotar');await reload();renderQuote();say('comprasMensagem','Cotação registrada.');
  }catch(err){say('comprasMensagem','Erro: '+err.message)}};
  }}
 function renderOrder(){
@@ -125,8 +133,8 @@ function renderOrder(){
  '<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Pedido</th><th>Destino</th><th>Valor</th><th>Recebimento</th></tr></thead><tbody>'+
  orders.map(p=>'<tr><td>#'+number(p.numero)+'</td><td>'+esc(titleLocal(p))+'</td><td>'+money(p.total_centavos)+'</td><td>'+esc(orderStatus(p))+'</td></tr>').join('')+'</tbody></table></div>';
  if(editable)$('comprasPedidoForm').onsubmit=async e=>{e.preventDefault();const id=$('comprasPedidoCotacao').value;
- try{await rpc('ew_compras_criar_pedido',{p_cotacao_id:id,p_operacao_id:crypto.randomUUID()});
- await reload();renderOrder();say('comprasMensagem','Pedido criado e disponível para recebimento.');
+ try{await rpc('ew_compras_criar_pedido',{p_cotacao_id:id,p_operacao_id:operationToken('pedir',{id})});
+ pendingOps.delete('pedir');await reload();renderOrder();say('comprasMensagem','Pedido criado e disponível para recebimento.');
  }catch(err){say('comprasMensagem','Erro: '+err.message)}};
 }
 function render(){for(const [k,id] of [['solicitacao','comprasTabSolicitacao'],['cotacao','comprasTabCotacao'],['pedido','comprasTabPedido']])
@@ -176,7 +184,8 @@ async function atualizarRecebimento(obraId){
  it.quantidade>Number(line.quantidade)-(m.get(it.chave)||0)})){say('ewReceberMessage','Marque itens e informe quantidades inteiras dentro do saldo pendente.');return;}
  const button=$('ewReceberForm').querySelector('[type=submit]');button.disabled=true;
  try{await rpc('ew_compras_receber_pedido',{p_pedido_id:p.id,p_galpao:$('ewReceberGalpao').value,
-  p_itens:itens,p_operacao_id:crypto.randomUUID()});say('ewReceberMessage','Recebimento confirmado.');
+  p_itens:itens,p_operacao_id:operationToken('receber',{pedido:p.id,galpao:$('ewReceberGalpao').value,itens})});
+  pendingOps.delete('receber');say('ewReceberMessage','Recebimento confirmado.');
   await atualizarRecebimento(obraId);
  }catch(err){say('ewReceberMessage','Erro ao receber: '+err.message);}finally{button.disabled=false;}
  };
