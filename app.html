@@ -1449,6 +1449,7 @@
       </div>
       <div class="stockTopActions">
           <button type="button" class="btn primary" id="stockCreateAnother">+ Criar estoque vazio</button>
+          <button type="button" class="btn secondary hidden" id="stockCreateCompanyLocal">+ Local da empresa</button>
           <button type="button" class="btn secondary" id="stockTransferPickLocal">Transferência entre galpões</button>
           <button type="button" class="btn secondary" id="stockTransferPickWork">Transferência entre obras</button>
           <button type="button" class="btn secondary" id="stockManageLocations" title="Consultar saldos e estornar lançamentos; exclusão definitiva da obra em Gerenciar obras">Gerenciar estoques</button>
@@ -1472,7 +1473,7 @@
         <div class="stockTopActions">
           <button type="button" class="btn secondary hidden" id="stockWorkHistory" disabled>Movimentações da obra</button>
         </div>
-        <div class="stockLegend">
+        <div class="stockLegend" id="stockLegend">
           <span><strong>Necessária:</strong> para perfis, número de barras planejadas no CEM por comprimento; para acessórios, quantidade prevista. <strong>Em estoque:</strong> saldo físico de entradas e saídas.</span>
           <span><strong>Comprimento:</strong> tamanho comercial da barra em milímetros, independente da quantidade de peças cortadas.</span>
         </div>
@@ -2673,6 +2674,7 @@ async function loadPanel(){
   node('navEnviarNotas').classList.add('hidden'); // Fluxo antigo preservado internamente; nova entrada no Recebimento.
   node('navRecebimento').classList.toggle('hidden',!temPermissao('estoque.receber'));
    node('navCompras').classList.toggle('hidden',!temPermissao('compras.consultar'));
+   node('stockCreateCompanyLocal').classList.toggle('hidden',!temPermissao('estoque.gerenciar_locais'));
   node('recebimentoXmlLegacy').classList.toggle('hidden',!isAlmoxarife());
   const navFlags={
     navCadastros:'cadastros.consultar',navTypologies:'cadastros.consultar',
@@ -7669,7 +7671,8 @@ async function abrirRecebimento(prefer=null){
  const anterior=prefer||sel.value||'';
  sel.innerHTML='<option value="">Escolha a obra</option>'+works.map(w=>
   '<option value="'+escapeHTML(w.id)+'">'+escapeHTML((w.codigo||'')+' · '+w.nome)+'</option>').join('');
- if(works.some(w=>w.id===anterior))sel.value=anterior;
+ if(window.ewCompras)await window.ewCompras.carregarLocaisRecebimento(sel);
+ if([...sel.options].some(x=>x.value===anterior))sel.value=anterior;
  setView('recebimento');
  await carregarRecebimento();
 }
@@ -7687,7 +7690,8 @@ async function carregarRecebimento(){
  finState=null;
  finCostOpId=null;
  if(window.ewCompras)void window.ewCompras.atualizarRecebimento(obraId);
-  if(!obraId){msg.textContent='Selecione uma obra para iniciar o recebimento.';return;}
+  if(!obraId){msg.textContent='Selecione um local de estoque para iniciar o recebimento.';return;}
+  if(obraId.startsWith('empresa:')){msg.textContent='Estoque da empresa: recebimento físico exclusivamente por pedido de compra.';return;}
  msg.textContent='Consultando materiais previstos e recebidos…';
  try{
   if(temPermissao('financeiro.consultar')){
@@ -8609,6 +8613,7 @@ node('almoxNotaForm').addEventListener('submit',almoxNotaEnviar);
 node('navFinanceiro').addEventListener('click',()=>abrirFinanceiro());
 node('navRecebimento').addEventListener('click',()=>abrirRecebimento());
  node('navCompras').addEventListener('click',()=>window.ewCompras?.abrir());
+ node('stockCreateCompanyLocal').addEventListener('click',()=>window.ewCompras?.criarLocalEmpresa());
 node('recebimentoWork').addEventListener('change',()=>carregarRecebimento());
 node('recebimentoRefresh').addEventListener('click',()=>carregarRecebimento());
 node('recebimentoXmlLegacy').addEventListener('click',abrirAlmoxNotas);
@@ -8806,6 +8811,8 @@ function renderEstoque(){
   const out=node('stockRecords'),obra=node('stockWork').value;
   if(obra.startsWith('empresa:')){window.ewCompras?.renderEstoqueEmpresa();return;}
   node('ewEstoqueEmpresaPainel')?.classList.add('hidden');
+  node('insumosStockPanel')?.classList.remove('hidden');
+  node('stockLegend')?.classList.remove('hidden');
   out.classList.remove('hidden');
   if(!out)return;
   const local=stockLocais.find(l=>l.obra_id===obra);
