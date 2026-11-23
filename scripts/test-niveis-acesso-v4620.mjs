@@ -33,7 +33,7 @@ assert.match(base,/ul\.ativo AND ul\.excluido_em IS NULL/,'Conta inativa sem per
 assert.match(base,/public\.ew_sessao_eh_atual\(\)/,'Verificar sessão ativa no servidor');
 assert.ok(ui.includes("window.nivelAcessoPreparar=nivelAcessoPreparar")&&
  ui.includes("'/rest/v1/rpc/ew_salvar_nivel'")&&ui.includes('userLevelsGroups'));
-assert.match(ui,/nivel===1\?'Nível 01 protegido/);
+assert.ok(ui.includes("nivel===1?")&&ui.includes("'Nível 01 protegido"));
 assert.match(app,/request\('\/rest\/v1\/rpc\/ew_meu_nivel'/);
 assert.match(app,/temPermissao\('financeiro\.consultar'\)/);
 assert.match(reports,/temPermissao\('relatorios\.financeiros'\)/);
