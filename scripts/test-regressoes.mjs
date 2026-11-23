@@ -25,11 +25,11 @@ const receiptFormIdx=source.indexOf('id="finExpensePanel"');
 assert.ok(receiptIdx>0&&financeIdx>receiptIdx&&receiptFormIdx>receiptIdx&&receiptFormIdx<financeIdx,
  'O formulário de recebimento deve pertencer à tela Recebimento, não ao Financeiro');
 assert.ok(source.includes('id="navRecebimento"')&&source.includes("['navRecebimento','recebimento']")&&
- source.includes("node('navRecebimento').classList.toggle('hidden',!(isAlmoxarife()||isFullAdminUser()))"),
+ source.includes("node('navRecebimento').classList.toggle('hidden',!temPermissao('estoque.receber'))"),
  'Menu Recebimento liberado por perfil, sem exibir o Financeiro ao almoxarife');
 const recebimentoLoader=source.slice(source.indexOf('async function carregarRecebimento(){'),
  source.indexOf('function finOptionsObras(prefer){'));
-assert.ok(recebimentoLoader.includes("if(isFullAdminUser()){")&&
+assert.ok(recebimentoLoader.includes("if(temPermissao('financeiro.consultar')){")&&
  recebimentoLoader.includes('apiGet(\'ew_cem_obras_materiais\'')&&
  recebimentoLoader.includes('rpc/ew_quantidades_recebidas_obra')&&
  !recebimentoLoader.includes("apiGet('ew_obra_despesas'")&&
