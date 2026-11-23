@@ -80,4 +80,4 @@ for(const filtro of ['ctx.ativas.has(f.obra_id)','ctx.ativas.has(m.obra_id)',
  'ctx.ativas.has(d.obra_id)']){
  assert.ok(reports.includes(filtro),'Relatório deve impedir soma de obra encerrada: '+filtro);
 }
-console.log('OK v46.19: obras encerradas fora de romaneios, seletores e totais operacionais; auditoria preservada.');
+console.log('OK v46.20: obras encerradas fora de romaneios, seletores e totais operacionais; auditoria preservada.');
