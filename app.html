@@ -3871,7 +3871,7 @@ function renderRomaneioHub(){
   if(romaneioLoadError){box.textContent='Falha ao carregar os romaneios: '+romaneioLoadError;return;}
   const docs=romaneios.filter(r=>r.obra_id===obra.id);
   if(!docs.length){box.textContent='Nenhum romaneio emitido nesta obra.';return;}
-  const adm=canAdministrate();
+  const adm=temPermissao('romaneios.cancelar');
   box.innerHTML=docs.map(r=>{
     const count=romaneioItens.filter(x=>x.romaneio_id===r.id).length;
     const cancelled=r.status==='cancelado';
@@ -3889,7 +3889,7 @@ function renderRomaneioHub(){
   box.querySelectorAll('[data-hub-cancel]').forEach(b=>b.addEventListener('click',()=>cancelarRomaneio(b.dataset.hubCancel)));
 }
 function abrirAreaRomaneios(){
-  if(!membership||!podeEmitirRomaneio())return;
+  if(!membership||!temPermissao('romaneios.consultar'))return;
   if(selectedWork?.id&&works.some(w=>w.id===selectedWork.id))hubObraId=selectedWork.id;
   renderRomaneioHub();
   node('hubRomaneioMessage').textContent='';
@@ -3913,7 +3913,7 @@ function renderDetail(w){
   node('detailPending').textContent=amount(t.total-t.released);
   node('detailMade').textContent=amount(t.made);
   renderUnitCounters('detail',t);
-  const canEdit=['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase());
+  const canEdit=temPermissao('liberacoes.criar');
   const shipping=detailMode==='shipment';
   const exibidos=shipping?list.filter(x=>Number(x.qtd_liberada)>0):list;
   node('tabRelease').classList.toggle('active',!shipping);
@@ -3923,7 +3923,7 @@ function renderDetail(w){
   node('shipmentOverview').classList.toggle('hidden',!shipping);
   node('romaneioActions').classList.toggle('hidden',!shipping);
   node('releaseBatchActions').classList.add('hidden'); // A liberação permanece por item.
-  node('openRomaneio').disabled=!canEdit||!dispatchReady||Boolean(romaneioLoadError);
+  node('openRomaneio').disabled=!temPermissao('romaneios.emitir')||!dispatchReady||Boolean(romaneioLoadError);
   node('romaneioOverview').classList.toggle('hidden',!shipping);
   node('romaneioHistoryPanel').classList.add('hidden');
   if(shipping)renderResumoRomaneios(w.id);
@@ -3956,7 +3956,7 @@ function renderDetail(w){
       const s=shipmentStats(x);
       const pendingFrames=Math.max(0,s.marcosLiberados-s.frames);
       const pendingLeaves=s.maxLeaves===null?null:Math.max(0,s.maxLeaves-s.leaves);
-      const canShip=dispatchReady&&canEdit&&s.released>0&&
+      const canShip=dispatchReady&&temPermissao('romaneios.emitir')&&s.released>0&&
         (pendingFrames>0||(pendingLeaves===null?s.folhasLiberadas>0:pendingLeaves>0));
       const sheetText=s.per===null
         ?'Folhas: composição a confirmar na primeira saída'
@@ -4337,7 +4337,7 @@ function closeReleaseCancelAll(){
 }
 async function openReleaseCancelAll(obraId){
  const obra=works.find(w=>w.id===obraId);
- if(!canAdministrate()||!obra)return;
+ if(!temPermissao('liberacoes.cancelar')||!obra)return;
  const ids=new Set(elements.filter(e=>e.obra_id===obraId).map(e=>e.id));
  const ativas=releaseHistory.filter(h=>ids.has(h.esquadria_id));
  const seq=++releaseCancelAllRequestId;
@@ -4396,7 +4396,7 @@ async function openReleaseCancelAll(obraId){
 async function confirmReleaseCancelAll(){
  const obraId=releaseCancelAllWorkId;
  const obra=works.find(w=>w.id===obraId),check=releaseCancelAllInspection;
- if(!canAdministrate()||!obra||!check||check.obra_id!==obraId||node('releaseCancelAllConfirm').disabled)return;
+ if(!temPermissao('liberacoes.cancelar')||!obra||!check||check.obra_id!==obraId||node('releaseCancelAllConfirm').disabled)return;
  const motivo=node('releaseCancelAllReason').value.trim();
  if(motivo.length<5||motivo.length>400){
   node('releaseCancelAllStatus').textContent='Informe um motivo com 5 a 400 caracteres.';
