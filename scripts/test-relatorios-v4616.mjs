@@ -17,8 +17,9 @@ for(const key of [
  'relatorios-obras.js?v=20261122c','romaneios-transferencia.js?v=20261122b']){
  assert.ok(app.includes(key),'Componente ausente: '+key);
 }
-assert.ok(app.includes("'navFinanceiro','navRelatorios'"),
- 'Relatório deve seguir o mesmo controle administrativo do Financeiro');
+assert.ok(app.includes("node('navRelatorios').classList.toggle('hidden',!podeVerRelatorios())")&&
+ reports.includes("podeVerRelatorios()"),
+ 'Relatórios devem seguir flags independentes de acesso, não o antigo perfil financeiro');
 assert.match(reports,/listarTudo\('ew_obra_faturamentos'/,
  'Faturamento deve usar a tabela de documentos emitidos');
 assert.match(reports,/listarTudo\('ew_obra_faturamentos_itens'/,
@@ -80,4 +81,4 @@ for(const filtro of ['ctx.ativas.has(f.obra_id)','ctx.ativas.has(m.obra_id)',
  'ctx.ativas.has(d.obra_id)']){
  assert.ok(reports.includes(filtro),'Relatório deve impedir soma de obra encerrada: '+filtro);
 }
-console.log('OK v46.19: obras encerradas fora de romaneios, seletores e totais operacionais; auditoria preservada.');
+console.log('OK v46.20: obras encerradas fora de romaneios, seletores e totais operacionais; auditoria preservada.');

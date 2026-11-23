@@ -25,7 +25,7 @@ assert.match(sql,/'conciliados',v_conciliadas/);
 assert.match(sql,/'saldo_zerado_sem_novos_lancamentos',true/);
 assert.ok(sql.indexOf("IF v_conciliadas>0 THEN")<sql.indexOf("if exists(select 1 from public.ew_nfe_recebimentos n where n.obra_id=p_obra_id)"),
  'A reconciliação auditada deve preceder o bloqueio histórico de NF');
-assert.match(html,/EWGEST <strong>· v46\.19<\/strong>/);
+assert.match(html,/EWGEST <strong>· v46\.20<\/strong>/);
 
 function context({serverCount=4,localCount=4,serverAfter=4}={}){
  const elements=new Map(),requests=[],confirms=[];

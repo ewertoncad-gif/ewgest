@@ -48,10 +48,21 @@ function normalizeProfile(value) {
     throw new Error('Perfil de usuário inválido.');
   return role;
 }
+const levelProfiles: Record<number,string>={1:'administrador',2:'gerenciador',3:'tecnico',
+ 4:'almoxarife',5:'consulta',6:'consulta',7:'consulta',8:'consulta'};
+function normalizeLevel(value: unknown, legacyRole: unknown) {
+ if(value!==undefined&&value!==null&&value!==''){
+  const number=Number(value);
+  if(!Number.isInteger(number)||number<1||number>8)throw new Error('Nível de acesso deve ser 01 a 08.');
+  return number;
+ }
+ const role=normalizeProfile(legacyRole);
+ return ({administrador:1,gerenciador:2,tecnico:3,almoxarife:4,consulta:6} as Record<string,number>)[role]||8;
+}
 function publicAccount(a) {
   return {
     usuario_id: a.usuario_id, login: a.login, nome: a.nome,
-    perfil: a.perfil, ativo: a.ativo, criado_em: a.criado_em,
+    perfil: a.perfil, nivel_acesso:a.nivel_acesso, ativo: a.ativo, criado_em: a.criado_em,
   };
 }
 async function accountForToken(req) {
@@ -61,13 +72,13 @@ async function accountForToken(req) {
   const { data: { user }, error } = await admin.auth.getUser(token);
   if (error || !user) throw new Error('Sessão inválida. Entre novamente.');
   const { data: account, error: readError } = await admin.from('usuarios_login')
-    .select('usuario_id,empresa_id,login,nome,perfil,ativo,criado_em,excluido_em')
+    .select('usuario_id,empresa_id,login,nome,perfil,nivel_acesso,ativo,criado_em,excluido_em')
     .eq('usuario_id', user.id).maybeSingle();
   if (readError || !account || !account.ativo || account.excluido_em) throw new Error('Usuário sem acesso ativo.');
   const { data: member, error: membershipError } = await admin.from('usuarios_empresas')
-    .select('empresa_id,perfil').eq('usuario_id', user.id)
+    .select('empresa_id,perfil,nivel_acesso').eq('usuario_id', user.id)
     .eq('empresa_id', account.empresa_id).maybeSingle();
-  if (membershipError || !member) throw new Error('Acesso à empresa não autorizado.');
+  if (membershipError || !member || member.nivel_acesso!==account.nivel_acesso || member.perfil!==account.perfil) throw new Error('Acesso à empresa não autorizado.');
   // O JWT já foi autenticado por admin.auth.getUser acima.
   // session_id é assinado pelo Auth e não vem dos dados enviados no formulário.
   let sid = '';
@@ -81,33 +92,38 @@ async function accountForToken(req) {
   if (sessionError) throw new Error('Não foi possível consultar o controle de sessões. Tente novamente.');
   if (active?.sessao_auth_id !== sid)
     throw new Error('Sessão substituída por outro dispositivo. Entre novamente.');
-  return { user, account, member };
+  const {data:grants,error:grantError}=await admin.from('ew_niveis_permissoes')
+    .select('chave').eq('empresa_id',account.empresa_id)
+    .eq('nivel',account.nivel_acesso).eq('permitido',true);
+  if(grantError)throw new Error('Não foi possível validar as permissões do nível.');
+  return { user, account, member, flags:new Set((grants||[]).map(x=>x.chave)) };
 }
 function isFullAdmin(caller) {
-  return caller.member.perfil === 'administrador' && caller.account.perfil === 'administrador';
+  return caller.member.perfil === 'administrador' && caller.account.perfil === 'administrador' && caller.account.nivel_acesso === 1 && caller.member.nivel_acesso === 1;
 }
 function requireManager(caller) {
   if (caller.member.perfil !== caller.account.perfil ||
-      !['administrador', 'gerenciador'].includes(caller.member.perfil)) {
+      caller.member.nivel_acesso !== caller.account.nivel_acesso ||
+      !caller.flags.has('usuarios.gerenciar')) {
     throw new Error('Somente ADM ou Gerenciador podem administrar usuários.');
   }
 }
 async function requireTargetEditable(caller, account) {
   if (isFullAdmin(caller)) return;
-  if (account.perfil === 'administrador')
-    throw new Error('O Gerenciador não pode alterar dados de usuários ADM.');
+  if (account.perfil === 'administrador' || Number(account.nivel_acesso)<=2)
+    throw new Error('O Gerenciador não pode alterar contas nível 01 ou 02.');
   // Verifica também o vínculo, para impedir alteração por inconsistências entre tabelas.
   const { data: member, error } = await admin.from('usuarios_empresas')
-    .select('perfil').eq('empresa_id', caller.account.empresa_id)
+    .select('perfil,nivel_acesso').eq('empresa_id', caller.account.empresa_id)
     .eq('usuario_id', account.usuario_id).maybeSingle();
-  if (error || member?.perfil === 'administrador')
+  if (error || member?.perfil === 'administrador' || Number(member?.nivel_acesso)<=2)
     throw new Error('O Gerenciador não pode alterar dados de usuários ADM.');
 }
 async function targetAccount(caller, id) {
   if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/i.test(id))
     throw new Error('Usuário inválido.');
   const { data, error } = await admin.from('usuarios_login')
-    .select('usuario_id,empresa_id,login,nome,perfil,ativo,criado_em,excluido_em')
+    .select('usuario_id,empresa_id,login,nome,perfil,nivel_acesso,ativo,criado_em,excluido_em')
     .eq('usuario_id', id).eq('empresa_id', caller.account.empresa_id).maybeSingle();
   if (error || !data) throw new Error('Usuário não encontrado nesta empresa.');
   if (data.excluido_em) throw new Error('Este usuário já foi excluído do cadastro.');
@@ -180,7 +196,7 @@ Deno.serve(async (req) => {
     requireManager(caller);
     if (action === 'listar') {
       const { data, error } = await admin.from('usuarios_login')
-        .select('usuario_id,empresa_id,login,nome,perfil,ativo,criado_em,excluido_em')
+        .select('usuario_id,empresa_id,login,nome,perfil,nivel_acesso,ativo,criado_em,excluido_em')
         .eq('empresa_id', caller.account.empresa_id).is('excluido_em',null).order('login');
       if (error) throw new Error('Falha ao consultar usuários.');
       return reply(200, { usuarios: (data || []).map(publicAccount) }, origin);
@@ -189,8 +205,9 @@ Deno.serve(async (req) => {
       const login = normalizeLogin(payload.login);
       if (login.includes('@')) throw new Error('Para novos usuários, informe um nome de login, sem e-mail.');
       const nome = validName(payload.nome);
-      const perfil = normalizeProfile(payload.perfil);
-      if (!isFullAdmin(caller) && perfil === 'administrador')
+      const nivel=normalizeLevel(payload.nivel_acesso,payload.perfil);
+      const perfil=levelProfiles[nivel];
+      if (!isFullAdmin(caller) && nivel<=2)
         throw new Error('Somente o ADM pode criar outro Administrador.');
       const senha = validPassword(payload.senha);
       const { data: existing } = await admin.from('usuarios_login')
@@ -206,11 +223,11 @@ Deno.serve(async (req) => {
       try {
         const { error: accountError } = await admin.from('usuarios_login').insert({
           usuario_id: id, empresa_id: caller.account.empresa_id,
-          login, nome, perfil, ativo: true,
+          login, nome, perfil, nivel_acesso:nivel, ativo: true,
         });
         if (accountError) throw new Error('Não foi possível cadastrar o login. Verifique se já existe.');
         const { error: memberError } = await admin.from('usuarios_empresas').insert({
-          usuario_id: id, empresa_id: caller.account.empresa_id, perfil,
+          usuario_id: id, empresa_id: caller.account.empresa_id, perfil, nivel_acesso:nivel,
         });
         if (memberError) throw new Error('Não foi possível vincular o usuário à empresa.');
       } catch (error) {
@@ -226,21 +243,22 @@ Deno.serve(async (req) => {
       const target = await targetAccount(caller, payload.usuario_id);
       const login = normalizeLogin(payload.login);
       const nome = validName(payload.nome);
-      let perfil = normalizeProfile(payload.perfil);
-      if (!isFullAdmin(caller) && perfil === 'administrador')
-        throw new Error('O Gerenciador não pode conceder perfil ADM.');
-      if (target.usuario_id === caller.user.id) perfil = caller.member.perfil;
+      let nivel=normalizeLevel(payload.nivel_acesso,payload.perfil);
+      if (!isFullAdmin(caller) && nivel<=2)
+        throw new Error('O Gerenciador não pode conceder nível 01 ou 02.');
+      if (target.usuario_id === caller.user.id) nivel=caller.member.nivel_acesso;
+      const perfil=levelProfiles[nivel];
       const { data: collision } = await admin.from('usuarios_login')
         .select('usuario_id').eq('login_chave', login.toLocaleLowerCase('pt-BR'))
         .neq('usuario_id', target.usuario_id).maybeSingle();
       if (collision) throw new Error('Este login já pertence a outro usuário.');
       const { error } = await admin.from('usuarios_login')
-        .update({ login, nome, perfil, atualizado_em: new Date().toISOString() })
+        .update({ login, nome, perfil, nivel_acesso:nivel, atualizado_em: new Date().toISOString() })
         .eq('usuario_id', target.usuario_id).eq('empresa_id', caller.account.empresa_id);
       if (error) throw new Error('Não foi possível salvar o nome e o login.');
       if (target.ativo) {
         const { error: roleError } = await admin.from('usuarios_empresas')
-          .update({ perfil }).eq('empresa_id', caller.account.empresa_id)
+          .update({ perfil, nivel_acesso:nivel }).eq('empresa_id', caller.account.empresa_id)
           .eq('usuario_id', target.usuario_id);
         if (roleError) throw new Error('Nome salvo, mas não foi possível atualizar as permissões.');
       }
@@ -276,7 +294,7 @@ Deno.serve(async (req) => {
       if (target.perfil === 'administrador')
         throw new Error('Por segurança, contas ADM não podem ser excluídas.');
       const { data: adminLink, error: linkError } = await admin.from('usuarios_empresas')
-        .select('perfil').eq('empresa_id', caller.account.empresa_id)
+        .select('perfil,nivel_acesso').eq('empresa_id', caller.account.empresa_id)
         .eq('usuario_id', target.usuario_id).maybeSingle();
       if (linkError) throw new Error('Falha ao verificar a proteção da conta.');
       if (adminLink?.perfil === 'administrador')
@@ -305,6 +323,7 @@ Deno.serve(async (req) => {
       if (unbanError) throw new Error('Não foi possível desbloquear o usuário.');
       const { error: memberError } = await admin.from('usuarios_empresas').upsert({
         empresa_id: caller.account.empresa_id, usuario_id: target.usuario_id, perfil: target.perfil,
+        nivel_acesso:target.nivel_acesso,
       }, { onConflict: 'empresa_id,usuario_id' });
       if (memberError) throw new Error('Usuário desbloqueado, mas não foi possível restaurar o vínculo.');
       const { error } = await admin.from('usuarios_login')

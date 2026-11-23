@@ -14,6 +14,7 @@ import './test-estornos-parcelas-ui-v4615.mjs';
 import './test-relatorios-v4616.mjs';
 import './test-relatorios-romaneios-v4617.mjs';
 import './test-exclusao-definitiva-v4618.mjs';
+import './test-niveis-acesso-v4620.mjs';
 const source=readFileSync(fileURLToPath(new URL('../app.html',import.meta.url)),'utf8');
 // Issue #31 — Recebimento separado do Financeiro e operação por perfil.
 const recebimentoSQL=readFileSync(fileURLToPath(new URL('../database/proposals/20261121_recebimento_almoxarife_seguro.sql',import.meta.url)),'utf8');
@@ -24,11 +25,11 @@ const receiptFormIdx=source.indexOf('id="finExpensePanel"');
 assert.ok(receiptIdx>0&&financeIdx>receiptIdx&&receiptFormIdx>receiptIdx&&receiptFormIdx<financeIdx,
  'O formulário de recebimento deve pertencer à tela Recebimento, não ao Financeiro');
 assert.ok(source.includes('id="navRecebimento"')&&source.includes("['navRecebimento','recebimento']")&&
- source.includes("node('navRecebimento').classList.toggle('hidden',!(isAlmoxarife()||isFullAdminUser()))"),
+ source.includes("node('navRecebimento').classList.toggle('hidden',!temPermissao('estoque.receber'))"),
  'Menu Recebimento liberado por perfil, sem exibir o Financeiro ao almoxarife');
 const recebimentoLoader=source.slice(source.indexOf('async function carregarRecebimento(){'),
  source.indexOf('function finOptionsObras(prefer){'));
-assert.ok(recebimentoLoader.includes("if(isFullAdminUser()){")&&
+assert.ok(recebimentoLoader.includes("if(temPermissao('financeiro.consultar')){")&&
  recebimentoLoader.includes('apiGet(\'ew_cem_obras_materiais\'')&&
  recebimentoLoader.includes('rpc/ew_quantidades_recebidas_obra')&&
  !recebimentoLoader.includes("apiGet('ew_obra_despesas'")&&
@@ -549,9 +550,9 @@ for(const expected of [
 const funcInicio=source.indexOf('function isAlmoxarife(){');
 const funcFinal=source.indexOf('function invalidateAppSession(reason){',funcInicio);
 assert.ok(funcInicio>=0&&funcFinal>funcInicio,'Guarda de navegação presente');
-const evaluateRole=role=>new Function('membership','document',
+const evaluateRole=role=>new Function('membership','document','temPermissao',
  source.slice(funcInicio,funcFinal)+'\nreturn {isAlmoxarife,podeEmitirRomaneio};'
-)({perfil:role},{querySelectorAll:()=>[]});
+)({perfil:role},{querySelectorAll:()=>[]},key=>key==='romaneios.emitir'&&role==='almoxarife');
 assert.equal(evaluateRole('almoxarife').isAlmoxarife(),true,'Reconhece perfil almoxarife');
 assert.equal(evaluateRole('almoxarife').podeEmitirRomaneio(),true,'Permite emitir');
 assert.equal(evaluateRole('consulta').podeEmitirRomaneio(),false,'Consulta não pode emitir');
@@ -974,7 +975,7 @@ assert.ok(source.includes('const protectedAdm=!isFullAdminUser()')&&
  'Interface não permite Gerenciador editar ADM ou conceder promoção');
 assert.ok(edgeSource.includes('async function requireTargetEditable(caller, account)')&&
  edgeSource.includes("member?.perfil === 'administrador'")&&
- edgeSource.includes("!isFullAdmin(caller) && perfil === 'administrador'")&&
+ edgeSource.includes("!isFullAdmin(caller) && nivel<=2")&&
  edgeSource.includes('await requireTargetEditable(caller, data);'),
  'Servidor impede Gerenciador editar, redefinir senha, reativar/desativar contas ADM');
 assert.ok(edgeSource.includes("'gerenciador'")&&
@@ -987,11 +988,11 @@ assert.ok(roleMigration.includes('usuarios_login_perfil_check')&&
 const startRole=source.indexOf('function isFullAdminUser(){');
 const endRole=source.indexOf('function maskPassword(id){',startRole);
 assert.ok(startRole>0&&endRole>startRole);
-const checkRoles=new Function('membership',source.slice(startRole,endRole)+
+const checkRoles=new Function('membership','currentAccessLevel',source.slice(startRole,endRole)+
  'return {manager:canAdministrate(),admin:isFullAdminUser()};');
-assert.deepEqual(checkRoles({perfil:'gerenciador'}),{manager:true,admin:false});
-assert.deepEqual(checkRoles({perfil:'administrador'}),{manager:true,admin:true});
-assert.deepEqual(checkRoles({perfil:'tecnico'}),{manager:false,admin:false});
+assert.deepEqual(checkRoles({perfil:'gerenciador'},2),{manager:true,admin:false});
+assert.deepEqual(checkRoles({perfil:'administrador'},1),{manager:true,admin:true});
+assert.deepEqual(checkRoles({perfil:'tecnico'},3),{manager:false,admin:false});
 
 // Exclusão administrativa: sem remover identidade Auth nem o histórico dos autores.
 assert.ok(source.includes('id="userDeleteButton"')&&
@@ -1195,7 +1196,7 @@ const revGerenciar=source.slice(source.indexOf('async function executarReversaoO
 assert.ok(revGerenciar.includes("const aviso=tipo==='estoque'?")&&
  !revGerenciar.includes("tipo==='estoque'?'ESTORNAR'"),
  'Gerenciar obras também não pode exigir palavra digitada para estornar estoque');
-// v46.19: exclusão definitiva com motivo e somente uma confirmação, sem digitar código.
+// v46.20: exclusão definitiva com motivo e somente uma confirmação, sem digitar código.
 const formExcluir=source.slice(source.indexOf('<div id="manageWorksDeleteForm"'),
  source.indexOf('<section id="romaneiosPage"'));
 const fluxoExcluir=source.slice(source.indexOf("node('manageWorksDelete').addEventListener"),
@@ -1266,7 +1267,7 @@ assert.ok(source.includes("node('stockReverseApply').textContent='Estornar todos
 assert.ok(source.includes('id="navWorks"')&&
  source.includes('id="worksPage"')&&source.includes('id="worksPageList"')&&
  source.includes("node('navWorks').addEventListener('click',abrirObrasPelaBarra)")&&
- source.includes("node('navWorks').classList.toggle('hidden',somenteRomaneios)")&&
+ source.includes("node('navWorks').classList.toggle('hidden',!temPermissao('obras.consultar'))")&&
  source.includes("['navWorks','worksPage']"),
  'A navegação Obras precisa respeitar permissões e destacar o menu ativo');
 assert.ok(source.includes('function abrirObrasPelaBarra()')&&
@@ -2095,7 +2096,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.19')&&
+assert.ok(source.includes('v46.20')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2328,7 +2329,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.19</strong>'),
+ source.includes('EWGEST <strong>· v46.20</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);

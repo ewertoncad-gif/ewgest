@@ -690,6 +690,7 @@
 <link rel="stylesheet" href="/assets/entregas-producao.css?v=20261121a">
 <link rel="stylesheet" href="/assets/romaneios-transferencia.css?v=20261121c">
 <link rel="stylesheet" href="/assets/relatorios-obras.css?v=20261122b">
+<link rel="stylesheet" href="/assets/niveis-acesso.css?v=20261122a">
 <link rel="stylesheet" href="/assets/cadastros-pages.css?v=20261121b">
 </head>
 <body>
@@ -716,7 +717,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.19</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.20</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -1179,7 +1180,12 @@
             <div><label for="createUserName">Nome para exibição</label>
               <input id="createUserName" type="text" autocomplete="off" minlength="2" maxlength="100"
                  placeholder="Ex.: João Silva" required></div>
-            <div><label for="createUserRole">Perfil de acesso</label>
+            <div><label for="createUserLevel">Nível de acesso</label>
+              <select id="createUserLevel" required><option value="1">01 — Administrador</option><option value="2">02 — Gerência</option>
+                <option value="3" selected>03 — Técnico</option><option value="4">04 — Almoxarifado</option>
+                <option value="5">05 — Financeiro</option><option value="6">06 — Consulta completa</option>
+                <option value="7">07 — Consulta sem financeiro</option><option value="8">08 — Sem permissões</option></select></div>
+            <div class="hidden"><label for="createUserRole">Perfil interno de compatibilidade</label>
               <select id="createUserRole" required>
                 <option value="tecnico">Técnico</option>
                 <option value="almoxarife">Almoxarife — somente romaneios</option>
@@ -1193,7 +1199,7 @@
           </div>
           <div class="userActions"><button id="createUserSubmit" class="btn primary" type="submit">Cadastrar usuário</button></div>
           <p class="hint">A senha deve ter pelo menos 6 caracteres. O administrador pode redefinir a senha inicial ou escolher outra, sem visualizar a anterior. O usuário pode trocá-la em Minha senha.</p>
-          <p class="hint">Administrador possui controle completo; Gerenciador pode operar e administrar contas, exceto alterar usuários ADM. Técnico, Almoxarife e Consulta têm acesso conforme suas permissões.</p>
+          <p class="hint">As permissões são definidas pelas flags do nível. O nível 01 é protegido; os níveis 02 a 08 podem ser configurados. Alterações nos acessos são verificadas no banco.</p>
         </form>
         <div id="createUserMessage" class="feedback" role="status" aria-live="polite"></div>
       </div>
@@ -1204,6 +1210,18 @@
         </div>
         <div id="usersMessage" class="hint" role="status" aria-live="polite"></div>
         <div id="usersList" class="section"></div>
+      </div>
+      <div id="userLevelsPanel" class="section panel hidden">
+        <div class="row" style="justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <div><h2>Níveis de acesso e permissões</h2>
+            <p class="hint">Escolha um nível e marque as atividades permitidas. O nível 01 possui todas as permissões e é protegido.</p></div>
+          <button id="userLevelsReload" type="button" class="btn secondary">Atualizar níveis</button>
+        </div>
+        <div id="userLevelsTabs" class="accessLevelTabs"></div>
+        <p id="userLevelsInfo" class="hint"></p>
+        <div id="userLevelsGroups" class="accessLevelGroups"></div>
+        <div class="userActions"><button id="userLevelsSave" type="button" class="btn primary" disabled>Salvar permissões do nível</button></div>
+        <p id="userLevelsStatus" class="feedback" role="status" aria-live="polite"></p>
       </div>
       <p class="notice">Desativar um usuário bloqueia seu acesso, mas preserva seu histórico de liberações, saídas e outras alterações. Não são armazenadas senhas no banco de cadastro.</p>
     </section>
@@ -2357,8 +2375,13 @@
       <input id="userEditLogin" type="text" autocomplete="off" minlength="3" maxlength="100" required>
       <label for="userEditName">Nome para exibição</label>
       <input id="userEditName" type="text" autocomplete="off" minlength="2" maxlength="100" required>
-      <label for="userEditRole">Perfil</label>
-      <select id="userEditRole">
+      <label for="userEditLevel">Nível de acesso</label>
+      <select id="userEditLevel" required><option value="1">01 — Administrador</option><option value="2">02 — Gerência</option>
+                <option value="3" selected>03 — Técnico</option><option value="4">04 — Almoxarifado</option>
+                <option value="5">05 — Financeiro</option><option value="6">06 — Consulta completa</option>
+                <option value="7">07 — Consulta sem financeiro</option><option value="8">08 — Sem permissões</option></select>
+      <label for="userEditRole" class="hidden">Perfil interno</label>
+      <select id="userEditRole" class="hidden">
         <option value="gerenciador">Gerenciador — não altera ADM</option>
                 <option value="administrador">Administrador</option>
         <option value="tecnico">Técnico</option>
@@ -2402,6 +2425,18 @@ const amount = n => Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:2
 const escapeHTML = v => String(v??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const area = (i,q) => Number(i.largura_mm||0)*Number(i.altura_mm||0)*Number(q||0)/1e6;
 let session=null, currentUser=null, currentCompany=null, membership=null, works=[], elements=[], releaseHistory=[], selectedWork=null, selectedItem=null;
+let currentAccessFlags=Object.create(null),currentAccessLevel=8,accessReady=false;
+function temPermissao(chave){return accessReady&&currentAccessFlags[chave]===true;}
+function podeVerRelatorios(){return temPermissao('relatorios.operacionais')||temPermissao('relatorios.financeiros');}
+function permissaoParaTela(view){
+ const requires={worksPage:'obras.consultar',detail:'obras.consultar',manageWorks:'obras.estornar',
+  romaneiosPage:'romaneios.consultar',recebimento:'estoque.receber',almoxNotas:'estoque.receber',
+  cadastros:'cadastros.consultar',typologies:'cadastros.consultar',manufacturers:'cadastros.consultar',
+  materials:'cadastros.consultar',stock:'estoque.consultar',financeiro:'financeiro.consultar',
+  cemImport:'obras.importar',users:'usuarios.gerenciar'};
+ if(view==='relatorios')return podeVerRelatorios();
+ return !requires[view]||temPermissao(requires[view]);
+}
 let detailBackTarget='dashboard';
 let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='',detailMode='release',currentShipmentRequestId=null;
 let romaneios=[],romaneioItens=[],romaneioLoadError='',romaneioRows=[],romaneioOperationId=null,romaneioOperationSignature='';
@@ -2420,7 +2455,7 @@ function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
 function isAlmoxarife(){return String(membership?.perfil||'').toLowerCase()==='almoxarife';}
 function isFullAdminUser(){return String(membership?.perfil||'').toLowerCase()==='administrador';}
-function canAdministrate(){return ['administrador','gerenciador'].includes(String(membership?.perfil||'').toLowerCase());}
+function canAdministrate(){return [1,2].includes(currentAccessLevel)&&['administrador','gerenciador'].includes(String(membership?.perfil||'').toLowerCase());}
 function maskPassword(id){
   const input=node(id);
   if(input)input.type='password';
@@ -2438,10 +2473,11 @@ document.querySelectorAll('[data-show-password]').forEach(button=>{
     input.focus({preventScroll:true});
   });
 });
-function podeEmitirRomaneio(){return ['administrador','gerenciador','supervisor','almoxarife'].includes(String(membership?.perfil||'').toLowerCase());}
+function podeEmitirRomaneio(){return temPermissao('romaneios.emitir');}
 function setView(view){
   node('startup').classList.add('hidden');
-  if(isAlmoxarife()&&!['login','romaneiosPage','recebimento','almoxNotas','myPassword'].includes(view))view='romaneiosPage';
+  if(view!=='login'&&view!=='dashboard'&&view!=='myPassword'&&accessReady&&!permissaoParaTela(view))
+    view='dashboard';
   for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','recebimento','almoxNotas','cadastros','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','typologies','manufacturers','materials','stock','financeiro','relatorios','cemImport','users','myPassword'])
     node(id).classList.toggle('hidden',id!==view);
   node('logout').classList.toggle('hidden',view==='login');
@@ -2463,7 +2499,7 @@ function invalidateAppSession(reason){
   cemDescartarRascunho();
   sessaoUnicaParar();
   accessLogClear();
-  session=null;
+  session=null;accessReady=false;currentAccessFlags=Object.create(null);currentAccessLevel=8;
   sessionStorage.removeItem('ewgest_session_v3');
   node('restoreSessionBtn').classList.add('hidden');
   node('userEditOverlay').classList.add('hidden');
@@ -2565,7 +2601,7 @@ function sessaoUnicaMonitorar(){
 async function sessaoUnicaCancelarNova(){
  cemDescartarRascunho();
  const token=session?.access_token;sessaoUnicaParar();accessLogClear();
- session=null;currentUser=null;currentCompany=null;membership=null;
+ session=null;currentUser=null;currentCompany=null;membership=null;accessReady=false;currentAccessFlags=Object.create(null);currentAccessLevel=8;
  sessionStorage.removeItem('ewgest_session_v3');setView('login');
  if(token)try{await request('/auth/v1/logout',{method:'POST',token,timeoutMs:4500});}catch{}
 }
@@ -2585,13 +2621,17 @@ async function ensureSession(){
 async function loadPanel(){
   await ensureSession();
   currentUser = session.user || await request('/auth/v1/user',{token:session.access_token});
-  const rel=await apiGet('usuarios_empresas',{select:'empresa_id,perfil',usuario_id:'eq.'+currentUser.id});
+  const rel=await apiGet('usuarios_empresas',{select:'empresa_id,perfil,nivel_acesso',usuario_id:'eq.'+currentUser.id});
   if(!rel?.length)throw new Error('Seu usuário não está vinculado a uma empresa. Confira o cadastro no Supabase.');
   const ids=rel.map(r=>r.empresa_id);
   const comps=await apiGet('empresas',{select:'id,nome',id:'in.('+ids.join(',')+')'});
   if(!comps?.length)throw new Error('Nenhuma empresa autorizada foi encontrada para seu usuário.');
   currentCompany=comps.find(e=>e.nome==='GVG ESQUADRIAS')||comps[0];
   membership=rel.find(r=>r.empresa_id===currentCompany.id);
+  const acesso=await request('/rest/v1/rpc/ew_meu_nivel',{
+    method:'POST',token:session.access_token,body:{p_empresa_id:currentCompany.id}});
+  currentAccessLevel=Number(acesso?.nivel)||8;
+  currentAccessFlags=acesso?.flags||Object.create(null);accessReady=true;
   const somenteRomaneios=isAlmoxarife();
   const adminNav=canAdministrate();
   if(somenteRomaneios){
@@ -2610,18 +2650,27 @@ async function loadPanel(){
   }
   if(!isFullAdminUser()&&node('createUserRole').value==='administrador')
     node('createUserRole').value='gerenciador';
-  node('navHome').classList.toggle('hidden',somenteRomaneios);
-  node('navWorks').classList.toggle('hidden',somenteRomaneios);
-  node('navRomaneios').classList.toggle('hidden',!podeEmitirRomaneio());
+  node('navHome').classList.toggle('hidden',!temPermissao('obras.consultar'));
+  node('navWorks').classList.toggle('hidden',!temPermissao('obras.consultar'));
+  node('navRomaneios').classList.toggle('hidden',!temPermissao('romaneios.consultar'));
   node('navEnviarNotas').classList.add('hidden'); // Fluxo antigo preservado internamente; nova entrada no Recebimento.
-  node('navRecebimento').classList.toggle('hidden',!(isAlmoxarife()||isFullAdminUser()));
+  node('navRecebimento').classList.toggle('hidden',!temPermissao('estoque.receber'));
   node('recebimentoXmlLegacy').classList.toggle('hidden',!isAlmoxarife());
-  for(const id of ['navCadastros','navTypologies','navManufacturers','navMaterials','navAccessories','navStock','navCem','navUsers','navManageWorks','navFinanceiro','navRelatorios'])node(id).classList.toggle('hidden',!adminNav);
+  const navFlags={
+    navCadastros:'cadastros.consultar',navTypologies:'cadastros.consultar',
+    navManufacturers:'cadastros.consultar',navMaterials:'cadastros.consultar',
+    navAccessories:'cadastros.consultar',navStock:'estoque.consultar',
+    navCem:'obras.importar',navUsers:'usuarios.gerenciar',
+    navManageWorks:'obras.estornar',navFinanceiro:'financeiro.consultar'};
+  for(const [id,flag] of Object.entries(navFlags))
+    node(id).classList.toggle('hidden',!temPermissao(flag));
+  node('navRelatorios').classList.toggle('hidden',!podeVerRelatorios());
   node('openRomaneioHub').classList.toggle('hidden',!podeEmitirRomaneio()||somenteRomaneios);
-  node('topTag').textContent=somenteRomaneios?'Romaneios e expedição':'Gestão de obras · liberações e saídas';
-  node('openTypologies').classList.toggle('hidden',!canAdministrate());
-  node('openManufacturers').classList.toggle('hidden',!canAdministrate());
-  node('openUsers').classList.toggle('hidden',!canAdministrate());
+  node('topTag').textContent='Nível '+String(currentAccessLevel).padStart(2,'0')+
+   ' · '+(somenteRomaneios?'Almoxarifado':'Gestão de obras');
+  node('openTypologies').classList.toggle('hidden',!temPermissao('cadastros.consultar'));
+  node('openManufacturers').classList.toggle('hidden',!temPermissao('cadastros.consultar'));
+  node('openUsers').classList.toggle('hidden',!temPermissao('usuarios.gerenciar'));
   const [w,e,tips]=await Promise.all([
     apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,arquivada_em:'is.null',order:'nome.asc'}),
     apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id,rotulo_tipologia_relatorio,quantidade_modulos,modulacao_id',empresa_id:'eq.'+currentCompany.id}),
@@ -3822,7 +3871,7 @@ function renderRomaneioHub(){
   if(romaneioLoadError){box.textContent='Falha ao carregar os romaneios: '+romaneioLoadError;return;}
   const docs=romaneios.filter(r=>r.obra_id===obra.id);
   if(!docs.length){box.textContent='Nenhum romaneio emitido nesta obra.';return;}
-  const adm=canAdministrate();
+  const adm=temPermissao('romaneios.cancelar');
   box.innerHTML=docs.map(r=>{
     const count=romaneioItens.filter(x=>x.romaneio_id===r.id).length;
     const cancelled=r.status==='cancelado';
@@ -3840,7 +3889,7 @@ function renderRomaneioHub(){
   box.querySelectorAll('[data-hub-cancel]').forEach(b=>b.addEventListener('click',()=>cancelarRomaneio(b.dataset.hubCancel)));
 }
 function abrirAreaRomaneios(){
-  if(!membership||!podeEmitirRomaneio())return;
+  if(!membership||!temPermissao('romaneios.consultar'))return;
   if(selectedWork?.id&&works.some(w=>w.id===selectedWork.id))hubObraId=selectedWork.id;
   renderRomaneioHub();
   node('hubRomaneioMessage').textContent='';
@@ -3857,14 +3906,14 @@ function renderDetail(w){
   const list=elements.filter(x=>x.obra_id===w.id).sort(sortWorkItems);
   const t=totals(list);
   node('workName').textContent=w.nome;
-  node('detailFinanceiro').classList.toggle('hidden',!canAdministrate());
+  node('detailFinanceiro').classList.toggle('hidden',!temPermissao('financeiro.consultar'));
   node('workMeta').textContent=[w.codigo,w.cliente,w.situacao,w.prazo_previsto?'Prazo: '+w.prazo_previsto:''].filter(Boolean).join(' · ');
   node('detailTotal').textContent=amount(t.total);
   node('detailReleased').textContent=amount(t.released);
   node('detailPending').textContent=amount(t.total-t.released);
   node('detailMade').textContent=amount(t.made);
   renderUnitCounters('detail',t);
-  const canEdit=['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase());
+  const canEdit=temPermissao('liberacoes.criar');
   const shipping=detailMode==='shipment';
   const exibidos=shipping?list.filter(x=>Number(x.qtd_liberada)>0):list;
   node('tabRelease').classList.toggle('active',!shipping);
@@ -3874,7 +3923,7 @@ function renderDetail(w){
   node('shipmentOverview').classList.toggle('hidden',!shipping);
   node('romaneioActions').classList.toggle('hidden',!shipping);
   node('releaseBatchActions').classList.add('hidden'); // A liberação permanece por item.
-  node('openRomaneio').disabled=!canEdit||!dispatchReady||Boolean(romaneioLoadError);
+  node('openRomaneio').disabled=!temPermissao('romaneios.emitir')||!dispatchReady||Boolean(romaneioLoadError);
   node('romaneioOverview').classList.toggle('hidden',!shipping);
   node('romaneioHistoryPanel').classList.add('hidden');
   if(shipping)renderResumoRomaneios(w.id);
@@ -3907,7 +3956,7 @@ function renderDetail(w){
       const s=shipmentStats(x);
       const pendingFrames=Math.max(0,s.marcosLiberados-s.frames);
       const pendingLeaves=s.maxLeaves===null?null:Math.max(0,s.maxLeaves-s.leaves);
-      const canShip=dispatchReady&&canEdit&&s.released>0&&
+      const canShip=dispatchReady&&temPermissao('romaneios.emitir')&&s.released>0&&
         (pendingFrames>0||(pendingLeaves===null?s.folhasLiberadas>0:pendingLeaves>0));
       const sheetText=s.per===null
         ?'Folhas: composição a confirmar na primeira saída'
@@ -4288,7 +4337,7 @@ function closeReleaseCancelAll(){
 }
 async function openReleaseCancelAll(obraId){
  const obra=works.find(w=>w.id===obraId);
- if(!canAdministrate()||!obra)return;
+ if(!temPermissao('liberacoes.cancelar')||!obra)return;
  const ids=new Set(elements.filter(e=>e.obra_id===obraId).map(e=>e.id));
  const ativas=releaseHistory.filter(h=>ids.has(h.esquadria_id));
  const seq=++releaseCancelAllRequestId;
@@ -4347,7 +4396,7 @@ async function openReleaseCancelAll(obraId){
 async function confirmReleaseCancelAll(){
  const obraId=releaseCancelAllWorkId;
  const obra=works.find(w=>w.id===obraId),check=releaseCancelAllInspection;
- if(!canAdministrate()||!obra||!check||check.obra_id!==obraId||node('releaseCancelAllConfirm').disabled)return;
+ if(!temPermissao('liberacoes.cancelar')||!obra||!check||check.obra_id!==obraId||node('releaseCancelAllConfirm').disabled)return;
  const motivo=node('releaseCancelAllReason').value.trim();
  if(motivo.length<5||motivo.length>400){
   node('releaseCancelAllStatus').textContent='Informe um motivo com 5 a 400 caracteres.';
@@ -4568,7 +4617,9 @@ function accessLogClear(){
 }
 let managedAccounts=[];
 let editingManagedAccount=null;
-function canManageUsers(){return canAdministrate();}
+function canManageUsers(){return temPermissao('usuarios.gerenciar');}
+function levelLabel(value){return ({1:'Administrador',2:'Gerência',3:'Técnico',4:'Almoxarifado',
+ 5:'Financeiro',6:'Consulta completa',7:'Consulta sem financeiro',8:'Sem permissões'})[Number(value)]||'Sem nível';}
 function roleLabel(value){
   return ({administrador:'Administrador',gerenciador:'Gerenciador',supervisor:'Supervisor',tecnico:'Técnico',almoxarife:'Almoxarife',consulta:'Consulta'})[value]||value;
 }
@@ -4581,11 +4632,12 @@ function renderManagedAccounts(){
   const rows=managedAccounts.slice().sort((a,b)=>String(a.login).localeCompare(String(b.login),'pt-BR'));
   node('usersMessage').textContent=rows.length+' usuário(s) cadastrado(s). Clique para editar.';
   node('usersList').innerHTML=rows.map(user=>{
-    const protectedAdm=!isFullAdminUser()&&user.perfil==='administrador';
+    const protectedAdm=!isFullAdminUser()&&Number(user.nivel_acesso)<=2;
     return '<button type="button" class="userCard" data-user-id="'+escapeHTML(user.usuario_id)+'"'+
       (protectedAdm?' disabled title="Conta ADM protegida: não pode ser alterada pelo Gerenciador"':'')+'>'+
       '<div><div class="userCardName">'+escapeHTML(user.nome)+'</div>'+
-      '<div class="userCardLogin">Login: '+escapeHTML(user.login)+' · '+escapeHTML(roleLabel(user.perfil))+'</div></div>'+
+      '<div class="userCardLogin">Login: '+escapeHTML(user.login)+' · Nível '+String(user.nivel_acesso||8).padStart(2,'0')+
+     ' · '+escapeHTML(levelLabel(user.nivel_acesso))+'</div></div>'+
       '<span class="userStatus '+(user.ativo?'':'disabled')+'">'+
         (protectedAdm?'ADM protegido':user.ativo?'Ativo':'Desativado')+'</span></button>';
   }).join('');
@@ -4598,7 +4650,7 @@ async function reloadManagedUsers(){
   await ensureSession();
   // Leitura direta protegida por RLS: mostra inclusive a conta do próprio ADM.
   managedAccounts=await apiGet('usuarios_login',{
-    select:'usuario_id,empresa_id,login,nome,perfil,ativo,criado_em',
+    select:'usuario_id,empresa_id,login,nome,perfil,nivel_acesso,ativo,criado_em',
     empresa_id:'eq.'+currentCompany.id,excluido_em:'is.null',order:'login.asc'
   });
   renderManagedAccounts();
@@ -4613,6 +4665,8 @@ async function openManagedUsersPage(){
     await userApi({acao:'meu_perfil'});
     setView('users');
     await reloadManagedUsers();
+    if(typeof window.nivelAcessoPreparar==='function')
+      window.nivelAcessoPreparar().catch(e=>node('userLevelsStatus').textContent=e.message);
   }catch(e){
     if(session){
       setView('users');
@@ -4685,7 +4739,7 @@ async function operationReportLoad(){
   if(node('userOperationsType').value)params.acao='eq.'+node('userOperationsType').value;
   const [registros,usuarios]=await Promise.all([
     apiGet('ew_auditoria_operacoes',params),
-    apiGet('usuarios_login',{select:'usuario_id,nome,login,perfil,ativo,excluido_em',
+    apiGet('usuarios_login',{select:'usuario_id,nome,login,perfil,nivel_acesso,ativo,excluido_em',
       empresa_id:'eq.'+currentCompany.id,limit:'1000'}).catch(()=>managedAccounts)
   ]);
   if(seq!==operationReportSeq)return;
@@ -4817,7 +4871,7 @@ function openManagedUserEdit(id){
   if(!canManageUsers())return;
   const account=managedAccounts.find(x=>x.usuario_id===id);
   if(!account)return;
-  if(!isFullAdminUser()&&account.perfil==='administrador'){
+  if(!isFullAdminUser()&&Number(account.nivel_acesso)<=2){
     node('usersMessage').textContent='A conta ADM é protegida e não pode ser alterada pelo Gerenciador.';
     return;
   }
@@ -4827,12 +4881,14 @@ function openManagedUserEdit(id){
   node('userEditLogin').value=account.login;
   node('userEditName').value=account.nome;
   node('userEditRole').value=account.perfil;
-  node('userEditRole').disabled=self;
+  node('userEditLevel').value=String(account.nivel_acesso||8);
+  node('userEditLevel').disabled=self||(!isFullAdminUser()&&Number(account.nivel_acesso)<=2);
+  node('userEditRole').disabled=true;
   node('userEditRole').querySelector('[value="administrador"]').disabled=!isFullAdminUser();
   node('userResetPassword').value='';maskPassword('userResetPassword');
   node('userEditMessage').textContent='';
   node('userToggleActive').classList.toggle('hidden',self);
-  node('userDeleteButton').classList.toggle('hidden',self||account.perfil==='administrador');
+  node('userDeleteButton').classList.toggle('hidden',self||Number(account.nivel_acesso)<=2);
   node('userToggleActive').textContent=account.ativo?'Desativar acesso':'Reativar acesso';
   node('userEditOverlay').classList.remove('hidden');
   node('userEditLogin').focus();
@@ -4911,6 +4967,7 @@ node('createUserForm').addEventListener('submit',async(event)=>{
   const login=node('createUserLogin').value.trim();
   const nome=node('createUserName').value.trim();
   const perfil=node('createUserRole').value;
+  const nivel_acesso=Number(node('createUserLevel').value);
   const senha=node('createUserPassword').value;
   if(senha.length<6){node('createUserMessage').textContent='O Supabase exige uma senha com pelo menos 6 caracteres.';return;}
   if(!isFullAdminUser()&&perfil==='administrador'){
@@ -4922,12 +4979,12 @@ node('createUserForm').addEventListener('submit',async(event)=>{
   node('createUserMessage').textContent='';
   let saved=false;
   try{
-    await userApi({acao:'criar',login,nome,perfil,senha});
+    await userApi({acao:'criar',login,nome,perfil,nivel_acesso,senha});
     saved=true;
     node('createUserPassword').value='';maskPassword('createUserPassword');
     node('createUserLogin').value='';
     node('createUserName').value='';
-    node('createUserRole').value='tecnico';
+    node('createUserRole').value='tecnico';node('createUserLevel').value='3';
     node('createUserMessage').textContent='Usuário '+login+' cadastrado. Informe a senha inicial a ele por um canal seguro.';
     try{await reloadManagedUsers();}
     catch(e){node('usersMessage').textContent='Usuário criado, mas a lista não atualizou: '+e.message;}
@@ -4943,14 +5000,14 @@ node('userEditForm').addEventListener('submit',async(event)=>{
   const target=editingManagedAccount;
   const login=node('userEditLogin').value.trim();
   const nome=node('userEditName').value.trim();
-  const perfil=node('userEditRole').value;
-  if(!isFullAdminUser()&&(target.perfil==='administrador'||perfil==='administrador')){
+  const perfil=node('userEditRole').value,nivel_acesso=Number(node('userEditLevel').value);
+  if(!isFullAdminUser()&&(Number(target.nivel_acesso)<=2||nivel_acesso<=2)){
     node('userEditMessage').textContent='Gerenciador não pode alterar ou conceder perfil ADM.';return;
   }
   const button=node('userEditSubmit');
   button.disabled=true;button.textContent='Salvando…';
   try{
-    await userApi({acao:'editar',usuario_id:target.usuario_id,login,nome,perfil});
+    await userApi({acao:'editar',usuario_id:target.usuario_id,login,nome,perfil,nivel_acesso});
     closeManagedUserEdit();
     node('usersMessage').textContent='Dados salvos no banco.';
     try{await reloadManagedUsers();}
@@ -5058,7 +5115,7 @@ node('logout').addEventListener('click',async()=>{
   if(old)try{saidaRegistrada=await accessLogRegister('saida',5000);}catch{saidaRegistrada=false;}
   if(old)try{await sessaoUnicaRPC('sair');}catch{}
   accessLogClear();
-  session=null;currentUser=null;currentCompany=null;membership=null;
+  session=null;currentUser=null;currentCompany=null;membership=null;accessReady=false;currentAccessFlags=Object.create(null);currentAccessLevel=8;
   sessionStorage.removeItem('ewgest_session_v3');
   node('restoreSessionBtn').classList.add('hidden');
   setView('login');
@@ -6492,7 +6549,9 @@ node('goHome').addEventListener('click',()=>setView('dashboard'));
 node('detailFinanceiro').addEventListener('click',()=>selectedWork&&abrirFinanceiro(selectedWork.id));
 
 /* Cadastros editáveis por ADM. Não registra saldo e não importa automaticamente materiais. */
-const matIsAdmin=()=>canAdministrate();
+const matIsAdmin=()=>temPermissao('estoque.receber')||temPermissao('estoque.baixar')||
+ temPermissao('estoque.transferir_galpoes')||temPermissao('estoque.transferir_obras')||
+ temPermissao('estoque.estornar');
 const matTable=()=>matTipo==='perfil'?'ew_perfis':'ew_acessorios';
 const matEntries=()=>matTipo==='perfil'?matPerfis:matAcessorios;
 const matLbl=()=>matTipo==='perfil'?'perfil':'acessório';
@@ -7587,7 +7646,7 @@ const finMoney=n=>Number(n||0).toLocaleString('pt-BR',{style:'currency',currency
 /* Recebimento tem navegação própria. O almoxarife só busca dados técnicos,
    fornecedores e quantidades físicas, nunca orçamento, tetos ou faturamentos. */
 async function abrirRecebimento(prefer=null){
- if(!(isAlmoxarife()||isFullAdminUser())||!currentCompany)return;
+ if(!temPermissao('estoque.receber')||!currentCompany)return;
  const sel=node('recebimentoWork');
  const anterior=prefer||sel.value||'';
  sel.innerHTML='<option value="">Escolha a obra</option>'+works.map(w=>
@@ -7597,7 +7656,7 @@ async function abrirRecebimento(prefer=null){
  await carregarRecebimento();
 }
 async function carregarRecebimento(){
- if(!(isAlmoxarife()||isFullAdminUser())||!currentCompany)return;
+ if(!temPermissao('estoque.receber')||!currentCompany)return;
  const obraId=node('recebimentoWork').value;
  const msg=node('recebimentoMessage');
  node('finExpensePanel').classList.add('hidden');
@@ -7612,8 +7671,8 @@ async function carregarRecebimento(){
  if(!obraId){msg.textContent='Selecione uma obra para iniciar o recebimento.';return;}
  msg.textContent='Consultando materiais previstos e recebidos…';
  try{
-  if(isFullAdminUser()){
-   finOptionsObras(obraId);
+  if(temPermissao('financeiro.consultar')){
+    finOptionsObras(obraId);
    await finLoad();
    if(node('recebimentoWork').value!==obraId)return;
    if(!finState){msg.textContent=node('finMessage').textContent||'Não foi possível carregar os materiais da obra.';return;}
@@ -7638,8 +7697,8 @@ async function carregarRecebimento(){
    window.ewRecebimentoManualInit();
   }
   if(node('recebimentoWork').value!==obraId)return;
-  node('finSupplierAdd').classList.toggle('hidden',!isFullAdminUser());
-  node('finWarehouseAdd').classList.toggle('hidden',!isFullAdminUser());
+  node('finSupplierAdd').classList.toggle('hidden',!temPermissao('cadastros.editar'));
+  node('finWarehouseAdd').classList.toggle('hidden',!temPermissao('cadastros.editar'));
   node('finExpensePanel').classList.remove('hidden');
   msg.textContent='Informe apenas materiais efetivamente recebidos. Os valores digitados não dão acesso ao orçamento da obra.';
   if(window.ewCarregarEntregasProducao)await window.ewCarregarEntregasProducao(obraId);
@@ -7652,13 +7711,13 @@ function finOptionsObras(prefer){
  if(works.some(w=>w.id===before))select.value=before;
 }
 async function abrirFinanceiro(prefer=null){
- if(!canAdministrate())return;
+ if(!temPermissao('financeiro.consultar'))return;
  finOptionsObras(prefer);
  setView('financeiro');
  await finLoad();
 }
 async function finLoad(){
- if(!canAdministrate()||!currentCompany)return;
+ if(!temPermissao('financeiro.consultar')||!currentCompany)return;
  const obraId=node('finWork').value,box=node('finContent');
  box.classList.add('hidden');finState=null;finXmlDoc=null;node('finXmlPreview').classList.add('hidden');
  node('finExpenseForm').reset();node('finCostTotal').readOnly=false;
@@ -7748,8 +7807,8 @@ async function finLoad(){
    fornecedores:(fornecedores||[]).filter(x=>x.ativo).map(x=>({id:x.id,nome:x.nome})),orcamentoNiveis:niveis||[],
    materiaisObra:materiaisObra||[],comprimentosComerciais:(comprimentos||[]).map(x=>x.comprimento_mm),barrasCem:barraCem||[]};
   box.classList.remove('hidden');node('finMessage').textContent='';
-  node('finExpensePanel').classList.toggle('hidden',false);
-  node('finBillingPanel').classList.toggle('hidden',!isFullAdminUser());
+  node('finExpensePanel').classList.toggle('hidden',!temPermissao('financeiro.despesas'));
+  node('finBillingPanel').classList.toggle('hidden',!temPermissao('financeiro.faturar'));
   finRenderResumo();finRenderPendentes();finRenderRecebimentos();finRenderFaturaveis();finRenderHistorico();
  }catch(e){node('finMessage').textContent='Não foi possível carregar o financeiro: '+e.message;}
 }
@@ -7819,7 +7878,7 @@ function finRenderResumo(){
 function finRenderPendentes(){
  const box=node('finPendingPanel'),state=finState;
  const selected=node('recebimentoWork').value;
- if(!isFullAdminUser()||!state||!selected||state.obraId!==selected||
+ if(!temPermissao('financeiro.despesas')||!state||!selected||state.obraId!==selected||
     node('recebimento').classList.contains('hidden')||!state.pendentes.length){
    box.classList.add('hidden');box.innerHTML='';return;
  }
@@ -7855,7 +7914,7 @@ function finRenderPendentes(){
  box.querySelectorAll('[data-fin-reject]').forEach(b=>b.addEventListener('click',()=>finRevisarNota(b.dataset.finReject,'rejeitar')));
 }
 async function finRevisarNota(id,acao){
- if(!finState||!isFullAdminUser())return;
+ if(!finState||!temPermissao('financeiro.despesas'))return;
  const d=finState.pendentes.find(x=>x.id===id),panel=[...node('finPendingPanel').querySelectorAll('.finPendingNote')].find(x=>x.dataset.note===id);
  if(!d||!panel)return;
  let justificativa='';
@@ -7900,7 +7959,7 @@ async function finRevisarNota(id,acao){
 function finRenderRecebimentos(){
  const el=node('finReceivePanel'),x=finState;
  const selected=node('recebimentoWork').value;
- if(!isFullAdminUser()||!x||!selected||x.obraId!==selected||
+ if(!temPermissao('estoque.receber')||!x||!selected||x.obraId!==selected||
     node('recebimento').classList.contains('hidden')){
    el.classList.add('hidden');el.replaceChildren();return;
  }
@@ -8011,7 +8070,7 @@ function finRenderRecebimentos(){
  });
 }
 async function finEstornarRecebimentoFisico(recebimentoId){
- if(!isFullAdminUser()||!finState||!node('recebimentoWork').value)return;
+ if(!temPermissao('estoque.estornar')||!finState||!node('recebimentoWork').value)return;
  const motivo=window.prompt('Motivo do estorno da entrada física da NF-e (mínimo 5 caracteres):','');
  if(motivo===null)return;
  if(motivo.trim().length<5||motivo.trim().length>400){
@@ -8037,7 +8096,7 @@ async function finEstornarRecebimentoFisico(recebimentoId){
  }finally{if(b){b.disabled=false;b.textContent='Estornar recebimento';}}
 }
 async function finConfirmarRecebimento(row){
- if(!finState||!isFullAdminUser())return;
+ if(!finState||!temPermissao('estoque.receber'))return;
  const itemId=row.dataset.receiveItem,tipo=row.dataset.receiveType;
  const materialId=row.querySelector('.finReceiveMaterial').value;
  const variationId=row.querySelector('.finReceiveVariation').value;
@@ -8099,7 +8158,7 @@ function finRenderHistorico(){
  escapeHTML(finCategories.find(x=>x[0]===r.tipo)?.[1]||r.tipo)+'</td><td>'+escapeHTML(r.doc)+
  (r.desc?' · '+escapeHTML(r.desc):'')+'</td><td align="right">'+finMoney(r.valor)+
  '</td><td>'+escapeHTML(r.status)+'</td><td>'+
- (isFullAdminUser()&&(r.kind==='faturamento'?r.status==='emitido':r.status==='aprovada')?
+ (temPermissao(r.kind==='faturamento'?'financeiro.cancelar_faturamento':'financeiro.cancelar_despesas')&&(r.kind==='faturamento'?r.status==='emitido':r.status==='aprovada')?
    (r.kind==='despesa'&&despesasComEstoque.has(r.id)?
     '<span class="hint">Entrada física vinculada — exige estorno</span>':
     '<button class="btn secondary" type="button" data-fin-cancel="'+escapeHTML(r.id)+'" data-kind="'+r.kind+'">'+
@@ -8109,7 +8168,7 @@ function finRenderHistorico(){
  node('finHistory').querySelectorAll('[data-fin-cancel]').forEach(b=>b.addEventListener('click',()=>finCancelarLancamento(b.dataset.kind,b.dataset.finCancel)));
 }
 async function finCancelarLancamento(tipo,id){
- if(!isFullAdminUser()||!finState)return;
+ if(!temPermissao(tipo==='despesa'?'financeiro.cancelar_despesas':'financeiro.cancelar_faturamento')||!finState)return;
  const motivo=window.prompt(tipo==='despesa'?'Motivo do estorno financeiro (5 a 400 caracteres):':'Motivo do cancelamento (5 a 400 caracteres):','');
  if(motivo===null)return;
  if(motivo.trim().length<5||motivo.trim().length>400){
@@ -8367,7 +8426,7 @@ async function finXMLSelecionar(){
  }
 }
 async function finRegistrarCusto(event){
- event.preventDefault();if(!finState||!isFullAdminUser())return;
+ event.preventDefault();if(!finState||!temPermissao('financeiro.despesas'))return;
  const btn=node('finCostSubmit');
  const val=Number(node('finCostTotal').value),cat=node('finCostCategory').value;
  if(!Number.isFinite(val)||val<=0||Math.abs(val*100-Math.round(val*100))>0.00001){
@@ -8412,7 +8471,7 @@ async function finRegistrarCusto(event){
  finally{btn.disabled=false;}
 }
 async function finRegistrarFaturamento(event){
- event.preventDefault();if(!finState||!isFullAdminUser())return;
+ event.preventDefault();if(!finState||!temPermissao('financeiro.faturar'))return;
  const tipo=node('finBillingCategory').value,doc=node('finBillingDoc').value.trim();
  const date=node('finBillingDate').value;
  const itens=[];
@@ -8580,7 +8639,7 @@ for(const id of ['cemFlagEsquadrias','cemFlagPerfis','cemFlagAcessorios']){
 /* Estoque: cadastro importado, planejamento CEM e saldo físico são separados. */
 let estoqueLinks=[],estoqueMovimentos=[],estoqueVarianteEscolhida=null,estoqueObraMovimentos=[],stockLocais=[],stockComprimentos=[],stockLocaisFisicos=[];
 async function abrirEstoque(){
-  if(!matIsAdmin())return;
+  if(!temPermissao('estoque.consultar'))return;
   setView('stock');
   node('stockMessage').textContent='Consultando materiais e movimentações…';
   try{
@@ -10772,5 +10831,6 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/romaneios-transferencia.js?v=20261122b"></script>
 <script src="/assets/relatorios-obras.js?v=20261122c"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>
+<script src="/assets/niveis-acesso.js?v=20261122a"></script>
 </body>
 </html>

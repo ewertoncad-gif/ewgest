@@ -8,7 +8,7 @@ const app=read('../app.html'),rel=read('../assets/relatorios-obras.js'),
 const sql=read('../database/proposals/20261122_exclusao_definitiva_obras_v4618.sql');
 assert.doesNotThrow(()=>new Function(rel),'Relatórios devem compilar');
 assert.doesNotThrow(()=>new Function(transfer),'Romaneios devem compilar');
-assert.match(app,/EWGEST <strong>· v46\.19<\/strong>/);
+assert.match(app,/EWGEST <strong>· v46\.20<\/strong>/);
 assert.match(app,/Exclusão definitiva e sem restauração/);
 assert.match(app,/Excluir obra definitivamente/);
 assert.match(app,/ATENÇÃO: PROCESSO IRREVERSÍVEL\. TEM CERTEZA QUE DESEJA ESTORNAR\?/);
@@ -34,4 +34,4 @@ assert.match(sql,/CREATE TRIGGER ew_bloquear_reabertura_obra/);
 assert.match(sql,/CREATE TRIGGER ew_bloquear_reabertura_estoque/);
 assert.match(sql,/REVOKE ALL ON FUNCTION public\.ew_restaurar_estoque_local/);
 assert.match(sql,/REVOKE ALL ON FUNCTION public\.ew_excluir_estoque_local/);
-console.log('OK v46.19: fechamento definitivo, sem restauração, seletores operacionais só ativos.');
+console.log('OK v46.20: fechamento definitivo, sem restauração, seletores operacionais só ativos.');

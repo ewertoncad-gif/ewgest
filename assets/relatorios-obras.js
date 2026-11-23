@@ -385,10 +385,13 @@ async function aluminio(ctx){
  return {contagem:rows.length};
 }
 async function gerar(){
- if(running||!canAdministrate()||!currentCompany)return;
+ if(running||!podeVerRelatorios()||!currentCompany)return;
  rows=[];headers=[];summaryCsv=[];summaryHeaders=[];el('reportCsv').disabled=true;el('reportPrint').disabled=true;
  el('reportTable').replaceChildren();el('reportSummary').replaceChildren();
  const tipo=el('reportType').value;
+ if(tipo==='faturamento'&&!temPermissao('relatorios.financeiros')){
+  el('reportStatus').textContent='Seu nível não permite consultar relatórios financeiros.';return;
+ }
  running=true;el('reportGenerate').disabled=true;
  el('reportStatus').textContent='Consultando registros das obras em andamento…';
  try{
@@ -440,7 +443,7 @@ function imprimir(){
  w.document.open();w.document.write(html);w.document.close();w.focus();w.print();
 }
 el('navRelatorios').addEventListener('click',async()=>{
- if(!canAdministrate())return;
+ if(!podeVerRelatorios())return;
  setView('relatorios');
  el('reportStatus').textContent='Consulta sem movimentação de estoque. Clique em Gerar relatório.';
  el('reportTable').replaceChildren();el('reportSummary').replaceChildren();
@@ -449,6 +452,10 @@ el('navRelatorios').addEventListener('click',async()=>{
  catch(e){el('reportStatus').textContent='Erro ao preparar obras e usuários: '+e.message;}
 });
 function exibirFiltros(){
+ const finance=temPermissao('relatorios.financeiros');
+ const option=el('reportType').querySelector('[value="faturamento"]');
+ if(option){option.disabled=!finance;option.hidden=!finance;}
+ if(!finance&&el('reportType').value==='faturamento')el('reportType').value='estoque';
  const tipo=el('reportType').value,isBilling=tipo==='faturamento',stock=tipo==='estoque';
  el('reportMultiple').classList.toggle('hidden',!isBilling);
  el('reportWork').closest('label').classList.toggle('hidden',isBilling);
