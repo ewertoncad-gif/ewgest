@@ -30,7 +30,7 @@ function destinoOptions(){return works.map(w=>option('obra:'+w.id,'Obra · '+w.n
 function productLabel(v){return v.nome||v.id}
 function products(){return variations.map(v=>option(v.id,productLabel(v))).join('')}
 async function reload(){
- if(!permission('compras.consultar')||!currentCompany)return;
+ if((!permission('compras.consultar')&&!permission('compras.receber'))||!currentCompany)return;
  await ensureSession();
  const empresa='eq.'+currentCompany.id;
  const [ls,fs,gs,vs,ps,as,so,co,po,re]=await Promise.all([
@@ -145,6 +145,15 @@ async function abrir(){
  if(!permission('compras.consultar'))return;setView('compras');
  say('comprasMensagem','Carregando compras…');try{await reload();render();say('comprasMensagem','')}
  catch(e){say('comprasMensagem','Compras ainda indisponíveis: '+e.message);}
+}
+// Os controles antigos movem estoque apenas entre obras existentes.
+// Para um local da empresa, bloquear ações legadas até a transferência dedicada.
+for(const id of ['stockTransferPickLocal','stockTransferPickWork','stockManageLocations']){
+ $(id)?.addEventListener('click',event=>{
+  if(!$('stockWork')?.value.startsWith('empresa:'))return;
+  event.preventDefault();event.stopImmediatePropagation();
+  say('stockMessage','Transferências e estornos do local da empresa dependem da rotina específica de estoque; não use uma obra fictícia.');
+ },true);
 }
 for(const [tabValue,id] of [['solicitacao','comprasTabSolicitacao'],['cotacao','comprasTabCotacao'],['pedido','comprasTabPedido']])
  $(id).addEventListener('click',()=>{tab=tabValue;if(loaded)render();});
