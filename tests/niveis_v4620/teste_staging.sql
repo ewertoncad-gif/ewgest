@@ -24,14 +24,11 @@ BEGIN
   IF SQLERRM NOT LIKE 'Nível 01 é protegido%' THEN RAISE; END IF;
  END;
 END;$t$;
-INSERT INTO public.usuarios_empresas(empresa_id,usuario_id,perfil,nivel_acesso)
- VALUES('9ea7617c-6603-4bc1-91e1-c5e274c334d9',
- 'c7777777-7777-4777-8777-777777777777','consulta',7);
-INSERT INTO public.usuarios_login(usuario_id,empresa_id,login,nome,perfil,nivel_acesso,ativo)
- VALUES('c7777777-7777-4777-8777-777777777777',
- '9ea7617c-6603-4bc1-91e1-c5e274c334d9','CONSULTA_V4620','Consulta fictício',
- 'consulta',7,true);
-SELECT set_config('request.jwt.claim.sub','c7777777-7777-4777-8777-777777777777',true);
+-- Simula mudança para nível 07 na mesma identidade de teste, sem criar usuário Auth.
+UPDATE public.usuarios_empresas SET perfil='consulta',nivel_acesso=7
+ WHERE usuario_id='040b8754-8557-449c-8ad4-eaa34155c920';
+UPDATE public.usuarios_login SET perfil='consulta',nivel_acesso=7
+ WHERE usuario_id='040b8754-8557-449c-8ad4-eaa34155c920';
 DO $test$
 BEGIN
  IF NOT public.ew_pode('9ea7617c-6603-4bc1-91e1-c5e274c334d9','relatorios.operacionais')
