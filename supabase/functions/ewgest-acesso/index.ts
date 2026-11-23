@@ -104,7 +104,6 @@ function isFullAdmin(caller) {
 function requireManager(caller) {
   if (caller.member.perfil !== caller.account.perfil ||
       caller.member.nivel_acesso !== caller.account.nivel_acesso ||
-      ![1,2].includes(caller.member.nivel_acesso) ||
       !caller.flags.has('usuarios.gerenciar')) {
     throw new Error('Somente ADM ou Gerenciador podem administrar usuários.');
   }
