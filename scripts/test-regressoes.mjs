@@ -988,11 +988,11 @@ assert.ok(roleMigration.includes('usuarios_login_perfil_check')&&
 const startRole=source.indexOf('function isFullAdminUser(){');
 const endRole=source.indexOf('function maskPassword(id){',startRole);
 assert.ok(startRole>0&&endRole>startRole);
-const checkRoles=new Function('membership',source.slice(startRole,endRole)+
+const checkRoles=new Function('membership','currentAccessLevel',source.slice(startRole,endRole)+
  'return {manager:canAdministrate(),admin:isFullAdminUser()};');
-assert.deepEqual(checkRoles({perfil:'gerenciador'}),{manager:true,admin:false});
-assert.deepEqual(checkRoles({perfil:'administrador'}),{manager:true,admin:true});
-assert.deepEqual(checkRoles({perfil:'tecnico'}),{manager:false,admin:false});
+assert.deepEqual(checkRoles({perfil:'gerenciador'},2),{manager:true,admin:false});
+assert.deepEqual(checkRoles({perfil:'administrador'},1),{manager:true,admin:true});
+assert.deepEqual(checkRoles({perfil:'tecnico'},3),{manager:false,admin:false});
 
 // Exclusão administrativa: sem remover identidade Auth nem o histórico dos autores.
 assert.ok(source.includes('id="userDeleteButton"')&&
