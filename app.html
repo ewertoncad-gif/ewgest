@@ -716,7 +716,7 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.19</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.20</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -2402,6 +2402,18 @@ const amount = n => Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:2
 const escapeHTML = v => String(v??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const area = (i,q) => Number(i.largura_mm||0)*Number(i.altura_mm||0)*Number(q||0)/1e6;
 let session=null, currentUser=null, currentCompany=null, membership=null, works=[], elements=[], releaseHistory=[], selectedWork=null, selectedItem=null;
+let currentAccessFlags=Object.create(null),currentAccessLevel=8,accessReady=false;
+function temPermissao(chave){return accessReady&&currentAccessFlags[chave]===true;}
+function podeVerRelatorios(){return temPermissao('relatorios.operacionais')||temPermissao('relatorios.financeiros');}
+function permissaoParaTela(view){
+ const requires={worksPage:'obras.consultar',detail:'obras.consultar',manageWorks:'obras.estornar',
+  romaneiosPage:'romaneios.consultar',recebimento:'estoque.receber',almoxNotas:'estoque.receber',
+  cadastros:'cadastros.consultar',typologies:'cadastros.consultar',manufacturers:'cadastros.consultar',
+  materials:'cadastros.consultar',stock:'estoque.consultar',financeiro:'financeiro.consultar',
+  cemImport:'obras.importar',users:'usuarios.gerenciar'};
+ if(view==='relatorios')return podeVerRelatorios();
+ return !requires[view]||temPermissao(requires[view]);
+}
 let detailBackTarget='dashboard';
 let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='',detailMode='release',currentShipmentRequestId=null;
 let romaneios=[],romaneioItens=[],romaneioLoadError='',romaneioRows=[],romaneioOperationId=null,romaneioOperationSignature='';
@@ -2420,7 +2432,7 @@ function setStatus(text){node('status').textContent=text;}
 function setError(text){node('error').textContent=text;}
 function isAlmoxarife(){return String(membership?.perfil||'').toLowerCase()==='almoxarife';}
 function isFullAdminUser(){return String(membership?.perfil||'').toLowerCase()==='administrador';}
-function canAdministrate(){return ['administrador','gerenciador'].includes(String(membership?.perfil||'').toLowerCase());}
+function canAdministrate(){return [1,2].includes(currentAccessLevel)&&['administrador','gerenciador'].includes(String(membership?.perfil||'').toLowerCase());}
 function maskPassword(id){
   const input=node(id);
   if(input)input.type='password';
@@ -2438,10 +2450,11 @@ document.querySelectorAll('[data-show-password]').forEach(button=>{
     input.focus({preventScroll:true});
   });
 });
-function podeEmitirRomaneio(){return ['administrador','gerenciador','supervisor','almoxarife'].includes(String(membership?.perfil||'').toLowerCase());}
+function podeEmitirRomaneio(){return temPermissao('romaneios.emitir');}
 function setView(view){
   node('startup').classList.add('hidden');
-  if(isAlmoxarife()&&!['login','romaneiosPage','recebimento','almoxNotas','myPassword'].includes(view))view='romaneiosPage';
+  if(view!=='login'&&view!=='dashboard'&&view!=='myPassword'&&accessReady&&!permissaoParaTela(view))
+    view='dashboard';
   for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','recebimento','almoxNotas','cadastros','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','typologies','manufacturers','materials','stock','financeiro','relatorios','cemImport','users','myPassword'])
     node(id).classList.toggle('hidden',id!==view);
   node('logout').classList.toggle('hidden',view==='login');
@@ -2463,7 +2476,7 @@ function invalidateAppSession(reason){
   cemDescartarRascunho();
   sessaoUnicaParar();
   accessLogClear();
-  session=null;
+  session=null;accessReady=false;currentAccessFlags=Object.create(null);currentAccessLevel=8;
   sessionStorage.removeItem('ewgest_session_v3');
   node('restoreSessionBtn').classList.add('hidden');
   node('userEditOverlay').classList.add('hidden');
@@ -2565,7 +2578,7 @@ function sessaoUnicaMonitorar(){
 async function sessaoUnicaCancelarNova(){
  cemDescartarRascunho();
  const token=session?.access_token;sessaoUnicaParar();accessLogClear();
- session=null;currentUser=null;currentCompany=null;membership=null;
+ session=null;currentUser=null;currentCompany=null;membership=null;accessReady=false;currentAccessFlags=Object.create(null);currentAccessLevel=8;
  sessionStorage.removeItem('ewgest_session_v3');setView('login');
  if(token)try{await request('/auth/v1/logout',{method:'POST',token,timeoutMs:4500});}catch{}
 }
@@ -2585,13 +2598,17 @@ async function ensureSession(){
 async function loadPanel(){
   await ensureSession();
   currentUser = session.user || await request('/auth/v1/user',{token:session.access_token});
-  const rel=await apiGet('usuarios_empresas',{select:'empresa_id,perfil',usuario_id:'eq.'+currentUser.id});
+  const rel=await apiGet('usuarios_empresas',{select:'empresa_id,perfil,nivel_acesso',usuario_id:'eq.'+currentUser.id});
   if(!rel?.length)throw new Error('Seu usuário não está vinculado a uma empresa. Confira o cadastro no Supabase.');
   const ids=rel.map(r=>r.empresa_id);
   const comps=await apiGet('empresas',{select:'id,nome',id:'in.('+ids.join(',')+')'});
   if(!comps?.length)throw new Error('Nenhuma empresa autorizada foi encontrada para seu usuário.');
   currentCompany=comps.find(e=>e.nome==='GVG ESQUADRIAS')||comps[0];
   membership=rel.find(r=>r.empresa_id===currentCompany.id);
+  const acesso=await request('/rest/v1/rpc/ew_meu_nivel',{
+    method:'POST',token:session.access_token,body:{p_empresa_id:currentCompany.id}});
+  currentAccessLevel=Number(acesso?.nivel)||8;
+  currentAccessFlags=acesso?.flags||Object.create(null);accessReady=true;
   const somenteRomaneios=isAlmoxarife();
   const adminNav=canAdministrate();
   if(somenteRomaneios){
@@ -2610,18 +2627,27 @@ async function loadPanel(){
   }
   if(!isFullAdminUser()&&node('createUserRole').value==='administrador')
     node('createUserRole').value='gerenciador';
-  node('navHome').classList.toggle('hidden',somenteRomaneios);
-  node('navWorks').classList.toggle('hidden',somenteRomaneios);
-  node('navRomaneios').classList.toggle('hidden',!podeEmitirRomaneio());
+  node('navHome').classList.toggle('hidden',!temPermissao('obras.consultar'));
+  node('navWorks').classList.toggle('hidden',!temPermissao('obras.consultar'));
+  node('navRomaneios').classList.toggle('hidden',!temPermissao('romaneios.consultar'));
   node('navEnviarNotas').classList.add('hidden'); // Fluxo antigo preservado internamente; nova entrada no Recebimento.
-  node('navRecebimento').classList.toggle('hidden',!(isAlmoxarife()||isFullAdminUser()));
+  node('navRecebimento').classList.toggle('hidden',!temPermissao('estoque.receber'));
   node('recebimentoXmlLegacy').classList.toggle('hidden',!isAlmoxarife());
-  for(const id of ['navCadastros','navTypologies','navManufacturers','navMaterials','navAccessories','navStock','navCem','navUsers','navManageWorks','navFinanceiro','navRelatorios'])node(id).classList.toggle('hidden',!adminNav);
+  const navFlags={
+    navCadastros:'cadastros.consultar',navTypologies:'cadastros.consultar',
+    navManufacturers:'cadastros.consultar',navMaterials:'cadastros.consultar',
+    navAccessories:'cadastros.consultar',navStock:'estoque.consultar',
+    navCem:'obras.importar',navUsers:'usuarios.gerenciar',
+    navManageWorks:'obras.estornar',navFinanceiro:'financeiro.consultar'};
+  for(const [id,flag] of Object.entries(navFlags))
+    node(id).classList.toggle('hidden',!temPermissao(flag));
+  node('navRelatorios').classList.toggle('hidden',!podeVerRelatorios());
   node('openRomaneioHub').classList.toggle('hidden',!podeEmitirRomaneio()||somenteRomaneios);
-  node('topTag').textContent=somenteRomaneios?'Romaneios e expedição':'Gestão de obras · liberações e saídas';
-  node('openTypologies').classList.toggle('hidden',!canAdministrate());
-  node('openManufacturers').classList.toggle('hidden',!canAdministrate());
-  node('openUsers').classList.toggle('hidden',!canAdministrate());
+  node('topTag').textContent='Nível '+String(currentAccessLevel).padStart(2,'0')+
+   ' · '+(somenteRomaneios?'Almoxarifado':'Gestão de obras');
+  node('openTypologies').classList.toggle('hidden',!temPermissao('cadastros.consultar'));
+  node('openManufacturers').classList.toggle('hidden',!temPermissao('cadastros.consultar'));
+  node('openUsers').classList.toggle('hidden',!temPermissao('usuarios.gerenciar'));
   const [w,e,tips]=await Promise.all([
     apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,arquivada_em:'is.null',order:'nome.asc'}),
     apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id,rotulo_tipologia_relatorio,quantidade_modulos,modulacao_id',empresa_id:'eq.'+currentCompany.id}),
@@ -5058,7 +5084,7 @@ node('logout').addEventListener('click',async()=>{
   if(old)try{saidaRegistrada=await accessLogRegister('saida',5000);}catch{saidaRegistrada=false;}
   if(old)try{await sessaoUnicaRPC('sair');}catch{}
   accessLogClear();
-  session=null;currentUser=null;currentCompany=null;membership=null;
+  session=null;currentUser=null;currentCompany=null;membership=null;accessReady=false;currentAccessFlags=Object.create(null);currentAccessLevel=8;
   sessionStorage.removeItem('ewgest_session_v3');
   node('restoreSessionBtn').classList.add('hidden');
   setView('login');
@@ -6492,7 +6518,7 @@ node('goHome').addEventListener('click',()=>setView('dashboard'));
 node('detailFinanceiro').addEventListener('click',()=>selectedWork&&abrirFinanceiro(selectedWork.id));
 
 /* Cadastros editáveis por ADM. Não registra saldo e não importa automaticamente materiais. */
-const matIsAdmin=()=>canAdministrate();
+const matIsAdmin=()=>canAdministrate()&&temPermissao('estoque.consultar');
 const matTable=()=>matTipo==='perfil'?'ew_perfis':'ew_acessorios';
 const matEntries=()=>matTipo==='perfil'?matPerfis:matAcessorios;
 const matLbl=()=>matTipo==='perfil'?'perfil':'acessório';
@@ -7652,13 +7678,13 @@ function finOptionsObras(prefer){
  if(works.some(w=>w.id===before))select.value=before;
 }
 async function abrirFinanceiro(prefer=null){
- if(!canAdministrate())return;
+ if(!temPermissao('financeiro.consultar'))return;
  finOptionsObras(prefer);
  setView('financeiro');
  await finLoad();
 }
 async function finLoad(){
- if(!canAdministrate()||!currentCompany)return;
+ if(!temPermissao('financeiro.consultar')||!currentCompany)return;
  const obraId=node('finWork').value,box=node('finContent');
  box.classList.add('hidden');finState=null;finXmlDoc=null;node('finXmlPreview').classList.add('hidden');
  node('finExpenseForm').reset();node('finCostTotal').readOnly=false;
@@ -8580,7 +8606,7 @@ for(const id of ['cemFlagEsquadrias','cemFlagPerfis','cemFlagAcessorios']){
 /* Estoque: cadastro importado, planejamento CEM e saldo físico são separados. */
 let estoqueLinks=[],estoqueMovimentos=[],estoqueVarianteEscolhida=null,estoqueObraMovimentos=[],stockLocais=[],stockComprimentos=[],stockLocaisFisicos=[];
 async function abrirEstoque(){
-  if(!matIsAdmin())return;
+  if(!temPermissao('estoque.consultar'))return;
   setView('stock');
   node('stockMessage').textContent='Consultando materiais e movimentações…';
   try{
