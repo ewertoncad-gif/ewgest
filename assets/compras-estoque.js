@@ -140,13 +140,22 @@ async function abrir(){
 }
 for(const [tabValue,id] of [['solicitacao','comprasTabSolicitacao'],['cotacao','comprasTabCotacao'],['pedido','comprasTabPedido']])
  $(id).addEventListener('click',()=>{tab=tabValue;if(loaded)render();});
+async function carregarLocaisRecebimento(select){
+ if(!permission('compras.receber')||!currentCompany)return;
+ try{
+  await ensureSession();
+  const values=await apiGet('ew_compras_locais_empresa',{select:'id,nome,ativo',empresa_id:'eq.'+currentCompany.id,ativo:'eq.true',order:'nome.asc'});
+  for(const loc of values||[])select.add(new Option('Empresa · '+loc.nome,'empresa:'+loc.id));
+ }catch(e){say('recebimentoMessage','Locais empresariais indisponíveis: '+e.message);}
+}
 async function atualizarRecebimento(obraId){
  const box=$('ewComprasRecebimento');
  box.classList.toggle('hidden',!obraId||!permission('compras.receber')||!permission('estoque.receber'));
  if(box.classList.contains('hidden'))return;
  box.innerHTML='<h2>Receber por pedido de compra</h2><p class="hint">Entrada física por pedido, sem lançamento fiscal automático. Consulte as quantidades já recebidas antes de confirmar.</p><p class="feedback">Consultando pedidos pendentes…</p>';
  try{await reload();if($('recebimentoWork').value!==obraId)return;
- const ativos=orders.filter(p=>p.obra_id===obraId&&orderStatus(p)!=='Recebido');
+ const empresaDestino=obraId.startsWith('empresa:');
+ const ativos=orders.filter(p=>(empresaDestino?p.local_empresa_id===obraId.slice(8):p.obra_id===obraId)&&orderStatus(p)!=='Recebido');
  box.innerHTML='<h2>Receber por pedido de compra</h2><p class="hint">Receba todo ou parte do pedido; somente o saldo efetivamente confirmado será acrescentado ao estoque físico.</p>'+
  '<label>Pedido<select id="ewReceberPedido">'+option('','Selecione o pedido')+ativos.map(p=>option(p.id,'#'+p.numero+' · '+orderStatus(p))).join('')+'</select></label>'+
  '<form id="ewReceberForm" class="hidden"><div id="ewReceberItens"></div><label>Galpão de destino<select id="ewReceberGalpao" required>'+
@@ -184,7 +193,7 @@ async function carregarLocaisEstoque(){
 }
 async function renderEstoqueEmpresa(){
  const id=$('stockWork').value.replace(/^empresa:/,''),pane=$('ewEstoqueEmpresaPainel'),epoch=++stockEpoch;
- $('stockRecords').classList.add('hidden');pane.classList.remove('hidden');$('insumosStockPanel')?.classList.add('hidden');
+ $('stockRecords').classList.add('hidden');pane.classList.remove('hidden');$('insumosStockPanel')?.classList.add('hidden');$('stockLegend')?.classList.add('hidden');
  $('stockPerfCount').textContent='—';$('stockAcesCount').textContent='—';$('stockCounted').textContent='—';
  pane.innerHTML='<p class="hint">Consultando saldo físico da empresa…</p>';
  try{const rows=await apiGet('ew_compras_estoque_empresa',{select:'variacao_id,unidade,comprimento_mm,quantidade_delta,galpao',empresa_id:'eq.'+currentCompany.id,local_empresa_id:'eq.'+id,limit:'30000'});
@@ -192,9 +201,12 @@ async function renderEstoqueEmpresa(){
  const totals=new Map();for(const r of rows||[]){if($('stockFactoryFilter').value&&$('stockFactoryFilter').value!==r.galpao)continue;
  const key=[r.variacao_id,r.unidade,r.comprimento_mm||'',r.galpao].join('|');const old=totals.get(key)||{...r,quantidade:0};old.quantidade+=Number(r.quantidade_delta);totals.set(key,old)}
  const list=[...totals.values()].filter(x=>x.quantidade>0);$('stockCounted').textContent=String(list.length);
+ const displayMaterial=id=>{const v=variations.find(v=>v.id===id)||matVariacoes.find(v=>v.id===id);if(!v)return id;
+ const mat=v.tipo==='perfil'?matPerfis.find(p=>p.id===v.perfil_id):matAcessorios.find(a=>a.id===v.acessorio_id);
+ return mat?(mat.codigo+' · '+mat.descricao+' · '+v.cor):id;};
  pane.innerHTML='<h3>Estoque físico da empresa</h3><p class="hint">Este local não está vinculado a uma obra. A coluna Quantidade necessária não se aplica.</p>'+
  '<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Material</th><th>Galpão</th><th>Comprimento</th><th>Em estoque</th></tr></thead><tbody>'+
- list.map(x=>'<tr><td>'+esc(productLabel(variations.find(v=>v.id===x.variacao_id)||{nome:x.variacao_id}))+'</td><td>'+esc(x.galpao)+'</td><td>'+esc(x.comprimento_mm?x.comprimento_mm+' mm':'—')+'</td><td><strong>'+number(x.quantidade)+' '+esc(x.unidade)+'</strong></td></tr>').join('')+
+ list.map(x=>'<tr><td>'+esc(displayMaterial(x.variacao_id))+'</td><td>'+esc(x.galpao)+'</td><td>'+esc(x.comprimento_mm?x.comprimento_mm+' mm':'—')+'</td><td><strong>'+number(x.quantidade)+' '+esc(x.unidade)+'</strong></td></tr>').join('')+
  '</tbody></table></div>';
  }catch(e){pane.innerHTML='<p class="feedback">Não foi possível consultar o estoque da empresa: '+esc(e.message)+'</p>';}
 }
@@ -206,5 +218,5 @@ async function criarLocalEmpresa(){
  await carregarLocaisEstoque();say('stockMessage','Local de estoque cadastrado.');}
  catch(e){say('stockMessage','Não foi possível cadastrar local: '+e.message);}
 }
-window.ewCompras=Object.freeze({abrir,atualizarRecebimento,carregarLocaisEstoque,renderEstoqueEmpresa,criarLocalEmpresa});
+window.ewCompras=Object.freeze({abrir,carregarLocaisRecebimento,atualizarRecebimento,carregarLocaisEstoque,renderEstoqueEmpresa,criarLocalEmpresa});
 })();
