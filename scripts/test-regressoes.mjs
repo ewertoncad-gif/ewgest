@@ -1267,7 +1267,7 @@ assert.ok(source.includes("node('stockReverseApply').textContent='Estornar todos
 assert.ok(source.includes('id="navWorks"')&&
  source.includes('id="worksPage"')&&source.includes('id="worksPageList"')&&
  source.includes("node('navWorks').addEventListener('click',abrirObrasPelaBarra)")&&
- source.includes("node('navWorks').classList.toggle('hidden',somenteRomaneios)")&&
+ source.includes("node('navWorks').classList.toggle('hidden',!temPermissao('obras.consultar'))")&&
  source.includes("['navWorks','worksPage']"),
  'A navegação Obras precisa respeitar permissões e destacar o menu ativo');
 assert.ok(source.includes('function abrirObrasPelaBarra()')&&
