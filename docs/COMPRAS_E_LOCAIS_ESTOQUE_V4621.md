@@ -15,6 +15,14 @@
 - **Pedido**: cotação escolhida, com quantidades e preços congelados.
 - **Recebimento**: operação imutável de quantidades realmente recebidas, com galpão, autor, data e ID idempotente.
 
+## Estoques anteriormente cadastrados como obras
+
+Nas capturas de 23/11, o cadastro **ESTOQUE GVG** aparece como obra, com material FIT2130PTO e saldo físico (exemplo mostrado: 4 MT). **Não excluir nem converter automaticamente essa obra artificial.** Ela pode conter movimentos, despesas, transferências e estornos já referenciados por UUID.
+
+Antes de migrar, é necessário: identificar o ID real e todos os movimentos por material, unidade, galpão, operação, despesa e transferência; conciliar saldo físico e vínculos; registrar uma conversão auditável para o novo local `Empresa · ESTOQUE GVG`; fazer a transferência de responsabilidade sem duplicar estoque ou receita; revisar os relatórios; só então retirar o cadastro artificial da seleção de obras.
+
+A interface nova diferencia `Empresa · ...` de `Obra · ...`, mas **não migra os saldos antigos automaticamente** nesta fase.
+
 ## Arquitetura proposta
 
 Para **obra**, a entrada de pedido usa a tabela já existente `ew_estoque_obras_movimentos`, com origem `COMPRA`. Para **empresa sem obra**, usa `ew_compras_locais_empresa` e o ledger novo `ew_compras_estoque_empresa`. Não inventar obras de estoque.
