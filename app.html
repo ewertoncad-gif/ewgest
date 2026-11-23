@@ -1448,7 +1448,7 @@
         <p class="muted">Saldos por local de estoque (obra ou empresa) e galpão físico.</p>
       </div>
       <div class="stockTopActions">
-          <button type="button" class="btn primary" id="stockCreateAnother">+ Criar estoque vazio</button>
+          <button type="button" class="btn primary" id="stockCreateAnother">+ Criar estoque de obra</button>
           <button type="button" class="btn secondary hidden" id="stockCreateCompanyLocal">+ Local da empresa</button>
           <button type="button" class="btn secondary" id="stockTransferPickLocal">Transferência entre galpões</button>
           <button type="button" class="btn secondary" id="stockTransferPickWork">Transferência entre obras</button>
@@ -1466,7 +1466,7 @@
         <p class="hint">O cadastro da obra contém os materiais previstos do CEM e seus saldos físicos separados. Entrada física apenas após recebimento confirmado; perfis são controlados por barras inteiras e comprimento comercial.</p>
         <div class="stockFilters">
           <label>Local de estoque <select id="stockWork"><option value="">Todas as obras</option></select></label>
-          <label>Local do estoque <select id="stockFactoryFilter"><option value="">Todos os galpões</option></select></label>
+          <label>Galpão <select id="stockFactoryFilter"><option value="">Todos os galpões</option></select></label>
           <label>Categoria <select id="stockType"><option value="">Todos os materiais</option><option value="perfil">Perfis</option><option value="acessorio">Acessórios</option><option value="vidros">Vidros</option><option value="outros">Outros insumos</option></select></label>
           <label>Buscar material <input id="stockSearch" type="search" placeholder="Código, descrição ou cor"></label>
         </div>
