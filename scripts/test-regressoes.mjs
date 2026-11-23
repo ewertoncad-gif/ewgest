@@ -975,7 +975,7 @@ assert.ok(source.includes('const protectedAdm=!isFullAdminUser()')&&
  'Interface não permite Gerenciador editar ADM ou conceder promoção');
 assert.ok(edgeSource.includes('async function requireTargetEditable(caller, account)')&&
  edgeSource.includes("member?.perfil === 'administrador'")&&
- edgeSource.includes("!isFullAdmin(caller) && perfil === 'administrador'")&&
+ edgeSource.includes("!isFullAdmin(caller) && nivel<=2")&&
  edgeSource.includes('await requireTargetEditable(caller, data);'),
  'Servidor impede Gerenciador editar, redefinir senha, reativar/desativar contas ADM');
 assert.ok(edgeSource.includes("'gerenciador'")&&
