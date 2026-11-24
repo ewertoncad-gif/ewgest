@@ -163,3 +163,64 @@ def fiscal_race(n,order_first):
                 proc.communicate()
 fiscal_race(6,True)
 fiscal_race(7,False)
+
+# A transfer racing a receipt reversal must never create a negative balance.
+def extract_rpc(filename,name):
+    text=(root / "database/proposals" / filename).read_text()
+    begin=text.index("create or replace function public."+name+"(")
+    finish=text.index("end;$f$;",begin)+len("end;$f$;")
+    return text[begin:finish].replace("public.",schema+".").replace("auth.uid()",schema+".uid()")
+transfer_rpc=extract_rpc("20261124_compras_transferencias_locais_v4621.sql","ew_compras_transferir_locais")
+reverse_rpc=extract_rpc("20261124_compras_estorno_recebimento_v4621.sql","ew_compras_estornar_recebimento")
+sql(f"""
+ALTER TABLE {schema}.ew_compras_recebimentos ADD COLUMN estornado_por uuid, ADD COLUMN estorno_motivo text, ADD COLUMN estorno_operacao_id uuid UNIQUE, ADD COLUMN estorno_detalhes jsonb;
+ALTER TABLE {schema}.ew_compras_estoque_empresa ADD COLUMN origem text DEFAULT 'RECEBIMENTO_PEDIDO', ADD COLUMN transferencia_id uuid, ADD COLUMN estorno_de_id uuid UNIQUE, ADD COLUMN criado_em timestamptz DEFAULT now();
+ALTER TABLE {schema}.ew_estoque_obras_movimentos ADD COLUMN estorno_de_id uuid UNIQUE, ADD COLUMN criado_em timestamptz DEFAULT now();
+CREATE TABLE {schema}.ew_materiais_variacoes(id uuid,empresa_id uuid,ativo boolean,tipo text,acessorio_id uuid);
+CREATE TABLE {schema}.ew_acessorios(id uuid,empresa_id uuid,unidade_item text);
+CREATE TABLE {schema}.ew_compras_transferencias(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),empresa_id uuid,operacao_id uuid UNIQUE,origem_tipo text,origem_id uuid,destino_tipo text,destino_id uuid,origem_galpao text,destino_galpao text,variacao_id uuid,comprimento_mm integer,unidade text,quantidade numeric,motivo text,movimento_origem_obra_id uuid,movimento_destino_obra_id uuid,movimento_origem_empresa_id uuid,movimento_destino_empresa_id uuid,criado_por uuid,estornado_em timestamptz);
+INSERT INTO {schema}.ew_materiais_variacoes VALUES('{uid(9)}','{uid(1)}',true,'perfil',null);
+{transfer_rpc}
+{reverse_rpc}
+""")
+for n in (8,10):
+    src=uid(400+n)
+    dst=uid(500+n)
+    items=json.dumps([dict(chave="A",variacao_id=uid(9),quantidade=2,unidade="BARRA",comprimento_mm=6000)])
+    sql(f"""
+    INSERT INTO {schema}.ew_compras_locais_empresa VALUES('{src}','{uid(1)}',true),('{dst}','{uid(1)}',true);
+    INSERT INTO {schema}.ew_compras_pedidos VALUES('{uid(n)}',{n},'{uid(1)}',null,null,'{src}','{items}','ABERTO');
+    """)
+    sql(receive(n,600+n,21,2))
+def transfer_reversal_race(n,transfer_first):
+    src=uid(400+n)
+    dst=uid(500+n)
+    receipt=sql(f"select id from {schema}.ew_compras_recebimentos where pedido_id='{uid(n)}'")
+    transfer=f"set ewgest.test_uid='{uid(21)}'; select {schema}.ew_compras_transferir_locais('{uid(1)}','EMPRESA','{src}','EMPRESA','{dst}','{uid(9)}',6000,'BARRA',2,'AFOGADOS','AFOGADOS','Teste concorrencia','{uid(700+n)}');"
+    reverse=f"set ewgest.test_uid='{uid(22)}'; select {schema}.ew_compras_estornar_recebimento('{receipt}','Teste concorrencia','{uid(800+n)}');"
+    first,second=(transfer,reverse) if transfer_first else (reverse,transfer)
+    a=process("BEGIN; "+first+" select pg_sleep(12); COMMIT;","ewgest-race-a")
+    b=None
+    try:
+        wait_for("ewgest-race-a","Timeout","PgSleep")
+        b=process("BEGIN; "+second+" COMMIT;","ewgest-race-b")
+        wait_for("ewgest-race-b","Lock")
+        _,err_a=a.communicate(timeout=25)
+        _,err_b=b.communicate(timeout=25)
+        assert a.returncode==0,err_a
+        expected="Existe transferência ou saída posterior" if transfer_first else "Saldo insuficiente"
+        assert b.returncode!=0 and expected in err_b,err_b
+        counts=sql(f"""select
+         (select coalesce(sum(quantidade_delta),0) from {schema}.ew_compras_estoque_empresa where local_empresa_id='{src}')||'|'||
+         (select coalesce(sum(quantidade_delta),0) from {schema}.ew_compras_estoque_empresa where local_empresa_id='{dst}')||'|'||
+         (select count(*) from {schema}.ew_compras_transferencias where origem_id='{src}')||'|'||
+         (select status from {schema}.ew_compras_pedidos where id='{uid(n)}')""")
+        assert counts==("0|2|1|CONCLUIDO" if transfer_first else "0|0|0|ABERTO"),counts
+        print(f"PASS transfer reversal {'transfer-first' if transfer_first else 'reversal-first'}: observed lock, {counts}",flush=True)
+    finally:
+        for proc in (a,b):
+            if proc is not None and proc.poll() is None:
+                proc.kill()
+                proc.communicate()
+transfer_reversal_race(8,True)
+transfer_reversal_race(10,False)
