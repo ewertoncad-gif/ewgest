@@ -84,6 +84,20 @@ Com as cinco propostas de banco v46.21 carregadas na mesma transação sintétic
 - O ensaio de regressão de operações básicas da versão 46.21 (`10_fluxo_pedidos_transferencias_rollback.sql`) continua aprovado.
 - O GitHub Actions verifica a sintaxe e os contratos da interface e das funções SQL; isso não substitui os testes de navegador.
 
+### Relatórios, comprovantes e proteção de repetição — 24/11/2026
+
+- **Relatórios → Custos do estoque da empresa**: novo relatório financeiro, separado do faturamento e das despesas das obras. Consulta `ew_compras_notas_empresa` apenas, com filtros de local de estoque, fornecedor e período; permite mostrar notas canceladas sem incluí-las nos totais ativos. Exportação CSV e impressão reutilizam os controles existentes.
+- Visibilidade do relatório restrita à combinação de flags `relatorios.financeiros`, `financeiro.consultar` e `compras.consultar_valores`. Os registros permanecem protegidos pelas políticas RLS do livro fiscal.
+- **Estoque → Transferir entre locais → Imprimir espelho**: duas vias com origem, destino, galpões, material, quantidade, data, status e identificador histórico. É um documento interno de consulta, **não gera nova movimentação**, não substitui NF-e ou documentos legais de transporte.
+- O recebimento por pedido agora **bloqueia a linha do pedido antes da checagem de operação repetida**, garantindo serialização por pedido. O gatilho de NF-e usa a mesma trava transacional por material/obra/unidade para evitar duas entradas físicas simultâneas originadas por fluxos diferentes.
+- Solicitações e cotações usam uma trava por identificador de operação, após autorização. O reenvio de solicitações, cotações, pedidos e recebimentos confere também empresa, pedido e dados associados, evitando reutilização de IDs com novos valores.
+- Novo teste `scripts/test-relatorios-custos-empresa-v4621.mjs` usa dados sintéticos para verificar totais em centavos, documentos cancelados, filtros, empresa isolada e bloqueio de permissão, executado pelo GitHub Actions.
+- `scripts/test-compras-v4621.mjs` valida a impressão interna, as duas vias e a sanitização de texto HTML.
+- `tests/compras_v4621/50_idempotencia_operacoes_rollback.sql` foi executado em `ewgest-restauracao-teste` com `ROLLBACK`: reenvio idêntico aceito, alteração de valores/quantidades com mesmo ID rejeitada, nenhum saldo duplicado e apenas um registro por operação.
+- As quatro baterias anteriores de SQL (10/20/30/40) foram novamente executadas na restauração de testes, aprovadas e revertidas integralmente.
+
+**Ainda pendente:** ensaio com **duas sessões reais simultâneas** em uma base de homologação preparada para esse fim. Os bloqueios de concorrência foram implementados e os casos sequenciais testados, mas não se deve declarar corrida simultânea homologada sem o ensaio específico.
+
 ### Limitações dos testes
 
 - Testes de transação executados em ambiente isolado com dados sintéticos. **Não** equivalem à homologação visual nem à verificação de fluxos de notas fiscais reais.
