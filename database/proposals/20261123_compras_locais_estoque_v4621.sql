@@ -190,14 +190,25 @@ end;$f$;
 create or replace function public.ew_compras_criar_solicitacao(
  p_empresa_id uuid,p_obra_id uuid,p_local_empresa_id uuid,p_itens jsonb,p_observacoes text,p_operacao_id uuid)
 returns jsonb language plpgsql security definer set search_path='' as $f$
-declare v_item jsonb;v_id uuid;v_var public.ew_materiais_variacoes%rowtype;
+declare v_item jsonb;v_id uuid;v_prev public.ew_compras_solicitacoes%rowtype;v_var public.ew_materiais_variacoes%rowtype;
  v_q numeric;v_unit text;v_length integer;v_key text;v_seen text[]:=array[]::text[];v_clean jsonb:='[]'::jsonb;
 begin
  perform public.ew_exigir_sessao_atual();
  if not public.ew_pode(p_empresa_id,'compras.solicitar') then raise exception 'Sem permissão para solicitar.';end if;
  if p_operacao_id is null then raise exception 'Identificador da operação obrigatório.';end if;
- select id into v_id from public.ew_compras_solicitacoes where operacao_id=p_operacao_id;
- if found then return jsonb_build_object('id',v_id,'repetida',true);end if;
+ -- Isolar a tentativa idempotente por operação e por empresa.
+ perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+   'COMPRAS_SOLIC|'||p_operacao_id::text,38640));
+ select * into v_prev from public.ew_compras_solicitacoes where operacao_id=p_operacao_id;
+ if found then
+  if v_prev.empresa_id<>p_empresa_id OR
+     v_prev.obra_id IS DISTINCT FROM p_obra_id OR
+     v_prev.local_empresa_id IS DISTINCT FROM p_local_empresa_id OR
+     v_prev.itens IS DISTINCT FROM p_itens OR
+     v_prev.observacoes IS DISTINCT FROM left(coalesce(p_observacoes,''),600)
+  then raise exception 'Identificador de solicitação usado anteriormente para outros dados.';end if;
+  return jsonb_build_object('id',v_prev.id,'repetida',true);
+ end if;
  if (p_obra_id is null)=(p_local_empresa_id is null) then raise exception 'Escolha obra ou local da empresa.';end if;
  if p_obra_id is not null and not exists(
   select 1 from public.obras where id=p_obra_id and empresa_id=p_empresa_id and arquivada_em is null)
@@ -238,16 +249,33 @@ end;$f$;
 create or replace function public.ew_compras_criar_cotacao(
  p_solicitacao_id uuid,p_fornecedor_id uuid,p_precos jsonb,p_operacao_id uuid)
 returns jsonb language plpgsql security definer set search_path='' as $f$
-declare v_s public.ew_compras_solicitacoes%rowtype;v_i jsonb;v_price jsonb;
+declare v_s public.ew_compras_solicitacoes%rowtype;v_prev public.ew_compras_cotacoes%rowtype;
+ v_i jsonb;v_price jsonb;v_old_prices jsonb;v_new_prices jsonb;
  v_id uuid;v_value bigint;v_total bigint:=0;v_items jsonb:='[]'::jsonb;
 begin
  perform public.ew_exigir_sessao_atual();
  if p_operacao_id is null then raise exception 'Operação inválida.';end if;
- select id into v_id from public.ew_compras_cotacoes where operacao_id=p_operacao_id;
- if found then return jsonb_build_object('id',v_id,'repetida',true);end if;
  select * into v_s from public.ew_compras_solicitacoes where id=p_solicitacao_id;
- if not found or v_s.status<>'ABERTA' then raise exception 'Solicitação indisponível.';end if;
+ if not found then raise exception 'Solicitação não encontrada.';end if;
  if not public.ew_pode(v_s.empresa_id,'compras.cotar') then raise exception 'Sem permissão para cotar.';end if;
+ perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+   'COMPRAS_COTACAO|'||p_operacao_id::text,38640));
+ select * into v_prev from public.ew_compras_cotacoes where operacao_id=p_operacao_id;
+ if found then
+  select jsonb_agg(jsonb_build_object('chave',x.value->>'chave',
+    'preco_unitario_centavos',(x.value->>'preco_unitario_centavos')::bigint)
+    order by x.value->>'chave') into v_old_prices
+  from jsonb_array_elements(v_prev.itens) x;
+  select jsonb_agg(jsonb_build_object('chave',x.value->>'chave',
+    'preco_unitario_centavos',(x.value->>'preco_unitario_centavos')::bigint)
+    order by x.value->>'chave') into v_new_prices
+  from jsonb_array_elements(p_precos) x;
+  if v_prev.empresa_id<>v_s.empresa_id OR v_prev.solicitacao_id<>v_s.id
+    OR v_prev.fornecedor_id<>p_fornecedor_id OR v_old_prices IS DISTINCT FROM v_new_prices
+  then raise exception 'Identificador de cotação usado anteriormente para outros dados.';end if;
+  return jsonb_build_object('id',v_prev.id,'total_centavos',v_prev.total_centavos,'repetida',true);
+ end if;
+ if v_s.status<>'ABERTA' then raise exception 'Solicitação indisponível.';end if;
  if not exists(select 1 from public.ew_fornecedores
  where id=p_fornecedor_id and empresa_id=v_s.empresa_id and ativo) then raise exception 'Fornecedor inválido.';end if;
  if jsonb_typeof(p_precos) is distinct from 'array' or jsonb_array_length(p_precos)<>jsonb_array_length(v_s.itens)
@@ -268,17 +296,22 @@ end;$f$;
 create or replace function public.ew_compras_criar_pedido(p_cotacao_id uuid,p_operacao_id uuid)
 returns jsonb language plpgsql security definer set search_path='' as $f$
 declare v_q public.ew_compras_cotacoes%rowtype;v_s public.ew_compras_solicitacoes%rowtype;
- v_id uuid;v_numero bigint;
+ v_prev public.ew_compras_pedidos%rowtype;v_id uuid;v_numero bigint;
 begin
  perform public.ew_exigir_sessao_atual();
  if p_operacao_id is null then raise exception 'Operação inválida.';end if;
- select id,numero into v_id,v_numero from public.ew_compras_pedidos where operacao_id=p_operacao_id;
- if found then return jsonb_build_object('id',v_id,'numero',v_numero,'repetida',true);end if;
  select * into v_q from public.ew_compras_cotacoes where id=p_cotacao_id;
  if not found then raise exception 'Cotação não encontrada.';end if;
  select * into v_s from public.ew_compras_solicitacoes where id=v_q.solicitacao_id for update;
- if v_s.status<>'ABERTA' then raise exception 'Solicitação já convertida ou cancelada.';end if;
+ if not found then raise exception 'Solicitação da cotação não encontrada.';end if;
  if not public.ew_pode(v_s.empresa_id,'compras.pedir') then raise exception 'Sem permissão para pedidos.';end if;
+ select * into v_prev from public.ew_compras_pedidos where operacao_id=p_operacao_id;
+ if found then
+  if v_prev.empresa_id<>v_s.empresa_id OR v_prev.cotacao_id<>v_q.id
+  then raise exception 'Identificador de pedido usado anteriormente para outra cotação.';end if;
+  return jsonb_build_object('id',v_prev.id,'numero',v_prev.numero,'repetida',true);
+ end if;
+ if v_s.status<>'ABERTA' then raise exception 'Solicitação já convertida ou cancelada.';end if;
  insert into public.ew_compras_pedidos(empresa_id,solicitacao_id,cotacao_id,fornecedor_id,
   obra_id,local_empresa_id,operacao_id,itens,total_centavos,criado_por)
  values(v_q.empresa_id,v_s.id,v_q.id,v_q.fornecedor_id,v_s.obra_id,v_s.local_empresa_id,
