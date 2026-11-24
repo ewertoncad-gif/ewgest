@@ -46,7 +46,8 @@ function chunks(list,size=60){
  return groups;
 }
 async function render(root,context){
- if(!context?.empresa_id||!root?.isConnected)return;
+ if(!context?.empresa_id||!root?.isConnected||!temPermissao('financeiro.despesas')||
+ !temPermissao('financeiro.consultar')||!temPermissao('compras.consultar_valores'))return;
  const works=context.orders.filter(p=>p.obra_id&&p.status!=='CANCELADO');
  root.innerHTML='<h3>Conciliação de nota fiscal e pedido</h3>'+
   '<p class="hint">A nota deve estar aprovada no Financeiro. Aqui você vincula seus itens aos materiais que já foram recebidos por pedido — sem acrescentar estoque novamente.</p>'+
@@ -54,7 +55,7 @@ async function render(root,context){
   works.map(p=>option(p.id,'Pedido #'+p.numero+' · '+(context.workNames?.find(w=>w.id===p.obra_id)?.nome||'Obra'))).join('')+
   '</select></label><div id="ewCompNFNote"></div><div id="ewCompNFItems"></div>'+
   '<p id="ewCompNFStatus" role="status" class="feedback"></p>'+
-  (context.orders.some(p=>p.local_empresa_id)?'<p class="hint">A conciliação financeira de estoques próprios da empresa será tratada separadamente, sem atribuir despesas a obras fictícias.</p>':'');
+  (context.orders.some(p=>p.local_empresa_id)?'<p class="hint">As notas do estoque empresarial são registradas na seção independente abaixo.</p>':'');
  const status=msg=>{if($('ewCompNFStatus'))$('ewCompNFStatus').textContent=msg||''};
  window.ewComprasNfeEmpresa?.render(root,context);
  $('ewCompNFOrder').onchange=async()=>{
@@ -161,7 +162,7 @@ async function render(root,context){
       }
      }
      $('ewCompNFItems').innerHTML='<form id="ewCompNFForm">'+
-      '<p class="hint">Confira os itens, marque os recebimentos correspondentes e vincule ao item da nota. Nenhuma baixa ou entrada física ocorrerá.</p>'+
+      '<p class="hint">Confira os itens e o saldo disponível de cada linha fiscal. Se selecionar várias entregas para uma linha, a soma também precisa caber no saldo da nota. Nenhum movimento físico será gerado.</p>'+
       '<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr>'+
       '<th>Vincular</th><th>Data</th><th>Material</th><th>Recebido</th><th>Item da nota</th>'+
       '</tr></thead><tbody>'+html+'</tbody></table></div>'+
@@ -174,6 +175,26 @@ async function render(root,context){
         recebimento_id:row.dataset.nfReceipt,chave:row.dataset.nfKey}));
       if(!list.length||list.some(x=>!x.despesa_item_id)){
        status('Selecione as linhas físicas e seus itens fiscais.');return;
+      }
+      if(list.length>150){status('Associe no máximo 150 entregas por operação.');return;}
+      const selectedByItem=new Map();
+      for(const picked of list){
+       const rec=owned.find(x=>x.id===picked.recebimento_id);
+       const physical=rec?.itens?.find(x=>String(x.chave)===picked.chave);
+       const line=p.itens.find(x=>String(x.chave)===picked.chave);
+       const invoice=(fiscalItems||[]).find(x=>x.id===picked.despesa_item_id);
+       const qty=quantityAsInvoice(line,physical?.quantidade,invoice?.unidade);
+       if(!physical||!line||!invoice||qty===null||
+          !compatible(line,invoice,context.variations,currentNote?.categoria)){
+        status('Material, unidade ou quantidade incompatível com o item fiscal.');return;
+       }
+       selectedByItem.set(invoice.id,(selectedByItem.get(invoice.id)||0)+qty);
+      }
+      for(const [itemId,qty] of selectedByItem){
+       const invoice=fiscalItems.find(x=>x.id===itemId);
+       if(qty+(fiscalUsed.get(itemId)||0)>Number(invoice.quantidade)+0.0001){
+        status('A soma das entregas excede o saldo da nota para '+invoice.descricao+'.');return;
+       }
       }
       const btn=$('ewCompNFForm').querySelector('[type="submit"]');btn.disabled=true;
       try{
