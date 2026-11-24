@@ -166,4 +166,15 @@ REVOKE EXECUTE ON FUNCTION public.ew_compras_exigir_cotacao_ativa(),
  public.ew_compras_proteger_estorno_recebimento_conciliado(),
  public.ew_compras_proteger_recebimento_nfe()
  FROM PUBLIC, anon, authenticated;
+-- RLS continua obrigatório; remover também privilégios de tabela de anon.
+DO $priv$
+DECLARE t record;
+BEGIN
+ FOR t IN SELECT tablename FROM pg_catalog.pg_tables
+  WHERE schemaname='public' AND tablename LIKE 'ew\_compras\_%' ESCAPE '\'
+ LOOP
+  EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC, anon',t.tablename);
+ END LOOP;
+END;
+$priv$;
 COMMIT;
