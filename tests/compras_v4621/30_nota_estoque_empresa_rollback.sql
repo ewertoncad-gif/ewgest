@@ -59,8 +59,10 @@ BEGIN
  IF v_total<>10000 THEN RAISE EXCEPTION 'Soma dos custos empresariais errada.';END IF;
  v_result:=public.ew_compras_registrar_nota_empresa(
   v_pedido,'NF-EMP-0001',current_date,null,10000,
-  jsonb_build_array(jsonb_build_object('recebimento_id',v_rec1,'chave','X01','valor_total_centavos',4000)),
-  'Reenvio de operação simulada',v_note_op);
+  jsonb_build_array(
+   jsonb_build_object('recebimento_id',v_rec1,'chave','X01','valor_total_centavos',4000),
+   jsonb_build_object('recebimento_id',v_rec2,'chave','X01','valor_total_centavos',6000)
+  ),'Reenvio da mesma operação',v_note_op);
  IF coalesce((v_result->>'repetida')::boolean,false) IS DISTINCT FROM true
  THEN RAISE EXCEPTION 'Registro fiscal repetido não foi idempotente.';END IF;
  v_failed:=false;
