@@ -8,6 +8,7 @@ DECLARE
  v_uid uuid;v_empresa uuid;v_obra uuid;v_perfil uuid;v_variacao uuid;v_fornecedor uuid;
  v_solic uuid;v_cot uuid;v_pedido uuid;v_receb1 uuid;v_receb2 uuid;
  v_despesa uuid;v_item uuid;v_item_incorreto uuid;v_assoc uuid;
+ v_desp_outra_barra uuid;v_item_outra_barra uuid;v_mov_outra_barra uuid;
  v_ret jsonb;v_falhou boolean;v_revert_op uuid:=gen_random_uuid();
  v_mov uuid;v_before numeric;v_after numeric;
 BEGIN
@@ -108,6 +109,36 @@ BEGIN
  EXCEPTION WHEN others THEN v_falhou:=true;END;
  IF NOT v_falhou THEN RAISE EXCEPTION 'NF do mesmo material/fornecedor não foi bloqueada.';END IF;
 
+ -- Outro comprimento do MESMO perfil representa outro item físico.
+ -- O vínculo de 6000 mm não deve bloquear entrada legítima de 7000 mm.
+ INSERT INTO public.ew_estoque_obras_movimentos(
+  empresa_id,obra_id,variacao_id,comprimento_mm,unidade,
+  quantidade_delta,origem,operacao_id,observacao,usuario_id,local_estoque)
+ VALUES(v_empresa,v_obra,v_variacao,7000,'BARRA',1,'COMPRA',
+  gen_random_uuid(),'Entrada de 7000 mm para teste de comprimento',v_uid,'IMBIRIBEIRA')
+ RETURNING id INTO v_mov_outra_barra;
+ INSERT INTO public.ew_obra_despesas(
+  empresa_id,obra_id,categoria,valor,fornecedor,numero_documento,
+  origem,chave_nfe,status,observacoes,criado_por,aprovado_por,aprovado_em)
+ VALUES(v_empresa,v_obra,'aluminio',280.00,'FORNECEDOR TESTE NF V4621',
+  'NF TESTE OUTRO COMPRIMENTO','nfe_xml',repeat('3',44),'aprovada',
+  'NF independente para barra de 7000 mm',v_uid,v_uid,now())
+ RETURNING id INTO v_desp_outra_barra;
+ INSERT INTO public.ew_obra_despesas_itens(
+  despesa_id,empresa_id,codigo_fornecedor,descricao,unidade,quantidade,
+  valor_unitario,valor_total,perfil_id)
+ VALUES(v_desp_outra_barra,v_empresa,'TESTE-NF-PERFIL',
+  'Perfil independente 7000mm','BARRA',1,280.00,280.00,v_perfil)
+ RETURNING id INTO v_item_outra_barra;
+ INSERT INTO public.ew_nfe_recebimentos(
+  empresa_id,obra_id,despesa_item_id,variacao_id,comprimento_mm,unidade,
+  quantidade,local_estoque,movimento_id,usuario_id)
+ VALUES(v_empresa,v_obra,v_item_outra_barra,v_variacao,7000,'BARRA',1,
+   'IMBIRIBEIRA',v_mov_outra_barra,v_uid);
+ IF NOT EXISTS(SELECT 1 FROM public.ew_nfe_recebimentos
+    WHERE despesa_item_id=v_item_outra_barra AND estornado_em IS NULL)
+ THEN RAISE EXCEPTION 'Nota de barra com comprimento diferente foi bloqueada indevidamente.';END IF;
+
  v_falhou:=false;
  BEGIN
   UPDATE public.ew_obra_despesas SET status='cancelada' WHERE id=v_despesa;
@@ -128,7 +159,8 @@ BEGIN
  IF coalesce((v_ret->>'estornado')::boolean,false) IS DISTINCT FROM true
  THEN RAISE EXCEPTION 'Estorno após desvinculação falhou.';END IF;
  SELECT coalesce(sum(quantidade_delta),0) INTO v_after
- FROM public.ew_estoque_obras_movimentos m WHERE m.obra_id=v_obra;
+ FROM public.ew_estoque_obras_movimentos m WHERE m.obra_id=v_obra
+  AND m.comprimento_mm=6000;
  IF v_after<>2 THEN RAISE EXCEPTION 'Estoque após estorno deveria ser 2 barras, encontrado %.',v_after;END IF;
  -- Nota pode ser cancelada após desfazer vínculo; não gera estoque no cancelamento.
  UPDATE public.ew_obra_despesas SET status='cancelada' WHERE id=v_despesa;
