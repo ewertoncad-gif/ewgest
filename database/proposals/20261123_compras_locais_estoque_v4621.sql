@@ -92,7 +92,11 @@ create table if not exists public.ew_compras_recebimentos(
  operacao_id uuid not null unique,
  itens jsonb not null check(jsonb_typeof(itens)='array'),
  criado_em timestamptz not null default now(),
- criado_por uuid not null references auth.users(id)
+ criado_por uuid not null references auth.users(id),
+ estornado_em timestamptz,
+ estornado_por uuid references auth.users(id),
+ estorno_motivo text,
+ estorno_operacao_id uuid unique
 );
 create index if not exists ew_compras_receb_pedido_idx on public.ew_compras_recebimentos(pedido_id);
 
@@ -102,15 +106,22 @@ create table if not exists public.ew_compras_estoque_empresa(
  id uuid primary key default gen_random_uuid(),
  empresa_id uuid not null references public.empresas(id),
  local_empresa_id uuid not null references public.ew_compras_locais_empresa(id),
- recebimento_id uuid not null references public.ew_compras_recebimentos(id),
- chave text not null,
+ recebimento_id uuid references public.ew_compras_recebimentos(id),
+ chave text,
  variacao_id uuid not null references public.ew_materiais_variacoes(id),
  galpao text not null,
  unidade text not null,
  comprimento_mm integer,
- quantidade_delta numeric(16,3) not null check(quantidade_delta>0),
+ quantidade_delta numeric(16,3) not null check(quantidade_delta<>0),
+ origem text not null default 'RECEBIMENTO_PEDIDO' check(origem in ('RECEBIMENTO_PEDIDO','ESTORNO_PEDIDO','TRANSFERENCIA','ESTORNO_TRANSFERENCIA')),
+ operacao_id uuid not null unique default gen_random_uuid(),
+ transferencia_id uuid,
+ estorno_de_id uuid unique references public.ew_compras_estoque_empresa(id),
  criado_em timestamptz not null default now(),
  unique(recebimento_id,chave),
+ constraint ew_compras_empresa_origem check((origem='RECEBIMENTO_PEDIDO' and recebimento_id is not null and chave is not null and quantidade_delta>0)
+   or (origem<>'RECEBIMENTO_PEDIDO' and recebimento_id is null and chave is null)),
+ constraint ew_compras_empresa_origem_estorno check((origem in ('ESTORNO_PEDIDO','ESTORNO_TRANSFERENCIA'))=(estorno_de_id is not null)),
  constraint ew_compras_empresa_comprimento check(
    (unidade='BARRA' and comprimento_mm between 100 and 20000 and quantidade_delta=trunc(quantidade_delta))
    or (unidade<>'BARRA' and comprimento_mm is null))
@@ -118,12 +129,26 @@ create table if not exists public.ew_compras_estoque_empresa(
 create index if not exists ew_compras_estoque_empresa_idx
  on public.ew_compras_estoque_empresa(empresa_id,local_empresa_id,galpao,variacao_id);
 
+-- Uma linha de recebimento deve apontar exatamente para um movimento físico.
+create table if not exists public.ew_compras_recebimentos_movimentos(
+ empresa_id uuid not null references public.empresas(id),
+ recebimento_id uuid not null references public.ew_compras_recebimentos(id),
+ chave text not null,
+ movimento_obra_id uuid unique references public.ew_estoque_obras_movimentos(id),
+ movimento_empresa_id uuid unique references public.ew_compras_estoque_empresa(id),
+ primary key (recebimento_id,chave),
+ constraint ew_compras_vinculo_exclusivo check((movimento_obra_id is null)<>(movimento_empresa_id is null))
+);
+create index if not exists ew_compras_vinculos_emp_idx
+ on public.ew_compras_recebimentos_movimentos(empresa_id,recebimento_id);
+
 alter table public.ew_compras_locais_empresa enable row level security;
 alter table public.ew_compras_solicitacoes enable row level security;
 alter table public.ew_compras_cotacoes enable row level security;
 alter table public.ew_compras_pedidos enable row level security;
 alter table public.ew_compras_recebimentos enable row level security;
 alter table public.ew_compras_estoque_empresa enable row level security;
+alter table public.ew_compras_recebimentos_movimentos enable row level security;
 
 create policy "ew_compras_locais_leitura" on public.ew_compras_locais_empresa
  for select to authenticated using
@@ -138,13 +163,15 @@ create policy "ew_compras_receb_leitura" on public.ew_compras_recebimentos
  for select to authenticated using(public.ew_pode(empresa_id,'compras.consultar') or public.ew_pode(empresa_id,'compras.receber'));
 create policy "ew_compras_estoque_leitura" on public.ew_compras_estoque_empresa
  for select to authenticated using(public.ew_pode(empresa_id,'estoque.consultar'));
+create policy "ew_compras_vinculos_leitura" on public.ew_compras_recebimentos_movimentos
+ for select to authenticated using(public.ew_pode(empresa_id,'compras.consultar') or public.ew_pode(empresa_id,'compras.receber'));
 
 grant select on public.ew_compras_locais_empresa,public.ew_compras_solicitacoes,
  public.ew_compras_cotacoes,public.ew_compras_pedidos,public.ew_compras_recebimentos,
- public.ew_compras_estoque_empresa to authenticated;
+ public.ew_compras_estoque_empresa,public.ew_compras_recebimentos_movimentos to authenticated;
 revoke insert,update,delete on public.ew_compras_locais_empresa,public.ew_compras_solicitacoes,
  public.ew_compras_cotacoes,public.ew_compras_pedidos,public.ew_compras_recebimentos,
- public.ew_compras_estoque_empresa from anon,authenticated;
+ public.ew_compras_estoque_empresa,public.ew_compras_recebimentos_movimentos from anon,authenticated;
 
 create or replace function public.ew_compras_criar_local_empresa(p_empresa_id uuid,p_nome text)
 returns jsonb language plpgsql security definer set search_path='' as $f$
@@ -264,7 +291,7 @@ create or replace function public.ew_compras_receber_pedido(
 returns jsonb language plpgsql security definer set search_path='' as $f$
 declare v_p public.ew_compras_pedidos%rowtype;v_id uuid;v_i jsonb;v_original jsonb;
  v_chave text;v_seen text[]:=array[]::text[];v_q numeric;v_total numeric;
- v_ja numeric;v_clean jsonb:='[]'::jsonb;v_all boolean:=true;
+ v_ja numeric;v_clean jsonb:='[]'::jsonb;v_all boolean:=true;v_movimento uuid;
  v_galpao text:=upper(btrim(coalesce(p_galpao,'')));
 begin
  perform public.ew_exigir_sessao_atual();
@@ -305,7 +332,7 @@ begin
   select coalesce(sum((u.value->>'quantidade')::numeric),0) into v_ja
   from public.ew_compras_recebimentos r
   cross join lateral jsonb_array_elements(r.itens) u(value)
-  where r.pedido_id=v_p.id and u.value->>'chave'=v_chave;
+  where r.pedido_id=v_p.id and r.estornado_em is null and u.value->>'chave'=v_chave;
   if v_q is null or v_q<=0 or v_q>v_total-v_ja or v_q>1000000 or
      ((v_original->>'unidade') in ('BARRA','MT','PC','PR','CJ','UN') and v_q<>trunc(v_q))
   then raise exception 'Quantidade inválida. Item %, pendente %.',v_chave,v_total-v_ja;end if;
@@ -323,18 +350,25 @@ begin
    values(v_p.empresa_id,v_p.obra_id,(v_original->>'variacao_id')::uuid,
     (v_original->>'comprimento_mm')::integer,v_original->>'unidade',v_q,
     'COMPRA',gen_random_uuid(),'Recebimento físico do pedido #'||v_p.numero||' · comprovante '||v_id,
-    auth.uid(),v_galpao);
+    auth.uid(),v_galpao)
+   returning id into v_movimento;
   else
    insert into public.ew_compras_estoque_empresa(
     empresa_id,local_empresa_id,recebimento_id,chave,variacao_id,galpao,unidade,comprimento_mm,quantidade_delta)
    values(v_p.empresa_id,v_p.local_empresa_id,v_id,v_chave,(v_original->>'variacao_id')::uuid,
-     v_galpao,v_original->>'unidade',(v_original->>'comprimento_mm')::integer,v_q);
+     v_galpao,v_original->>'unidade',(v_original->>'comprimento_mm')::integer,v_q)
+   returning id into v_movimento;
   end if;
+  insert into public.ew_compras_recebimentos_movimentos(
+   empresa_id,recebimento_id,chave,movimento_obra_id,movimento_empresa_id)
+  values(v_p.empresa_id,v_id,v_chave,
+   case when v_p.obra_id is not null then v_movimento else null end,
+   case when v_p.local_empresa_id is not null then v_movimento else null end);
  end loop;
  for v_original in select value from jsonb_array_elements(v_p.itens) loop
   select coalesce(sum((u.value->>'quantidade')::numeric),0) into v_ja
   from public.ew_compras_recebimentos r cross join lateral jsonb_array_elements(r.itens) u(value)
-  where r.pedido_id=v_p.id and u.value->>'chave'=v_original->>'chave';
+  where r.pedido_id=v_p.id and r.estornado_em is null and u.value->>'chave'=v_original->>'chave';
   if v_ja < (v_original->>'quantidade')::numeric then v_all:=false;end if;
  end loop;
  update public.ew_compras_pedidos set status=case when v_all then 'CONCLUIDO' else 'PARCIAL' end where id=v_p.id;
