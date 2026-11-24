@@ -74,9 +74,9 @@ begin
  if not v_block then raise exception 'Nível 03 cancelou pedido.';end if;
 
  -- Nível 05: permite cotação e pedido, não solicitação.
- update public.usuarios_empresas set nivel_acesso=5,perfil='financeiro'
+ update public.usuarios_empresas set nivel_acesso=5,perfil='consulta'
  where usuario_id=v_uid and empresa_id=v_emp;
- update public.usuarios_login set nivel_acesso=5,perfil='financeiro'
+ update public.usuarios_login set nivel_acesso=5,perfil='consulta'
  where usuario_id=v_uid and empresa_id=v_emp;
  v_res:=public.ew_compras_cancelar_cotacao(v_q1,'Cancelamento de cotação pelo financeiro',gen_random_uuid());
  if (v_res->>'cancelada')::boolean is distinct from true then raise exception 'Nível 05 deveria cancelar cotação.';end if;
