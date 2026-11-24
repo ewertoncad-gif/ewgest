@@ -252,7 +252,9 @@
     .workspaceNavCaption{padding:8px 13px;font-size:10px;letter-spacing:.105em;color:#8192a8;font-weight:850}
     .workspaceNavCaptionSecond{margin-top:20px}
     .workspaceLink{display:flex;align-items:center;gap:10px;padding:12px 11px;width:100%;text-align:left;border:1px solid transparent;border-radius:10px;background:transparent;color:#536781;font-weight:700;font-size:13px;line-height:1.3}
-    .workspaceLink:hover{background:#f2f7fd;color:#175eae}
+    .workspaceLink:not(:disabled):hover{background:#f2f7fd;color:#175eae}
+    .workspaceLink:disabled{opacity:.48;cursor:not-allowed;background:transparent;border-color:transparent;color:#536781}
+    .workspaceLink:disabled .navSymbol{background:#eef2f7;color:inherit}
     .workspaceLink.active{background:#eaf3ff;border-color:#dceaff;color:#1864bc}
     .navSymbol{display:inline-flex;justify-content:center;align-items:center;flex:none;width:27px;height:27px;border-radius:8px;background:#f0f5fa;color:#3d708f;font-size:17px}
     .workspaceLink.active .navSymbol{background:#d7eaff;color:#216bc2}
@@ -2511,6 +2513,15 @@ document.querySelectorAll('[data-show-password]').forEach(button=>{
   });
 });
 function podeEmitirRomaneio(){return temPermissao('romaneios.emitir');}
+// A falta de permissão desabilita o módulo visível, sem alterar a autorização do servidor.
+function setNavPermission(id,allowed){
+ const button=node(id);
+ button.classList.remove('hidden');
+ button.disabled=!allowed;
+ button.setAttribute('aria-disabled',String(!allowed));
+ button.title=allowed?'':'Seu nível de acesso não possui permissão para este módulo.';
+ if(!allowed){button.classList.remove('active');button.removeAttribute('aria-current');}
+}
 function setView(view){
   node('startup').classList.add('hidden');
   if(view!=='login'&&view!=='dashboard'&&view!=='myPassword'&&accessReady&&!permissaoParaTela(view))
@@ -2526,8 +2537,8 @@ function setView(view){
   for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],['navCompras','compras'],['navRecebimento','recebimento'],['navEnviarNotas','almoxNotas'],['navCadastros','cadastros'],
       ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navRelatorios','relatorios'],['navCem','cemImport'],['navUsers','users'],['navAccessLevels','accessLevels'],['navManageWorks','manageWorks']]){
     const button=node(id);
-    const selecionado=ativo===target||(id==='navCadastros'&&
-      ['materials','typologies','manufacturers','users','fornecedoresPage','galpoesPage','insumosPage','unidadesPage'].includes(ativo));
+    const selecionado=!button.disabled&&(ativo===target||(id==='navCadastros'&&
+      ['materials','typologies','manufacturers','users','fornecedoresPage','galpoesPage','insumosPage','unidadesPage'].includes(ativo)));
     button.classList.toggle('active',selecionado);
     if(selecionado)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
   }
@@ -2687,12 +2698,12 @@ async function loadPanel(){
   }
   if(!isFullAdminUser()&&node('createUserRole').value==='administrador')
     node('createUserRole').value='gerenciador';
-  node('navHome').classList.toggle('hidden',!temPermissao('obras.consultar'));
-  node('navWorks').classList.toggle('hidden',!temPermissao('obras.consultar'));
-  node('navRomaneios').classList.toggle('hidden',!temPermissao('romaneios.consultar'));
+  setNavPermission('navHome',temPermissao('obras.consultar'));
+  setNavPermission('navWorks',temPermissao('obras.consultar'));
+  setNavPermission('navRomaneios',temPermissao('romaneios.consultar'));
   node('navEnviarNotas').classList.add('hidden'); // Fluxo antigo preservado internamente; nova entrada no Recebimento.
-  node('navRecebimento').classList.toggle('hidden',!temPermissao('estoque.receber'));
-   node('navCompras').classList.toggle('hidden',!temPermissao('compras.consultar'));
+  setNavPermission('navRecebimento',temPermissao('estoque.receber'));
+   setNavPermission('navCompras',temPermissao('compras.consultar'));
    node('stockCreateCompanyLocal').classList.toggle('hidden',!temPermissao('estoque.gerenciar_locais'));
    node('stockTransferBetweenLocations').classList.toggle('hidden',!temPermissao('estoque.transferir_obras'));
   node('recebimentoXmlLegacy').classList.toggle('hidden',!isAlmoxarife());
@@ -2702,10 +2713,12 @@ async function loadPanel(){
     navAccessories:'cadastros.consultar',navStock:'estoque.consultar',
     navCem:'obras.importar',navUsers:'usuarios.gerenciar',
     navManageWorks:'obras.estornar',navFinanceiro:'financeiro.consultar'};
-  for(const [id,flag] of Object.entries(navFlags))
-    node(id).classList.toggle('hidden',!temPermissao(flag));
-  node('navRelatorios').classList.toggle('hidden',!podeVerRelatorios());
-  node('navAccessLevels').classList.toggle('hidden',!(currentAccessLevel===1&&temPermissao('niveis.gerenciar')));
+  for(const [id,flag] of Object.entries(navFlags)){
+    if(node(id).classList.contains('workspaceLink'))setNavPermission(id,temPermissao(flag));
+    else node(id).classList.toggle('hidden',!temPermissao(flag));
+  }
+  setNavPermission('navRelatorios',podeVerRelatorios());
+  setNavPermission('navAccessLevels',currentAccessLevel===1&&temPermissao('niveis.gerenciar'));
   node('openRomaneioHub').classList.toggle('hidden',!podeEmitirRomaneio()||somenteRomaneios);
   node('topTag').textContent='Nível '+String(currentAccessLevel).padStart(2,'0')+
    ' · '+(somenteRomaneios?'Almoxarifado':'Gestão de obras');
