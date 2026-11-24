@@ -1,6 +1,6 @@
 # Ensaio concorrente v46.21 — roteiro de homologação
 
-Estado: planejado, **não executado**. Nunca executar em produção.
+Estado: casos de recebimento aprovados em PostgreSQL descartável; integração completa ainda pendente. Nunca executar em produção.
 
 Pré-requisitos: restauração descartável atualizada, seis propostas SQL aplicadas apenas nessa restauração, dois usuários sintéticos com autorização de Compras/Estoque, dois clientes PostgreSQL independentes, e fixture de pedido de 2 BARRA (6000 mm), sem recebimento. Usar a estrutura da fixture de `50_idempotencia_operacoes_rollback.sql`, mas com dados comprometidos em uma base descartável para serem visíveis às duas sessões. Registrar UUIDs da empresa, usuários, pedido, obra e variação; não usar credenciais no repositório.
 
@@ -24,3 +24,6 @@ Em duas sessões, disputar cancelamento de cotação e emissão do pedido. Apena
 
 ## Evidência e encerramento
 Registrar SHA das propostas, IDs de fixtures sintéticas, resultados e SQLSTATEs (sem tokens), saldo final e tempos de espera. Não confundir timeout ou erro de permissão com bloqueio de negócio correto. Repetir ordens inversas em fixtures independentes. Limpar somente pela restauração da base descartável; nunca remover históricos reais. A aprovação exige todos os casos e verificação de que nenhuma operação atingiu produção.
+
+## Evidências CI — 24/11/2026
+Run 45510512528, job 138856738541, commit 2990a46f6b0441926b52f4687d0a792fcb184376: três casos com sessões sobrepostas, espera real de lock observada em pg_stat_activity. Excesso: CONCLUIDO|1|2; retry: CONCLUIDO|1|2 (mesmo ID); parciais: CONCLUIDO|2|2. A RPC é extraída da proposta; tabelas legadas e autorização são simuladas. Isso comprova a serialização do recebimento empresarial no cenário isolado, não a homologação de NF-e, transferências, estornos ou permissões com sessões reais do Supabase. Os casos 3–5 do roteiro ainda não executados.
