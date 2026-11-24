@@ -37,7 +37,7 @@ function operationToken(kind,payload){const signature=JSON.stringify(payload);co
  if(old&&old.signature===signature)return old.id;
  const id=crypto.randomUUID();pendingOps.set(kind,{signature,id});return id;
 }
-let tab='solicitacao',locals=[],suppliers=[],suppliersAll=[],galpoes=[],variations=[],sols=[],quotes=[],orders=[],receipts=[],stockEpoch=0,loaded=false;
+let tab='solicitacao',locals=[],suppliers=[],suppliersAll=[],galpoes=[],variations=[],sols=[],quotes=[],orders=[],receipts=[],stockEpoch=0,receivingEpoch=0,loaded=false;
 function titleLocal(row){const work=works.find(w=>w.id===row.obra_id);
  const loc=locals.find(x=>x.id===row.local_empresa_id);
  return work?'Obra · '+work.nome:loc?'Empresa · '+loc.nome:'Local indisponível';}
@@ -225,12 +225,13 @@ async function carregarLocaisRecebimento(select){
   for(const loc of values||[])select.add(new Option('Empresa · '+loc.nome,'empresa:'+loc.id));
  }catch(e){say('recebimentoMessage','Locais empresariais indisponíveis: '+e.message);}
 }
-async function atualizarRecebimento(obraId){
+async function atualizarRecebimento(obraId,preferredOrder=''){
+ const epoch=++receivingEpoch;
  const box=$('ewComprasRecebimento');
  box.classList.toggle('hidden',!obraId||!permission('compras.receber')||!permission('estoque.receber'));
  if(box.classList.contains('hidden'))return;
  box.innerHTML='<h2>Receber por pedido de compra</h2><p class="hint">Entrada física por pedido, sem lançamento fiscal automático. Consulte as quantidades já recebidas antes de confirmar.</p><p class="feedback">Consultando pedidos pendentes…</p>';
- try{await reload();if($('recebimentoWork').value!==obraId)return;
+ try{await reload();if(epoch!==receivingEpoch||$('recebimentoWork').value!==obraId)return;
  const empresaDestino=obraId.startsWith('empresa:');
  const ativos=orders.filter(p=>(empresaDestino?p.local_empresa_id===obraId.slice(8):p.obra_id===obraId)&&p.status!=='CANCELADO');
  box.innerHTML='<h2>Receber por pedido de compra</h2><p class="hint">Receba todo ou parte do pedido; somente o saldo efetivamente confirmado será acrescentado ao estoque físico.</p>'+
@@ -278,14 +279,18 @@ async function atualizarRecebimento(obraId){
  const m=receivedMap(p.id),itens=[...document.querySelectorAll('[data-receive-key]')].filter(row=>row.querySelector('[type=checkbox]').checked).map(row=>({chave:row.dataset.receiveKey,quantidade:Number(row.querySelector('[type=number]').value)}));
  if(!itens.length||itens.some(it=>{const line=p.itens.find(x=>String(x.chave)===it.chave);return !line||!validQty(it.quantidade,line.unidade)||
  it.quantidade>Number(line.quantidade)-(m.get(it.chave)||0)})){say('ewReceberMessage','Marque itens e informe quantidades inteiras dentro do saldo pendente.');return;}
- const button=$('ewReceberForm').querySelector('[type=submit]');button.disabled=true;
+ const button=$('ewReceberForm').querySelector('[type=submit]');if(button.disabled)return;button.disabled=true;
  try{await rpc('ew_compras_receber_pedido',{p_pedido_id:p.id,p_galpao:$('ewReceberGalpao').value,
   p_itens:itens,p_operacao_id:operationToken('receber',{pedido:p.id,galpao:$('ewReceberGalpao').value,itens})});
-  pendingOps.delete('receber');say('ewReceberMessage','Recebimento confirmado.');
-  await atualizarRecebimento(obraId);
- }catch(err){say('ewReceberMessage','Erro ao receber: '+err.message);}finally{button.disabled=false;}
+  pendingOps.delete('receber');
+  if(epoch===receivingEpoch&&$('recebimentoWork').value===obraId){
+   await atualizarRecebimento(obraId,p.id);
+   if($('recebimentoWork').value===obraId)say('ewReceberMessage','Recebimento confirmado.');
+  }
+ }catch(err){if(epoch===receivingEpoch)say('ewReceberMessage','Erro ao receber: '+err.message);}finally{button.disabled=false;}
  };
- }catch(e){box.querySelector('.feedback').textContent='Pedidos indisponíveis: '+e.message;}
+ if(preferredOrder&&ativos.some(p=>p.id===preferredOrder)){$('ewReceberPedido').value=preferredOrder;$('ewReceberPedido').onchange();}
+ }catch(e){if(epoch===receivingEpoch&&box.querySelector('.feedback'))box.querySelector('.feedback').textContent='Pedidos indisponíveis: '+e.message;}
 }
 async function carregarLocaisEstoque(prefer=''){
  if(!permission('estoque.consultar'))return;try{
