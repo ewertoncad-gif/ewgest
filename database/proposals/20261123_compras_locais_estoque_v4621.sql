@@ -10,7 +10,8 @@ insert into public.ew_permissoes_catalogo(chave,grupo,descricao,ordem) values
  ('compras.cotar','Compras','Registrar cotações',31),
  ('compras.pedir','Compras','Emitir pedidos de compra',32),
  ('compras.receber','Compras','Receber pedidos no estoque',33),
- ('estoque.gerenciar_locais','Estoque','Cadastrar locais de estoque da empresa',34)
+ ('estoque.gerenciar_locais','Estoque','Cadastrar locais de estoque da empresa',34),
+ ('compras.consultar_valores','Compras','Consultar valores e cotações de fornecedores',35)
 on conflict (chave) do nothing;
 
 insert into public.ew_niveis_permissoes(empresa_id,nivel,chave,permitido)
@@ -19,11 +20,11 @@ select n.empresa_id,n.nivel,p.chave,
       when p.chave='compras.consultar' and n.nivel in (3,4,5,6,7) then true
       when p.chave='compras.solicitar' and n.nivel=3 then true
       when p.chave='compras.receber' and n.nivel=4 then true
-      when p.chave in ('compras.cotar','compras.pedir') and n.nivel=5 then true
+      when p.chave in ('compras.cotar','compras.pedir','compras.consultar_valores') and n.nivel=5 then true
       else false end
 from public.ew_niveis_acesso n
 join public.ew_permissoes_catalogo p on p.chave in
- ('compras.consultar','compras.solicitar','compras.cotar','compras.pedir','compras.receber','estoque.gerenciar_locais')
+ ('compras.consultar','compras.solicitar','compras.cotar','compras.pedir','compras.receber','estoque.gerenciar_locais','compras.consultar_valores')
 on conflict (empresa_id,nivel,chave) do nothing;
 
 create table if not exists public.ew_compras_locais_empresa(
@@ -156,9 +157,9 @@ create policy "ew_compras_locais_leitura" on public.ew_compras_locais_empresa
 create policy "ew_compras_solic_leitura" on public.ew_compras_solicitacoes
  for select to authenticated using(public.ew_pode(empresa_id,'compras.consultar'));
 create policy "ew_compras_cot_leitura" on public.ew_compras_cotacoes
- for select to authenticated using(public.ew_pode(empresa_id,'compras.consultar'));
+ for select to authenticated using(public.ew_pode(empresa_id,'compras.consultar_valores'));
 create policy "ew_compras_pedido_leitura" on public.ew_compras_pedidos
- for select to authenticated using(public.ew_pode(empresa_id,'compras.consultar') or public.ew_pode(empresa_id,'compras.receber'));
+ for select to authenticated using(public.ew_pode(empresa_id,'compras.consultar_valores'));
 create policy "ew_compras_receb_leitura" on public.ew_compras_recebimentos
  for select to authenticated using(public.ew_pode(empresa_id,'compras.consultar') or public.ew_pode(empresa_id,'compras.receber'));
 create policy "ew_compras_estoque_leitura" on public.ew_compras_estoque_empresa
@@ -374,6 +375,36 @@ begin
  update public.ew_compras_pedidos set status=case when v_all then 'CONCLUIDO' else 'PARCIAL' end where id=v_p.id;
  return jsonb_build_object('id',v_id,'pedido_id',v_p.id,'status',case when v_all then 'CONCLUIDO' else 'PARCIAL' end,'repetida',false);
 end;$f$;
+
+
+-- Listagem reduzida para quem recebe pedidos: sem custo unitário ou total.
+-- Leitura direta de cotações/pedidos exige compras.consultar_valores.
+create or replace function public.ew_compras_pedidos_resumo(p_empresa_id uuid)
+returns jsonb language plpgsql security definer set search_path='' as $f$
+declare v_precos boolean;v_result jsonb;
+begin
+ perform public.ew_exigir_sessao_atual();
+ if not(public.ew_pode(p_empresa_id,'compras.consultar') or
+        public.ew_pode(p_empresa_id,'compras.receber'))
+ then raise exception 'Sem permissão para consultar pedidos.';end if;
+ v_precos:=public.ew_pode(p_empresa_id,'compras.consultar_valores');
+ select coalesce(jsonb_agg(jsonb_build_object(
+  'id',p.id,'numero',p.numero,'empresa_id',p.empresa_id,
+  'solicitacao_id',p.solicitacao_id,'cotacao_id',p.cotacao_id,
+  'fornecedor_id',p.fornecedor_id,'obra_id',p.obra_id,
+  'local_empresa_id',p.local_empresa_id,
+  'itens',case when v_precos then p.itens else
+   (select coalesce(jsonb_agg(i.value - 'preco_unitario_centavos'),'[]'::jsonb)
+    from jsonb_array_elements(p.itens) i(value)) end,
+  'total_centavos',case when v_precos then p.total_centavos else null end,
+  'status',p.status,'criado_em',p.criado_em
+ ) order by p.criado_em desc),'[]'::jsonb)
+ into v_result from public.ew_compras_pedidos p where p.empresa_id=p_empresa_id;
+ return v_result;
+end;$f$;
+
+revoke all on function public.ew_compras_pedidos_resumo(uuid) from public,anon;
+grant execute on function public.ew_compras_pedidos_resumo(uuid) to authenticated;
 
 revoke all on function public.ew_compras_criar_local_empresa(uuid,text),
  public.ew_compras_criar_solicitacao(uuid,uuid,uuid,jsonb,text,uuid),
