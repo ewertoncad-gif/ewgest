@@ -67,7 +67,13 @@ begin
 
  -- Ordem determinística para evitar inversões na aquisição de locks.
  for v_vinc in select * from public.ew_compras_recebimentos_movimentos
-   where recebimento_id=v_rec.id and empresa_id=v_rec.empresa_id order by chave
+   where recebimento_id=v_rec.id and empresa_id=v_rec.empresa_id
+   order by (select item->>'variacao_id' from jsonb_array_elements(v_ped.itens) item
+      where item->>'chave'=ew_compras_recebimentos_movimentos.chave),
+    (select coalesce(item->>'comprimento_mm','-') from jsonb_array_elements(v_ped.itens) item
+      where item->>'chave'=ew_compras_recebimentos_movimentos.chave),
+    (select item->>'unidade' from jsonb_array_elements(v_ped.itens) item
+      where item->>'chave'=ew_compras_recebimentos_movimentos.chave), chave
  loop
   select (item->>'quantidade')::numeric into v_q
   from jsonb_array_elements(v_rec.itens) item
