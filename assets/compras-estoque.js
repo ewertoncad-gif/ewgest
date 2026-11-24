@@ -17,6 +17,21 @@ const validQty=(v,un)=>{const q=Number(v);return Number.isFinite(q)&&q>0&&q<=100
 const parseMoney=v=>{const s=String(v||'').replace(/^R\\$\\s*/,'').replace(/\\s/g,'');
  if(!/^\\d+(?:[.,]\\d{1,2})?$/.test(s))return null;const c=Math.round(Number(s.replace(',','.'))*100);
  return Number.isSafeInteger(c)&&c>=0?c:null;};
+// A API pode limitar cada resposta, mesmo com limit superior. Ler páginas
+// pequenas e ordenadas por ID; nunca calcular saldos de uma página isolada.
+async function readAllRows(table,filters){
+ const rows=[];const pageSize=500;
+ for(let offset=0;offset<100000;offset+=pageSize){
+  const page=await apiGet(table,{...filters,order:'id.asc',limit:String(pageSize),offset:String(offset)});
+  if(!Array.isArray(page))throw Error('Resposta inválida ao consultar '+table+'.');
+  rows.push(...page);
+  if(page.length<pageSize){
+   if(new Set(rows.map(x=>x.id)).size!==rows.length)throw Error('Consulta mudou durante a leitura. Atualize a tela.');
+   return rows;
+  }
+ }
+ throw Error('Limite de segurança da consulta atingido. Não é possível calcular o saldo completo.');
+}
 const pendingOps=new Map();
 function operationToken(kind,payload){const signature=JSON.stringify(payload);const old=pendingOps.get(kind);
  if(old&&old.signature===signature)return old.id;
@@ -44,7 +59,7 @@ async function reload(){
   apiGet('ew_compras_solicitacoes',{select:'*',empresa_id:empresa,order:'criado_em.desc',limit:'1000'}),
   apiGet('ew_compras_cotacoes',{select:'*',empresa_id:empresa,order:'criado_em.desc',limit:'1000'}),
   rpc('ew_compras_pedidos_resumo',{p_empresa_id:currentCompany.id}),
-  apiGet('ew_compras_recebimentos',{select:'id,pedido_id,itens,criado_em,galpao,estornado_em,estorno_motivo',empresa_id:empresa,limit:'3000'})
+  readAllRows('ew_compras_recebimentos',{select:'id,pedido_id,itens,criado_em,galpao,estornado_em,estorno_motivo',empresa_id:empresa})
  ]);
  const perf=new Map((ps||[]).map(p=>[p.id,p])),acc=new Map((as||[]).map(a=>[a.id,a]));
  locals=ls||[];suppliersAll=fs||[];suppliers=suppliersAll.filter(x=>x.ativo);galpoes=(gs||[]).filter(x=>x.ativo).map(x=>x.nome);
@@ -288,7 +303,7 @@ async function renderEstoqueEmpresa(){
  $('stockRecords').classList.add('hidden');pane.classList.remove('hidden');$('insumosStockPanel')?.classList.add('hidden');$('stockLegend')?.classList.add('hidden');
  $('stockPerfCount').textContent='—';$('stockAcesCount').textContent='—';$('stockCounted').textContent='—';
  pane.innerHTML='<p class="hint">Consultando saldo físico da empresa…</p>';
- try{const rows=await apiGet('ew_compras_estoque_empresa',{select:'variacao_id,unidade,comprimento_mm,quantidade_delta,galpao',empresa_id:'eq.'+currentCompany.id,local_empresa_id:'eq.'+id,limit:'30000'});
+ try{const rows=await readAllRows('ew_compras_estoque_empresa',{select:'id,variacao_id,unidade,comprimento_mm,quantidade_delta,galpao',empresa_id:'eq.'+currentCompany.id,local_empresa_id:'eq.'+id});
  if(epoch!==stockEpoch||$('stockWork').value!=='empresa:'+id)return;
  const totals=new Map();for(const r of rows||[]){if($('stockFactoryFilter').value&&$('stockFactoryFilter').value!==r.galpao)continue;
  const key=[r.variacao_id,r.unidade,r.comprimento_mm||'',r.galpao].join('|');const old=totals.get(key)||{...r,quantidade:0};old.quantidade+=Number(r.quantidade_delta);totals.set(key,old)}
