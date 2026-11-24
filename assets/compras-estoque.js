@@ -330,7 +330,8 @@ async function abrirTransferLocal(){
      '<td>'+esc(localLabel(t.destino_tipo,t.destino_id)+' · '+t.destino_galpao)+'</td>'+
      '<td>'+esc(product?.label||t.variacao_id)+'</td><td>'+number(t.quantidade)+' '+esc(t.unidade)+'</td>'+
      '<td>'+esc(reversed?'Estornada':'Ativa')+'</td><td>'+
-     (undo?'<button type="button" class="btn secondary" data-ew-transfer-undo="'+esc(t.id)+'">Estornar</button>':'—')+
+     '<button type="button" class="btn secondary" data-ew-transfer-print="'+esc(t.id)+'">Imprimir espelho</button> '+
+     (undo?'<button type="button" class="btn secondary" data-ew-transfer-undo="'+esc(t.id)+'">Estornar</button>':'')+
      '</td></tr>';
    }).join('')+'</tbody></table></div>';
   const selected=$('stockWork')?.value||'';
@@ -375,6 +376,16 @@ async function abrirTransferLocal(){
    }catch(err){say('ewTransMessage','Transferência não realizada: '+err.message)}
    finally{button.disabled=false;}
   };
+  pane.querySelectorAll('[data-ew-transfer-print]').forEach(button=>
+   button.addEventListener('click',()=>{
+    try{
+     const movement=(history||[]).find(t=>t.id===button.dataset.ewTransferPrint);
+     if(!movement)throw Error('Movimento não encontrado neste histórico. Atualize a lista.');
+     if(!window.ewTransferReceipt)throw Error('Módulo de impressão indisponível.');
+     window.ewTransferReceipt.imprimir(movement,{locais:dest,materiais:products,
+      empresa:currentCompany?.nome||'Empresa'});
+    }catch(err){say('ewTransMessage','Não foi possível imprimir espelho: '+err.message)}
+   }));
   pane.querySelectorAll('[data-ew-transfer-undo]').forEach(button=>
    button.addEventListener('click',async ()=>{
     const id=button.dataset.ewTransferUndo;
