@@ -98,3 +98,68 @@ def run_case(p,op1,op2,q1,q2,kind):
 run_case(3,11,12,2,2,"excess")
 run_case(4,13,13,2,2,"retry")
 run_case(5,14,15,1,1,"partial")
+
+# Same material/supplier/work: exercise the exact fiscal guard in both orders.
+# Legacy movement is modeled as an insert in the same transaction, before the
+# fiscal receipt trigger. A rejected transaction must roll back that movement.
+fiscal_source=(root / "database/proposals/20261124_compras_conciliacao_nfe_v4621.sql").read_text()
+start=fiscal_source.index("CREATE OR REPLACE FUNCTION public.ew_compras_proteger_recebimento_nfe()")
+stop=fiscal_source.index("CREATE OR REPLACE FUNCTION public.ew_compras_proteger_cancelamento_nfe()",start)
+guard=fiscal_source[start:stop].replace("public.",schema+".")
+sql(f"""
+ALTER TABLE {schema}.ew_obra_despesas ADD COLUMN empresa_id uuid;
+ALTER TABLE {schema}.ew_fornecedores ADD COLUMN empresa_id uuid;
+CREATE TABLE {schema}.ew_compras_nfe_vinculos(despesa_item_id uuid,recebimento_id uuid,chave text,desvinculado_em timestamptz);
+{guard}
+INSERT INTO {schema}.ew_fornecedores VALUES('{uid(31)}','Fornecedor sintético','{uid(1)}');
+""")
+for n in (6,7):
+    work=uid(100+n)
+    note=uid(200+n)
+    item=uid(300+n)
+    items=json.dumps([dict(chave="A",variacao_id=uid(9),quantidade=2,unidade="BARRA",comprimento_mm=6000)])
+    sql(f"""
+    INSERT INTO {schema}.obras VALUES('{work}','{uid(1)}',null);
+    INSERT INTO {schema}.ew_estoques_locais VALUES('{uid(1)}','{work}','{uid(21)}',null);
+    INSERT INTO {schema}.ew_obra_despesas VALUES('{note}','aprovada','Fornecedor sintético','{uid(1)}');
+    INSERT INTO {schema}.ew_obra_despesas_itens VALUES('{item}','{note}');
+    INSERT INTO {schema}.ew_compras_pedidos VALUES('{uid(n)}',{n},'{uid(1)}','{uid(31)}','{work}',null,'{items}','ABERTO');
+    """)
+def invoice(n):
+    work=uid(100+n)
+    item=uid(300+n)
+    return f"""
+    INSERT INTO {schema}.ew_estoque_obras_movimentos(empresa_id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,origem,local_estoque)
+     VALUES('{uid(1)}','{work}','{uid(9)}',6000,'BARRA',2,'NF','AFOGADOS');
+    INSERT INTO {schema}.ew_nfe_recebimentos VALUES('{uid(1)}','{work}','{item}',null,'{uid(9)}',6000,'BARRA');
+    """
+def fiscal_race(n,order_first):
+    pedido=receive(n,40+n,21,2)
+    nf=invoice(n)
+    first,second=(pedido,nf) if order_first else (nf,pedido)
+    a=process("BEGIN; "+first+" select pg_sleep(12); COMMIT;","ewgest-race-a")
+    b=None
+    try:
+        wait_for("ewgest-race-a","Timeout","PgSleep")
+        b=process("BEGIN; "+second+" COMMIT;","ewgest-race-b")
+        wait_for("ewgest-race-b","Lock")
+        _,err_a=a.communicate(timeout=25)
+        _,err_b=b.communicate(timeout=25)
+        assert a.returncode==0,err_a
+        expected="Há materiais recebidos por pedido" if order_first else "já possuem entrada física por nota"
+        assert b.returncode!=0 and expected in err_b,err_b
+        work=uid(100+n)
+        counts=sql(f"""select
+         (select count(*) from {schema}.ew_compras_recebimentos where pedido_id='{uid(n)}')||'|'||
+         (select count(*) from {schema}.ew_nfe_recebimentos where obra_id='{work}')||'|'||
+         (select count(*) from {schema}.ew_estoque_obras_movimentos where obra_id='{work}')||'|'||
+         (select sum(quantidade_delta) from {schema}.ew_estoque_obras_movimentos where obra_id='{work}')""")
+        assert counts==("1|0|1|2" if order_first else "0|1|1|2"),counts
+        print(f"PASS fiscal {'order-first' if order_first else 'invoice-first'}: overlapping sessions, observed lock, {counts}",flush=True)
+    finally:
+        for proc in (a,b):
+            if proc is not None and proc.poll() is None:
+                proc.kill()
+                proc.communicate()
+fiscal_race(6,True)
+fiscal_race(7,False)
