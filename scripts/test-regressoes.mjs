@@ -127,7 +127,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'interface renovada v43.1',
+ 'EWGEST • v46.21',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2096,12 +2096,13 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.20')&&
+assert.ok(source.includes('v46.21')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
  source.includes("const anterior=prefer||sel.value||'';")&&
- source.includes("if(!obraId){msg.textContent='Selecione uma obra para iniciar o recebimento.';return;}")&&
+ source.includes("if(!obraId){msg.textContent='Selecione um local de estoque para iniciar o recebimento.';return;}")&&
+ source.includes("if(obraId.startsWith('empresa:')){msg.textContent='Estoque da empresa: recebimento físico exclusivamente por pedido de compra.';return;}")&&
  source.includes("el.classList.add('hidden');el.replaceChildren();return;")&&
  source.includes("x.obraId!==selected")&&
  source.includes("state.obraId!==selected"),
@@ -2329,7 +2330,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.20</strong>'),
+ source.includes('EWGEST <strong>· v46.21</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);

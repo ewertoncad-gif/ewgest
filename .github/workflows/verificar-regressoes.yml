@@ -29,3 +29,62 @@ jobs:
             cat regressao.log
             exit 1
           fi
+
+      - name: Verificar UI e contratos de Compras v46.21
+        run: node scripts/test-compras-v4621.mjs
+
+      - name: Verificar custos empresariais e isolamento financeiro
+        run: node scripts/test-relatorios-custos-empresa-v4621.mjs
+
+  navegador-compras:
+    if: github.event_name == 'pull_request'
+    # Playwright 1.56.1 é suportado no Ubuntu 24.04; latest migrou para 26.04.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preparar Playwright apenas no runner de testes
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Validar Compras, conciliação e notas corporativas no Chromium
+        run: node scripts/test-compras-browser-v4621.mjs
+
+  concorrencia-compras:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: ewgest_ci
+          POSTGRES_USER: ewgest_ci
+          POSTGRES_PASSWORD: ci-only-disposable
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ewgest_ci -d ewgest_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      EWGEST_CONCURRENCY_CI: '1'
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: ewgest_ci
+      PGUSER: ewgest_ci
+      PGPASSWORD: ci-only-disposable
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar cliente PostgreSQL
+        run: command -v psql || (sudo apt-get update && sudo apt-get install -y postgresql-client)
+      - name: Validar recebimento concorrente com duas conexões reais
+        run: python3 scripts/test-compras-concorrencia-v4621.py
