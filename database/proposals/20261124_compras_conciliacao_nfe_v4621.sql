@@ -31,14 +31,16 @@ CREATE TABLE IF NOT EXISTS public.ew_compras_nfe_vinculos (
  quantidade_nota numeric(16,3) NOT NULL CHECK(quantidade_nota>0),
  quantidade_fisica numeric(16,3) NOT NULL CHECK(quantidade_fisica>0),
  unidade_nota text NOT NULL,
+ desvinculado_em timestamptz,
  criado_em timestamptz NOT NULL DEFAULT now(),
  FOREIGN KEY(recebimento_id,chave) REFERENCES public.ew_compras_recebimentos_movimentos(recebimento_id,chave)
 );
 -- Uma entrada física não pode ser faturada como a mesma entrega por duas notas ativas.
--- A unicidade por movimento é deliberadamente permanente:
--- correções de nota exigem revisão do histórico antes de reusar o movimento.
-CREATE UNIQUE INDEX IF NOT EXISTS ew_compras_nf_recebimento_unico
- ON public.ew_compras_nfe_vinculos(recebimento_id,chave);
+-- Uma linha de pedido só pode ter uma conciliação fiscal ATIVA.
+-- A conciliação desfeita permanece no histórico.
+CREATE UNIQUE INDEX IF NOT EXISTS ew_compras_nf_recebimento_ativo_unico
+ ON public.ew_compras_nfe_vinculos(recebimento_id,chave)
+ WHERE desvinculado_em IS NULL;
 CREATE INDEX IF NOT EXISTS ew_compras_nf_despesa_item_idx
  ON public.ew_compras_nfe_vinculos(empresa_id,despesa_item_id);
 
@@ -122,7 +124,7 @@ BEGIN
    AND empresa_id=v_p.empresa_id AND movimento_obra_id IS NOT NULL;
   IF NOT FOUND THEN RAISE EXCEPTION 'Movimento de estoque da obra não vinculado ao recebimento.';END IF;
   IF EXISTS(SELECT 1 FROM public.ew_compras_nfe_vinculos
-   WHERE recebimento_id=v_r.id AND chave=v_i->>'chave')
+   WHERE recebimento_id=v_r.id AND chave=v_i->>'chave' AND desvinculado_em IS NULL)
   THEN RAISE EXCEPTION 'Esta entrada física já foi vinculada a uma nota. Verifique o histórico.';END IF;
   SELECT value INTO v_line FROM jsonb_array_elements(v_p.itens)
   WHERE value->>'chave'=v_i->>'chave';
@@ -195,6 +197,8 @@ BEGIN
   IF v_h.desvinculo_operacao_id=p_operacao_id THEN
    RETURN jsonb_build_object('id',v_h.id,'repetida',true);END IF;
   RAISE EXCEPTION 'Conciliação fiscal já desvinculada.';END IF;
+ UPDATE public.ew_compras_nfe_vinculos SET desvinculado_em=now()
+ WHERE conciliacao_id=v_h.id AND desvinculado_em IS NULL;
  UPDATE public.ew_compras_nfe_conciliacoes SET
   desvinculado_em=now(),desvinculado_por=auth.uid(),
   desvinculo_motivo=v_reason,desvinculo_operacao_id=p_operacao_id
