@@ -129,10 +129,22 @@ Foram encontrados, corrigidos e testados dois problemas da proposta v46.21 **ant
 
 **Evidências**: os **dez testes SQL (10 a 100)** foram executados separadamente em `ewgest-restauracao-teste`, precedidos pelas seis propostas SQL da v46.21 e encerrados com `ROLLBACK`. Todos passaram. O GitHub Actions na branch também passou, incluindo as novas verificações estáticas das unidades e da ordem dos bloqueios. Nada foi alterado no banco de produção.
 
+### Conciliação fiscal, capacidade da nota e smoke test visual — 24/11/2026
+
+- `ew_compras_proteger_recebimento_nfe` passou a comparar **variação, unidade e comprimento físico** ao procurar recebimentos de pedido potencialmente duplicados. No teste da NF-e, outra barra do mesmo perfil com **7000 mm** foi recebida sem ser bloqueada pelo pedido de **6000 mm**, enquanto a tentativa de entrada duplicada de 6000 mm continuou bloqueada.
+- `assets/compras-conciliacao-nfe.js` consulta os vínculos fiscais filtrados pelos **itens da nota e recebimentos do pedido**, em vez de buscar indiscriminadamente o histórico fiscal da empresa. Em caso de possível truncamento da API, interrompe a operação sem afirmar que os saldos estão completos.
+- A lista de itens da nota apresenta a **quantidade fiscal ainda disponível** por linha, convertendo BARRA ↔ MT mediante o comprimento real do item quando a nota utiliza metros. Para várias entregas associadas à mesma linha, a interface soma as quantidades e impede confirmar total superior à nota. A RPC continua sendo a validação obrigatória de segurança.
+- A seção empresarial permanece separada das despesas das obras e segue registrando custo fiscal sem nova movimentação.
+- Foi adicionado o teste isolado `scripts/test-compras-browser-v4621.mjs` com Playwright/Chromium no CI do PR. Simula compra em obra com **duas entregas parciais e NF com saldo insuficiente/suficiente**, operação não enviada quando há excesso, registro correto quando o saldo basta, nota do estoque empresarial com **subtotais em centavos** e validação de campo em visão móvel e desktop. Sem credenciais, dados ou chamadas ao Supabase real.
+- Os controles e CSS da conciliação receberam limites de largura; o navegador confirmou ausência de overflow horizontal no painel de simulação mobile (390 px). Esse smoke test **não é homologação visual completa do site** com navegação real e base de homologação.
+- O workflow fixa Ubuntu 24.04 para Playwright 1.56.1, separado dos testes Node. Os parâmetros de versão dos scripts e CSS de Compras no `app.html` foram atualizados para evitar conteúdo antigo em cache.
+- Evidências: `tests/compras_v4621/20_conciliacao_nfe_rollback.sql` aprovado após caso 6000/7000 mm, `scripts/test-compras-v4621.mjs` aprovado, e **Chromium mobile/desktop aprovado** no PR após correção do HTML de teste para reproduzir o identificador real do painel.
+
 ### Limitações dos testes
 
 - Testes de transação executados em ambiente isolado com dados sintéticos. **Não** equivalem à homologação visual nem à verificação de fluxos de notas fiscais reais.
 - Não foi feita execução de compra, recebimento, estorno ou transferência na produção.
+- O smoke test do Chromium utiliza respostas simuladas. A integração ponta a ponta com uma sessão autorizada no banco de homologação e a comparação visual completa de telas ainda são pendentes.
 
 ### Validação inicial efetuada
 
