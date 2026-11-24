@@ -263,5 +263,128 @@ async function criarLocalEmpresa(){
  await carregarLocaisEstoque();say('stockMessage','Local de estoque cadastrado.');}
  catch(e){say('stockMessage','Não foi possível cadastrar local: '+e.message);}
 }
-window.ewCompras=Object.freeze({abrir,carregarLocaisRecebimento,atualizarRecebimento,carregarLocaisEstoque,renderEstoqueEmpresa,criarLocalEmpresa});
+
+function stockDestinations(){
+ return works.map(w=>({value:'OBRA:'+w.id,label:'Obra · '+w.nome}))
+ .concat(locals.filter(x=>x.ativo).map(x=>({value:'EMPRESA:'+x.id,label:'Empresa · '+x.nome})));
+}
+function stockMaterialCatalog(){
+ return matVariacoes.filter(v=>v.ativo!==false).map(v=>{
+  const m=v.tipo==='perfil'?matPerfis.find(p=>p.id===v.perfil_id):matAcessorios.find(a=>a.id===v.acessorio_id);
+  const unit=v.tipo==='perfil'?'BARRA':String(m?.unidade_item||'PC').trim().toUpperCase();
+  return {id:v.id,label:(m?.codigo||'?')+' · '+(m?.descricao||'')+' · '+v.cor,
+   unidade:unit,comprimento:v.tipo==='perfil'?(Number(m?.comprimento_comercial_mm)||6000):null};
+ }).filter(x=>x.label);
+}
+async function abrirTransferLocal(){
+ if(!permission('estoque.transferir_obras')||!permission('estoque.consultar'))return;
+ const pane=$('ewTransferLocalPanel');pane.classList.remove('hidden');
+ pane.innerHTML='<h3>Transferência entre locais de estoque</h3><p class="feedback">Carregando locais e movimentações…</p>';
+ try{
+  await ensureSession();
+  locals=await apiGet('ew_compras_locais_empresa',{
+   select:'id,nome,ativo',empresa_id:'eq.'+currentCompany.id,limit:'1000'})||[];
+  const history=await apiGet('ew_compras_transferencias',{
+   select:'*',empresa_id:'eq.'+currentCompany.id,order:'criado_em.desc',limit:'200'});
+  const dest=stockDestinations(),products=stockMaterialCatalog(),houses=[...stockLocaisFisicos].sort();
+  const locOpts=option('','Selecione um local')+dest.map(x=>option(x.value,x.label)).join('');
+  const whOpts=option('','Selecione um galpão')+houses.map(x=>option(x,x)).join('');
+  pane.innerHTML='<div class="ewComprasActions"><h3>Transferir materiais entre locais</h3>'+
+   '<button type="button" class="btn secondary" id="ewTransClose">Fechar</button></div>'+
+   '<p class="hint">Estoques de obra e estoques próprios da empresa são distintos. Esta operação não registra nova compra, não altera nota fiscal e exige saldo disponível no local de origem. Transferências entre duas obras continuam no fluxo já existente.</p>'+
+   '<form id="ewTransferLocalForm" class="ewComprasForm">'+
+   '<div class="ewTransferGrid"><label>Local de origem<select id="ewTransSource" required>'+locOpts+'</select></label>'+
+   '<label>Local de destino<select id="ewTransDest" required>'+locOpts+'</select></label>'+
+   '<label>Galpão de origem<select id="ewTransWhSource" required>'+whOpts+'</select></label>'+
+   '<label>Galpão de destino<select id="ewTransWhDest" required>'+whOpts+'</select></label>'+
+   '<label>Material / variação<select id="ewTransMaterial" required>'+option('','Selecione um material')+
+    products.map(x=>option(x.id,x.label)).join('')+'</select></label>'+
+   '<label>Quantidade<input id="ewTransQty" type="number" min="0.001" max="1000000" step="any" required></label>'+
+   '<label>Unidade<input id="ewTransUnit" readonly required></label>'+
+   '<label>Comprimento da barra (mm)<input id="ewTransLength" type="number" min="100" max="20000"></label></div>'+
+   '<label>Motivo / observação<textarea id="ewTransReason" maxlength="350" required rows="2"></textarea></label>'+
+   '<div><button type="submit" class="btn primary">Registrar transferência</button></div></form>'+
+   '<p id="ewTransMessage" class="feedback" role="status"></p>'+
+   '<h4>Histórico de transferências entre locais</h4>'+
+   '<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr>'+
+   '<th>Data</th><th>Origem</th><th>Destino</th><th>Material</th><th>Qtd.</th><th>Status</th><th>Ação</th>'+
+   '</tr></thead><tbody>'+
+   (history||[]).map(t=>{
+    const localLabel=(tipo,id,galpao)=>dest.find(x=>x.value===tipo+':'+id)?.label||tipo+' · '+id;
+    const product=products.find(x=>x.id===t.variacao_id);
+    const reversed=t.estornado_em!==null;
+    const undo=permission('estoque.estornar')&&!reversed;
+    return '<tr><td>'+esc(String(t.criado_em||'').slice(0,10).split('-').reverse().join('/'))+'</td>'+
+     '<td>'+esc(localLabel(t.origem_tipo,t.origem_id)+' · '+t.origem_galpao)+'</td>'+
+     '<td>'+esc(localLabel(t.destino_tipo,t.destino_id)+' · '+t.destino_galpao)+'</td>'+
+     '<td>'+esc(product?.label||t.variacao_id)+'</td><td>'+number(t.quantidade)+' '+esc(t.unidade)+'</td>'+
+     '<td>'+esc(reversed?'Estornada':'Ativa')+'</td><td>'+
+     (undo?'<button type="button" class="btn secondary" data-ew-transfer-undo="'+esc(t.id)+'">Estornar</button>':'—')+
+     '</td></tr>';
+   }).join('')+'</tbody></table></div>';
+  const selected=$('stockWork')?.value||'';
+  const selectedValue=selected.startsWith('empresa:')?'EMPRESA:'+selected.slice(8):selected?'OBRA:'+selected:'';
+  if([...$('ewTransSource').options].some(x=>x.value===selectedValue))$('ewTransSource').value=selectedValue;
+  $('ewTransMaterial').addEventListener('change',()=>{
+   const p=products.find(x=>x.id===$('ewTransMaterial').value);if(!p)return;
+   $('ewTransUnit').value=p.unidade;
+   $('ewTransLength').disabled=p.unidade!=='BARRA';
+   $('ewTransLength').value=p.comprimento||'';
+   $('ewTransQty').step=['BARRA','PC','PR','CJ','UN','MT'].includes(p.unidade)?'1':'0.001';
+  });
+  $('ewTransClose').onclick=()=>pane.classList.add('hidden');
+  $('ewTransferLocalForm').onsubmit=async e=>{
+   e.preventDefault();
+   const src=$('ewTransSource').value,dst=$('ewTransDest').value;
+   const [srcType,srcId]=src.split(':'),[dstType,dstId]=dst.split(':');
+   const qty=Number($('ewTransQty').value),material=products.find(x=>x.id===$('ewTransMaterial').value);
+   const length=material?.unidade==='BARRA'?Number($('ewTransLength').value):null;
+   const reason=$('ewTransReason').value.trim();
+   if(!srcId||!dstId||!material||reason.length<5||reason.length>350||
+     (srcType==='OBRA'&&dstType==='OBRA')||
+     (src===dst&&$('ewTransWhSource').value===$('ewTransWhDest').value)||
+     !validQty(qty,material.unidade)||
+     (material.unidade==='BARRA'&&(!Number.isSafeInteger(length)||length<100||length>20000))){
+    say('ewTransMessage','Confira origem, destino, material, quantidade e motivo. Para transferências entre obras, use o botão específico.');return;
+   }
+   const payload={empresa:currentCompany.id,src,dst,galpao1:$('ewTransWhSource').value,
+    galpao2:$('ewTransWhDest').value,material:material.id,length,qty,reason};
+   const button=$('ewTransferLocalForm').querySelector('[type="submit"]');button.disabled=true;
+   try{
+    await rpc('ew_compras_transferir_locais',{
+     p_empresa_id:currentCompany.id,
+     p_origem_tipo:srcType,p_origem_id:srcId,p_destino_tipo:dstType,p_destino_id:dstId,
+     p_variacao_id:material.id,p_comprimento_mm:length,p_unidade:material.unidade,
+     p_quantidade:qty,p_origem_galpao:$('ewTransWhSource').value,
+     p_destino_galpao:$('ewTransWhDest').value,p_motivo:reason,
+     p_operacao_id:operationToken('transferir_estoque',payload)});
+    pendingOps.delete('transferir_estoque');
+    await abrirEstoque();await abrirTransferLocal();
+    say('ewTransMessage','Transferência registrada.');
+   }catch(err){say('ewTransMessage','Transferência não realizada: '+err.message)}
+   finally{button.disabled=false;}
+  };
+  pane.querySelectorAll('[data-ew-transfer-undo]').forEach(button=>
+   button.addEventListener('click',async ()=>{
+    const id=button.dataset.ewTransferUndo;
+    const prompt=window.prompt('Motivo para estornar a transferência (5 a 400 caracteres):');
+    if(prompt===null)return;
+    const reason=prompt.trim();
+    if(reason.length<5||reason.length>400){say('ewTransMessage','Informe motivo válido.');return;}
+    if(!window.confirm('Estornar as duas pontas desta transferência? A operação será bloqueada caso tenha ocorrido consumo ou saída posterior.'))return;
+    button.disabled=true;
+    try{
+     await rpc('ew_compras_estornar_transferencia',{
+      p_transferencia_id:id,p_motivo:reason,
+      p_operacao_id:operationToken('estornar_transferencia',{id,reason})});
+     pendingOps.delete('estornar_transferencia');
+     await abrirEstoque();await abrirTransferLocal();
+     say('ewTransMessage','Transferência estornada; histórico preservado.');
+    }catch(err){say('ewTransMessage','Estorno bloqueado: '+err.message)}
+    finally{button.disabled=false;}
+   }));
+ }catch(err){pane.innerHTML='<p class="feedback">Transferências indisponíveis: '+esc(err.message)+'</p>';}
+}
+
+window.ewCompras=Object.freeze({abrir,carregarLocaisRecebimento,atualizarRecebimento,carregarLocaisEstoque,renderEstoqueEmpresa,criarLocalEmpresa,abrirTransferLocal});
 })();
