@@ -945,10 +945,17 @@
               <option value="liberacoes">Liberações para fabricação</option>
               <option value="expedicao">Expedição / romaneios</option>
               <option value="aluminio">m² expedidos × alumínio utilizado</option>
+              <option value="custos_empresa">Custos do estoque da empresa</option>
             </select>
           </label>
           <label>Obra
             <select id="reportWork"><option value="">Todas as obras</option></select>
+          </label>
+          <label id="reportCompanyLocalWrap" class="hidden">Local de estoque da empresa
+            <select id="reportCompanyLocal"><option value="">Todos os locais da empresa</option></select>
+          </label>
+          <label id="reportCompanySupplierWrap" class="hidden">Fornecedor
+            <select id="reportCompanySupplier"><option value="">Todos os fornecedores</option></select>
           </label>
           <label>De <input id="reportStart" type="date"></label>
           <label>Até <input id="reportEnd" type="date"></label>
@@ -10864,6 +10871,7 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/insumos-fisicos.js?v=20261121d"></script>
 <script src="/assets/entregas-producao.js?v=20261121a"></script>
 <script src="/assets/romaneios-transferencia.js?v=20261122b"></script>
+<script src="/assets/relatorios-custos-empresa.js?v=20261124a"></script>
 <script src="/assets/relatorios-obras.js?v=20261122c"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>
 <script src="/assets/niveis-acesso.js?v=20261122a"></script>
