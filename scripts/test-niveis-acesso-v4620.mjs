@@ -12,9 +12,9 @@ const rls=read('../database/proposals/20261122_niveis_rls_v4620.sql');
 const reports=read('../assets/relatorios-obras.js');
 assert.doesNotThrow(()=>new Function(ui),'Editor de flags deve compilar');
 assert.doesNotThrow(()=>new Function(reports),'Relatórios devem compilar');
-assert.match(app,/EWGEST <strong>· v46\.20<\/strong>/);
-assert.match(app,/niveis-acesso\.js\?v=20261122a/);
-assert.match(app,/niveis-acesso\.css\?v=20261122a/);
+assert.match(app,/EWGEST <strong>· v46\.21<\/strong>/);
+assert.match(app,/niveis-acesso\.js\?v=20261124c/);
+assert.match(app,/niveis-acesso\.css\?v=20261124c/);
 for(const token of ['id="createUserLevel"','id="userEditLevel"','id="userLevelsPanel"',
  'id="userLevelsSave"','id="userLevelsGroups"','id="userLevelsTabs"']){
  assert.ok(app.includes(token),'Falta o controle '+token);
@@ -53,3 +53,15 @@ assert.match(app,/nivel_acesso,senha/);
 assert.match(app,/nivel_acesso\}/);
 assert.ok(!app.includes("EWGEST <strong>· v46.19</strong>"));
 console.log('OK v46.20: oito níveis, 28 flags, permissões no banco, relatórios 06/07, nível 01 protegido.');
+
+const landing=read('../index.html');
+assert.match(landing,/location\.replace\('\/app'\)/);
+assert.ok(!landing.includes('Primeiros módulos'));
+assert.match(app,/id="navAccessLevels"/);
+assert.match(app,/section id="accessLevels"/);
+assert.match(app,/if\(view==='accessLevels'\)return currentAccessLevel===1&&temPermissao\('niveis.gerenciar'\)/);
+assert.ok(app.includes('id="userLevelsSearch"')&&app.includes('id="userLevelsAll"')&&app.includes('id="userLevelsNone"'));
+assert.ok(!app.includes('class="btn secondary loginBackHome"'));
+assert.ok(app.includes('id="installEwgest"')&&app.includes('/pwa-install.js?v=25'));
+assert.ok(ui.includes('p_nivel:nivel')&&ui.includes('p_empresa_id:company')&&ui.includes('dirty()'));
+console.log('OK: entrada direta, menu exclusivo de níveis e ações de edição protegidas.');
