@@ -17,5 +17,11 @@
 #ewComprasRecebimento>label{display:grid;max-width:620px;gap:6px}
 #ewComprasRecebimento #ewReceberGalpao{max-width:450px}
 #ewReceberForm{margin-top:13px}
+.ewTransferGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.ewTransferGrid label{display:grid;gap:5px;min-width:0}
+#ewComprasConciliacao>label,#ewNfeEmpresaPanel>label,#ewCompNFNote>label{display:grid;gap:6px;max-width:760px;margin:10px 0}
+#ewComprasConciliacao{margin-top:18px;padding-top:15px;border-top:1px solid #e1e8f2}
+#ewNfeEmpresaPanel{margin-top:18px;padding-top:15px;border-top:1px solid #e1e8f2}
+@media(max-width:650px){.ewTransferGrid{grid-template-columns:1fr}}
 @media(max-width:850px){.ewComprasLine{grid-template-columns:repeat(2,minmax(0,1fr))}.ewComprasLine label:first-child{grid-column:1/-1}.ewComprasLine [data-buy-remove]{justify-self:end}}
 @media(max-width:550px){.ewComprasLine{grid-template-columns:1fr}.ewComprasLine label:first-child{grid-column:auto}.ewComprasLine [data-buy-remove]{justify-self:stretch}}
