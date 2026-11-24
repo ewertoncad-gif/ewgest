@@ -16,16 +16,34 @@ function op(kind,data){
  if(found?.signature===signature)return found.id;
  const id=crypto.randomUUID();pending.set(kind,{signature,id});return id;
 }
-function compatible(line,fi,variations){
+function normalizeUnit(value){
+ const u=String(value||'').trim().toUpperCase();
+ return ({BR:'BARRA',M:'MT',METRO:'MT',PEÇA:'PC',PECA:'PC',UNIDADE:'UN'})[u]||u;
+}
+function quantityAsInvoice(line,physical,invoiceUnit){
+ const from=normalizeUnit(line?.unidade),to=normalizeUnit(invoiceUnit);
+ const qty=Number(physical);
+ if(!Number.isFinite(qty)||qty<=0)return null;
+ if(from===to||(from==='PC'&&to==='UN')||(from==='UN'&&to==='PC'))return qty;
+ if(from==='BARRA'&&to==='MT'){
+  const length=Number(line.comprimento_mm);
+  if(!Number.isInteger(length)||length<100||length>20000)return null;
+  return Math.round(qty*length)/1000;
+ }
+ return null;
+}
+function compatible(line,fi,variations,category){
  const variant=variations.find(v=>v.id===line.variacao_id);
- if(!variant)return false;
- const type=variant.tipo==='perfil';
- if(type?variant.perfil_id!==fi.perfil_id:variant.acessorio_id!==fi.acessorio_id)return false;
- const from=String(line.unidade||'').toUpperCase();
- const to=String(fi.unidade||'').toUpperCase().trim();
- const normalized=({BR:'BARRA',M:'MT',METRO:'MT',PEÇA:'PC',PECA:'PC',UNIDADE:'UN'})[to]||to;
- return normalized===from||(from==='BARRA'&&normalized==='MT')||
- (from==='PC'&&normalized==='UN')||(from==='UN'&&normalized==='PC');
+ if(!variant||category==='aluminio'&&variant.tipo!=='perfil'||
+  category==='acessorios'&&variant.tipo!=='acessorio')return false;
+ return variant.tipo==='perfil'?
+   variant.perfil_id===fi.perfil_id&&Boolean(fi.perfil_id):
+   variant.acessorio_id===fi.acessorio_id&&Boolean(fi.acessorio_id);
+}
+function chunks(list,size=60){
+ const groups=[];
+ for(let i=0;i<list.length;i+=size)groups.push(list.slice(i,i+size));
+ return groups;
 }
 async function render(root,context){
  if(!context?.empresa_id||!root?.isConnected)return;
@@ -95,21 +113,41 @@ async function render(root,context){
     $('ewCompNFItems').replaceChildren();status('');
     if(!noteId)return;
     try{
-     const [fiscalItems,linkedItems]=await Promise.all([
-      apiGet('ew_obra_despesas_itens',{select:'id,despesa_id,perfil_id,acessorio_id,unidade,quantidade,descricao',
-       empresa_id:'eq.'+context.empresa_id,despesa_id:'eq.'+noteId,limit:'500'}),
+     await ensureSession();
+     const fiscalItems=await apiGet('ew_obra_despesas_itens',{
+      select:'id,despesa_id,perfil_id,acessorio_id,unidade,quantidade,descricao',
+      empresa_id:'eq.'+context.empresa_id,despesa_id:'eq.'+noteId,limit:'500'});
+     const owned=context.receipts.filter(x=>x.pedido_id===id&&!x.estornado_em);
+     // Consultas limitadas à nota e aos recebimentos deste pedido.
+     // Sem isso, vínculos de outras obras podem consumir o limite da API.
+     const searches=[
+      ...chunks((fiscalItems||[]).map(x=>x.id)).map(ids=>({despesa_item_id:'in.('+ids.join(',')+')'})),
+      ...chunks(owned.map(x=>x.id)).map(ids=>({recebimento_id:'in.('+ids.join(',')+')'}))
+     ];
+     const result=await Promise.all(searches.map(filters=>
       apiGet('ew_compras_nfe_vinculos',{
-       select:'recebimento_id,chave,desvinculado_em',empresa_id:'eq.'+context.empresa_id,limit:'3000'})
-     ]);
+       select:'id,recebimento_id,chave,despesa_item_id,quantidade_nota,desvinculado_em',
+       empresa_id:'eq.'+context.empresa_id,limit:'1000',...filters})));
+     if(result.some(rows=>rows.length>=1000))
+      throw Error('Vínculos demais neste filtro; não é seguro conciliar com dados incompletos.');
+     const linkedItems=[...new Map(result.flat().map(x=>[x.id,x])).values()];
      if(!$('ewCompNFDoc')||$('ewCompNFDoc').value!==noteId)return;
-     const marked=new Set((linkedItems||[]).filter(x=>!x.desvinculado_em)
-      .map(x=>x.recebimento_id+'|'+x.chave));
+     const activeLinks=linkedItems.filter(x=>!x.desvinculado_em);
+     const marked=new Set(activeLinks.map(x=>x.recebimento_id+'|'+x.chave));
+     const fiscalUsed=new Map();
+     for(const link of activeLinks){
+      fiscalUsed.set(link.despesa_item_id,(fiscalUsed.get(link.despesa_item_id)||0)+Number(link.quantidade_nota));
+     }
+     const currentNote=available.find(n=>n.id===noteId);
      let html='';
      for(const rec of context.receipts.filter(x=>x.pedido_id===id&&!x.estornado_em)){
       for(const physical of rec.itens||[]){
        const line=p.itens.find(x=>String(x.chave)===String(physical.chave));
        if(!line)continue;
-       const options=(fiscalItems||[]).filter(f=>compatible(line,f,context.variations));
+       const options=(fiscalItems||[]).filter(f=>
+        compatible(line,f,context.variations,currentNote?.categoria)&&
+        (quantityAsInvoice(line,physical.quantidade,f.unidade)??Infinity)<=
+          Number(f.quantidade)-(fiscalUsed.get(f.id)||0)+0.0001);
        const blocked=marked.has(rec.id+'|'+physical.chave);
        html+='<tr data-nf-receipt="'+esc(rec.id)+'" data-nf-key="'+esc(physical.chave)+'">'+
         '<td><input type="checkbox" data-nf-mark '+(blocked||!options.length?'disabled':'')+'></td>'+
@@ -118,7 +156,7 @@ async function render(root,context){
         '<td>'+fmt(physical.quantidade)+' '+esc(line.unidade)+'</td><td>'+
         (blocked?'Já vinculado':!options.length?'Sem item compatível':
         '<select data-nf-fiscal>'+option('','Escolha o item da nota')+
-        options.map(f=>option(f.id,f.descricao+' · '+fmt(f.quantidade)+' '+f.unidade)).join('')+
+        options.map(f=>option(f.id,f.descricao+' · disponível '+fmt(Math.max(0,Number(f.quantidade)-(fiscalUsed.get(f.id)||0)))+' '+f.unidade)).join('')+
         '</select>')+'</td></tr>';
       }
      }
@@ -152,5 +190,5 @@ async function render(root,context){
   }catch(e){status('Falha ao consultar notas: '+e.message)}
  };
 }
-window.ewComprasNfe=Object.freeze({render});
+window.ewComprasNfe=Object.freeze({render,quantityAsInvoice,compatible});
 })();
