@@ -97,6 +97,18 @@ BEGIN
     WHERE id=v_conc AND empresa_id=v_p.empresa_id
      AND pedido_id=v_p.id AND despesa_id=v_d.id AND desvinculado_em IS NULL)
   THEN RAISE EXCEPTION 'Identificador de conciliação já utilizado.';END IF;
+  IF (SELECT count(*) FROM public.ew_compras_nfe_vinculos
+       WHERE conciliacao_id=v_conc AND desvinculado_em IS NULL)
+    <>jsonb_array_length(p_vinculos)
+   OR EXISTS(
+    SELECT 1 FROM jsonb_array_elements(p_vinculos) entrada(value)
+    WHERE NOT EXISTS(SELECT 1 FROM public.ew_compras_nfe_vinculos x
+      WHERE x.conciliacao_id=v_conc AND x.desvinculado_em IS NULL
+        AND x.despesa_item_id=(entrada.value->>'despesa_item_id')::uuid
+        AND x.recebimento_id=(entrada.value->>'recebimento_id')::uuid
+        AND x.chave=entrada.value->>'chave')
+   )
+  THEN RAISE EXCEPTION 'Identificador utilizado anteriormente com itens diferentes.';END IF;
   RETURN jsonb_build_object('id',v_conc,'repetida',true);
  END IF;
  INSERT INTO public.ew_compras_nfe_conciliacoes
