@@ -1452,6 +1452,7 @@
           <button type="button" class="btn secondary hidden" id="stockCreateCompanyLocal">+ Local da empresa</button>
           <button type="button" class="btn secondary" id="stockTransferPickLocal">Transferência entre galpões</button>
           <button type="button" class="btn secondary" id="stockTransferPickWork">Transferência entre obras</button>
+          <button type="button" class="btn secondary hidden" id="stockTransferBetweenLocations">Transferir entre locais</button>
           <button type="button" class="btn secondary" id="stockManageLocations" title="Consultar saldos e estornar lançamentos; exclusão definitiva da obra em Gerenciar obras">Gerenciar estoques</button>
           <button type="button" class="btn secondary hidden" id="stockArchivedReview">Saldos e estornos</button>
           <button type="button" class="btn secondary" id="stockRefresh">Atualizar</button>
@@ -1481,6 +1482,7 @@
         <div id="stockMessage" class="feedback" role="status"></div>
         <div id="stockRecords"></div>
         <div id="ewEstoqueEmpresaPainel" class="hidden"></div>
+        <div id="ewTransferLocalPanel" class="section panel hidden"></div>
         <div id="insumosStockPanel" class="section panel" style="margin-top:16px">
           <div class="rowHead"><h3>Vidros e outros insumos — estoque físico</h3>
             <button id="insumosStockRefresh" type="button" class="btn secondary">Atualizar</button>
@@ -2675,6 +2677,7 @@ async function loadPanel(){
   node('navRecebimento').classList.toggle('hidden',!temPermissao('estoque.receber'));
    node('navCompras').classList.toggle('hidden',!temPermissao('compras.consultar'));
    node('stockCreateCompanyLocal').classList.toggle('hidden',!temPermissao('estoque.gerenciar_locais'));
+   node('stockTransferBetweenLocations').classList.toggle('hidden',!temPermissao('estoque.transferir_obras'));
   node('recebimentoXmlLegacy').classList.toggle('hidden',!isAlmoxarife());
   const navFlags={
     navCadastros:'cadastros.consultar',navTypologies:'cadastros.consultar',
@@ -8614,6 +8617,7 @@ node('navFinanceiro').addEventListener('click',()=>abrirFinanceiro());
 node('navRecebimento').addEventListener('click',()=>abrirRecebimento());
  node('navCompras').addEventListener('click',()=>window.ewCompras?.abrir());
  node('stockCreateCompanyLocal').addEventListener('click',()=>window.ewCompras?.criarLocalEmpresa());
+ node('stockTransferBetweenLocations').addEventListener('click',()=>window.ewCompras?.abrirTransferLocal());
 node('recebimentoWork').addEventListener('change',()=>carregarRecebimento());
 node('recebimentoRefresh').addEventListener('click',()=>carregarRecebimento());
 node('recebimentoXmlLegacy').addEventListener('click',abrirAlmoxNotas);
