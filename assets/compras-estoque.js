@@ -43,7 +43,7 @@ async function reload(){
   apiGet('ew_compras_solicitacoes',{select:'*',empresa_id:empresa,order:'criado_em.desc',limit:'1000'}),
   apiGet('ew_compras_cotacoes',{select:'*',empresa_id:empresa,order:'criado_em.desc',limit:'1000'}),
   apiGet('ew_compras_pedidos',{select:'*',empresa_id:empresa,order:'criado_em.desc',limit:'1000'}),
-  apiGet('ew_compras_recebimentos',{select:'id,pedido_id,itens,criado_em',empresa_id:empresa,limit:'3000'})
+  apiGet('ew_compras_recebimentos',{select:'id,pedido_id,itens,criado_em,galpao,estornado_em,estorno_motivo',empresa_id:empresa,limit:'3000'})
  ]);
  const perf=new Map((ps||[]).map(p=>[p.id,p])),acc=new Map((as||[]).map(a=>[a.id,a]));
  locals=ls||[];suppliers=(fs||[]).filter(x=>x.ativo);galpoes=(gs||[]).filter(x=>x.ativo).map(x=>x.nome);
@@ -54,7 +54,7 @@ async function reload(){
  sols=so||[];quotes=co||[];orders=po||[];receipts=re||[];loaded=true;
 }
 function receivedMap(pedidoId){const m=new Map();
- for(const rec of receipts.filter(x=>x.pedido_id===pedidoId))
+ for(const rec of receipts.filter(x=>x.pedido_id===pedidoId&&!x.estornado_em))
   for(const line of rec.itens||[])m.set(String(line.chave),(m.get(String(line.chave))||0)+Number(line.quantidade||0));
  return m;}
 function orderStatus(p){const rec=receivedMap(p.id);let all=true,some=false;
@@ -172,15 +172,42 @@ async function atualizarRecebimento(obraId){
  box.innerHTML='<h2>Receber por pedido de compra</h2><p class="hint">Entrada física por pedido, sem lançamento fiscal automático. Consulte as quantidades já recebidas antes de confirmar.</p><p class="feedback">Consultando pedidos pendentes…</p>';
  try{await reload();if($('recebimentoWork').value!==obraId)return;
  const empresaDestino=obraId.startsWith('empresa:');
- const ativos=orders.filter(p=>(empresaDestino?p.local_empresa_id===obraId.slice(8):p.obra_id===obraId)&&orderStatus(p)!=='Recebido');
+ const ativos=orders.filter(p=>(empresaDestino?p.local_empresa_id===obraId.slice(8):p.obra_id===obraId)&&p.status!=='CANCELADO');
  box.innerHTML='<h2>Receber por pedido de compra</h2><p class="hint">Receba todo ou parte do pedido; somente o saldo efetivamente confirmado será acrescentado ao estoque físico.</p>'+
  '<label>Pedido<select id="ewReceberPedido">'+option('','Selecione o pedido')+ativos.map(p=>option(p.id,'#'+p.numero+' · '+orderStatus(p))).join('')+'</select></label>'+
  '<form id="ewReceberForm" class="hidden"><div id="ewReceberItens"></div><label>Galpão de destino<select id="ewReceberGalpao" required>'+
  option('','Selecione')+galpoes.map(g=>option(g,g)).join('')+'</select></label>'+
- '<div class="ewComprasActions"><button type="submit" class="btn primary">Confirmar recebimento físico</button></div></form>'+
+ '<div class="ewComprasActions"><button type="submit" class="btn primary">Confirmar recebimento físico</button></div></form>'+ 
+ '<div id="ewReceberHistorico"></div>'+ 
  '<p id="ewReceberMessage" class="feedback" role="status"></p>';
  $('ewReceberPedido').onchange=()=>{const p=orders.find(x=>x.id===$('ewReceberPedido').value),form=$('ewReceberForm');
- form.classList.toggle('hidden',!p);if(!p)return;const received=receivedMap(p.id);
+ form.classList.toggle('hidden',!p);if(!p){$('ewReceberHistorico').replaceChildren();return;}
+ const received=receivedMap(p.id);
+ const historico=receipts.filter(r=>r.pedido_id===p.id);
+ const podeEstornar=permission('estoque.estornar')&&permission('compras.receber');
+ $('ewReceberHistorico').innerHTML='<h3>Histórico de recebimentos deste pedido</h3>'+
+ (historico.length?'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Data</th><th>Galpão</th><th>Quantidade</th><th>Status</th><th>Ação</th></tr></thead><tbody>'+
+ historico.map(r=>'<tr><td>'+esc(String(r.criado_em||'').slice(0,10).split('-').reverse().join('/'))+
+ '</td><td>'+esc(r.galpao||'-')+'</td><td>'+number((r.itens||[]).reduce((sum,it)=>sum+Number(it.quantidade||0),0))+
+ ' un. (consulte itens)</td><td>'+esc(r.estornado_em?'Estornado: '+(r.estorno_motivo||''):'Recebido')+
+ '</td><td>'+(podeEstornar&&!r.estornado_em?'<button type="button" class="btn secondary" data-ew-reverse="'+esc(r.id)+'">Estornar</button>':'—')+'</td></tr>').join('')+
+ '</tbody></table></div>':'<p class="hint">Nenhum recebimento registrado.</p>');
+ $('ewReceberHistorico').querySelectorAll('[data-ew-reverse]').forEach(button=>{
+  button.addEventListener('click',async ()=>{
+   if(!podeEstornar)return;
+   const id=button.dataset.ewReverse, motivo=window.prompt('Motivo do estorno (5 a 400 caracteres):');
+   if(motivo===null)return;
+   const reason=motivo.trim();
+   if(reason.length<5||reason.length>400){say('ewReceberMessage','Motivo deve ter entre 5 e 400 caracteres.');return;}
+   if(!window.confirm('Confirmar estorno do recebimento? O estoque físico só será revertido se não houver saídas posteriores.'))return;
+   button.disabled=true;
+   try{await rpc('ew_compras_estornar_recebimento',{p_recebimento_id:id,p_motivo:reason,
+     p_operacao_id:operationToken('estornar_recebimento',{id,reason})});
+    pendingOps.delete('estornar_recebimento');await atualizarRecebimento(obraId);
+   }catch(err){say('ewReceberMessage','Estorno bloqueado: '+err.message);}
+   finally{button.disabled=false;}
+  });
+ });
  $('ewReceberItens').innerHTML='<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Receber</th><th>Material</th><th>Pedido</th><th>Recebido</th><th>Falta</th><th>Agora</th></tr></thead><tbody>'+
  (p.itens||[]).map(it=>{const r=received.get(String(it.chave))||0,remain=Math.max(0,Number(it.quantidade)-r);
  return '<tr data-receive-key="'+esc(it.chave)+'"><td><input type="checkbox" '+(remain<=0?'disabled':'')+'></td><td>'+esc(productLabel(variations.find(v=>v.id===it.variacao_id)||{nome:it.variacao_id}))+'</td>'+
