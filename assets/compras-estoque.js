@@ -191,8 +191,8 @@ async function atualizarRecebimento(obraId){
  $('ewReceberHistorico').innerHTML='<h3>Histórico de recebimentos deste pedido</h3>'+
  (historico.length?'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Data</th><th>Galpão</th><th>Quantidade</th><th>Status</th><th>Ação</th></tr></thead><tbody>'+
  historico.map(r=>'<tr><td>'+esc(String(r.criado_em||'').slice(0,10).split('-').reverse().join('/'))+
- '</td><td>'+esc(r.galpao||'-')+'</td><td>'+number((r.itens||[]).reduce((sum,it)=>sum+Number(it.quantidade||0),0))+
- ' un. (consulte itens)</td><td>'+esc(r.estornado_em?'Estornado: '+(r.estorno_motivo||''):'Recebido')+
+ '</td><td>'+esc(r.galpao||'-')+'</td><td>'+number((r.itens||[]).length)+
+ ' item(ns) (quantidades na tabela acima)</td><td>'+esc(r.estornado_em?'Estornado: '+(r.estorno_motivo||''):'Recebido')+
  '</td><td>'+(podeEstornar&&!r.estornado_em?'<button type="button" class="btn secondary" data-ew-reverse="'+esc(r.id)+'">Estornar</button>':'—')+'</td></tr>').join('')+
  '</tbody></table></div>':'<p class="hint">Nenhum recebimento registrado.</p>');
  $('ewReceberHistorico').querySelectorAll('[data-ew-reverse]').forEach(button=>{
@@ -234,7 +234,9 @@ async function carregarLocaisEstoque(prefer=''){
  if(!permission('estoque.consultar'))return;try{
  await ensureSession();locals=await apiGet('ew_compras_locais_empresa',{select:'id,nome,ativo',
  empresa_id:'eq.'+currentCompany.id,order:'nome.asc'})||[];
- const select=$('stockWork'),old=prefer||select.value;for(const x of locals.filter(l=>l.ativo))
+ const select=$('stockWork'),old=prefer||select.value;
+ for(const opt of [...select.options].filter(o=>o.value.startsWith('empresa:')))opt.remove();
+ for(const x of locals.filter(l=>l.ativo))
   select.appendChild(new Option('Empresa · '+x.nome,'empresa:'+x.id));
  if(old&&[...select.options].some(op=>op.value===old)){select.value=old;if(old.startsWith('empresa:'))renderEstoqueEmpresa();}
  }catch(e){say('stockMessage','Locais de estoque da empresa indisponíveis: '+e.message);}
@@ -262,8 +264,10 @@ async function criarLocalEmpresa(){
  if(!permission('estoque.gerenciar_locais'))return;
  const nome=window.prompt('Nome do novo local de estoque da empresa (sem obra):');
  if(nome===null)return;if(nome.trim().length<3||nome.trim().length>100){say('stockMessage','Nome inválido.');return;}
- try{await rpc('ew_compras_criar_local_empresa',{p_empresa_id:currentCompany.id,p_nome:nome.trim()});
- await carregarLocaisEstoque();say('stockMessage','Local de estoque cadastrado.');}
+ try{const novo=await rpc('ew_compras_criar_local_empresa',{p_empresa_id:currentCompany.id,p_nome:nome.trim()});
+ await carregarLocaisEstoque();
+ if(novo?.id){$('stockWork').value='empresa:'+novo.id;renderEstoqueEmpresa();}
+ say('stockMessage','Local de estoque cadastrado.');}
  catch(e){say('stockMessage','Não foi possível cadastrar local: '+e.message);}
 }
 
