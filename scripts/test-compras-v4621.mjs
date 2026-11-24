@@ -60,5 +60,37 @@ for(const file of ['10_fluxo_pedidos_transferencias_rollback.sql','20_conciliaca
  const txt=readFileSync(new URL('../tests/compras_v4621/'+file,import.meta.url),'utf8');
  assert.ok(txt.includes('RAISE NOTICE')||txt.includes('raise notice'),'Cenário de SQL incompleto: '+file);
 }
+
+const proof=readFileSync(new URL('../assets/compras-comprovante-transferencia.js',import.meta.url),'utf8');
+assert.doesNotThrow(()=>new Function(proof));
+assert.ok(html.includes('compras-comprovante-transferencia.js'));
+assert.ok(js.includes('data-ew-transfer-print')&&js.includes('window.ewTransferReceipt.imprimir'));
+assert.ok(!/request\s*\(|apiGet\s*\(|\/rest\/v1\/rpc\//.test(proof),
+ 'A impressão de comprovante é apenas consulta, sem API ou movimentação.');
+const {runInNewContext}=await import('node:vm');
+const printed={};
+runInNewContext(proof,{window:printed,Intl});
+const movement={
+ id:'11111111-2222-4333-8444-555555555555',empresa_id:'empresa',
+ origem_tipo:'EMPRESA',origem_id:'origem',destino_tipo:'OBRA',destino_id:'destino',
+ origem_galpao:'IMBIRIBEIRA',destino_galpao:'AFOGADOS',
+ variacao_id:'produto',quantidade:4,unidade:'MT',
+ motivo:'Transferência <script>alert(1)</script>',
+ criado_em:'2026-11-24T10:30:00Z',estornado_em:null
+};
+const doc=printed.ewTransferReceipt.documentHtml(movement,{
+ empresa:'GVG & Estoque',
+ locais:[{value:'EMPRESA:origem',label:'Empresa · ESTOQUE GVG'},
+  {value:'OBRA:destino',label:'Obra · CASA BOA VIAGEM'}],
+ materiais:[{id:'produto',label:'FIT2130PTO · fita vedadora'}]});
+assert.match(doc,/VIA ORIGEM/);
+assert.match(doc,/VIA DESTINO/);
+assert.match(doc,/4 MT/);
+assert.match(doc,/SEM nova movimentação/i); // Ajustar se o texto da renderização mudar
+assert.ok(!doc.includes('<script>alert(1)</script>'));
+assert.match(doc,/&lt;script&gt;/);
+assert.match(doc,/Não gera romaneio|não gera romaneio/);
+console.log('PASS: comprovante em duas vias, sem mutação e com conteúdo escapado.');
+
 console.log('PASS: Compras, conciliação de NF-e e nota empresarial — sintaxe, referências, RLS, contratos e ausência de entradas físicas na conciliação.');
 
