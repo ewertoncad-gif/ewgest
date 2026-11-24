@@ -56,7 +56,7 @@ assert.ok(!/INSERT\s+INTO\s+public\.(?:ew_estoque_obras_movimentos|ew_compras_es
  'Conciliação de NF não pode criar estoque físico');
 assert.ok(!/INSERT\s+INTO\s+public\.(?:ew_estoque_obras_movimentos|ew_compras_estoque_empresa)\b/i.test(empSql),
  'Nota empresarial não pode criar estoque físico');
-for(const file of ['10_fluxo_pedidos_transferencias_rollback.sql','20_conciliacao_nfe_rollback.sql','30_nota_estoque_empresa_rollback.sql','40_migracao_estoque_legado_rollback.sql']){
+for(const file of ['10_fluxo_pedidos_transferencias_rollback.sql','20_conciliacao_nfe_rollback.sql','30_nota_estoque_empresa_rollback.sql','40_migracao_estoque_legado_rollback.sql','50_idempotencia_operacoes_rollback.sql']){
  const txt=readFileSync(new URL('../tests/compras_v4621/'+file,import.meta.url),'utf8');
  assert.ok(txt.includes('RAISE NOTICE')||txt.includes('raise notice'),'Cenário de SQL incompleto: '+file);
 }
