@@ -10,9 +10,9 @@ try{
  page.on('pageerror',e=>console.error('Browser pageerror:',e.message));
  await page.setContent('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"></head>'+
   '<body><div id="comprasMensagem"></div><main style="width:100%;max-width:100%">'+
-  '<section id="fiscal"></section></main></body></html>');
+  '<section id="ewComprasConciliacao"></section></main></body></html>');
  await page.addStyleTag({content:readFileSync(new URL('../assets/compras-estoque.css',import.meta.url),'utf8')});
- await page.addStyleTag({content:'html,body{box-sizing:border-box;margin:0;width:100%;max-width:100%}*{box-sizing:border-box}main{padding:12px}#fiscal{width:100%;max-width:100%}.ewComprasTableWrap{max-width:100%;overflow-x:auto}'});
+ await page.addStyleTag({content:'html,body{box-sizing:border-box;margin:0;width:100%;max-width:100%}*{box-sizing:border-box}main{padding:12px}#ewComprasConciliacao{width:100%;max-width:100%}.ewComprasTableWrap{max-width:100%;overflow-x:auto}'});
  await page.evaluate(()=>{
   window.escapeHTML=value=>String(value??'').replace(/[&<>"']/g,x=>
    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
@@ -69,7 +69,7 @@ try{
  });
  await page.addScriptTag({content:readFileSync(new URL('../assets/compras-nota-empresa.js',import.meta.url),'utf8')});
  await page.addScriptTag({content:readFileSync(new URL('../assets/compras-conciliacao-nfe.js',import.meta.url),'utf8')});
- await page.evaluate(()=>window.ewComprasNfe.render(document.querySelector('#fiscal'),window._ctx));
+ await page.evaluate(()=>window.ewComprasNfe.render(document.querySelector('#ewComprasConciliacao'),window._ctx));
  await page.locator('#ewCompNFOrder').selectOption('p');
  await page.locator('#ewCompNFDoc').waitFor();
  await page.locator('#ewCompNFDoc').selectOption('note');
@@ -127,8 +127,12 @@ try{
 
  const bounds=await page.evaluate(()=>({
   viewport:window.innerWidth,overflow:document.documentElement.scrollWidth,
-  fiscalWidth:document.querySelector('#fiscal').getBoundingClientRect().width}));
- assert.ok(bounds.overflow<=bounds.viewport+2,'Interface mobile transbordou horizontalmente');
+  fiscalWidth:document.querySelector('#ewComprasConciliacao').getBoundingClientRect().width,
+  offenders:[...document.querySelectorAll('body *')].filter(el=>
+   el.getBoundingClientRect().right>window.innerWidth+2).slice(0,12)
+   .map(el=>({tag:el.tagName,id:el.id,width:Math.round(el.getBoundingClientRect().width),
+    right:Math.round(el.getBoundingClientRect().right)}))}));
+ assert.ok(bounds.overflow<=bounds.viewport+2,'Interface mobile transbordou horizontalmente: '+JSON.stringify(bounds));
  await page.setViewportSize({width:1360,height:900});
  assert.ok(await page.locator('#ewNfeEmpOrder').isVisible());
  assert.ok(await page.locator('#ewCompNFOrder').isVisible());
