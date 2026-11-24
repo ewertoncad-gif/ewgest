@@ -2,7 +2,7 @@
 
 **Issue:** #77 · **Status:** em desenvolvimento, aguardando revisão e homologação.  
 **Branch:** `feature/compras-locais-estoque-v4621`.  
-**Produção:** nenhuma migração aplicada; não integrar/publicar antes da conciliação fiscal e dos estornos.
+**Produção:** nenhuma migração aplicada; não publicar antes dos testes visuais, regressão dos fluxos legados, conferência de permissões/concorrência e revisão dos documentos de transporte.
 
 ## Definições operacionais
 
@@ -27,7 +27,12 @@ A interface nova diferencia `Empresa · ...` de `Obra · ...`, mas **não migra 
 
 Para **obra**, a entrada de pedido usa a tabela já existente `ew_estoque_obras_movimentos`, com origem `COMPRA`. Para **empresa sem obra**, usa `ew_compras_locais_empresa` e o ledger novo `ew_compras_estoque_empresa`. Não inventar obras de estoque.
 
-Aprovação de NF-e, lançamento de despesa, faturamento e recebimento físico são operações distintas: **um pedido recebido NÃO deve abrir outra entrada física quando o documento fiscal for lançado**. Por isso a integração financeira/nota fiscal ainda precisa de regra e tela de vinculação "nota referente a recebimento de pedido". A migração atual registra **somente a entrada física** do pedido, nunca o valor da despesa fiscal.
+Aprovação de NF-e, lançamento de despesa, faturamento e recebimento físico são operações distintas: **um pedido recebido NÃO deve abrir outra entrada física quando o documento fiscal for lançado**.
+
+- **Pedidos para obras:** o Financeiro registra/aprova a nota (despesa da obra) sem movimentar novamente o estoque; em Compras → Pedido, o usuário financeiro vincula os itens da nota aos recebimentos já feitos. A vinculação conserva quantidades, unidades e valores originais, não cria movimento físico. Há controle de fornecedor/material/obra, quantidade na nota, vínculo único ativo por recebimento e bloqueio do recebimento fiscal antigo quando existe mercadoria correspondente pendente de conciliação.
+- **Estoque próprio da empresa:** a nota do pedido é registrada no novo livro fiscal `ew_compras_notas_empresa`, por local empresarial, fornecedor e pedido, incluindo subtotais por linha. Não usa `ew_obra_despesas`, não cria obra fictícia e não movimenta o saldo físico. A soma por nota e a unicidade por fornecedor/documento são conferidas.
+- Desvinculação/cancelamento fiscal com motivo preserva histórico. Antes de estornar o recebimento físico, a nota correspondente precisa ser desvinculada (obra) ou cancelada (empresa).
+- O financeiro **das obras** permanece separado dos custos do estoque empresarial; será necessário integrar o novo livro fiscal aos relatórios consolidados da empresa antes do aceite final.
 
 ## Etapas de uso
 
@@ -69,6 +74,16 @@ O SQL adiciona `compras.consultar`, `compras.solicitar`, `compras.cotar`, `compr
 - Verificado após o ensaio que as tabelas novas não persistiram e que a restauração de testes continuou sem obras, movimentos e fornecedores adicionais.
 - No ensaio foi necessária uma harmonização temporária, com `ROLLBACK`, da coluna `criado_por` do cadastro de fornecedores, pois a restauração está defasada em relação à produção.
 
+### Testes adicionais de 24/11/2026
+
+Com as cinco propostas de banco v46.21 carregadas na mesma transação sintética, executadas **isoladamente** e seguidas por `ROLLBACK`, passaram:
+
+- `tests/compras_v4621/20_conciliacao_nfe_rollback.sql`: dois recebimentos vinculados a uma nota aprovada, terceira entrega ainda sem nota, sem nova entrada no estoque; fornecedor/material, idempotência, bloqueio de reentrada fiscal, cancelamento de nota e estorno condicionados à desvinculação.
+- `tests/compras_v4621/30_nota_estoque_empresa_rollback.sql`: nota de 2 recebimentos parciais de estoque próprio, custos por linha e total exato, sem segundo estoque, bloqueio de nota duplicada, cancelamento financeiro e estorno posterior.
+- `tests/compras_v4621/40_migracao_estoque_legado_rollback.sql`: saldo sintético de 4 MT vindo de uma transferência entre obras, conversão de titularidade para local empresarial, conservação do saldo total e dos movimentos históricos e estorno da nova transferência.
+- O ensaio de regressão de operações básicas da versão 46.21 (`10_fluxo_pedidos_transferencias_rollback.sql`) continua aprovado.
+- O GitHub Actions verifica a sintaxe e os contratos da interface e das funções SQL; isso não substitui os testes de navegador.
+
 ### Limitações dos testes
 
 - Testes de transação executados em ambiente isolado com dados sintéticos. **Não** equivalem à homologação visual nem à verificação de fluxos de notas fiscais reais.
@@ -82,11 +97,12 @@ O SQL adiciona `compras.consultar`, `compras.solicitar`, `compras.cotar`, `compr
 
 ### Pendências antes da publicação
 
-1. **Conciliação NF-e/Financeiro — impeditivo de publicação**: adicionar vínculo entre nota, pedido e recebimento já feito, permitindo registrar/associar custo fiscal sem criar novamente o saldo físico. O SQL atual não bloqueia um segundo recebimento pelo fluxo fiscal legado.
-2. **Transferências e romaneios**: revisar documento de deslocamento entre obra e estoque próprio da empresa, sem acionar incorretamente o gatilho de transferência obra → obra. Validar impacto de estornos de obras e exclusões sobre compras ligadas.
-3. **Homologação completa**: executar no ambiente de testes as operações com concorrência real (dois recebimentos simultâneos), casos de falha/retry, itens com unidades distintas, galpões distintos e permissões 03/04/05/06/07/08.
-4. **Regressões e interface**: testar na navegação desktop e celular, consumo da produção, entrada manual NF-e, relatório financeiro, romaneios, transferências e relatórios.
-5. **Migração do ESTOQUE GVG**: auditar e converter saldo histórico sem duplicar entradas ou apagar a obra artificial antes da conciliação.
-6. **Operação comercial**: avaliar fornecedor inativo, cancelamentos de solicitação/cotação/pedido sem saldo recebido e políticas de aprovação do pedido.
+1. **Publicação / migrações**: revisar as cinco propostas SQL, backups, dependências e políticas RLS; homologar em base isolada atualizada. As migrações não foram aplicadas em produção e a `main` não foi alterada.
+2. **Transferências / documentos**: revisar documentação do deslocamento empresa ↔ obra, sem disparar romaneios de transferência entre obras de forma incorreta; testar estorno de obra e relatórios com compras vinculadas.
+3. **Concorrência e permissões**: testes com requisições simultâneas reais, falha de rede/retry, unidades MT/KG/PC/BARRA, galpões distintos, fornecedores inativos e perfis 03/04/05/06/07/08; verificar idempotência em cada RPC.
+4. **Regressões / navegador**: homologar visualmente em desktop/mobile, itens NF-e XML e notas manuais, consumo de produção, notas empresariais e relatórios financeiros. Conferir envio de número, valores, vínculos de nota e estornos pela interface.
+5. **Relatórios e centros de custo**: incluir o livro `ew_compras_notas_empresa` nos relatórios de despesas **empresariais**, sem duplicar custos financeiros de obra. Definir centro de custo empresarial para notas globais.
+6. **Migração do ESTOQUE GVG**: execução em produção ainda depende de autorização específica, backup e conferência do roteiro `docs/MIGRACAO_ESTOQUE_GVG_V4621.md`; o ensaio sintético de 4 MT foi validado, sem transferência real.
+7. **Operação comercial**: avaliar cancelamento de solicitação/cotação/pedido que ainda não gerou entrada física e política de aprovação de pedidos.
 
-**Decisão de segurança:** manter este PR fora de `main` até essas pendências serem resolvidas; não aplicar em produção uma estrutura de estoque que ainda não consegue conciliar e estornar corretamente.
+**Decisão de segurança:** manter o PR #78 em **draft**, sem merge ou deploy até finalizar as pendências de documentação fiscal, relatórios, regressões de navegador e homologação. Os novos estornos e vínculos fiscais estão implementados e testados com dados sintéticos; a publicação exige validação operacional adicional.
