@@ -156,4 +156,60 @@ try{
  assert.ok(await page.locator('#ewNfeEmpOrder').isVisible());
  assert.ok(await page.locator('#ewCompNFOrder').isVisible());
  console.log('PASS Chromium: nota de obra, quantidade excedida bloqueada, 2 parciais válidos, nota empresa em centavos, mobile e desktop.');
+
+ // Teste do módulo de recebimento real, com respostas sintéticas e saldo atualizado.
+ const receiving=await browser.newPage({viewport:{width:390,height:844}});
+ await receiving.setContent('<!doctype html><html><head><meta charset="utf-8"></head><body>'+
+ '<button id="comprasTabSolicitacao"></button><button id="comprasTabCotacao"></button><button id="comprasTabPedido"></button>'+
+ '<select id="recebimentoWork"><option value="obra1">Obra 1</option><option value="empresa:loc1">Empresa</option></select>'+
+ '<main id="ewComprasRecebimento"></main></body></html>');
+ await receiving.addStyleTag({content:readFileSync(new URL('../assets/compras-estoque.css',import.meta.url),'utf8')});
+ await receiving.addStyleTag({content:'*{box-sizing:border-box}body{margin:0;padding:12px}.hidden{display:none!important}main{max-width:100%}.ewComprasTableWrap{max-width:100%;overflow-x:auto}'});
+ await receiving.evaluate(()=>{
+  window.escapeHTML=v=>String(v??'').replace(/[&<>"]/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[x]));
+  window.temPermissao=()=>true;window.ensureSession=async()=>{};
+  window.currentCompany={id:'company'};window.session={access_token:'MOCK'};
+  window._mockReceiving={receipts:[{id:'first',pedido_id:'p1',itens:[{chave:'A',quantidade:1}],galpao:'AFOGADOS'}],calls:[]};
+  if(typeof crypto.randomUUID!=='function')Object.defineProperty(crypto,'randomUUID',{value:()=> '00000000-0000-4000-8000-000000000123'});
+  window.apiGet=async(table)=>{
+   if(table==='ew_compras_recebimentos')return window._mockReceiving.receipts;
+   if(table==='ew_locais_fisicos')return [{nome:'AFOGADOS',ativo:true}];
+   if(table==='ew_materiais_variacoes')return [{id:'v',tipo:'perfil',perfil_id:'pf',cor:'NATURAL'}];
+   if(table==='ew_perfis')return [{id:'pf',codigo:'P01',descricao:'Perfil teste',comprimento_comercial_mm:6000}];
+   return [];
+  };
+  window.request=async(path,opts)=>{
+   if(path.endsWith('ew_compras_pedidos_resumo'))return [
+    {id:'p1',numero:1,obra_id:'obra1',itens:[{chave:'A',variacao_id:'v',unidade:'BARRA',quantidade:3}]},
+    {id:'p2',numero:2,local_empresa_id:'loc1',itens:[{chave:'A',variacao_id:'v',unidade:'BARRA',quantidade:5}]}
+   ];
+   if(!path.endsWith('ew_compras_receber_pedido'))throw Error('RPC inesperada');
+   window._mockReceiving.calls.push(opts.body);
+   window._mockReceiving.receipts.push({id:'second',pedido_id:opts.body.p_pedido_id,itens:opts.body.p_itens,galpao:opts.body.p_galpao});
+   return {id:'second'};
+  };
+ });
+ await receiving.addScriptTag({content:readFileSync(new URL('../assets/compras-estoque.js',import.meta.url),'utf8')});
+ await receiving.evaluate(()=>window.ewCompras.atualizarRecebimento('obra1'));
+ await receiving.locator('#ewReceberPedido').selectOption('p1');
+ const row=receiving.locator('[data-receive-key="A"]');
+ assert.equal(await row.locator('td').nth(3).innerText(),'1');
+ assert.equal(await row.locator('td').nth(4).innerText(),'2');
+ await row.locator('[type=checkbox]').check();
+ await row.locator('[type=number]').fill('1');
+ await receiving.locator('#ewReceberGalpao').selectOption('AFOGADOS');
+ await receiving.locator('#ewReceberForm [type=submit]').click();
+ await receiving.waitForFunction(()=>document.querySelector('#ewReceberMessage')?.textContent==='Recebimento confirmado.');
+ assert.equal(await receiving.locator('#ewReceberPedido').inputValue(),'p1');
+ assert.equal(await row.locator('td').nth(3).innerText(),'2');
+ assert.equal(await row.locator('td').nth(4).innerText(),'1');
+ assert.equal(await receiving.evaluate(()=>window._mockReceiving.calls.length),1);
+ assert.ok(await receiving.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Recebimento excede largura mobile');
+ await receiving.locator('#recebimentoWork').selectOption('empresa:loc1');
+ await receiving.evaluate(()=>window.ewCompras.atualizarRecebimento('empresa:loc1'));
+ assert.equal(await receiving.locator('#ewReceberPedido option[value="p1"]').count(),0);
+ await receiving.locator('#ewReceberPedido').selectOption('p2');
+ assert.equal(await row.locator('td').nth(4).innerText(),'5');
+ console.log('PASS Chromium: recebimento parcial, seleção preservada, saldo atualizado, local empresarial separado e mobile.');
+ await receiving.close();
 }finally{await browser.close()}
