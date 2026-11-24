@@ -8707,7 +8707,7 @@ async function abrirEstoque(){
     if(obrasEstoque.some(w=>w.id===previous))dropdown.value=previous;
     else if(obrasEstoque.length)dropdown.value=obrasEstoque.find(w=>w.codigo==='ALU-3195-GVG-PE')?.id||obrasEstoque[0].id;
     renderEstoque();
-    if(window.ewCompras)await window.ewCompras.carregarLocaisEstoque();
+    if(window.ewCompras)await window.ewCompras.carregarLocaisEstoque(previous);
     stockReportRender();
     node('stockMessage').textContent='';
   }catch(e){node('stockMessage').textContent='Não foi possível carregar estoque: '+e.message;}
