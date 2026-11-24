@@ -212,4 +212,57 @@ try{
  assert.equal(await row.locator('td').nth(4).innerText(),'5');
  console.log('PASS Chromium: recebimento parcial, seleção preservada, saldo atualizado, local empresarial separado e mobile.');
  await receiving.close();
+
+ // Editor de níveis: usa o HTML e o módulo reais, somente RPCs sintéticas.
+ const levels=await browser.newPage({viewport:{width:1280,height:800}});
+ const app=readFileSync(new URL('../app.html',import.meta.url),'utf8');
+ const section=app.match(/<section id="accessLevels"[\s\S]*?<\/section>/)?.[0];
+ assert.ok(section,'Tela exclusiva de níveis ausente');
+ await levels.setContent('<!doctype html><html><body><select id="createUserLevel"><option value="3">3</option></select><select id="userEditLevel"><option value="3">3</option></select><select id="createUserRole"><option value="tecnico">tecnico</option></select><select id="userEditRole"><option value="tecnico">tecnico</option></select>'+section.replace('class="hidden"','')+'</body></html>');
+ await levels.addStyleTag({content:readFileSync(new URL('../assets/niveis-acesso.css',import.meta.url),'utf8')});
+ await levels.addStyleTag({content:'*{box-sizing:border-box}body{margin:0;padding:12px}.hidden{display:none!important}main,section{max-width:100%}input{max-width:100%}'});
+ await levels.evaluate(()=>{
+  window.currentAccessLevel=1;window.currentCompany={id:'empresa-sintetica'};
+  window.session={access_token:'MOCK'};window.isFullAdminUser=()=>window.currentAccessLevel===1;
+  window.temPermissao=()=>window.currentAccessLevel===1;window.ensureSession=async()=>{};
+  window.confirm=()=>true;
+  window._levels={saved:[],data:{niveis:Array.from({length:8},(_,i)=>({nivel:i+1,nome:'Perfil '+(i+1),flags:{'estoque.consultar':i===0||i===1,'financeiro.consultar':i===0}})),catalogo:[{chave:'estoque.consultar',grupo:'Estoque',descricao:'Consultar estoque',ordem:1},{chave:'financeiro.consultar',grupo:'Financeiro',descricao:'Consultar financeiro',ordem:2}]}};
+  window.request=async(path,opts)=>{
+   if(path.endsWith('ew_listar_niveis'))return structuredClone(window._levels.data);
+   if(!path.endsWith('ew_salvar_nivel'))throw Error('RPC inesperada');
+   window._levels.saved.push(opts.body);
+   const flags=Object.fromEntries(window._levels.data.catalogo.map(x=>[x.chave,opts.body.p_flags.includes(x.chave)]));
+   window._levels.data.niveis.find(x=>x.nivel===opts.body.p_nivel).flags=flags;
+   return {flags};
+  };
+ });
+ await levels.addScriptTag({content:readFileSync(new URL('../assets/niveis-acesso.js',import.meta.url),'utf8')});
+ await levels.evaluate(()=>window.nivelAcessoPreparar());
+ assert.equal(await levels.locator('[data-level]').count(),8);
+ await levels.locator('[data-level="1"]').click();
+ assert.ok(await levels.locator('[data-flag="estoque.consultar"]').isDisabled());
+ assert.ok(await levels.locator('[data-flag="financeiro.consultar"]').isChecked());
+ assert.ok(await levels.locator('#userLevelsSave').isDisabled());
+ await levels.locator('[data-level="2"]').click();
+ assert.ok(await levels.locator('[data-flag="estoque.consultar"]').isChecked());
+ await levels.locator('#userLevelsSearch').fill('financeiro');
+ assert.ok(!(await levels.locator('[data-flag="estoque.consultar"]').isVisible()));
+ await levels.locator('[data-flag="financeiro.consultar"]').check();
+ await levels.locator('#userLevelsSave').click();
+ await levels.waitForFunction(()=>document.querySelector('#userLevelsStatus').textContent.includes('atualizado'));
+ const saved=await levels.evaluate(()=>window._levels.saved);
+ assert.equal(saved[0].p_nivel,2);
+ assert.equal(saved[0].p_empresa_id,'empresa-sintetica');
+ assert.deepEqual(saved[0].p_flags.sort(),['estoque.consultar','financeiro.consultar']);
+ await levels.locator('#userLevelsSearch').fill('');
+ await levels.locator('#userLevelsNone').click();
+ assert.equal(await levels.locator('[data-flag]:checked').count(),0);
+ await levels.locator('#userLevelsAll').click();
+ assert.equal(await levels.locator('[data-flag]:checked').count(),2);
+ await levels.setViewportSize({width:390,height:844});
+ assert.ok(await levels.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Editor de níveis transbordou mobile');
+ await levels.evaluate(()=>{window.currentAccessLevel=2;return window.nivelAcessoPreparar()});
+ assert.ok(!(await levels.locator('#userLevelsPanel').isVisible()));
+ console.log('PASS Chromium: oito níveis, proteção ADM, filtro, flags, salvar, ações em massa e acesso restrito.');
+ await levels.close();
 }finally{await browser.close()}
