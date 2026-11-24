@@ -21,7 +21,7 @@ function operationToken(kind,payload){const signature=JSON.stringify(payload);co
  if(old&&old.signature===signature)return old.id;
  const id=crypto.randomUUID();pendingOps.set(kind,{signature,id});return id;
 }
-let tab='solicitacao',locals=[],suppliers=[],galpoes=[],variations=[],sols=[],quotes=[],orders=[],receipts=[],stockEpoch=0,loaded=false;
+let tab='solicitacao',locals=[],suppliers=[],suppliersAll=[],galpoes=[],variations=[],sols=[],quotes=[],orders=[],receipts=[],stockEpoch=0,loaded=false;
 function titleLocal(row){const work=works.find(w=>w.id===row.obra_id);
  const loc=locals.find(x=>x.id===row.local_empresa_id);
  return work?'Obra · '+work.nome:loc?'Empresa · '+loc.nome:'Local indisponível';}
@@ -46,7 +46,7 @@ async function reload(){
   apiGet('ew_compras_recebimentos',{select:'id,pedido_id,itens,criado_em,galpao,estornado_em,estorno_motivo',empresa_id:empresa,limit:'3000'})
  ]);
  const perf=new Map((ps||[]).map(p=>[p.id,p])),acc=new Map((as||[]).map(a=>[a.id,a]));
- locals=ls||[];suppliers=(fs||[]).filter(x=>x.ativo);galpoes=(gs||[]).filter(x=>x.ativo).map(x=>x.nome);
+ locals=ls||[];suppliersAll=fs||[];suppliers=suppliersAll.filter(x=>x.ativo);galpoes=(gs||[]).filter(x=>x.ativo).map(x=>x.nome);
  variations=(vs||[]).map(v=>{const m=v.tipo==='perfil'?perf.get(v.perfil_id):acc.get(v.acessorio_id);
  return {...v,unidade:v.tipo==='perfil'?'BARRA':m?.unidade_item||'PC',
   comprimento_mm:v.tipo==='perfil'?Number(m?.comprimento_comercial_mm)||6000:null,
@@ -139,6 +139,10 @@ function renderOrder(){
  try{await rpc('ew_compras_criar_pedido',{p_cotacao_id:id,p_operacao_id:operationToken('pedir',{id})});
  pendingOps.delete('pedir');await reload();renderOrder();say('comprasMensagem','Pedido criado e disponível para recebimento.');
  }catch(err){say('comprasMensagem','Erro: '+err.message)}};
+ if(permission('financeiro.despesas')&&permission('compras.consultar_valores')){
+  const box=document.createElement('section');box.id='ewComprasConciliacao';box.className='section panel';
+  $('comprasConteudo').appendChild(box);void window.ewComprasNfe?.render(box,contextoConciliacao());
+ }
 }
 function render(){for(const [k,id] of [['solicitacao','comprasTabSolicitacao'],['cotacao','comprasTabCotacao'],['pedido','comprasTabPedido']])
  $(id).classList.toggle('primary',k===tab);
@@ -393,5 +397,7 @@ async function abrirTransferLocal(){
  }catch(err){pane.innerHTML='<p class="feedback">Transferências indisponíveis: '+esc(err.message)+'</p>';}
 }
 
-window.ewCompras=Object.freeze({abrir,carregarLocaisRecebimento,atualizarRecebimento,carregarLocaisEstoque,renderEstoqueEmpresa,criarLocalEmpresa,abrirTransferLocal});
+function contextoConciliacao(){return permission('financeiro.despesas')&&permission('compras.consultar_valores')?
+ {empresa_id:currentCompany?.id,orders,suppliers:suppliersAll,receipts,variations}:null;}
+window.ewCompras=Object.freeze({abrir,carregarLocaisRecebimento,atualizarRecebimento,carregarLocaisEstoque,renderEstoqueEmpresa,criarLocalEmpresa,abrirTransferLocal,contextoConciliacao});
 })();
