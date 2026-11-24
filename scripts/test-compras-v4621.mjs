@@ -92,5 +92,18 @@ assert.match(doc,/&lt;script&gt;/);
 assert.match(doc,/Não gera romaneio|não gera romaneio/);
 console.log('PASS: comprovante em duas vias, sem mutação e com conteúdo escapado.');
 
+const cancelSql=readFileSync(new URL('../database/proposals/20261124_compras_cancelamentos_comerciais_v4621.sql',import.meta.url),'utf8');
+for(const fn of ['ew_compras_cancelar_solicitacao','ew_compras_cancelar_cotacao','ew_compras_cancelar_pedido']){
+ assert.ok(cancelSql.includes(fn)&&js.includes(fn),'Cancelamento sem vínculo entre banco e UI: '+fn);
+}
+assert.ok(js.includes('bindCancelButtons()'),'Botões de cancelamento precisam funcionar.');
+assert.ok(js.includes("q.status!=='CANCELADA'"),'Cotação cancelada não deve surgir como disponível.');
+assert.ok(js.includes("p.status==='ABERTO'&&!receipts.some"),'Pedido com histórico não deve oferecer cancelamento direto.');
+assert.ok(cancelSql.includes('compras_recebimentos r where r.pedido_id=v_p.id'),'Cancelamento de pedido deve conferir histórico físico.');
+assert.ok(cancelSql.includes('ew_compras_exigir_cotacao_ativa'),'Pedido precisa bloquear cotação cancelada no servidor.');
+const cancelCase=readFileSync(new URL('../tests/compras_v4621/60_cancelamentos_comerciais_rollback.sql',import.meta.url),'utf8');
+assert.ok(cancelCase.includes('PASS: cancelamentos'),'Cenário funcional de cancelamento não incluído.');
+console.log('PASS: cancelamentos comerciais, permissões e proteção de histórico rastreados.');
+
 console.log('PASS: Compras, conciliação de NF-e e nota empresarial — sintaxe, referências, RLS, contratos e ausência de entradas físicas na conciliação.');
 
