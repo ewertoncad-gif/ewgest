@@ -34,15 +34,15 @@ BEGIN
  INSERT INTO public.ew_estoque_obras_movimentos(empresa_id,obra_id,variacao_id,
   comprimento_mm,unidade,quantidade_delta,origem,operacao_id,observacao,
   usuario_id,local_estoque,transferencia_id)
- VALUES(v_emp,v_a,v_var,null,'MT',-4,'TRANSFERENCIA',gen_random_uuid(),
-  'Origem transferência legado',v_uid,'IMBIRIBEIRA',v_mov_id)
- RETURNING id INTO v_legacy_saida;
- INSERT INTO public.ew_estoque_obras_movimentos(empresa_id,obra_id,variacao_id,
-  comprimento_mm,unidade,quantidade_delta,origem,operacao_id,observacao,
-  usuario_id,local_estoque,transferencia_id)
  VALUES(v_emp,v_b,v_var,null,'MT',4,'TRANSFERENCIA',gen_random_uuid(),
   'Destino transferência legado',v_uid,'IMBIRIBEIRA',v_mov_id)
  RETURNING id INTO v_legacy_entrada;
+ INSERT INTO public.ew_estoque_obras_movimentos(empresa_id,obra_id,variacao_id,
+  comprimento_mm,unidade,quantidade_delta,origem,operacao_id,observacao,
+  usuario_id,local_estoque,transferencia_id)
+ VALUES(v_emp,v_a,v_var,null,'MT',-4,'TRANSFERENCIA',gen_random_uuid(),
+  'Origem transferência legado',v_uid,'IMBIRIBEIRA',v_mov_id)
+ RETURNING id INTO v_legacy_saida;
  v_result:=public.ew_compras_criar_local_empresa(v_emp,'ESTOQUE EMPRESA SINTETICO');
  v_local:=(v_result->>'id')::uuid;
  -- Um único novo par de movimentos: -4 da obra artificial, +4 no local empresa.
