@@ -230,11 +230,11 @@ async function atualizarRecebimento(obraId){
  };
  }catch(e){box.querySelector('.feedback').textContent='Pedidos indisponíveis: '+e.message;}
 }
-async function carregarLocaisEstoque(){
+async function carregarLocaisEstoque(prefer=''){
  if(!permission('estoque.consultar'))return;try{
  await ensureSession();locals=await apiGet('ew_compras_locais_empresa',{select:'id,nome,ativo',
  empresa_id:'eq.'+currentCompany.id,order:'nome.asc'})||[];
- const select=$('stockWork'),old=select.value;for(const x of locals.filter(l=>l.ativo))
+ const select=$('stockWork'),old=prefer||select.value;for(const x of locals.filter(l=>l.ativo))
   select.appendChild(new Option('Empresa · '+x.nome,'empresa:'+x.id));
  if(old&&[...select.options].some(op=>op.value===old)){select.value=old;if(old.startsWith('empresa:'))renderEstoqueEmpresa();}
  }catch(e){say('stockMessage','Locais de estoque da empresa indisponíveis: '+e.message);}
