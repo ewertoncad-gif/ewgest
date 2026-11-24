@@ -237,7 +237,7 @@ begin
      and m.variacao_id=v_t.variacao_id
      and m.comprimento_mm is not distinct from v_t.comprimento_mm
      and m.unidade=v_t.unidade and m.local_estoque=v_t.destino_galpao
-     and m.quantidade_delta<0 and m.criado_em>=v_destino_criado
+     and m.quantidade_delta<0 and m.origem<>'ESTORNO' and m.criado_em>=v_destino_criado
        and not exists(select 1 from public.ew_estoque_obras_movimentos rev where rev.estorno_de_id=m.id))
   then raise exception 'Destino possui saídas posteriores. Desfaça dependências antes do estorno.';end if;
   select coalesce(sum(m.quantidade_delta),0) into v_saldo
@@ -257,7 +257,8 @@ begin
       and m.variacao_id=v_t.variacao_id
       and m.comprimento_mm is not distinct from v_t.comprimento_mm
       and m.unidade=v_t.unidade and m.galpao=v_t.destino_galpao
-      and m.quantidade_delta<0 and m.criado_em>=v_destino_criado
+      and m.quantidade_delta<0 and m.origem not in ('ESTORNO_PEDIDO','ESTORNO_TRANSFERENCIA')
+       and m.criado_em>=v_destino_criado
        and not exists(select 1 from public.ew_compras_estoque_empresa rev where rev.estorno_de_id=m.id))
   then raise exception 'Destino possui saídas posteriores. Desfaça dependências antes do estorno.';end if;
   select coalesce(sum(m.quantidade_delta),0) into v_saldo
