@@ -72,6 +72,7 @@ CREATE OR REPLACE FUNCTION public.ew_compras_registrar_nota_empresa(
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $fn$
 DECLARE
  v_user uuid:=auth.uid();v_p public.ew_compras_pedidos%ROWTYPE;
+ v_previous public.ew_compras_notas_empresa%ROWTYPE;
  v_nota_id uuid;v_numero text:=btrim(coalesce(p_numero_documento,''));
  v_chave text:=nullif(btrim(coalesce(p_chave_nfe,'')),'');
  v_i jsonb;v_r public.ew_compras_recebimentos%ROWTYPE;
@@ -87,13 +88,26 @@ BEGIN
  IF NOT(public.ew_pode(v_p.empresa_id,'financeiro.despesas')
   AND public.ew_pode(v_p.empresa_id,'compras.consultar_valores'))
  THEN RAISE EXCEPTION 'Sem permissão para registrar nota de compra empresarial.';END IF;
- SELECT id INTO v_nota_id FROM public.ew_compras_notas_empresa
+ SELECT * INTO v_previous FROM public.ew_compras_notas_empresa
  WHERE operacao_id=p_operacao_id;
- IF v_nota_id IS NOT NULL THEN
-  IF NOT EXISTS(SELECT 1 FROM public.ew_compras_notas_empresa
-   WHERE id=v_nota_id AND pedido_id=v_p.id AND status='ATIVA')
-  THEN RAISE EXCEPTION 'Identificador reutilizado em outra nota ou nota cancelada.';END IF;
-  RETURN jsonb_build_object('id',v_nota_id,'repetida',true);END IF;
+ IF FOUND THEN
+  IF v_previous.pedido_id<>v_p.id OR v_previous.status<>'ATIVA'
+   OR v_previous.numero_documento IS DISTINCT FROM btrim(coalesce(p_numero_documento,''))
+   OR v_previous.data_documento IS DISTINCT FROM p_data_documento
+   OR v_previous.chave_nfe IS DISTINCT FROM nullif(btrim(coalesce(p_chave_nfe,'')),'')
+   OR v_previous.valor_centavos IS DISTINCT FROM p_valor_centavos
+   OR (SELECT count(*) FROM public.ew_compras_notas_empresa_itens
+       WHERE nota_id=v_previous.id AND cancelado_em IS NULL)
+      <>jsonb_array_length(p_itens)
+   OR EXISTS(SELECT 1 FROM jsonb_array_elements(p_itens) entrada(value)
+       WHERE NOT EXISTS(SELECT 1 FROM public.ew_compras_notas_empresa_itens x
+        WHERE x.nota_id=v_previous.id AND x.cancelado_em IS NULL
+         AND x.recebimento_id=(entrada.value->>'recebimento_id')::uuid
+         AND x.chave=entrada.value->>'chave'
+         AND x.valor_total_centavos=(entrada.value->>'valor_total_centavos')::bigint))
+  THEN RAISE EXCEPTION 'Identificador de nota reutilizado com dados ou itens diferentes.';END IF;
+  RETURN jsonb_build_object('id',v_previous.id,'repetida',true);
+ END IF;
  IF NOT EXISTS(SELECT 1 FROM public.ew_compras_locais_empresa
    WHERE id=v_p.local_empresa_id AND empresa_id=v_p.empresa_id AND ativo)
  THEN RAISE EXCEPTION 'Local da empresa inexistente ou inativo.';END IF;
