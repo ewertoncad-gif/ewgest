@@ -2101,7 +2101,8 @@ assert.ok(source.includes('v46.20')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
  source.includes("const anterior=prefer||sel.value||'';")&&
- source.includes("if(!obraId){msg.textContent='Selecione uma obra para iniciar o recebimento.';return;}")&&
+ source.includes("if(!obraId){msg.textContent='Selecione um local de estoque para iniciar o recebimento.';return;}")&&
+ source.includes("if(obraId.startsWith('empresa:')){msg.textContent='Estoque da empresa: recebimento físico exclusivamente por pedido de compra.';return;}")&&
  source.includes("el.classList.add('hidden');el.replaceChildren();return;")&&
  source.includes("x.obraId!==selected")&&
  source.includes("state.obraId!==selected"),
