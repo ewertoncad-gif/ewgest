@@ -398,6 +398,6 @@ async function abrirTransferLocal(){
 }
 
 function contextoConciliacao(){return permission('financeiro.despesas')&&permission('compras.consultar_valores')?
- {empresa_id:currentCompany?.id,orders,suppliers:suppliersAll,receipts,variations}:null;}
+ {empresa_id:currentCompany?.id,orders,suppliers:suppliersAll,receipts,variations,workNames:works.map(w=>({id:w.id,nome:w.nome}))}:null;}
 window.ewCompras=Object.freeze({abrir,carregarLocaisRecebimento,atualizarRecebimento,carregarLocaisEstoque,renderEstoqueEmpresa,criarLocalEmpresa,abrirTransferLocal,contextoConciliacao});
 })();
