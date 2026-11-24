@@ -32,4 +32,33 @@ assert.deepEqual(saldos,[6,6]);
 assert.deepEqual(saldos.map((s,i)=>s-agora[i]),[3,4]);
 assert.ok(saldos.every((s,i)=>agora[i]<=s));
 assert.equal(saldos[0]<7,true);
-console.log('PASS: sintaxe JS, contratos da interface/RPC, guardas estáticas e cálculo de saldos (mock).');
+
+const nfUi=readFileSync(new URL('../assets/compras-conciliacao-nfe.js',import.meta.url),'utf8');
+const empUi=readFileSync(new URL('../assets/compras-nota-empresa.js',import.meta.url),'utf8');
+const nfSql=readFileSync(new URL('../database/proposals/20261124_compras_conciliacao_nfe_v4621.sql',import.meta.url),'utf8');
+const empSql=readFileSync(new URL('../database/proposals/20261124_compras_nota_empresa_v4621.sql',import.meta.url),'utf8');
+const estornoSql=readFileSync(new URL('../database/proposals/20261124_compras_estorno_recebimento_v4621.sql',import.meta.url),'utf8');
+const transSql=readFileSync(new URL('../database/proposals/20261124_compras_transferencias_locais_v4621.sql',import.meta.url),'utf8');
+assert.doesNotThrow(()=>new Function(nfUi),'Conciliação fiscal possui JS inválido');
+assert.doesNotThrow(()=>new Function(empUi),'Nota empresarial possui JS inválido');
+for(const path of ['compras-conciliacao-nfe.js','compras-nota-empresa.js'])assert.ok(html.includes(path),'Script fiscal não carregado: '+path);
+for(const [fn,file,ui] of [
+ ['ew_compras_vincular_nfe_pedido',nfSql,nfUi],
+ ['ew_compras_desvincular_nfe',nfSql,nfUi],
+ ['ew_compras_registrar_nota_empresa',empSql,empUi],
+ ['ew_compras_cancelar_nota_empresa',empSql,empUi]
+]) assert.ok(file.includes(fn)&&ui.includes(fn),'Rotina fiscal não conectada: '+fn);
+for(const guard of ['ew_compras_proteger_recebimento_nfe','ew_compras_proteger_cancelamento_nfe','ew_compras_proteger_estorno_recebimento_conciliado'])
+ assert.ok(nfSql.includes(guard),'Guarda fiscal ausente: '+guard);
+assert.ok(empSql.includes('ew_compras_proteger_estorno_rec_empresa'));
+assert.ok(nfSql.includes('row level security')&&empSql.includes('ROW LEVEL SECURITY'));
+assert.ok(!/INSERT\s+INTO\s+public\.(?:ew_estoque_obras_movimentos|ew_compras_estoque_empresa)\b/i.test(nfSql),
+ 'Conciliação de NF não pode criar estoque físico');
+assert.ok(!/INSERT\s+INTO\s+public\.(?:ew_estoque_obras_movimentos|ew_compras_estoque_empresa)\b/i.test(empSql),
+ 'Nota empresarial não pode criar estoque físico');
+for(const file of ['10_fluxo_pedidos_transferencias_rollback.sql','20_conciliacao_nfe_rollback.sql','30_nota_estoque_empresa_rollback.sql']){
+ const txt=readFileSync(new URL('../tests/compras_v4621/'+file,import.meta.url),'utf8');
+ assert.ok(txt.includes('RAISE NOTICE')||txt.includes('raise notice'),'Cenário de SQL incompleto: '+file);
+}
+console.log('PASS: Compras, conciliação de NF-e e nota empresarial — sintaxe, referências, RLS, contratos e ausência de entradas físicas na conciliação.');
+
