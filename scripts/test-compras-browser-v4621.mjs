@@ -11,7 +11,7 @@ try{
   '<body><div id="comprasMensagem"></div><main style="width:100%;max-width:100%">'+
   '<section id="fiscal"></section></main></body></html>');
  await page.addStyleTag({content:readFileSync(new URL('../assets/compras-estoque.css',import.meta.url),'utf8')});
- await page.addStyleTag({content:'html,body{box-sizing:border-box;margin:0;width:100%;max-width:100%;overflow-x:hidden}*{box-sizing:border-box}main{padding:12px}#fiscal{width:100%;max-width:100%}.ewComprasTableWrap{max-width:100%;overflow-x:auto}'});
+ await page.addStyleTag({content:'html,body{box-sizing:border-box;margin:0;width:100%;max-width:100%}*{box-sizing:border-box}main{padding:12px}#fiscal{width:100%;max-width:100%}.ewComprasTableWrap{max-width:100%;overflow-x:auto}'});
  await page.evaluate(()=>{
   window.escapeHTML=value=>String(value??'').replace(/[&<>"']/g,x=>
    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
