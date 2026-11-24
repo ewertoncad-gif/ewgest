@@ -40,6 +40,28 @@ const empSql=readFileSync(new URL('../database/proposals/20261124_compras_nota_e
 const estornoSql=readFileSync(new URL('../database/proposals/20261124_compras_estorno_recebimento_v4621.sql',import.meta.url),'utf8');
 const transSql=readFileSync(new URL('../database/proposals/20261124_compras_transferencias_locais_v4621.sql',import.meta.url),'utf8');
 assert.doesNotThrow(()=>new Function(nfUi),'Conciliação fiscal possui JS inválido');
+const nfTestWindow={};
+const {runInNewContext:runFiscal}=await import('node:vm');
+runFiscal(nfUi,{window:nfTestWindow,Intl});
+const nfFunctions=nfTestWindow.ewComprasNfe;
+assert.equal(nfFunctions.quantityAsInvoice({unidade:'BARRA',comprimento_mm:6000},2,'MT'),12,
+ 'Duas barras de 6m equivalem a 12 metros fiscais.');
+assert.equal(nfFunctions.quantityAsInvoice({unidade:'BARRA',comprimento_mm:6500},1,'M'),6.5,
+ 'Comprimento deve considerar a dimensão real da barra, não o comprimento padrão.');
+assert.equal(nfFunctions.quantityAsInvoice({unidade:'BARRA',comprimento_mm:6000},1,'BARRA'),1);
+assert.equal(nfFunctions.quantityAsInvoice({unidade:'BARRA',comprimento_mm:6000},1,'KG'),null);
+assert.equal(nfFunctions.quantityAsInvoice({unidade:'KG'},0.725,'KG'),0.725);
+assert.equal(nfFunctions.quantityAsInvoice({unidade:'PC'},3,'UN'),3);
+assert.equal(nfFunctions.quantityAsInvoice({unidade:'BARRA',comprimento_mm:0},1,'MT'),null);
+assert.equal(nfFunctions.compatible({variacao_id:'v'},{perfil_id:'pf'},
+  [{id:'v',tipo:'perfil',perfil_id:'pf'}],'aluminio'),true);
+assert.equal(nfFunctions.compatible({variacao_id:'v'},{perfil_id:'pf'},
+  [{id:'v',tipo:'perfil',perfil_id:'pf'}],'acessorios'),false);
+assert.ok(nfUi.includes('const selectedByItem=new Map()')&&nfUi.includes('qty+(fiscalUsed.get(itemId)||0)'),
+ 'A UI deve somar linhas recebidas por item da nota, incluindo o saldo já conciliado.');
+assert.ok(nfUi.includes("despesa_item_id:'in.('")&&nfUi.includes("recebimento_id:'in.('"),
+ 'A consulta de vínculos deve ser limitada aos documentos envolvidos, não a toda empresa.');
+
 assert.doesNotThrow(()=>new Function(empUi),'Nota empresarial possui JS inválido');
 for(const path of ['compras-conciliacao-nfe.js','compras-nota-empresa.js'])assert.ok(html.includes(path),'Script fiscal não carregado: '+path);
 for(const [fn,file,ui] of [
