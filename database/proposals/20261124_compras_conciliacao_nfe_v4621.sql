@@ -252,6 +252,8 @@ BEGIN
   WHERE p.empresa_id=NEW.empresa_id AND p.obra_id=NEW.obra_id
    AND lower(btrim(f.nome))=lower(btrim(coalesce(v_fornecedor,'')))
    AND m.variacao_id=NEW.variacao_id
+   AND m.comprimento_mm IS NOT DISTINCT FROM NEW.comprimento_mm
+   AND m.unidade=NEW.unidade
    AND NOT EXISTS(SELECT 1 FROM public.ew_compras_nfe_vinculos z
       WHERE z.recebimento_id=r.id AND z.chave=x.chave AND z.desvinculado_em IS NULL)
  ) THEN RAISE EXCEPTION
