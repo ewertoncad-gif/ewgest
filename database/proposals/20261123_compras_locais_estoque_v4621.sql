@@ -345,6 +345,25 @@ begin
   v_chave:=v_i->>'chave';v_q:=(v_i->>'quantidade')::numeric;
   select value into v_original from jsonb_array_elements(v_p.itens) where value->>'chave'=v_chave;
   if v_p.obra_id is not null then
+   -- Mesmo lock de movimentação física legado, para serializar com NF-e.
+   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+    v_p.obra_id::text||'|'||(v_original->>'variacao_id')||'|'||
+    coalesce(v_original->>'comprimento_mm','-')||'|'||(v_original->>'unidade'),34777));
+   -- Se este fornecedor e material já deram entrada por NF-e, não repetir
+   -- automaticamente a entrada em estoque via pedido.
+   if exists(select 1 from public.ew_nfe_recebimentos n
+     join public.ew_obra_despesas_itens di on di.id=n.despesa_item_id
+     join public.ew_obra_despesas d on d.id=di.despesa_id
+     join public.ew_fornecedores f on f.id=v_p.fornecedor_id
+     where n.empresa_id=v_p.empresa_id and n.obra_id=v_p.obra_id
+       and n.estornado_em is null and d.status='aprovada'
+       and lower(btrim(d.fornecedor))=lower(btrim(f.nome))
+       and n.variacao_id=(v_original->>'variacao_id')::uuid
+       and n.comprimento_mm is not distinct from (v_original->>'comprimento_mm')::integer
+       and n.unidade=v_original->>'unidade')
+   then raise exception
+    'Este material e fornecedor já possuem entrada física por nota na obra. Concilie o recebimento anterior antes de receber por pedido.';
+   end if;
    insert into public.ew_estoque_obras_movimentos(
     empresa_id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,
     origem,operacao_id,observacao,usuario_id,local_estoque)
