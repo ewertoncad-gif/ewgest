@@ -51,12 +51,12 @@ for(const [fn,file,ui] of [
 for(const guard of ['ew_compras_proteger_recebimento_nfe','ew_compras_proteger_cancelamento_nfe','ew_compras_proteger_estorno_recebimento_conciliado'])
  assert.ok(nfSql.includes(guard),'Guarda fiscal ausente: '+guard);
 assert.ok(empSql.includes('ew_compras_proteger_estorno_rec_empresa'));
-assert.ok(nfSql.includes('row level security')&&empSql.includes('ROW LEVEL SECURITY'));
+assert.ok(nfSql.toLowerCase().includes('row level security')&&empSql.toLowerCase().includes('row level security'));
 assert.ok(!/INSERT\s+INTO\s+public\.(?:ew_estoque_obras_movimentos|ew_compras_estoque_empresa)\b/i.test(nfSql),
  'Conciliação de NF não pode criar estoque físico');
 assert.ok(!/INSERT\s+INTO\s+public\.(?:ew_estoque_obras_movimentos|ew_compras_estoque_empresa)\b/i.test(empSql),
  'Nota empresarial não pode criar estoque físico');
-for(const file of ['10_fluxo_pedidos_transferencias_rollback.sql','20_conciliacao_nfe_rollback.sql','30_nota_estoque_empresa_rollback.sql']){
+for(const file of ['10_fluxo_pedidos_transferencias_rollback.sql','20_conciliacao_nfe_rollback.sql','30_nota_estoque_empresa_rollback.sql','40_migracao_estoque_legado_rollback.sql']){
  const txt=readFileSync(new URL('../tests/compras_v4621/'+file,import.meta.url),'utf8');
  assert.ok(txt.includes('RAISE NOTICE')||txt.includes('raise notice'),'Cenário de SQL incompleto: '+file);
 }
