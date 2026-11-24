@@ -1,6 +1,8 @@
 -- EWGEST v46.21: conciliação fiscal e prevenção de estoque duplicado.
 -- Executar junto das quatro propostas v46.21 na transação de homologação; ROLLBACK.
 -- Os dados abaixo são exclusivamente sintéticos.
+-- Banco de restauração desatualizado: ajuste transitório da estrutura, revertido no ROLLBACK.
+ALTER TABLE public.ew_obra_despesas ADD COLUMN IF NOT EXISTS chave_nfe text;
 DO $nfe_test$
 DECLARE
  v_uid uuid;v_empresa uuid;v_obra uuid;v_perfil uuid;v_variacao uuid;v_fornecedor uuid;
