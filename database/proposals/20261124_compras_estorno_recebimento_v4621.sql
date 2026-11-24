@@ -98,7 +98,7 @@ begin
        and m.variacao_id=v_mov_obra.variacao_id
        and m.comprimento_mm is not distinct from v_mov_obra.comprimento_mm
        and m.unidade=v_mov_obra.unidade and m.local_estoque=v_mov_obra.local_estoque
-       and m.quantidade_delta<0 and m.criado_em>=v_mov_obra.criado_em
+       and m.quantidade_delta<0 and m.origem<>'ESTORNO' and m.criado_em>=v_mov_obra.criado_em
        and not exists(select 1 from public.ew_estoque_obras_movimentos rev where rev.estorno_de_id=m.id))
    then raise exception 'Existe saída/transferência posterior neste galpão. Desfaça dependências antes do estorno.';end if;
 
@@ -140,7 +140,8 @@ begin
        and m.variacao_id=v_mov_emp.variacao_id
        and m.comprimento_mm is not distinct from v_mov_emp.comprimento_mm
        and m.unidade=v_mov_emp.unidade and m.galpao=v_mov_emp.galpao
-       and m.quantidade_delta<0 and m.criado_em>=v_mov_emp.criado_em
+       and m.quantidade_delta<0 and m.origem not in ('ESTORNO_PEDIDO','ESTORNO_TRANSFERENCIA')
+       and m.criado_em>=v_mov_emp.criado_em
        and not exists(select 1 from public.ew_compras_estoque_empresa rev where rev.estorno_de_id=m.id))
    then raise exception 'Existe transferência ou saída posterior. Desfaça dependências antes do estorno.';end if;
    select coalesce(sum(m.quantidade_delta),0) into v_saldo
