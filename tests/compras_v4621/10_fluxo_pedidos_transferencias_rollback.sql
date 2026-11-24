@@ -133,6 +133,28 @@ BEGIN
  select coalesce(sum(quantidade_delta),0) into v_saldo
  from public.ew_estoque_obras_movimentos where obra_id=v_work;
  if v_saldo<>0 then raise exception 'Saldo da obra não zerou após estorno.';end if;
- raise notice 'PASS: pedido parcial, idempotência, excesso bloqueado, transferência, bloqueio, estornos, dois destinos e saldos zerados.';
+
+ -- Cotações/preços só podem ser mostrados a quem tiver a flag financeira.
+ v_result:=public.ew_compras_pedidos_resumo(v_empresa);
+ if jsonb_typeof(v_result)<>'array' or
+   not exists(select 1 from jsonb_array_elements(v_result) p
+    where p->>'id'=v_pedido::text and (p->>'total_centavos')::bigint>0)
+ then raise exception 'Administrador deveria consultar preços dos pedidos.';end if;
+ update public.usuarios_empresas set perfil='almoxarife',nivel_acesso=4
+ where usuario_id=v_user and empresa_id=v_empresa;
+ update public.usuarios_login set perfil='almoxarife',nivel_acesso=4
+ where usuario_id=v_user and empresa_id=v_empresa;
+ if public.ew_pode(v_empresa,'compras.consultar_valores') or
+    not public.ew_pode(v_empresa,'compras.receber')
+ then raise exception 'Matriz de privacidade do almoxarifado inválida.';end if;
+ v_result:=public.ew_compras_pedidos_resumo(v_empresa);
+ if exists(select 1 from jsonb_array_elements(v_result) p
+   where p->>'total_centavos' is not null)
+ or exists(select 1 from jsonb_array_elements(v_result) p
+     cross join lateral jsonb_array_elements(p->'itens') i(value)
+     where i.value ? 'preco_unitario_centavos')
+ then raise exception 'Preço de fornecedor foi exposto ao almoxarifado.';end if;
+ raise notice 'PASS: fluxo com recebimento parcial, idempotência, limites, transferência, estorno, saldos zerados e preços ocultos por nível.';
+
 END;
 $test$;
