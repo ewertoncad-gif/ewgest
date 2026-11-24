@@ -223,8 +223,15 @@ END;$fn$;
 -- inclusive se a UI antiga tentar registrar recebimento via NF-e/manual.
 CREATE OR REPLACE FUNCTION public.ew_compras_proteger_recebimento_nfe()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $fn$
-DECLARE v_fornecedor text;v_motivo text;
+DECLARE v_fornecedor text;
 BEGIN
+ -- Compartilha a chave de serialização do recebimento por pedido.
+ -- O fluxo de NF legado já criou seu movimento na MESMA transação;
+ -- se um pedido confirmar o mesmo item em paralelo, a transação da
+ -- NF aborta integralmente ao detectar a entrada do pedido, sem dupla baixa.
+ PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+  NEW.obra_id::text||'|'||NEW.variacao_id::text||'|'||
+  coalesce(NEW.comprimento_mm::text,'-')||'|'||NEW.unidade,34777));
  IF EXISTS(SELECT 1 FROM public.ew_compras_nfe_vinculos x
   WHERE x.despesa_item_id=NEW.despesa_item_id)
  THEN RAISE EXCEPTION
