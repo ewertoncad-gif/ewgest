@@ -77,6 +77,11 @@ function makeLine(){const container=$('comprasLinhas');if(!container)return;cons
  });
  row.querySelector('[data-buy-remove]').addEventListener('click',()=>{if(container.children.length>1)row.remove()});
 }
+function cancelDetails(item){
+ if(!item.cancelado_em)return '';
+ const date=String(item.cancelado_em).slice(0,10).split('-').reverse().join('/');
+ return '<div class="hint">Cancelado em '+esc(date)+(item.cancelamento_motivo?' · '+esc(item.cancelamento_motivo):'')+'</div>';
+}
 async function cancelarRegistro(tipo,id){
  const cfg={
   solicitacao:{text:'solicitação',rpc:'ew_compras_cancelar_solicitacao',arg:'p_solicitacao_id',flag:'compras.solicitar'},
@@ -112,7 +117,7 @@ function renderRequest(){
  '<label>Observações<textarea id="comprasObservacoes" rows="2" maxlength="600"></textarea></label>'+
  '<h3>Materiais solicitados</h3><div id="comprasLinhas"></div><div class="ewComprasActions"><button class="btn secondary" id="comprasAddLine" type="button">+ Adicionar material</button><button class="btn primary" type="submit">Criar solicitação</button></div></form>':'')+
  '<h3>Solicitações registradas</h3><div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Data</th><th>Destino</th><th>Itens</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+
- sols.map(s=>'<tr><td>'+esc(String(s.criado_em||'').slice(0,10).split('-').reverse().join('/'))+'</td><td>'+esc(titleLocal(s))+'</td><td>'+number((s.itens||[]).length)+'</td><td>'+esc(s.status)+'</td><td>'+(editable&&s.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===s.id)?'<button type="button" class="btn secondary" data-compras-tipo="solicitacao" data-compras-cancel="'+esc(s.id)+'">Cancelar</button>':'—')+'</td></tr>').join('')+
+ sols.map(s=>'<tr><td>'+esc(String(s.criado_em||'').slice(0,10).split('-').reverse().join('/'))+'</td><td>'+esc(titleLocal(s))+'</td><td>'+number((s.itens||[]).length)+'</td><td>'+esc(s.status)+cancelDetails(s)+'</td><td>'+(editable&&s.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===s.id)?'<button type="button" class="btn secondary" data-compras-tipo="solicitacao" data-compras-cancel="'+esc(s.id)+'">Cancelar</button>':'—')+'</td></tr>').join('')+
  '</tbody></table></div>';bindCancelButtons();if(editable){makeLine();$('comprasAddLine').onclick=makeLine;
  $('comprasSolicitarForm').onsubmit=async e=>{e.preventDefault();const value=$('comprasDestino').value;
  const lines=[...document.querySelectorAll('#comprasLinhas .ewComprasLine')].map((row,i)=>{
@@ -140,7 +145,7 @@ function renderQuote(){
  (editable?'<form id="comprasCotarForm" class="ewComprasForm"><label>Solicitação<select id="comprasCotacaoSolic" required>'+option('','Escolha')+list.map(s=>option(s.id,titleLocal(s)+' · '+(s.itens||[]).length+' itens')).join('')+'</select></label>'+
  '<label>Fornecedor<select id="comprasCotacaoFornecedor" required>'+option('','Escolha')+suppliers.map(x=>option(x.id,x.nome)).join('')+'</select></label><div id="comprasCotacaoItens"></div><button class="btn primary" type="submit">Registrar cotação</button></form>':'')+
  '<h3>Cotações registradas</h3><div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Fornecedor</th><th>Destino</th><th>Total</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+
- quotes.map(q=>{const s=sols.find(x=>x.id===q.solicitacao_id);return '<tr><td>'+esc(suppliers.find(x=>x.id===q.fornecedor_id)?.nome||'Fornecedor')+'</td><td>'+esc(s?titleLocal(s):'-')+'</td><td>'+money(q.total_centavos)+'</td><td>'+esc(q.status==='CANCELADA'?'Cancelada':orders.some(p=>p.cotacao_id===q.id)?'Pedido gerado':'Em avaliação')+'</td><td>'+(editable&&q.status!=='CANCELADA'&&s?.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===q.solicitacao_id)?'<button type="button" class="btn secondary" data-compras-tipo="cotacao" data-compras-cancel="'+esc(q.id)+'">Cancelar</button>':'—')+'</td></tr>'}).join('')+'</tbody></table></div>';bindCancelButtons();
+ quotes.map(q=>{const s=sols.find(x=>x.id===q.solicitacao_id);return '<tr><td>'+esc(suppliers.find(x=>x.id===q.fornecedor_id)?.nome||'Fornecedor')+'</td><td>'+esc(s?titleLocal(s):'-')+'</td><td>'+money(q.total_centavos)+'</td><td>'+esc(q.status==='CANCELADA'?'Cancelada':orders.some(p=>p.cotacao_id===q.id)?'Pedido gerado':'Em avaliação')+cancelDetails(q)+'</td><td>'+(editable&&q.status!=='CANCELADA'&&s?.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===q.solicitacao_id)?'<button type="button" class="btn secondary" data-compras-tipo="cotacao" data-compras-cancel="'+esc(q.id)+'">Cancelar</button>':'—')+'</td></tr>'}).join('')+'</tbody></table></div>';bindCancelButtons();
  if(editable){$('comprasCotacaoSolic').onchange=()=>{
   const s=sols.find(x=>x.id===$('comprasCotacaoSolic').value);
   $('comprasCotacaoItens').innerHTML=s?'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Material</th><th>Quantidade</th><th>Un.</th><th>Preço unitário (R$)</th></tr></thead><tbody>'+
@@ -162,7 +167,7 @@ function renderOrder(){
  pending.map(q=>{const s=sols.find(x=>x.id===q.solicitacao_id);return option(q.id,(s?titleLocal(s):'Solicitação')+' · '+money(q.total_centavos))}).join('')+
  '</select></label><button class="btn primary" type="submit">Gerar pedido</button></form>':'')+
  '<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Pedido</th><th>Destino</th><th>Valor</th><th>Recebimento</th><th>Ação</th></tr></thead><tbody>'+
- orders.map(p=>'<tr><td>#'+number(p.numero)+'</td><td>'+esc(titleLocal(p))+'</td><td>'+(permission('compras.consultar_valores')?money(p.total_centavos):'Restrito')+'</td><td>'+esc(orderStatus(p))+'</td><td>'+(editable&&p.status==='ABERTO'&&!receipts.some(r=>r.pedido_id===p.id)?'<button type="button" class="btn secondary" data-compras-tipo="pedido" data-compras-cancel="'+esc(p.id)+'">Cancelar</button>':'—')+'</td></tr>').join('')+'</tbody></table></div>';bindCancelButtons();
+ orders.map(p=>'<tr><td>#'+number(p.numero)+'</td><td>'+esc(titleLocal(p))+'</td><td>'+(permission('compras.consultar_valores')?money(p.total_centavos):'Restrito')+'</td><td>'+esc(orderStatus(p))+cancelDetails(p)+'</td><td>'+(editable&&p.status==='ABERTO'&&!receipts.some(r=>r.pedido_id===p.id)?'<button type="button" class="btn secondary" data-compras-tipo="pedido" data-compras-cancel="'+esc(p.id)+'">Cancelar</button>':'—')+'</td></tr>').join('')+'</tbody></table></div>';bindCancelButtons();
  if(editable)$('comprasPedidoForm').onsubmit=async e=>{e.preventDefault();const id=$('comprasPedidoCotacao').value;
  try{await rpc('ew_compras_criar_pedido',{p_cotacao_id:id,p_operacao_id:operationToken('pedir',{id})});
  pendingOps.delete('pedir');await reload();renderOrder();say('comprasMensagem','Pedido criado e disponível para recebimento.');
