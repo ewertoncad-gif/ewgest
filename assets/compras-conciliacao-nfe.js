@@ -33,7 +33,7 @@ async function render(root,context){
  root.innerHTML='<h3>Conciliação de nota fiscal e pedido</h3>'+
   '<p class="hint">A nota deve estar aprovada no Financeiro. Aqui você vincula seus itens aos materiais que já foram recebidos por pedido — sem acrescentar estoque novamente.</p>'+
   '<label>Pedido de compra da obra<select id="ewCompNFOrder">'+option('','Selecione o pedido')+
-  works.map(p=>option(p.id,'Pedido #'+p.numero+' · '+(p.obra_id===p.local_empresa_id?'':p.numero))).join('')+
+  works.map(p=>option(p.id,'Pedido #'+p.numero+' · '+(context.workNames?.find(w=>w.id===p.obra_id)?.nome||'Obra'))).join('')+
   '</select></label><div id="ewCompNFNote"></div><div id="ewCompNFItems"></div>'+
   '<p id="ewCompNFStatus" role="status" class="feedback"></p>'+
   (context.orders.some(p=>p.local_empresa_id)?'<p class="hint">A conciliação financeira de estoques próprios da empresa será tratada separadamente, sem atribuir despesas a obras fictícias.</p>':'');
