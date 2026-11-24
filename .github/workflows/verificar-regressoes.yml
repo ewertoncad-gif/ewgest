@@ -32,3 +32,6 @@ jobs:
 
       - name: Verificar UI e contratos de Compras v46.21
         run: node scripts/test-compras-v4621.mjs
+
+      - name: Verificar custos empresariais e isolamento financeiro
+        run: node scripts/test-relatorios-custos-empresa-v4621.mjs
