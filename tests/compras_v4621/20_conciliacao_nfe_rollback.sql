@@ -74,8 +74,10 @@ BEGIN
  WHERE m.obra_id=v_obra AND m.variacao_id=v_variacao;
  IF v_after<>v_before THEN RAISE EXCEPTION 'Conciliação alterou o estoque físico.';END IF;
  v_ret:=public.ew_compras_vincular_nfe_pedido(v_pedido,v_despesa,
-  jsonb_build_array(jsonb_build_object('despesa_item_id',v_item,'recebimento_id',v_receb1,'chave','EA01')),
-  v_revert_op);
+  jsonb_build_array(
+    jsonb_build_object('despesa_item_id',v_item,'recebimento_id',v_receb1,'chave','EA01'),
+    jsonb_build_object('despesa_item_id',v_item,'recebimento_id',v_receb2,'chave','EA01')
+  ),v_revert_op);
  IF coalesce((v_ret->>'repetida')::boolean,false) IS DISTINCT FROM true
  THEN RAISE EXCEPTION 'Conciliacão idempotente falhou.';END IF;
 
