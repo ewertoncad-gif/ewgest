@@ -234,7 +234,7 @@ begin
     (v_var.tipo<>'perfil' and (v_unit='BARRA' or v_length is not null)) or
     (v_var.tipo='acessorio' and v_unit<>coalesce((select upper(btrim(a.unidade_item))
       from public.ew_acessorios a where a.id=v_var.acessorio_id and a.empresa_id=p_empresa_id),'')) or
-    (v_unit in ('BARRA','MT','PC','PR','CJ','UN') and v_q<>trunc(v_q))
+    (v_unit in ('BARRA','PC','PR','CJ','UN') and v_q<>trunc(v_q)) or v_q<>round(v_q,3)
   then raise exception 'Quantidade, unidade ou barra inválida.';end if;
   v_clean:=v_clean||jsonb_build_array(jsonb_build_object('chave',v_key,
    'variacao_id',v_var.id,'quantidade',v_q,'unidade',v_unit,'comprimento_mm',v_length));
@@ -381,7 +381,7 @@ begin
   cross join lateral jsonb_array_elements(r.itens) u(value)
   where r.pedido_id=v_p.id and r.estornado_em is null and u.value->>'chave'=v_chave;
   if v_q is null or v_q<=0 or v_q>v_total-v_ja or v_q>1000000 or
-     ((v_original->>'unidade') in ('BARRA','MT','PC','PR','CJ','UN') and v_q<>trunc(v_q))
+     ((v_original->>'unidade') in ('BARRA','PC','PR','CJ','UN') and v_q<>trunc(v_q)) or v_q<>round(v_q,3)
   then raise exception 'Quantidade inválida. Item %, pendente %.',v_chave,v_total-v_ja;end if;
   v_clean:=v_clean||jsonb_build_array(jsonb_build_object('chave',v_chave,'quantidade',v_q));
  end loop;
