@@ -159,4 +159,11 @@ grant execute on function public.ew_compras_cancelar_solicitacao(uuid,text,uuid)
  public.ew_compras_cancelar_cotacao(uuid,text,uuid),
  public.ew_compras_cancelar_pedido(uuid,text,uuid) to authenticated;
 
-commit;
+-- Funções de trigger são internas, não RPCs de usuários.
+REVOKE EXECUTE ON FUNCTION public.ew_compras_exigir_cotacao_ativa(),
+ public.ew_compras_proteger_cancelamento_nfe(),
+ public.ew_compras_proteger_estorno_rec_empresa(),
+ public.ew_compras_proteger_estorno_recebimento_conciliado(),
+ public.ew_compras_proteger_recebimento_nfe()
+ FROM PUBLIC, anon, authenticated;
+COMMIT;
