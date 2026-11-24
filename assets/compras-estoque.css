@@ -22,6 +22,15 @@
 #ewComprasConciliacao>label,#ewNfeEmpresaPanel>label,#ewCompNFNote>label{display:grid;gap:6px;max-width:760px;margin:10px 0}
 #ewComprasConciliacao{margin-top:18px;padding-top:15px;border-top:1px solid #e1e8f2}
 #ewNfeEmpresaPanel{margin-top:18px;padding-top:15px;border-top:1px solid #e1e8f2}
+/* A conciliação usa linhas de NF com descrições extensas: limitar os campos ao painel.
+   As tabelas rolam dentro do contêiner, nunca deslocando a página inteira. */
+#ewComprasConciliacao,#ewNfeEmpresaPanel,#ewCompNFNote,#ewCompNFItems,#ewNfeEmpContent{
+ min-width:0;max-width:100%;
+}
+#ewComprasConciliacao label,#ewNfeEmpresaPanel label{min-width:0;max-width:100%}
+#ewComprasConciliacao select,#ewComprasConciliacao input,
+#ewComprasConciliacao textarea{box-sizing:border-box;min-width:0;max-width:100%;width:100%}
+#ewComprasConciliacao .ewComprasTableWrap{display:block;width:100%;max-width:100%;overflow-x:auto}
 @media(max-width:650px){.ewTransferGrid{grid-template-columns:1fr}}
 @media(max-width:850px){.ewComprasLine{grid-template-columns:repeat(2,minmax(0,1fr))}.ewComprasLine label:first-child{grid-column:1/-1}.ewComprasLine [data-buy-remove]{justify-self:end}}
 @media(max-width:550px){.ewComprasLine{grid-template-columns:1fr}.ewComprasLine label:first-child{grid-column:auto}.ewComprasLine [data-buy-remove]{justify-self:stretch}}
