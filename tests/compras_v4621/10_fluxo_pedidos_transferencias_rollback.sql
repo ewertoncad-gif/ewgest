@@ -2,6 +2,8 @@
 -- Executar APENAS em ewgest-restauracao-teste DEPOIS das três propostas v46.21,
 -- na MESMA transação iniciada com BEGIN e finalizada com ROLLBACK.
 -- Nunca aplicar isoladamente à produção.
+-- Harmonização temporária de estrutura do ensaio (ROLLBACK ao final).
+alter table public.ew_fornecedores add column if not exists criado_por uuid references auth.users(id);
 DO $test$
 DECLARE
  v_user uuid;v_empresa uuid;
