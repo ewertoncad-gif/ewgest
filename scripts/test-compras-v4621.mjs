@@ -56,7 +56,7 @@ assert.ok(!/INSERT\s+INTO\s+public\.(?:ew_estoque_obras_movimentos|ew_compras_es
  'Conciliação de NF não pode criar estoque físico');
 assert.ok(!/INSERT\s+INTO\s+public\.(?:ew_estoque_obras_movimentos|ew_compras_estoque_empresa)\b/i.test(empSql),
  'Nota empresarial não pode criar estoque físico');
-for(const file of ['10_fluxo_pedidos_transferencias_rollback.sql','20_conciliacao_nfe_rollback.sql','30_nota_estoque_empresa_rollback.sql','40_migracao_estoque_legado_rollback.sql','50_idempotencia_operacoes_rollback.sql']){
+for(const file of ['10_fluxo_pedidos_transferencias_rollback.sql','20_conciliacao_nfe_rollback.sql','30_nota_estoque_empresa_rollback.sql','40_migracao_estoque_legado_rollback.sql','50_idempotencia_operacoes_rollback.sql','60_cancelamentos_comerciais_rollback.sql','70_permissoes_cancelamento_rollback.sql','80_estorno_ordenado_nfe_rollback.sql','90_estorno_transferencias_sucessivas_rollback.sql','100_quantidades_mt_kg_fracionadas_rollback.sql']){
  const txt=readFileSync(new URL('../tests/compras_v4621/'+file,import.meta.url),'utf8');
  assert.ok(txt.includes('RAISE NOTICE')||txt.includes('raise notice'),'Cenário de SQL incompleto: '+file);
 }
@@ -110,6 +110,27 @@ assert.ok(cancelSql.includes('first')||cancelSql.includes('select * into v_s fro
 assert.ok(!/delete\s+from\s+public\.ew_compras_/.test(cancelSql.toLowerCase()),
  'Cancelamento de compras não pode apagar registros de auditoria.');
 console.log('PASS: cancelamentos comerciais, permissões e proteção de histórico rastreados.');
+
+
+const guardSource=js.slice(js.indexOf('const validQty='),js.indexOf('const parseMoney='));
+assert.ok(guardSource.startsWith('const validQty='));
+const checkQuantity=new Function(guardSource+'\nreturn validQty;')();
+assert.equal(checkQuantity(0.725,'KG'),true,'KG permite até três decimais');
+assert.equal(checkQuantity(0.0005,'KG'),false,'KG rejeita quarta casa decimal');
+assert.equal(checkQuantity(1.25,'KG'),true);
+assert.equal(checkQuantity(0.5,'MT'),false,'MT inteiro é invariante da produção');
+assert.equal(checkQuantity(1,'MT'),true);
+assert.equal(checkQuantity(1.25,'BARRA'),false,'BARRA permanece unidade inteira');
+assert.ok(js.includes("qty.step=v.unidade==='KG'?'0.001':'1';"));
+assert.ok(js.includes("qty.min=v.unidade==='KG'?'0.001':'1';"));
+assert.ok(js.includes("$('ewTransQty').step=['BARRA','PC','PR','CJ','UN','MT'].includes(p.unidade)?'1':'0.001';"));
+assert.ok(estornoSql.includes("m.origem<>'ESTORNO'"),'Estorno de obra não pode bloquear outro estorno');
+assert.ok(estornoSql.includes("m.origem not in ('ESTORNO_PEDIDO','ESTORNO_TRANSFERENCIA')"),
+ 'Estorno de local empresarial não pode bloquear outro estorno');
+assert.ok(transSql.includes("m.origem<>'ESTORNO'"),'Transferência estornada não bloqueia outra');
+assert.ok(estornoSql.indexOf("where id=v_rec.pedido_id for update") < estornoSql.indexOf("where r.id=p_recebimento_id for update"),
+ 'Estorno deve travar pedido antes de recebimento');
+console.log('PASS: guardas para MT inteiro, KG fracionado, ordem de locks e estornos sucessivos.');
 
 console.log('PASS: Compras, conciliação de NF-e e nota empresarial — sintaxe, referências, RLS, contratos e ausência de entradas físicas na conciliação.');
 
