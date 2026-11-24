@@ -29,3 +29,6 @@ jobs:
             cat regressao.log
             exit 1
           fi
+
+      - name: Verificar UI e contratos de Compras v46.21
+        run: node scripts/test-compras-v4621.mjs
