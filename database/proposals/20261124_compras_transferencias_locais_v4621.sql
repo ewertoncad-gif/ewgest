@@ -118,7 +118,7 @@ begin
    p_quantidade<>round(p_quantidade,3) or
    (v_var.tipo='perfil' and (v_un<>'BARRA' or p_comprimento_mm not between 100 and 20000)) or
    (v_var.tipo<>'perfil' and (v_un not in ('PC','PR','CJ','MT','KG','UN') or p_comprimento_mm is not null)) or
-   (v_un in ('BARRA','PC','PR','CJ','UN','MT') and p_quantidade<>trunc(p_quantidade))
+   (v_un in ('BARRA','PC','PR','CJ','UN') and p_quantidade<>trunc(p_quantidade))
  then raise exception 'Quantidade, unidade ou comprimento inválido.';end if;
 
  v_key1:=case when v_tipo1='OBRA' then p_origem_id::text else
