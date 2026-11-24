@@ -13,7 +13,7 @@ const rpc=(fn,body)=>request('/rest/v1/rpc/'+fn,{method:'POST',token:session.acc
 const option=(v,t)=>'<option value="'+esc(v)+'">'+esc(t)+'</option>';
 const validQty=(v,un)=>{const q=Number(v);return Number.isFinite(q)&&q>0&&q<=1000000&&
  Math.abs(q*1000-Math.round(q*1000))<1e-7&&
- (!['BARRA','PC','PR','CJ','UN'].includes(un)||Number.isSafeInteger(q))};
+ (!['BARRA','MT','PC','PR','CJ','UN'].includes(un)||Number.isSafeInteger(q))};
 const parseMoney=v=>{const s=String(v||'').replace(/^R\\$\\s*/,'').replace(/\\s/g,'');
  if(!/^\\d+(?:[.,]\\d{1,2})?$/.test(s))return null;const c=Math.round(Number(s.replace(',','.'))*100);
  return Number.isSafeInteger(c)&&c>=0?c:null;};
@@ -76,8 +76,8 @@ function makeLine(){const container=$('comprasLinhas');if(!container)return;cons
   row.querySelector('[data-buy="length"]').value=v.comprimento_mm||'';
   row.querySelector('[data-buy="length"]').disabled=v.unidade!=='BARRA';
   const qty=row.querySelector('[data-buy="qty"]');
-  qty.min=['MT','KG'].includes(v.unidade)?'0.001':'1';
-  qty.step=['MT','KG'].includes(v.unidade)?'0.001':'1';
+  qty.min=v.unidade==='KG'?'0.001':'1';
+  qty.step=v.unidade==='KG'?'0.001':'1';
   if(Number(qty.value)<Number(qty.min))qty.value=qty.min;
  });
  row.querySelector('[data-buy-remove]').addEventListener('click',()=>{if(container.children.length>1)row.remove()});
@@ -257,7 +257,7 @@ async function atualizarRecebimento(obraId){
  (p.itens||[]).map(it=>{const r=received.get(String(it.chave))||0,remain=Math.max(0,Number(it.quantidade)-r);
  return '<tr data-receive-key="'+esc(it.chave)+'"><td><input type="checkbox" '+(remain<=0?'disabled':'')+'></td><td>'+esc(productLabel(variations.find(v=>v.id===it.variacao_id)||{nome:it.variacao_id}))+'</td>'+
  '<td>'+number(it.quantidade)+' '+esc(it.unidade)+'</td><td>'+number(r)+'</td><td><strong>'+number(remain)+'</strong></td>'+
- '<td><input type="number" min="'+(['MT','KG'].includes(it.unidade)?'0.001':'1')+'" step="'+(['MT','KG'].includes(it.unidade)?'0.001':'1')+'" max="'+remain+'" value="" '+(remain<=0?'disabled':'')+'></td></tr>';}).join('')+'</tbody></table></div>';
+ '<td><input type="number" min="'+(it.unidade==='KG'?'0.001':'1')+'" step="'+(it.unidade==='KG'?'0.001':'1')+'" max="'+remain+'" value="" '+(remain<=0?'disabled':'')+'></td></tr>';}).join('')+'</tbody></table></div>';
  };
  $('ewReceberForm').onsubmit=async e=>{e.preventDefault();const p=orders.find(x=>x.id===$('ewReceberPedido').value);if(!p)return;
  const m=receivedMap(p.id),itens=[...document.querySelectorAll('[data-receive-key]')].filter(row=>row.querySelector('[type=checkbox]').checked).map(row=>({chave:row.dataset.receiveKey,quantidade:Number(row.querySelector('[type=number]').value)}));
@@ -380,7 +380,7 @@ async function abrirTransferLocal(){
    $('ewTransUnit').value=p.unidade;
    $('ewTransLength').disabled=p.unidade!=='BARRA';
    $('ewTransLength').value=p.comprimento||'';
-   $('ewTransQty').step=['BARRA','PC','PR','CJ','UN'].includes(p.unidade)?'1':'0.001';
+   $('ewTransQty').step=['BARRA','PC','PR','CJ','UN','MT'].includes(p.unidade)?'1':'0.001';
   });
   $('ewTransClose').onclick=()=>pane.classList.add('hidden');
   $('ewTransferLocalForm').onsubmit=async e=>{
