@@ -42,7 +42,7 @@ async function reload(){
   apiGet('ew_acessorios',{select:'id,codigo,descricao,unidade_item',empresa_id:empresa,limit:'5000'}),
   apiGet('ew_compras_solicitacoes',{select:'*',empresa_id:empresa,order:'criado_em.desc',limit:'1000'}),
   apiGet('ew_compras_cotacoes',{select:'*',empresa_id:empresa,order:'criado_em.desc',limit:'1000'}),
-  apiGet('ew_compras_pedidos',{select:'*',empresa_id:empresa,order:'criado_em.desc',limit:'1000'}),
+  rpc('ew_compras_pedidos_resumo',{p_empresa_id:currentCompany.id}),
   apiGet('ew_compras_recebimentos',{select:'id,pedido_id,itens,criado_em,galpao,estornado_em,estorno_motivo',empresa_id:empresa,limit:'3000'})
  ]);
  const perf=new Map((ps||[]).map(p=>[p.id,p])),acc=new Map((as||[]).map(a=>[a.id,a]));
@@ -104,6 +104,9 @@ function renderRequest(){
  }catch(e){say('comprasMensagem','Erro: '+e.message)}finally{btn.disabled=false;}};
  }}
 function renderQuote(){
+ if(!permission('compras.consultar_valores')){
+  $('comprasConteudo').innerHTML='<h2>Cotações</h2><p class="hint">Os valores dos fornecedores são restritos aos níveis com permissão para consultar preços.</p>';return;
+ }
  const list=sols.filter(s=>s.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===s.id)),editable=permission('compras.cotar');
  $('comprasConteudo').innerHTML='<h2>Cotação</h2><p class="hint">Cotação por fornecedor. Várias cotações podem ser comparadas para uma solicitação; apenas a escolhida vira pedido.</p>'+
  (editable?'<form id="comprasCotarForm" class="ewComprasForm"><label>Solicitação<select id="comprasCotacaoSolic" required>'+option('','Escolha')+list.map(s=>option(s.id,titleLocal(s)+' · '+(s.itens||[]).length+' itens')).join('')+'</select></label>'+
@@ -131,7 +134,7 @@ function renderOrder(){
  pending.map(q=>{const s=sols.find(x=>x.id===q.solicitacao_id);return option(q.id,(s?titleLocal(s):'Solicitação')+' · '+money(q.total_centavos))}).join('')+
  '</select></label><button class="btn primary" type="submit">Gerar pedido</button></form>':'')+
  '<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Pedido</th><th>Destino</th><th>Valor</th><th>Recebimento</th></tr></thead><tbody>'+
- orders.map(p=>'<tr><td>#'+number(p.numero)+'</td><td>'+esc(titleLocal(p))+'</td><td>'+money(p.total_centavos)+'</td><td>'+esc(orderStatus(p))+'</td></tr>').join('')+'</tbody></table></div>';
+ orders.map(p=>'<tr><td>#'+number(p.numero)+'</td><td>'+esc(titleLocal(p))+'</td><td>'+(permission('compras.consultar_valores')?money(p.total_centavos):'Restrito')+'</td><td>'+esc(orderStatus(p))+'</td></tr>').join('')+'</tbody></table></div>';
  if(editable)$('comprasPedidoForm').onsubmit=async e=>{e.preventDefault();const id=$('comprasPedidoCotacao').value;
  try{await rpc('ew_compras_criar_pedido',{p_cotacao_id:id,p_operacao_id:operationToken('pedir',{id})});
  pendingOps.delete('pedir');await reload();renderOrder();say('comprasMensagem','Pedido criado e disponível para recebimento.');
