@@ -385,16 +385,26 @@ begin
   then raise exception 'Quantidade inválida. Item %, pendente %.',v_chave,v_total-v_ja;end if;
   v_clean:=v_clean||jsonb_build_array(jsonb_build_object('chave',v_chave,'quantidade',v_q));
  end loop;
+ -- Adquirir todos os locks físicos em ordem global antes de inserir movimentos.
+ -- A ordem da seleção na interface não deve definir a ordem das travas.
+ for v_original in
+  select original.value from jsonb_array_elements(v_p.itens) original(value)
+  where original.value->>'chave'=any(v_seen)
+  order by (original.value->>'variacao_id'),coalesce(original.value->>'comprimento_mm','-'),(original.value->>'unidade')
+ loop
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+   case when v_p.obra_id is not null then v_p.obra_id::text
+    else 'COMPRA_EMPRESA|'||v_p.local_empresa_id::text end||'|'||
+   (v_original->>'variacao_id')||'|'||coalesce(v_original->>'comprimento_mm','-')||'|'||
+   (v_original->>'unidade'),34777));
+ end loop;
  insert into public.ew_compras_recebimentos(empresa_id,pedido_id,galpao,operacao_id,itens,criado_por)
  values(v_p.empresa_id,v_p.id,v_galpao,p_operacao_id,v_clean,auth.uid()) returning id into v_id;
  for v_i in select value from jsonb_array_elements(v_clean) loop
   v_chave:=v_i->>'chave';v_q:=(v_i->>'quantidade')::numeric;
   select value into v_original from jsonb_array_elements(v_p.itens) where value->>'chave'=v_chave;
   if v_p.obra_id is not null then
-   -- Mesmo lock de movimentação física legado, para serializar com NF-e.
-   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
-    v_p.obra_id::text||'|'||(v_original->>'variacao_id')||'|'||
-    coalesce(v_original->>'comprimento_mm','-')||'|'||(v_original->>'unidade'),34777));
+   -- Lock físico já adquirido antes da criação dos movimentos.
    -- Se este fornecedor e material já deram entrada por NF-e, não repetir
    -- automaticamente a entrada em estoque via pedido.
    if exists(select 1 from public.ew_nfe_recebimentos n
