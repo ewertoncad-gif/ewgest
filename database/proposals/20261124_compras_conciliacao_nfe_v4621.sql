@@ -233,6 +233,8 @@ BEGIN
   WHERE p.empresa_id=NEW.empresa_id AND p.obra_id=NEW.obra_id
    AND lower(btrim(f.nome))=lower(btrim(coalesce(v_fornecedor,'')))
    AND m.variacao_id=NEW.variacao_id
+   AND NOT EXISTS(SELECT 1 FROM public.ew_compras_nfe_vinculos z
+      WHERE z.recebimento_id=r.id AND z.chave=x.chave AND z.desvinculado_em IS NULL)
  ) THEN RAISE EXCEPTION
   'Há materiais recebidos por pedido deste fornecedor na obra. Vincule a nota ao recebimento existente para evitar duplicidade.';
  END IF;
