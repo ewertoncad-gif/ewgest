@@ -25,7 +25,7 @@ const receiptFormIdx=source.indexOf('id="finExpensePanel"');
 assert.ok(receiptIdx>0&&financeIdx>receiptIdx&&receiptFormIdx>receiptIdx&&receiptFormIdx<financeIdx,
  'O formulário de recebimento deve pertencer à tela Recebimento, não ao Financeiro');
 assert.ok(source.includes('id="navRecebimento"')&&source.includes("['navRecebimento','recebimento']")&&
- source.includes("node('navRecebimento').classList.toggle('hidden',!temPermissao('estoque.receber'))"),
+ source.includes("setNavPermission('navRecebimento',temPermissao('estoque.receber'))"),
  'Menu Recebimento liberado por perfil, sem exibir o Financeiro ao almoxarife');
 const recebimentoLoader=source.slice(source.indexOf('async function carregarRecebimento(){'),
  source.indexOf('function finOptionsObras(prefer){'));
@@ -1267,7 +1267,7 @@ assert.ok(source.includes("node('stockReverseApply').textContent='Estornar todos
 assert.ok(source.includes('id="navWorks"')&&
  source.includes('id="worksPage"')&&source.includes('id="worksPageList"')&&
  source.includes("node('navWorks').addEventListener('click',abrirObrasPelaBarra)")&&
- source.includes("node('navWorks').classList.toggle('hidden',!temPermissao('obras.consultar'))")&&
+ source.includes("setNavPermission('navWorks',temPermissao('obras.consultar'))")&&
  source.includes("['navWorks','worksPage']"),
  'A navegação Obras precisa respeitar permissões e destacar o menu ativo');
 assert.ok(source.includes('function abrirObrasPelaBarra()')&&
@@ -2913,3 +2913,21 @@ assert.ok(precificacaoMapeamento.includes("RETURNING id INTO v_esquadria_id")&&
  'A proposta de banco precisa mapear os IDs exatos e preservar históricos com RLS');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
+
+const navHelper=source.slice(source.indexOf('function setNavPermission('),source.indexOf('function setView('));
+const navClasses=new Set(['hidden','active']);
+const navAttrs=new Map([['aria-current','page']]);
+const navButton={disabled:false,classList:{remove:name=>navClasses.delete(name)},setAttribute:(k,v)=>navAttrs.set(k,v),removeAttribute:k=>navAttrs.delete(k)};
+const applyNavPermission=new Function('node',navHelper+'\nreturn setNavPermission;')(()=>navButton);
+applyNavPermission('navAccessLevels',false);
+assert.equal(navButton.disabled,true);
+assert.equal(navAttrs.get('aria-disabled'),'true');
+assert.ok(!navClasses.has('hidden')&&!navClasses.has('active')&&!navAttrs.has('aria-current'));
+applyNavPermission('navAccessLevels',true);
+assert.equal(navButton.disabled,false);
+assert.equal(navAttrs.get('aria-disabled'),'false');
+assert.equal(navButton.title,'');
+assert.ok(source.includes('.workspaceLink:disabled{opacity:.48;cursor:not-allowed'));
+assert.ok(source.includes("setNavPermission('navAccessLevels',currentAccessLevel===1&&temPermissao('niveis.gerenciar'))"));
+assert.ok(source.includes("node('navEnviarNotas').classList.add('hidden')"));
+console.log('OK: módulos sem acesso permanecem visíveis e desabilitados, proteção do ADM preservada.');
