@@ -690,7 +690,7 @@
 <link rel="stylesheet" href="/assets/entregas-producao.css?v=20261121a">
 <link rel="stylesheet" href="/assets/romaneios-transferencia.css?v=20261121c">
 <link rel="stylesheet" href="/assets/relatorios-obras.css?v=20261122b">
-<link rel="stylesheet" href="/assets/niveis-acesso.css?v=20261122a">
+<link rel="stylesheet" href="/assets/niveis-acesso.css?v=20261124c">
 <link rel="stylesheet" href="/assets/cadastros-pages.css?v=20261121b">
 <link rel="stylesheet" href="/assets/compras-estoque.css?v=20261124b">
 </head>
@@ -719,7 +719,8 @@
     <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.20</strong><small>Gestão em movimento</small></div>
+    <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.21</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -729,9 +730,8 @@
       <noscript>Ative o JavaScript para acessar o EWGEST.</noscript>
     </section>
     <section id="login" class="panel login hidden">
-      <a href="/" class="btn secondary loginBackHome">← Voltar à tela inicial</a>
-      <h1>Bem-vindo à EWGEST</h1>
-      <p class="muted">Entre para acompanhar as obras e registrar liberações para corte.</p>
+      <h1>Acesse o EWGEST</h1>
+      <p class="muted">Gestão de obras, estoque e produção. Informe suas credenciais para entrar.</p>
       <form id="loginForm" onsubmit="document.getElementById('status').textContent='Clique identificado. Iniciando autenticação…';if(!window.EWGEST_LOGIN){document.getElementById('error').textContent='O aplicativo ainda não iniciou. Verifique a versão exibida abaixo.';return false;}return window.EWGEST_LOGIN(event);">
         <label for="email">Nome de usuário ou e-mail</label>
         <input id="email" type="text" required autocomplete="username" placeholder="Ex.: ewerton santos">
@@ -741,8 +741,10 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • interface renovada v43.1</div>
+        <div class="build">EWGEST • v46.21</div>
       </form>
+      <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
+      <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
       <noscript><p class="error">O JavaScript está desativado neste navegador. Ative-o para usar o painel.</p></noscript>
     </section>
     <section id="dashboard" class="hidden">
@@ -1233,19 +1235,26 @@
         <div id="usersMessage" class="hint" role="status" aria-live="polite"></div>
         <div id="usersList" class="section"></div>
       </div>
+      <p class="notice">Desativar um usuário bloqueia seu acesso, mas preserva seu histórico de liberações, saídas e outras alterações. Não são armazenadas senhas no banco de cadastro.</p>
+    </section>
+    <section id="accessLevels" class="hidden">
+      <div class="head"><div><h1>Níveis de acesso</h1><p class="muted">Configure as permissões de cada nível de usuário.</p></div></div>
       <div id="userLevelsPanel" class="section panel hidden">
         <div class="row" style="justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-          <div><h2>Níveis de acesso e permissões</h2>
+          <div><h2>Permissões por nível</h2>
             <p class="hint">Escolha um nível e marque as atividades permitidas. O nível 01 possui todas as permissões e é protegido.</p></div>
           <button id="userLevelsReload" type="button" class="btn secondary">Atualizar níveis</button>
         </div>
         <div id="userLevelsTabs" class="accessLevelTabs"></div>
         <p id="userLevelsInfo" class="hint"></p>
+        <div class="accessLevelTools">
+          <label for="userLevelsSearch">Buscar permissão <input id="userLevelsSearch" type="search" placeholder="Ex.: estoque, estornar, relatórios"></label>
+          <div class="accessLevelToolButtons"><button id="userLevelsAll" type="button" class="btn secondary">Marcar todas</button><button id="userLevelsNone" type="button" class="btn secondary">Desmarcar todas</button></div>
+        </div>
         <div id="userLevelsGroups" class="accessLevelGroups"></div>
         <div class="userActions"><button id="userLevelsSave" type="button" class="btn primary" disabled>Salvar permissões do nível</button></div>
         <p id="userLevelsStatus" class="feedback" role="status" aria-live="polite"></p>
       </div>
-      <p class="notice">Desativar um usuário bloqueia seu acesso, mas preserva seu histórico de liberações, saídas e outras alterações. Não são armazenadas senhas no banco de cadastro.</p>
     </section>
     <section id="myPassword" class="hidden">
       <div class="head"><div>
@@ -1344,7 +1353,7 @@
         <button id="navVidros" type="button" class="cadastrosTile"><strong>Vidros</strong><span>Catálogo e unidades dos vidros</span></button>
         <button id="navOutrosInsumos" type="button" class="cadastrosTile"><strong>Outros insumos</strong><span>Catálogo de insumos diversos</span></button>
         <button id="navUnidades" type="button" class="cadastrosTile"><strong>Unidades de medida</strong><span>Litros, metros, peças e outras unidades</span></button>
-        <button id="navUsers" type="button" class="cadastrosTile"><strong>Usuários</strong><span>Acessos e permissões</span></button>
+        <button id="navUsers" type="button" class="cadastrosTile"><strong>Usuários</strong><span>Cadastro e gestão de contas</span></button>
       </div>
       <p id="cadastrosMessage" class="feedback" role="status"></p>
     </section>
@@ -2461,6 +2470,7 @@ function permissaoParaTela(view){
   materials:'cadastros.consultar',stock:'estoque.consultar',financeiro:'financeiro.consultar',
   cemImport:'obras.importar',users:'usuarios.gerenciar'};
  if(view==='relatorios')return podeVerRelatorios();
+ if(view==='accessLevels')return currentAccessLevel===1&&temPermissao('niveis.gerenciar');
   if(view==='compras')return temPermissao('compras.consultar');
  return !requires[view]||temPermissao(requires[view]);
 }
@@ -2505,7 +2515,7 @@ function setView(view){
   node('startup').classList.add('hidden');
   if(view!=='login'&&view!=='dashboard'&&view!=='myPassword'&&accessReady&&!permissaoParaTela(view))
     view='dashboard';
-  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','compras','recebimento','almoxNotas','cadastros','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','typologies','manufacturers','materials','stock','financeiro','relatorios','cemImport','users','myPassword'])
+  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','compras','recebimento','almoxNotas','cadastros','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','typologies','manufacturers','materials','stock','financeiro','relatorios','cemImport','users','accessLevels','myPassword'])
     node(id).classList.toggle('hidden',id!==view);
   node('logout').classList.toggle('hidden',view==='login');
   node('myPasswordHeader').classList.toggle('hidden',view==='login');
@@ -2514,7 +2524,7 @@ function setView(view){
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
   const ativo=view==='detail'?'worksPage':view;
   for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],['navCompras','compras'],['navRecebimento','recebimento'],['navEnviarNotas','almoxNotas'],['navCadastros','cadastros'],
-      ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navRelatorios','relatorios'],['navCem','cemImport'],['navUsers','users'],['navManageWorks','manageWorks']]){
+      ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navRelatorios','relatorios'],['navCem','cemImport'],['navUsers','users'],['navAccessLevels','accessLevels'],['navManageWorks','manageWorks']]){
     const button=node(id);
     const selecionado=ativo===target||(id==='navCadastros'&&
       ['materials','typologies','manufacturers','users','fornecedoresPage','galpoesPage','insumosPage','unidadesPage'].includes(ativo));
@@ -2695,6 +2705,7 @@ async function loadPanel(){
   for(const [id,flag] of Object.entries(navFlags))
     node(id).classList.toggle('hidden',!temPermissao(flag));
   node('navRelatorios').classList.toggle('hidden',!podeVerRelatorios());
+  node('navAccessLevels').classList.toggle('hidden',!(currentAccessLevel===1&&temPermissao('niveis.gerenciar')));
   node('openRomaneioHub').classList.toggle('hidden',!podeEmitirRomaneio()||somenteRomaneios);
   node('topTag').textContent='Nível '+String(currentAccessLevel).padStart(2,'0')+
    ' · '+(somenteRomaneios?'Almoxarifado':'Gestão de obras');
@@ -4695,8 +4706,7 @@ async function openManagedUsersPage(){
     await userApi({acao:'meu_perfil'});
     setView('users');
     await reloadManagedUsers();
-    if(typeof window.nivelAcessoPreparar==='function')
-      window.nivelAcessoPreparar().catch(e=>node('userLevelsStatus').textContent=e.message);
+    if(typeof window.nivelAcessoConfigurarSeletores==='function')window.nivelAcessoConfigurarSeletores();
   }catch(e){
     if(session){
       setView('users');
@@ -4958,6 +4968,11 @@ node('romaneioSaveNumber').addEventListener('click',async()=>{
   finally{btn.disabled=false;}
 });
 node('openUsers').addEventListener('click',openManagedUsersPage);
+node('navAccessLevels').addEventListener('click',async()=>{
+ if(currentAccessLevel!==1||!temPermissao('niveis.gerenciar'))return;
+ setView('accessLevels');
+ try{await window.nivelAcessoPreparar();}catch(e){node('userLevelsStatus').textContent='Não foi possível consultar níveis: '+e.message;}
+});
 node('navManageWorks').addEventListener('click',abrirGerenciamentoObras);
 node('openRomaneioHub').addEventListener('click',abrirAreaRomaneios);
 node('navHome').addEventListener('click',()=>setView('dashboard'));
@@ -10874,10 +10889,11 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/relatorios-custos-empresa.js?v=20261124a"></script>
 <script src="/assets/relatorios-obras.js?v=20261122c"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>
-<script src="/assets/niveis-acesso.js?v=20261122a"></script>
+<script src="/assets/niveis-acesso.js?v=20261124c"></script>
 <script src="/assets/compras-estoque.js?v=20261124c"></script>
 <script src="/assets/compras-comprovante-transferencia.js?v=20261124a"></script>
 <script src="/assets/compras-conciliacao-nfe.js?v=20261124b"></script>
 <script src="/assets/compras-nota-empresa.js?v=20261124a"></script>
+<script defer src="/pwa-install.js?v=25"></script>
 </body>
 </html>
