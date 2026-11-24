@@ -29,13 +29,26 @@ begin
  if char_length(v_motivo) not between 5 and 400 then
   raise exception 'Informe motivo entre 5 e 400 caracteres.';
  end if;
+ -- Leitura preliminar sem lock apenas para descobrir o pedido.
+ -- Todas as operações que mexem no pedido/nota/recebimento obtêm locks na
+ -- ordem PEDIDO → RECEBIMENTO, evitando inversão com a conciliação fiscal.
  select * into v_rec from public.ew_compras_recebimentos r
- where r.id=p_recebimento_id for update;
+ where r.id=p_recebimento_id;
  if not found then raise exception 'Recebimento não encontrado.';end if;
  if not (public.ew_pode(v_rec.empresa_id,'estoque.estornar')
          and public.ew_pode(v_rec.empresa_id,'compras.receber')) then
   raise exception 'Sem permissão para estornar pedido recebido.';
  end if;
+ select * into v_ped from public.ew_compras_pedidos
+ where id=v_rec.pedido_id for update;
+ if not found or v_ped.empresa_id<>v_rec.empresa_id or v_ped.status='CANCELADO'
+ then raise exception 'Pedido do recebimento está indisponível.';end if;
+ -- Releitura obrigatória COM lock: a consulta preliminar pode estar obsoleta
+ -- caso outro estorno/recebimento tenha confirmado sua transação.
+ select * into v_rec from public.ew_compras_recebimentos r
+ where r.id=p_recebimento_id for update;
+ if not found or v_rec.pedido_id<>v_ped.id or v_rec.empresa_id<>v_ped.empresa_id
+ then raise exception 'Vínculo do recebimento com o pedido mudou.';end if;
  if v_rec.estornado_em is not null then
   if v_rec.estorno_operacao_id=p_operacao_id then
    return jsonb_build_object('id',v_rec.id,'repetida',true,'ja_estornado',true);
@@ -45,9 +58,6 @@ begin
  if exists(select 1 from public.ew_compras_recebimentos r
    where r.estorno_operacao_id=p_operacao_id and r.id<>v_rec.id)
  then raise exception 'Identificador de estorno já utilizado.';end if;
- select * into v_ped from public.ew_compras_pedidos where id=v_rec.pedido_id for update;
- if not found or v_ped.empresa_id<>v_rec.empresa_id or v_ped.status='CANCELADO'
- then raise exception 'Pedido do recebimento está indisponível.';end if;
 
  select count(*) into v_n from public.ew_compras_recebimentos_movimentos
  where recebimento_id=v_rec.id and empresa_id=v_rec.empresa_id;
