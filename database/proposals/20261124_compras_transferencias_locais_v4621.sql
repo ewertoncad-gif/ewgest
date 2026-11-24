@@ -70,6 +70,10 @@ begin
     p_origem_id is null or p_destino_id is null or
     (v_tipo1=v_tipo2 and p_origem_id=p_destino_id and v_galpao1=v_galpao2)
  then raise exception 'Informe origem e destino de estoque diferentes.';end if;
+ -- Obra -> obra continua no fluxo legado, inclusive romaneio automático.
+ if v_tipo1='OBRA' and v_tipo2='OBRA' then
+  raise exception 'Para transferir entre duas obras, utilize Transferência entre obras.';
+ end if;
  if length(v_motivo) not between 5 and 350 then
   raise exception 'Informe motivo de 5 a 350 caracteres.';end if;
  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('COMPRAS_TRANSF|'||p_operacao_id::text,95823));
@@ -147,9 +151,9 @@ begin
  if v_tipo1='OBRA' then
   insert into public.ew_estoque_obras_movimentos(
    empresa_id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,
-   origem,operacao_id,observacao,usuario_id,local_estoque,transferencia_id)
+   origem,operacao_id,observacao,usuario_id,local_estoque)
   values(p_empresa_id,p_origem_id,p_variacao_id,p_comprimento_mm,v_un,-p_quantidade,
-    'TRANSFERENCIA',gen_random_uuid(),left(v_motivo,500),v_uid,v_galpao1,p_operacao_id)
+    'TRANSFERENCIA',gen_random_uuid(),left('Transferência local '||p_operacao_id::text||': '||v_motivo,500),v_uid,v_galpao1)
   returning id into v_origem_mov;
  else
   insert into public.ew_compras_estoque_empresa(
@@ -161,9 +165,9 @@ begin
  if v_tipo2='OBRA' then
   insert into public.ew_estoque_obras_movimentos(
    empresa_id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,
-   origem,operacao_id,observacao,usuario_id,local_estoque,transferencia_id)
+   origem,operacao_id,observacao,usuario_id,local_estoque)
   values(p_empresa_id,p_destino_id,p_variacao_id,p_comprimento_mm,v_un,p_quantidade,
-    'TRANSFERENCIA',gen_random_uuid(),left(v_motivo,500),v_uid,v_galpao2,p_operacao_id)
+    'TRANSFERENCIA',gen_random_uuid(),left('Transferência local '||p_operacao_id::text||': '||v_motivo,500),v_uid,v_galpao2)
   returning id into v_destino_mov;
  else
   insert into public.ew_compras_estoque_empresa(
