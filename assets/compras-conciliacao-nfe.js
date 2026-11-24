@@ -58,7 +58,10 @@ async function render(root,context){
   (context.orders.some(p=>p.local_empresa_id)?'<p class="hint">As notas do estoque empresarial são registradas na seção independente abaixo.</p>':'');
  const status=msg=>{if($('ewCompNFStatus'))$('ewCompNFStatus').textContent=msg||''};
  window.ewComprasNfeEmpresa?.render(root,context);
+ let orderGeneration=0,noteGeneration=0;
  $('ewCompNFOrder').onchange=async()=>{
+  const generation=++orderGeneration;
+  ++noteGeneration;
   const id=$('ewCompNFOrder').value,p=context.orders.find(x=>x.id===id);
   $('ewCompNFNote').replaceChildren();$('ewCompNFItems').replaceChildren();status('');
   if(!p)return;
@@ -74,7 +77,9 @@ async function render(root,context){
      select:'id,despesa_id,criado_em,desvinculado_em',empresa_id:'eq.'+context.empresa_id,
      pedido_id:'eq.'+p.id,order:'criado_em.desc',limit:'500'})
    ]);
-   if(!$('ewCompNFOrder')||$('ewCompNFOrder').value!==id)return;
+   if(generation!==orderGeneration||!root.isConnected||$('ewCompNFOrder')?.value!==id)return;
+   if((notes||[]).length>=1000||(conciliacoes||[]).length>=500)
+    throw Error('Consulta atingiu o limite de registros; não é seguro exibir dados incompletos.');
    const available=(notes||[]).filter(x=>['aluminio','acessorios'].includes(x.categoria)
     &&String(x.fornecedor||'').trim().toLowerCase()===supplier.trim().toLowerCase());
    $('ewCompNFNote').innerHTML='<label>Nota aprovada no Financeiro<select id="ewCompNFDoc">'+
@@ -110,7 +115,9 @@ async function render(root,context){
     };
    });
    $('ewCompNFDoc').onchange=async()=>{
+    const noteRequest=++noteGeneration;
     const noteId=$('ewCompNFDoc').value;
+    const current=()=>generation===orderGeneration&&noteRequest===noteGeneration&&root.isConnected&&$('ewCompNFOrder')?.value===id&&$('ewCompNFDoc')?.value===noteId;
     $('ewCompNFItems').replaceChildren();status('');
     if(!noteId)return;
     try{
@@ -118,6 +125,8 @@ async function render(root,context){
      const fiscalItems=await apiGet('ew_obra_despesas_itens',{
       select:'id,despesa_id,perfil_id,acessorio_id,unidade,quantidade,descricao',
       empresa_id:'eq.'+context.empresa_id,despesa_id:'eq.'+noteId,limit:'500'});
+     if(!current())return;
+     if((fiscalItems||[]).length>=500)throw Error('Nota atingiu o limite de itens; conciliação interrompida para evitar dados incompletos.');
      const owned=context.receipts.filter(x=>x.pedido_id===id&&!x.estornado_em);
      // Consultas limitadas à nota e aos recebimentos deste pedido.
      // Sem isso, vínculos de outras obras podem consumir o limite da API.
@@ -132,7 +141,7 @@ async function render(root,context){
      if(result.some(rows=>rows.length>=1000))
       throw Error('Vínculos demais neste filtro; não é seguro conciliar com dados incompletos.');
      const linkedItems=[...new Map(result.flat().map(x=>[x.id,x])).values()];
-     if(!$('ewCompNFDoc')||$('ewCompNFDoc').value!==noteId)return;
+     if(!current())return;
      const activeLinks=linkedItems.filter(x=>!x.desvinculado_em);
      const marked=new Set(activeLinks.map(x=>x.recebimento_id+'|'+x.chave));
      const fiscalUsed=new Map();
@@ -169,6 +178,7 @@ async function render(root,context){
       '<button type="submit" class="btn primary">Vincular nota sem duplicar estoque</button></form>';
      $('ewCompNFForm').onsubmit=async event=>{
       event.preventDefault();
+      if(!current())return;
       const list=[...$('ewCompNFForm').querySelectorAll('[data-nf-receipt]')]
        .filter(row=>row.querySelector('[data-nf-mark]')?.checked)
        .map(row=>({despesa_item_id:row.querySelector('[data-nf-fiscal]')?.value||'',
@@ -205,10 +215,10 @@ async function render(root,context){
       }catch(e){status('Vinculação não realizada: '+e.message)}
       finally{btn.disabled=false;}
      };
-    }catch(e){status('Itens da nota indisponíveis: '+e.message)}
+    }catch(e){if(current())status('Itens da nota indisponíveis: '+e.message)}
    };
    status(available.length?'':'Nenhuma nota de alumínio/acessórios desse fornecedor aprovada para a obra.');
-  }catch(e){status('Falha ao consultar notas: '+e.message)}
+  }catch(e){if(generation===orderGeneration&&root.isConnected)status('Falha ao consultar notas: '+e.message)}
  };
 }
 window.ewComprasNfe=Object.freeze({render,quantityAsInvoice,compatible});
