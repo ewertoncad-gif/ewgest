@@ -70,17 +70,23 @@ begin
  if auth.uid() is null or p_cotacao_id is null or p_operacao_id is null
     or char_length(v_motivo) not between 5 and 400
  then raise exception 'Cotação, identificador e motivo de 5 a 400 caracteres são obrigatórios.';end if;
- select * into v_q from public.ew_compras_cotacoes where id=p_cotacao_id for update;
+ select * into v_q from public.ew_compras_cotacoes where id=p_cotacao_id;
  if not found then raise exception 'Cotação inexistente.';end if;
  if not public.ew_pode(v_q.empresa_id,'compras.cotar')
  then raise exception 'Sem permissão para cancelar cotação.';end if;
+ -- A ordem dos bloqueios é a mesma do pedido e do cancelamento da solicitação:
+ -- primeiro a solicitação, depois a cotação. Evita o deadlock clássico.
+ select * into v_s from public.ew_compras_solicitacoes
+ where id=v_q.solicitacao_id for update;
+ if not found then raise exception 'Solicitação da cotação não localizada.';end if;
+ select * into v_q from public.ew_compras_cotacoes
+ where id=p_cotacao_id for update;
  if v_q.status='CANCELADA' then
   if v_q.cancelamento_operacao_id=p_operacao_id and v_q.cancelamento_motivo=v_motivo then
    return jsonb_build_object('id',v_q.id,'cancelada',true,'repetida',true);
   end if;
   raise exception 'Cotação já cancelada.';end if;
- select * into v_s from public.ew_compras_solicitacoes where id=v_q.solicitacao_id for update;
- if not found or v_s.status<>'ABERTA'
+ if v_s.status<>'ABERTA'
  then raise exception 'Solicitação indisponível para revisão de cotação.';end if;
  if exists(select 1 from public.ew_compras_pedidos p
     where p.cotacao_id=v_q.id or p.solicitacao_id=v_s.id)
