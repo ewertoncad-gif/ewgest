@@ -38,6 +38,7 @@ async function render(root,context){
   '<p id="ewCompNFStatus" role="status" class="feedback"></p>'+
   (context.orders.some(p=>p.local_empresa_id)?'<p class="hint">A conciliação financeira de estoques próprios da empresa será tratada separadamente, sem atribuir despesas a obras fictícias.</p>':'');
  const status=msg=>{if($('ewCompNFStatus'))$('ewCompNFStatus').textContent=msg||''};
+ window.ewComprasNfeEmpresa?.render(root,context);
  $('ewCompNFOrder').onchange=async()=>{
   const id=$('ewCompNFOrder').value,p=context.orders.find(x=>x.id===id);
   $('ewCompNFNote').replaceChildren();$('ewCompNFItems').replaceChildren();status('');
