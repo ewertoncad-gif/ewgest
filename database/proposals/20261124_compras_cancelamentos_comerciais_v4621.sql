@@ -174,6 +174,7 @@ BEGIN
   WHERE schemaname='public' AND tablename LIKE 'ew\_compras\_%' ESCAPE '\'
  LOOP
   EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC, anon',t.tablename);
+  EXECUTE format('REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.%I FROM authenticated',t.tablename);
  END LOOP;
 END;
 $priv$;
