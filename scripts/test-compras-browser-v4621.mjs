@@ -7,6 +7,7 @@ import {chromium} from 'playwright';
 const browser=await chromium.launch({headless:true});
 try{
  const page=await browser.newPage({viewport:{width:390,height:844}});
+ page.on('pageerror',e=>console.error('Browser pageerror:',e.message));
  await page.setContent('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"></head>'+
   '<body><div id="comprasMensagem"></div><main style="width:100%;max-width:100%">'+
   '<section id="fiscal"></section></main></body></html>');
@@ -16,7 +17,12 @@ try{
   window.escapeHTML=value=>String(value??'').replace(/[&<>"']/g,x=>
    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
   window.session={access_token:'MOCK_ONLY'};
-  window._mock={noteQty:1,corporateNotes:[],rpcCalls:[],reloadCount:0,allow:true};
+  window._mock={noteQty:1,corporateNotes:[],rpcCalls:[],reloadCount:0,allow:true,idSequence:0};
+  // about:blank do Playwright é origem opaca; randomUUID exige contexto seguro.
+  // A função é nativa no site real (HTTPS); o teste usa ID sintético.
+  if(typeof window.crypto?.randomUUID!=='function')
+   Object.defineProperty(window.crypto,'randomUUID',{configurable:true,
+    value:()=> '00000000-0000-4000-8000-'+String(++window._mock.idSequence).padStart(12,'0')});
   window.temPermissao=()=>window._mock.allow;
   window.ensureSession=async()=>window.session;
   window.request=async(path,opts)=>{
@@ -80,7 +86,7 @@ try{
   'UI não deve chamar RPC quando dois recebimentos superam NF de uma barra');
  await page.locator('[data-nf-receipt]').nth(1).locator('[data-nf-mark]').uncheck();
  await page.locator('#ewCompNFForm button[type="submit"]').click();
- await page.waitForFunction(()=>window._mock.rpcCalls.length===1);
+ await page.waitForFunction(()=>window._mock.rpcCalls.length===1,null,{timeout:7000});
  const first=await page.evaluate(()=>window._mock.rpcCalls[0]);
  assert.match(first.path,/ew_compras_vincular_nfe_pedido$/);
  assert.equal(first.body.p_vinculos.length,1);
@@ -97,7 +103,7 @@ try{
   await row.locator('[data-nf-fiscal]').selectOption('fi1');
  }
  await page.locator('#ewCompNFForm button[type="submit"]').click();
- await page.waitForFunction(()=>window._mock.rpcCalls.length===2);
+ await page.waitForFunction(()=>window._mock.rpcCalls.length===2,null,{timeout:7000});
  const second=await page.evaluate(()=>window._mock.rpcCalls[1]);
  assert.equal(second.body.p_vinculos.length,2,'Duas entregas devem ser permitidas quando NF comporta duas barras');
 
@@ -113,7 +119,7 @@ try{
  assert.equal((await page.evaluate(()=>window._mock.rpcCalls)).length,2,'Valor errado não pode ser gravado');
  await page.locator('[data-ew-emp-amount]').fill('120,50');
  await page.locator('#ewNfeEmpForm button[type="submit"]').click();
- await page.waitForFunction(()=>window._mock.rpcCalls.length===3);
+ await page.waitForFunction(()=>window._mock.rpcCalls.length===3,null,{timeout:7000});
  const third=await page.evaluate(()=>window._mock.rpcCalls[2]);
  assert.match(third.path,/ew_compras_registrar_nota_empresa$/);
  assert.equal(third.body.p_valor_centavos,12050);
