@@ -156,3 +156,18 @@ console.log('PASS: guardas para MT inteiro, KG fracionado, ordem de locks e esto
 
 console.log('PASS: Compras, conciliação de NF-e e nota empresarial — sintaxe, referências, RLS, contratos e ausência de entradas físicas na conciliação.');
 
+
+const paginationSource=js.slice(js.indexOf('async function readAllRows('),js.indexOf('const pendingOps=new Map();'));
+assert.ok(paginationSource.startsWith('async function readAllRows('));
+const fixtures=Array.from({length:1251},(_,i)=>({id:String(i).padStart(6,'0')}));
+let pageCalls=[];
+const paged=new Function('apiGet',paginationSource+'\nreturn readAllRows;')(async(table,params)=>{
+ pageCalls.push(params);return fixtures.slice(Number(params.offset),Number(params.offset)+Number(params.limit));
+});
+assert.deepEqual(await paged('receipts',{empresa_id:'eq.test'}),fixtures);
+assert.equal(pageCalls.length,3);
+assert.ok(pageCalls.every(p=>p.order==='id.asc'&&p.empresa_id==='eq.test'));
+const duplicated=new Function('apiGet',paginationSource+'\nreturn readAllRows;')(async(table,params)=>
+ Number(params.offset)===0?fixtures.slice(0,500):[fixtures[0]]);
+await assert.rejects(()=>duplicated('receipts',{}),/Consulta mudou/);
+console.log('PASS: paginação de histórico com 1251 registros e rejeição de IDs duplicados.');
