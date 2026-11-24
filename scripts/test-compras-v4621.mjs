@@ -103,6 +103,12 @@ assert.ok(cancelSql.includes('compras_recebimentos r where r.pedido_id=v_p.id'),
 assert.ok(cancelSql.includes('ew_compras_exigir_cotacao_ativa'),'Pedido precisa bloquear cotação cancelada no servidor.');
 const cancelCase=readFileSync(new URL('../tests/compras_v4621/60_cancelamentos_comerciais_rollback.sql',import.meta.url),'utf8');
 assert.ok(cancelCase.includes('PASS: cancelamentos'),'Cenário funcional de cancelamento não incluído.');
+const rolesCase=readFileSync(new URL('../tests/compras_v4621/70_permissoes_cancelamento_rollback.sql',import.meta.url),'utf8');
+assert.ok(rolesCase.includes('PASS: níveis 03,04,05,06,07,08'), 'Teste de permissões por nível de acesso está ausente.');
+assert.ok(cancelSql.includes('first')||cancelSql.includes('select * into v_s from public.ew_compras_solicitacoes'),
+ 'O cancelamento precisa validar solicitação e cotação.');
+assert.ok(!/delete\s+from\s+public\.ew_compras_/.test(cancelSql.toLowerCase()),
+ 'Cancelamento de compras não pode apagar registros de auditoria.');
 console.log('PASS: cancelamentos comerciais, permissões e proteção de histórico rastreados.');
 
 console.log('PASS: Compras, conciliação de NF-e e nota empresarial — sintaxe, referências, RLS, contratos e ausência de entradas físicas na conciliação.');
