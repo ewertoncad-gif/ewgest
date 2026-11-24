@@ -37,6 +37,8 @@ try{
       categoria:'aluminio',valor:500,status:'aprovada',criado_em:'2026-11-24'}];
     case 'ew_compras_nfe_conciliacoes':return [];
     case 'ew_obra_despesas_itens':
+     if(m.pauseFiscal)await new Promise(resolve=>{m.releaseFiscal=resolve});
+     if(m.truncateFiscal)return Array.from({length:500},(_,i)=>({id:'truncated-'+i}));
      return [{id:'fi1',despesa_id:'note',perfil_id:'pf',acessorio_id:null,
       unidade:'BARRA',quantidade:m.noteQty,descricao:'Perfil 6000 mm'}];
     case 'ew_compras_nfe_vinculos':return [];
@@ -124,6 +126,23 @@ try{
  assert.match(third.path,/ew_compras_registrar_nota_empresa$/);
  assert.equal(third.body.p_valor_centavos,12050);
  assert.equal(third.body.p_itens[0].valor_total_centavos,12050);
+
+ // Uma resposta atrasada não pode restaurar o formulário após limpar a nota.
+ await page.locator('#ewCompNFDoc').selectOption('');
+ await page.evaluate(()=>window._mock.pauseFiscal=true);
+ await page.locator('#ewCompNFDoc').selectOption('note');
+ await page.waitForFunction(()=>typeof window._mock.releaseFiscal==='function');
+ await page.locator('#ewCompNFDoc').selectOption('');
+ await page.evaluate(()=>{window._mock.pauseFiscal=false;window._mock.releaseFiscal()});
+ await page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,50)));
+ assert.equal(await page.locator('#ewCompNFForm').count(),0,'Resposta obsoleta não pode reabrir a nota');
+ // Uma resposta fiscal potencialmente truncada deve falhar antes de criar um formulário.
+ await page.evaluate(()=>window._mock.truncateFiscal=true);
+ await page.locator('#ewCompNFDoc').selectOption('note');
+ await page.waitForFunction(()=>document.querySelector('#ewCompNFStatus').textContent.includes('limite de itens'));
+ assert.equal(await page.locator('#ewCompNFForm').count(),0);
+ assert.equal((await page.evaluate(()=>window._mock.rpcCalls)).length,3);
+ await page.evaluate(()=>window._mock.truncateFiscal=false);
 
  const bounds=await page.evaluate(()=>({
   viewport:window.innerWidth,overflow:document.documentElement.scrollWidth,
