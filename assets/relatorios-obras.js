@@ -73,7 +73,7 @@ function contexto(){
   obraIds=new Set([...el('reportWorkChecks').querySelectorAll('input:checked')].map(x=>x.value));
   if(!obraIds.size)throw new Error('Marque pelo menos uma obra para consolidar o faturamento.');
  }
- return {empresa:'eq.'+currentCompany.id,obraId:modo==='faturamento'?'':el('reportWork').value,obraIds,ativas:obraAtivaIds};
+ return {empresa:'eq.'+currentCompany.id,obraId:['faturamento','custos_empresa'].includes(modo)?'':el('reportWork').value,obraIds,ativas:obraAtivaIds};
 }
 function tabela(cabecalhos,linhas){
  if(!linhas.length)return '<p class="reportsEmpty">Nenhum registro encontrado nos filtros selecionados.</p>';
@@ -389,22 +389,42 @@ async function gerar(){
  rows=[];headers=[];summaryCsv=[];summaryHeaders=[];el('reportCsv').disabled=true;el('reportPrint').disabled=true;
  el('reportTable').replaceChildren();el('reportSummary').replaceChildren();
  const tipo=el('reportType').value;
- if(tipo==='faturamento'&&!temPermissao('relatorios.financeiros')){
+ if((tipo==='faturamento'&&!temPermissao('relatorios.financeiros'))||
+   (tipo==='custos_empresa'&&!(temPermissao('relatorios.financeiros')&&temPermissao('compras.consultar_valores')&&temPermissao('financeiro.consultar')))){
   el('reportStatus').textContent='Seu nível não permite consultar relatórios financeiros.';return;
  }
  running=true;el('reportGenerate').disabled=true;
- el('reportStatus').textContent='Consultando registros das obras em andamento…';
+ el('reportStatus').textContent=tipo==='custos_empresa'?'Consultando notas do estoque da empresa…':'Consultando registros das obras em andamento…';
  try{
   await ensureSession();
   await carregarCatalogos();
   const ctx=contexto();
   if(ctx.obraId && !obras.some(o=>o.id===ctx.obraId))throw new Error('A obra não está mais disponível para consulta.');
   el('reportWork').value=ctx.obraId;
-  const geradores={faturamento,estoque,liberacoes,expedicao,aluminio};
-  if(!geradores[tipo])throw new Error('Relatório inexistente.');
-  const res=await geradores[tipo](ctx);
-  el('reportStatus').textContent='Relatório concluído: '+res.contagem+' registro(s) consultado(s). '+
-   (tipo==='faturamento'?'Totais excluem documentos cancelados.':'Consulta sem alteração dos registros.');
+  if(tipo==='custos_empresa'){
+   if(!window.ewCustosEmpresa)throw new Error('Módulo financeiro de estoque não foi carregado.');
+   const res=await window.ewCustosEmpresa.gerar({
+    empresaId:currentCompany.id,
+    localId:el('reportCompanyLocal').value,
+    fornecedorId:el('reportCompanySupplier').value,
+    inicio:el('reportFullPeriod').checked?'':el('reportStart').value,
+    fim:el('reportFullPeriod').checked?'':el('reportEnd').value,
+    incluirCanceladas:el('reportCancelled').checked
+   });
+   reportTitle=res.title;headers=res.headers;rows=res.rows;
+   summaryHeaders=res.summaryHeaders;summaryCsv=res.summaryCsv;
+   el('reportSummary').innerHTML=res.summaryHtml;
+   el('reportTable').innerHTML='<h3>Notas e custos do estoque da empresa</h3>'+tabela(headers,rows)+
+    '<p class="hint">Cada nota aparece uma vez; o total de custos ativos está no resumo. Valores cancelados não entram na soma. Não misturar com despesas das obras.</p>';
+   el('reportStatus').textContent='Relatório concluído: '+res.notesCount+' nota(s) encontrada(s), '+res.shown+
+    ' apresentada(s). Valores ativos sem notas canceladas; consulta sem movimentações.';
+  }else{
+   const geradores={faturamento,estoque,liberacoes,expedicao,aluminio};
+   if(!geradores[tipo])throw new Error('Relatório inexistente.');
+   const res=await geradores[tipo](ctx);
+   el('reportStatus').textContent='Relatório concluído: '+res.contagem+' registro(s) consultado(s). '+
+    (tipo==='faturamento'?'Totais excluem documentos cancelados.':'Consulta sem alteração dos registros.');
+  }
   el('reportCsv').disabled=!rows.length;el('reportPrint').disabled=!rows.length;
  }catch(e){el('reportStatus').textContent='Não foi possível gerar: '+e.message;}
  finally{running=false;el('reportGenerate').disabled=false;}
@@ -419,7 +439,7 @@ function csv(){
  };
  const tabelaPrincipal=[headers,...rows].map(r=>r.map(enc).join(';')).join('\r\n');
  const resumo=summaryHeaders.length?[
-  'RESUMO POR OBRA',summaryHeaders.map(enc).join(';'),
+  (el('reportType').value==='custos_empresa'?'RESUMO DOS CUSTOS POR LOCAL DA EMPRESA':'RESUMO POR OBRA'),summaryHeaders.map(enc).join(';'),
   ...summaryCsv.map(r=>r.map(enc).join(';')),'','DETALHAMENTO',''
  ].join('\r\n'):'';
  const text='\ufeff'+resumo+tabelaPrincipal;
@@ -438,7 +458,8 @@ function imprimir(){
   'h1{font-size:18px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #cbd5e1;padding:5px;text-align:left;vertical-align:top}'+
   'th{background:#edf3fa}thead{display:table-header-group}@page{size:landscape;margin:12mm}</style></head><body>'+
   '<h1>EWGEST · '+esc(reportTitle)+'</h1><p>Gerado em '+esc(stamp(new Date().toISOString()))+
-  ' · Obra: '+esc(el('reportWork').selectedOptions[0]?.text||'Todas as obras')+'</p>'+
+  (el('reportType').value==='custos_empresa'?' · Relatório de locais próprios da empresa':
+   ' · Obra: '+esc(el('reportWork').selectedOptions[0]?.text||'Todas as obras'))+'</p>'+
   el('reportSummary').innerHTML+tabela(headers,rows)+'</body></html>';
  w.document.open();w.document.write(html);w.document.close();w.focus();w.print();
 }
@@ -448,19 +469,29 @@ el('navRelatorios').addEventListener('click',async()=>{
  el('reportStatus').textContent='Consulta sem movimentação de estoque. Clique em Gerar relatório.';
  el('reportTable').replaceChildren();el('reportSummary').replaceChildren();
  el('reportCsv').disabled=true;el('reportPrint').disabled=true;rows=[];
- try{await ensureSession();await carregarCatalogos();}
- catch(e){el('reportStatus').textContent='Erro ao preparar obras e usuários: '+e.message;}
+ try{
+  await ensureSession();await carregarCatalogos();
+  if(el('reportType').value==='custos_empresa'&&window.ewCustosEmpresa)
+   await window.ewCustosEmpresa.carregarFiltros(currentCompany.id);
+ }catch(e){el('reportStatus').textContent='Erro ao preparar filtros dos relatórios: '+e.message;}
 });
 function exibirFiltros(){
  const finance=temPermissao('relatorios.financeiros');
  const option=el('reportType').querySelector('[value="faturamento"]');
  if(option){option.disabled=!finance;option.hidden=!finance;}
- if(!finance&&el('reportType').value==='faturamento')el('reportType').value='estoque';
+ const corpAllowed=finance&&temPermissao('financeiro.consultar')&&temPermissao('compras.consultar_valores');
+ const companyOption=el('reportType').querySelector('[value="custos_empresa"]');
+ if(companyOption){companyOption.disabled=!corpAllowed;companyOption.hidden=!corpAllowed;}
+ if((!finance&&el('reportType').value==='faturamento')||
+    (!corpAllowed&&el('reportType').value==='custos_empresa'))el('reportType').value='estoque';
  const tipo=el('reportType').value,isBilling=tipo==='faturamento',stock=tipo==='estoque';
+ const company=tipo==='custos_empresa';
  el('reportMultiple').classList.toggle('hidden',!isBilling);
- el('reportWork').closest('label').classList.toggle('hidden',isBilling);
+ el('reportWork').closest('label').classList.toggle('hidden',isBilling||company);
+ el('reportCompanyLocalWrap').classList.toggle('hidden',!company);
+ el('reportCompanySupplierWrap').classList.toggle('hidden',!company);
  el('reportStockOptions').classList.toggle('hidden',!stock);
- el('reportCancelledWrap').classList.toggle('hidden',!['faturamento','liberacoes','expedicao'].includes(tipo));
+ el('reportCancelledWrap').classList.toggle('hidden',!['faturamento','liberacoes','expedicao','custos_empresa'].includes(tipo));
  el('reportWorkChecks').classList.toggle('hidden',el('reportWorkScope').value!=='selected'||!isBilling);
 }
 function periodo(){
@@ -473,6 +504,9 @@ el('reportType').addEventListener('change',()=>{
  exibirFiltros();
  el('reportSummary').replaceChildren();el('reportTable').replaceChildren();
  el('reportCsv').disabled=true;el('reportPrint').disabled=true;rows=[];
+ if(el('reportType').value==='custos_empresa'&&window.ewCustosEmpresa&&currentCompany?.id)
+  void window.ewCustosEmpresa.carregarFiltros(currentCompany.id)
+   .catch(e=>{el('reportStatus').textContent='Falha ao carregar locais/fornecedores: '+e.message;});
 });
 periodo();exibirFiltros();
 el('reportGenerate').addEventListener('click',gerar);
