@@ -45,9 +45,12 @@ BEGIN
  v_ret:=public.ew_compras_receber_pedido(v_pedido,'IMBIRIBEIRA',
   '[{"chave":"EA01","quantidade":1}]'::jsonb,gen_random_uuid());
  v_receb2:=(v_ret->>'id')::uuid;
+ -- Uma terceira entrega do pedido segue sem nota para testar bloqueio preventivo.
+ PERFORM public.ew_compras_receber_pedido(v_pedido,'IMBIRIBEIRA',
+  '[{"chave":"EA01","quantidade":1}]'::jsonb,gen_random_uuid());
  SELECT sum(m.quantidade_delta) INTO v_before FROM public.ew_estoque_obras_movimentos m
  WHERE m.obra_id=v_obra AND m.variacao_id=v_variacao;
- IF v_before<>2 THEN RAISE EXCEPTION 'Estoque pré-conciliação não é 2 barras.';END IF;
+ IF v_before<>3 THEN RAISE EXCEPTION 'Estoque pré-conciliação não é 3 barras.';END IF;
  INSERT INTO public.ew_obra_despesas(
   empresa_id,obra_id,categoria,valor,fornecedor,numero_documento,
   origem,chave_nfe,status,observacoes,criado_por,aprovado_por,aprovado_em)
@@ -124,7 +127,7 @@ BEGIN
  THEN RAISE EXCEPTION 'Estorno após desvinculação falhou.';END IF;
  SELECT coalesce(sum(quantidade_delta),0) INTO v_after
  FROM public.ew_estoque_obras_movimentos m WHERE m.obra_id=v_obra;
- IF v_after<>1 THEN RAISE EXCEPTION 'Estoque após estorno deveria ser 1 barra, encontrado %.',v_after;END IF;
+ IF v_after<>2 THEN RAISE EXCEPTION 'Estoque após estorno deveria ser 2 barras, encontrado %.',v_after;END IF;
  -- Nota pode ser cancelada após desfazer vínculo; não gera estoque no cancelamento.
  UPDATE public.ew_obra_despesas SET status='cancelada' WHERE id=v_despesa;
  IF (SELECT status FROM public.ew_obra_despesas WHERE id=v_despesa)<>'cancelada'
