@@ -113,6 +113,22 @@ Implementados na branch, **não publicados**:
 - As **seis propostas SQL** e os **sete cenários SQL** de Compras foram executados em `ewgest-restauracao-teste` dentro de transações `BEGIN/ROLLBACK`; não houve aplicação no banco de produção.
 - A ordem de bloqueios no cancelamento de cotação foi padronizada (primeiro solicitação, depois cotação), reduzindo risco de deadlock com cancelamento da solicitação.
 
+### Regressão crítica de estornos e unidades — 24/11/2026
+
+Foram encontrados, corrigidos e testados dois problemas da proposta v46.21 **antes de sua publicação**:
+
+1. **Bloqueio indevido de estornos encadeados**: o estorno do recebimento 2 gerava uma movimentação negativa `ESTORNO` que era interpretada como saída de consumo no estorno do recebimento 1. Da mesma forma, duas transferências de empresa para a mesma obra, estornadas de trás para frente, podiam ficar bloqueadas por outro `ESTORNO`. A checagem de dependências agora **ignora apenas movimentos de estorno efetivos** (`ESTORNO`, `ESTORNO_PEDIDO`, `ESTORNO_TRANSFERENCIA`); continua bloqueando saídas não revertidas e valida saldo físico do mesmo local/galpão/unidade.
+2. **Ordem de travas no estorno fiscal**: `ew_compras_vincular_nfe_pedido` bloqueava pedido → recebimento, mas `ew_compras_estornar_recebimento` bloqueava no sentido inverso. O estorno agora lê preliminarmente o recebimento, trava **pedido → recebimento**, relê e valida o estado sob bloqueio, reduzindo o risco de deadlock entre essas operações. Não foi executada corrida real de sessões; este ajuste é preventivo e tem teste sequencial.
+3. **Unidades de compra**: a versão existente do EWGEST possui o trigger `ew_validar_mt_movimento_material`, que **exige MT inteiros** nas movimentações de material, inclusive transferências e fornecimento à produção. A proposta de MT fracionário foi descartada ao ser detectada a incompatibilidade. Permanecem inteiros `MT`, `BARRA`, `PC`, `PR`, `CJ` e `UN`. A unidade **KG** admite até três casas decimais no banco e nos formulários, com validação de precisão e rejeição da quarta casa.
+
+**Novos cenários de teste**:
+
+- `tests/compras_v4621/80_estorno_ordenado_nfe_rollback.sql`: pedido com dois recebimentos, um conciliado com NF e outro sem nota; estorno do vinculado bloqueado; estorno do outro permitido e idempotente; desfazimento da conciliação libera estorno do primeiro; saldos e histórico preservados.
+- `tests/compras_v4621/90_estorno_transferencias_sucessivas_rollback.sql`: duas transferências independentes do estoque empresarial para a mesma obra, reversão em ordem inversa, estorno da entrada empresarial original e saldo final zero nas duas pontas.
+- `tests/compras_v4621/100_quantidades_mt_kg_fracionadas_rollback.sql`: MT inteiro obrigatório, KG fracionado em compra/recebimento/transferência/estorno, valores com mais de três casas rejeitados e saldo final zero.
+
+**Evidências**: os **dez testes SQL (10 a 100)** foram executados separadamente em `ewgest-restauracao-teste`, precedidos pelas seis propostas SQL da v46.21 e encerrados com `ROLLBACK`. Todos passaram. O GitHub Actions na branch também passou, incluindo as novas verificações estáticas das unidades e da ordem dos bloqueios. Nada foi alterado no banco de produção.
+
 ### Limitações dos testes
 
 - Testes de transação executados em ambiente isolado com dados sintéticos. **Não** equivalem à homologação visual nem à verificação de fluxos de notas fiscais reais.
