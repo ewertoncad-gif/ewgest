@@ -290,17 +290,30 @@ end;$f$;
 create or replace function public.ew_compras_receber_pedido(
  p_pedido_id uuid,p_galpao text,p_itens jsonb,p_operacao_id uuid)
 returns jsonb language plpgsql security definer set search_path='' as $f$
-declare v_p public.ew_compras_pedidos%rowtype;v_id uuid;v_i jsonb;v_original jsonb;
+declare v_p public.ew_compras_pedidos%rowtype;v_rec public.ew_compras_recebimentos%rowtype;
+ v_id uuid;v_i jsonb;v_original jsonb;
  v_chave text;v_seen text[]:=array[]::text[];v_q numeric;v_total numeric;
  v_ja numeric;v_clean jsonb:='[]'::jsonb;v_all boolean:=true;v_movimento uuid;
  v_galpao text:=upper(btrim(coalesce(p_galpao,'')));
 begin
  perform public.ew_exigir_sessao_atual();
  if p_operacao_id is null then raise exception 'Operação inválida.';end if;
- select id into v_id from public.ew_compras_recebimentos where operacao_id=p_operacao_id;
- if found then return jsonb_build_object('id',v_id,'repetida',true);end if;
+ -- Bloqueio no pedido ANTES da verificação de duplicidade. Duas sessões usando
+ -- o mesmo ID esperam sua vez e a segunda observa a primeira após o COMMIT.
  select * into v_p from public.ew_compras_pedidos where id=p_pedido_id for update;
- if not found or v_p.status in ('CANCELADO','CONCLUIDO') then raise exception 'Pedido indisponível.';end if;
+ if not found then raise exception 'Pedido não encontrado.';end if;
+ if not public.ew_pode(v_p.empresa_id,'compras.receber') or not public.ew_pode(v_p.empresa_id,'estoque.receber')
+ then raise exception 'Sem permissão para receber pedidos.';end if;
+ select * into v_rec from public.ew_compras_recebimentos where operacao_id=p_operacao_id;
+ if found then
+  if v_rec.empresa_id<>v_p.empresa_id or v_rec.pedido_id<>v_p.id
+    or v_rec.galpao<>upper(btrim(coalesce(p_galpao,'')))
+    or v_rec.itens IS DISTINCT FROM p_itens
+  then raise exception 'Identificador de recebimento reutilizado com outro pedido, galpão ou itens.';end if;
+  return jsonb_build_object('id',v_rec.id,'pedido_id',v_p.id,'repetida',true,
+    'estornado',v_rec.estornado_em IS NOT NULL);
+ end if;
+ if v_p.status in ('CANCELADO','CONCLUIDO') then raise exception 'Pedido indisponível.';end if;
  if not public.ew_pode(v_p.empresa_id,'compras.receber') or not public.ew_pode(v_p.empresa_id,'estoque.receber')
  then raise exception 'Sem permissão para receber pedidos.';end if;
  if not exists(select 1 from public.ew_locais_fisicos
