@@ -1,5 +1,5 @@
--- EWGEST v46.21: precisão de MT e KG em solicitação/recebimento/transferência/estorno.
--- Barras e peças continuam inteiras; unidades fracionáveis têm até três casas.
+-- EWGEST v46.21: MT inteiro (invariante legado) e KG fracionado até 3 casas.
+-- Barras, peças e MT permanecem inteiros, KG admite frações com três decimais.
 -- Executar somente em transação única seguida de ROLLBACK.
 DO $test$
 DECLARE
@@ -35,23 +35,23 @@ BEGIN
  VALUES(v_emp,'FORNECEDOR TESTE FRACIONADO') RETURNING id INTO v_supplier;
  v_data:=public.ew_compras_criar_local_empresa(v_emp,'ESTOQUE EMPRESA FRACIONADO TESTE');
  v_loc:=(v_data->>'id')::uuid;
- -- Quatro casas decimais não podem ser aceitas no cadastro.
+ -- Quantidade de MT fracionada não pode ser aceita no cadastro.
  v_reject:=false;
  BEGIN
   PERFORM public.ew_compras_criar_solicitacao(v_emp,null,v_loc,
    jsonb_build_array(jsonb_build_object('chave','mt','variacao_id',v_var_mt,
-     'quantidade',0.0005,'unidade','MT','comprimento_mm',null)),
+     'quantidade',0.500,'unidade','MT','comprimento_mm',null)),
    'Valor com precisão inválida',gen_random_uuid());
  EXCEPTION WHEN OTHERS THEN v_reject:=true;END;
- IF NOT v_reject THEN RAISE EXCEPTION 'Compras aceitou quatro casas decimais em MT.';END IF;
+ IF NOT v_reject THEN RAISE EXCEPTION 'Compras aceitou fração de MT proibida pelo estoque legado.';END IF;
 
  v_data:=public.ew_compras_criar_solicitacao(v_emp,null,v_loc,
   jsonb_build_array(
     jsonb_build_object('chave','mt','variacao_id',v_var_mt,
-      'quantidade',1.500,'unidade','MT','comprimento_mm',null),
+      'quantidade',2,'unidade','MT','comprimento_mm',null),
     jsonb_build_object('chave','kg','variacao_id',v_var_kg,
       'quantidade',2.250,'unidade','KG','comprimento_mm',null)),
-  'Compra com metros e quilos fracionados',gen_random_uuid());
+  'Compra com MT inteiro e KG fracionado',gen_random_uuid());
  v_solic:=(v_data->>'id')::uuid;
  v_data:=public.ew_compras_criar_cotacao(v_solic,v_supplier,
   '[{"chave":"mt","preco_unitario_centavos":10000},{"chave":"kg","preco_unitario_centavos":20000}]'::jsonb,
@@ -59,9 +59,9 @@ BEGIN
  v_quote:=(v_data->>'id')::uuid;
  v_data:=public.ew_compras_criar_pedido(v_quote,gen_random_uuid());
  v_order:=(v_data->>'id')::uuid;
- -- Entrada física fracionada (múltiplos materiais em um único recebimento).
+ -- Entrada física com MT inteiro e KG fracionado (vários itens no mesmo recebimento).
  v_data:=public.ew_compras_receber_pedido(v_order,'IMBIRIBEIRA',
-  '[{"chave":"mt","quantidade":0.375},{"chave":"kg","quantidade":0.725}]'::jsonb,gen_random_uuid());
+  '[{"chave":"mt","quantidade":1},{"chave":"kg","quantidade":0.725}]'::jsonb,gen_random_uuid());
  v_rec:=(v_data->>'id')::uuid;
  IF (SELECT status FROM public.ew_compras_pedidos WHERE id=v_order)<>'PARCIAL'
  THEN RAISE EXCEPTION 'Pedido fracionado deveria permanecer parcial.';END IF;
@@ -69,7 +69,7 @@ BEGIN
  FROM public.ew_compras_estoque_empresa WHERE local_empresa_id=v_loc AND variacao_id=v_var_mt;
  SELECT coalesce(sum(quantidade_delta),0) INTO v_company_kg
  FROM public.ew_compras_estoque_empresa WHERE local_empresa_id=v_loc AND variacao_id=v_var_kg;
- IF v_company_mt<>0.375 OR v_company_kg<>0.725
+ IF v_company_mt<>1 OR v_company_kg<>0.725
  THEN RAISE EXCEPTION 'Entrada fracionada incorreta: % MT e % KG.',v_company_mt,v_company_kg;END IF;
  v_reject:=false;
  BEGIN
@@ -80,7 +80,7 @@ BEGIN
  IF NOT v_reject THEN RAISE EXCEPTION 'Transferência aceitou quatro casas decimais.';END IF;
 
  v_data:=public.ew_compras_transferir_locais(v_emp,'EMPRESA',v_loc,'OBRA',v_work,
-  v_var_mt,null,'MT',0.125,'IMBIRIBEIRA','IMBIRIBEIRA',
+  v_var_mt,null,'MT',1,'IMBIRIBEIRA','IMBIRIBEIRA',
   'Transferência de fita por metro',gen_random_uuid());
  v_trans_mt:=(v_data->>'id')::uuid;
  v_data:=public.ew_compras_transferir_locais(v_emp,'EMPRESA',v_loc,'OBRA',v_work,
@@ -91,7 +91,7 @@ BEGIN
  FROM public.ew_estoque_obras_movimentos WHERE obra_id=v_work AND variacao_id=v_var_mt;
  SELECT coalesce(sum(quantidade_delta),0) INTO v_work_kg
  FROM public.ew_estoque_obras_movimentos WHERE obra_id=v_work AND variacao_id=v_var_kg;
- IF v_work_mt<>0.125 OR v_work_kg<>0.250
+ IF v_work_mt<>1 OR v_work_kg<>0.250
  THEN RAISE EXCEPTION 'Obra recebeu frações incorretas, % MT e % KG.',v_work_mt,v_work_kg;END IF;
 
  -- Antes de reverter a transferência, o recebimento precisa bloquear estorno.
@@ -120,5 +120,5 @@ BEGIN
  IF v_company_mt<>0 OR v_company_kg<>0 OR v_work_mt<>0 OR v_work_kg<>0
  THEN RAISE EXCEPTION 'Saldo não zerou: empresa % MT / % KG, obra % MT / % KG.',
     v_company_mt,v_company_kg,v_work_mt,v_work_kg;END IF;
- RAISE NOTICE 'PASS: compra MT e KG com três decimais, recebimento parcial, transferências, bloqueio com consumo, estornos e saldos zerados.';
+ RAISE NOTICE 'PASS: MT inteiro preservado, KG com três decimais, recebimento parcial, transferências, bloqueio com consumo, estornos e saldo zero.';
 END;$test$;
