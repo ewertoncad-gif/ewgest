@@ -76,4 +76,16 @@ await assert.rejects(report.gerar({empresaId:'tenant1'}),/Seu nível não permit
 assert.deepEqual([...new Set(tables)].sort(),[
  'ew_compras_locais_empresa','ew_compras_notas_empresa','ew_fornecedores'].sort(),
  'O relatório de custos empresariais não deve puxar despesas ou faturamentos de obras.');
+
+const appHtml=fs.readFileSync(new URL('../app.html',import.meta.url),'utf8');
+const reportsJs=fs.readFileSync(new URL('../assets/relatorios-obras.js',import.meta.url),'utf8');
+assert.match(appHtml,/value="custos_empresa"/);
+assert.match(appHtml,/id="reportCompanyLocal"/);
+assert.match(appHtml,/id="reportCompanySupplier"/);
+assert.ok(appHtml.includes('relatorios-custos-empresa.js'));
+assert.match(reportsJs,/window\.ewCustosEmpresa\.gerar/);
+assert.match(reportsJs,/res\.summaryHtml/);
+assert.match(reportsJs,/tipo==='custos_empresa'/);
+assert.match(reportsJs,/incluirCanceladas:el\('reportCancelled'\)\.checked/);
+
 console.log('PASS: relatório empresarial, cancelamentos, moeda em centavos, segregação, filtros e permissão.');
