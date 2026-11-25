@@ -780,7 +780,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.9</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.10</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -801,7 +801,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.9</div>
+        <div class="build">EWGEST • v46.29.10</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -2187,15 +2187,12 @@
         <option value="IMBIRIBEIRA">IMBIRIBEIRA</option>
       </select>
       <p class="hint">A fábrica será registrada nesta liberação para apurar o prazo até a saída da produção.</p>
-      <label for="releaseComponent">4. O que deseja liberar tecnicamente para fabricação?</label>
+      <label for="releaseComponent">4. Tipo de liberação</label>
       <select id="releaseComponent" required>
-        <option value="">Selecione a parte</option>
-        <option value="completo">Esquadria completa: marco + todas as folhas (100%)</option>
-        <option value="marco">Liberação parcial: somente o marco (50%)</option>
-        <option value="folhas">Liberação parcial: conjunto das folhas (50%)</option>
+        <option value="completo">Esquadria completa (100%)</option>
       </select>
       <p id="releaseComponentBalance" class="hint" role="status"></p>
-      <p class="hint"><strong>Ao liberar a esquadria completa, marco e folhas ficam liberados juntos.</strong> Na expedição, o almoxarife poderá enviar o marco e cada folha física separadamente, em qualquer ordem. Uma liberação parcial só autoriza o componente selecionado.</p>
+      <p class="hint"><strong>Ao liberar a esquadria completa, marco e folhas ficam liberados juntos.</strong> Na expedição, o almoxarife poderá enviar o marco e cada folha física separadamente, em qualquer ordem. Liberações parciais antigas permanecem no histórico.</p>
       <p class="hint"><strong>Liberação somente técnica.</strong> Não movimenta nem baixa materiais. O almoxarife registra a saída física ao entregar à produção.</p>
       <div class="releaseMirrorIntro hidden">
         <h3>4. Como deseja registrar a relação de materiais?</h3>
@@ -2851,6 +2848,9 @@ async function loadPanel(){
    if(!temPermissao('compras.consultar')){node('navComprasSubmenu').classList.add('hidden');node('navCompras').setAttribute('aria-expanded','false');}
    node('stockCreateCompanyLocal').classList.toggle('hidden',!temPermissao('estoque.gerenciar_locais'));
    node('stockTransferBetweenLocations').classList.toggle('hidden',!temPermissao('estoque.transferir_obras'));
+  node('stockTransferPickLocal').classList.toggle('hidden',!temPermissao('estoque.transferir_galpoes'));
+  node('stockTransferPickWork').classList.toggle('hidden',!temPermissao('estoque.transferir_obras'));
+  node('navStockSubmenu').querySelectorAll('[data-stock-modo]').forEach(b=>{b.disabled=!stockModoPermitido(b.dataset.stockModo);b.setAttribute('aria-disabled',String(b.disabled));});
   node('recebimentoXmlLegacy').classList.toggle('hidden',!isAlmoxarife());
   const navFlags={
     navCadastros:'cadastros.consultar',navTypologies:'cadastros.consultar',
@@ -4223,7 +4223,7 @@ function renderDetail(w){
   if(!shipping){
     node('items').innerHTML=list.length?list.map(x=>{
       const part=releaseParts(x);
-      const pending=Math.max(part.saldoCompleto,part.saldoMarco,part.saldoFolhas);
+      const pending=part.saldoCompleto;
       const latest=releaseHistory.find(r=>r.esquadria_id===x.id);
       return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><div class="hint" style="margin-top:8px">${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Com alguma parte liberada: ${Number(x.qtd_liberada)||0}</span><span>Marcos: ${part.marcos} · Folhas (conj.): ${part.folhas}</span><span>Restam por liberar: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline" style="margin-top:8px"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/'))+
   (latest.fabrica?' · '+escapeHTML(latest.fabrica):' · fábrica não informada (histórico)'):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button><div class="topactions" style="padding:4px 12px 10px"><button type="button" class="btn secondary releaseCancellationButton" data-release-undo="${escapeHTML(x.id)}" ${!latest||!temPermissao('liberacoes.cancelar')?'disabled':''}>Estornar liberação</button></div></div>`;
@@ -4747,29 +4747,17 @@ function releaseComponentAtualizar(){
   (parts.folhas>parts.marcos?' · Há '+(parts.folhas-parts.marcos)+' conjunto(s) de folhas liberado(s) sem marco.':'');
 }
 function openRelease(id){
- if(!['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
+ if(!temPermissao('liberacoes.criar'))return;
  selectedItem=elements.find(e=>e.id===id);if(!selectedItem)return;
  const parts=releaseParts(selectedItem);
- if(Math.max(parts.saldoCompleto,parts.saldoMarco,parts.saldoFolhas)<=0)return;
+ if(parts.saldoCompleto<=0)return;
  releaseOperationId=crypto.randomUUID();
  node('releaseItem').textContent=selectedItem.codigo+' · '+labeledDescription(selectedItem)+' · '+(selectedItem.localizacao||'');
  node('releaseBalance').textContent='Esquadrias: '+selectedItem.quantidade+
   ' · Marcos liberados: '+parts.marcos+' · Conjuntos de folhas liberados: '+parts.folhas+'.';
  const select=node('releaseComponent');
- const permitePartes=Boolean(suggestedLeaves(selectedItem))&&!ehMaximArRomaneio(selectedItem);
- for(const option of select.options){
-  if(!option.value)continue;
-  option.disabled=releaseComponentSaldo(parts,option.value)<=0||
-   (!permitePartes&&option.value!=='completo');
-  option.hidden=!permitePartes&&option.value!=='completo';
- }
- // Completa é a escolha natural. Uma liberação parcial já existente sugere
- // apenas a parte complementar — nunca altera retroativamente o histórico.
- const complemento=permitePartes&&parts.marcos>parts.folhas&&parts.saldoFolhas>0?'folhas':
-  permitePartes&&parts.folhas>parts.marcos&&parts.saldoMarco>0?'marco':'';
- const preferida=complemento||(parts.saldoCompleto>0?'completo':
-  parts.saldoMarco>0?'marco':parts.saldoFolhas>0?'folhas':'');
- select.value=[...select.options].some(o=>o.value===preferida&&!o.disabled)?preferida:'';
+ select.value='completo';
+ select.options[0].disabled=parts.saldoCompleto<=0;
 
  node('releaseQty').value='';
  node('releaseDate').value=todayLocal();
@@ -4784,18 +4772,18 @@ function closeRelease(){node('releaseModal').classList.add('hidden');selectedIte
 node('releaseCancel').addEventListener('click',closeRelease);
 node('releaseComponent').addEventListener('change',releaseComponentAtualizar);
 // O formulário manual de materiais permanece indisponível neste fluxo.
-// A liberação técnica não baixa estoque; o almoxarife confirma a entrega em Recebimento.
+// A liberação técnica não baixa estoque; o almoxarife confirma a entrega em Estoque.
 node('releaseForm').addEventListener('submit',async event=>{
- event.preventDefault();if(!selectedItem)return;
+ event.preventDefault();if(!selectedItem||!temPermissao('liberacoes.criar'))return;
  const qty=Number(node('releaseQty').value),date=node('releaseDate').value;
  const fabrica=node('releaseFactory').value,componente=node('releaseComponent').value;
  const pending=releaseComponentSaldo(releaseParts(selectedItem),componente);
- if(!['completo','marco','folhas'].includes(componente)||
+ if(componente!=='completo'||
     node('releaseComponent').selectedOptions[0]?.disabled){
-  node('releaseError').textContent='Selecione a parte da esquadria que será liberada.';return;
+  node('releaseError').textContent='A liberação deve ser da esquadria completa.';return;
  }
  if(!Number.isSafeInteger(qty)||qty<=0||qty>pending){
-  node('releaseError').textContent='Quantidade inválida para esta parte. Máximo: '+pending+'.';return;
+  node('releaseError').textContent='Quantidade de esquadrias inválida. Máximo: '+pending+'.';return;
  }
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date>todayLocal()){
   node('releaseError').textContent='Data inválida ou futura.';return;
@@ -4803,9 +4791,8 @@ node('releaseForm').addEventListener('submit',async event=>{
  if(!['AFOGADOS','IMBIRIBEIRA'].includes(fabrica)){
   node('releaseError').textContent='Escolha Afogados ou Imbiribeira.';return;
  }
- const escopo={completo:'esquadria completa (100%)',marco:'somente marco (50%)',
-  folhas:'conjunto das folhas (50%)'}[componente];
- if(!window.confirm('Confirma a liberação de '+qty+' unidade(s) da parte '+escopo+
+ const escopo='esquadria completa (100%)';
+ if(!window.confirm('Confirma a liberação de '+qty+' unidade(s) de '+escopo+
      ' de '+selectedItem.codigo+' para '+fabrica+'?\n\n'+
      'Nenhum material será baixado do estoque agora. A baixa é feita pelo almoxarife na entrega à produção.'))return;
  const button=node('releaseSave');button.disabled=true;button.textContent='Registrando…';
@@ -9209,6 +9196,12 @@ for(const id of ['cemFlagEsquadrias','cemFlagPerfis','cemFlagAcessorios']){
 
 /* Estoque: cadastro importado, planejamento CEM e saldo físico são separados. */
 let estoqueLinks=[],estoqueMovimentos=[],estoqueVarianteEscolhida=null,estoqueObraMovimentos=[],stockLocais=[],stockComprimentos=[],stockLocaisFisicos=[];
+function stockModoPermitido(modo){
+ if(!temPermissao('estoque.consultar'))return false;
+ if(modo==='producao')return temPermissao('estoque.baixar');
+ if(modo==='transferencias')return temPermissao('estoque.transferir_galpoes')||temPermissao('estoque.transferir_obras');
+ return modo==='consulta'||modo==='historico';
+}
 function stockSelecionarModo(modo){
  const info={consulta:['Consulta de estoque','Saldos físicos por local e galpão.'],transferencias:['Transferências','Movimente materiais disponíveis entre galpões, obras e locais da empresa.'],historico:['Histórico e estornos','Consulte movimentações e estornos de estoque.'],producao:['Entrega à produção','Confirme a entrega física dos materiais liberados à fábrica.']};
  if(!Object.hasOwn(info,modo))return;
@@ -9226,7 +9219,7 @@ function stockProducaoSelecionar(){
 }
 node('stockProducaoWork').addEventListener('change',()=>window.ewCarregarEntregasProducao?.(node('stockProducaoWork').value));
 node('stockHistoricoAbrir').addEventListener('click',()=>{
- if(!matIsAdmin()){node('stockHistoricoStatus').textContent='Consulta de estornos restrita ao administrador.';return;}
+ if(!temPermissao('estoque.consultar'))return;
  const id=node('stockWork').value;
  if(!id||!stockLocais.some(l=>l.obra_id===id)){node('stockHistoricoStatus').textContent='Selecione um estoque de obra para consultar seu histórico.';return;}
  stockManageOpen();stockReverseRevisar(id);
@@ -9234,6 +9227,7 @@ node('stockHistoricoAbrir').addEventListener('click',()=>{
 async function abrirEstoque(modo){
   if(!temPermissao('estoque.consultar'))return;
   if(typeof modo!=='string')modo=node('stock').dataset.modo||'consulta';
+  if(!stockModoPermitido(modo))modo='consulta';
   setView('stock');
   node('navStockSubmenu').classList.remove('hidden');node('navStock').setAttribute('aria-expanded','true');
   stockSelecionarModo(modo);
@@ -9281,7 +9275,7 @@ async function abrirEstoque(modo){
   }catch(e){node('stockMessage').textContent='Não foi possível carregar estoque: '+e.message;}
 }
 async function cadastrarGalpaoEmpresa(nome){
- if(!matIsAdmin()||!currentCompany)throw new Error('Sem permissão para cadastrar galpão.');
+ if(!temPermissao('estoque.gerenciar_locais')||!currentCompany)throw new Error('Sem permissão para cadastrar galpão.');
  const normalizado=cemNome(nome);
  if(normalizado.length<3||normalizado.length>80)
   throw new Error('Informe um nome entre 3 e 80 caracteres.');
@@ -9301,7 +9295,7 @@ function stockPreencherGalpoes(){
  }
 }
 async function stockCadastrarGalpao(){
- if(!matIsAdmin())return;
+ if(!temPermissao('estoque.gerenciar_locais'))return;
  const raw=window.prompt('Nome do novo galpão / local físico:');
  if(raw===null)return;
  const nome=cemNome(raw);
@@ -9614,7 +9608,7 @@ function stockTransferPickClose(){
   stockTransferPickCandidates=[];
 }
 function stockTransferPickOpen(mode){
-  if(!matIsAdmin())return;
+  if(!temPermissao(mode==='local'?'estoque.transferir_galpoes':'estoque.transferir_obras'))return;
   const obra=node('stockWork').value;
   if(!obra){
     node('stockMessage').textContent='Selecione uma obra antes de transferir materiais.';
@@ -9693,7 +9687,7 @@ function stockTransferPrepararQuantidade(id,tipo,saldo,unidade){
   'Quantidade para transferir ';
 }
 function stockTransferOpen(variationId,length='',unit='',local='IMBIRIBEIRA'){
- if(!matIsAdmin()||stockLocais.some(l=>l.obra_id===node('stockWork').value&&l.excluido_em))return;
+ if(!temPermissao('estoque.transferir_galpoes')||stockLocais.some(l=>l.obra_id===node('stockWork').value&&l.excluido_em))return;
  const item=estoqueDados().find(x=>x.v.id===variationId);
  if(!item)return;
  const comprimento=item.v.tipo==='perfil'?mmOrNull(length):null;
@@ -9719,7 +9713,7 @@ function stockTransferClose(){
 node('stockTransferCancel').addEventListener('click',stockTransferClose);
 node('stockTransferForm').addEventListener('submit',async e=>{
  e.preventDefault();
- const selected=stockTransferSelected;if(!selected)return;
+ const selected=stockTransferSelected;if(!selected||!temPermissao('estoque.transferir_galpoes'))return;
  const qty=Number(node('stockTransferQty').value),dest=node('stockTransferTarget').value,
     motivo=node('stockTransferReason').value.trim(),isBar=selected.item.v.tipo==='perfil';
  if(!dest||dest===selected.local||!Number.isFinite(qty)||qty<=0||qty>selected.saldo||
@@ -9746,7 +9740,7 @@ node('stockTransferForm').addEventListener('submit',async e=>{
 /* Transferir entre OBRAS: uma saída e uma entrada na mesma transação SQL. */
 let stockObraTransferSelected=null,stockObraTransferOperationId=null;
 function stockObraTransferOpen(variacaoId,comprimento='',unidade='',local=''){
- if(!matIsAdmin()||!currentCompany)return;
+ if(!temPermissao('estoque.transferir_obras')||!currentCompany)return;
  const origem=node('stockWork').value;
  if(!origem||stockLocais.some(l=>l.obra_id===origem&&l.excluido_em))return;
  const item=estoqueDados().find(x=>x.v.id===variacaoId);
@@ -9787,7 +9781,7 @@ node('stockObraTransferCancel').addEventListener('click',stockObraTransferClose)
 node('stockObraTransferForm').addEventListener('submit',async event=>{
  event.preventDefault();
  const sel=stockObraTransferSelected;
- if(!sel||!matIsAdmin())return;
+ if(!sel||!temPermissao('estoque.transferir_obras'))return;
  const destino=node('stockObraTransferTarget').value,localDestino=node('stockObraTransferToLocal').value,
   quantidade=Number(node('stockObraTransferQty').value),
   motivo=node('stockObraTransferReason').value.trim(),
@@ -10451,7 +10445,7 @@ function stockReverseFechar(){
  node('stockReverseApply').removeAttribute('aria-describedby');
 }
 function stockManageOpen(){
- if(!matIsAdmin())return;
+ if(!temPermissao('estoque.consultar'))return;
  node('stockManageOverlay').classList.remove('hidden');
  node('stockManageStatus').textContent='';
  stockReverseFechar();
@@ -10568,7 +10562,7 @@ function stockReverseHistoryRender(id){
    m.observacao?String(m.observacao):null
   ].filter(Boolean).join(' · ');
   const dependencias=stockReverseDependenciasMovimento(m,estoqueObraMovimentos);
-  const botao=m.origem!=='ESTORNO'&&!conciliada&&!m.estorno_de_id&&!estornados.has(m.id)?
+  const botao=temPermissao('estoque.estornar')&&m.origem!=='ESTORNO'&&!conciliada&&!m.estorno_de_id&&!estornados.has(m.id)?
    '<button type="button" class="btn secondary" data-stock-reverse-item="'+escapeHTML(m.id)+
    '" '+(stockReverseReady||dependencias.length?'':'disabled')+'>'+(dependencias.length?
     'Ver '+dependencias.length+' dependência(s)':entreObras?
@@ -10590,7 +10584,7 @@ async function stockReverseIndividual(movimentoId){
  const mov=estoqueObraMovimentos.find(m=>m.id===movimentoId&&m.obra_id===id);
  const obra=works.find(w=>w.id===id);
  const estado=node('stockReverseMessage');
- if(!mov||mov.origem==='ESTORNO'||mov.estorno_de_id||!obra||!matIsAdmin())return;
+ if(!mov||mov.origem==='ESTORNO'||mov.estorno_de_id||!obra||!temPermissao('estoque.estornar'))return;
  const dependencias=stockReverseDependenciasMovimento(mov,estoqueObraMovimentos);
  if(dependencias.length){
   const roteiro=dependencias.slice(0,8).map((d,i)=>String(i+1)+'. '+
@@ -10650,7 +10644,7 @@ async function stockReverseIndividual(movimentoId){
  }
 }
 async function stockReverseRevisar(id){
- if(!matIsAdmin()||!stockLocais.some(l=>l.obra_id===id))return;
+ if(!temPermissao('estoque.consultar')||!stockLocais.some(l=>l.obra_id===id))return;
  const obra=works.find(w=>w.id===id);
  if(!obra)return;
  stockReverseSelectedWorkId=id;
@@ -10684,6 +10678,8 @@ async function stockReverseRevisar(id){
  node('stockReverseApply').disabled=true;
  node('stockReverseMessage').textContent='Conferindo pendências operacionais no servidor…';
  node('stockReversePanel').scrollIntoView({block:'nearest',behavior:'smooth'});
+ node('stockReverseApply').classList.toggle('hidden',!temPermissao('estoque.estornar'));
+ if(!temPermissao('estoque.estornar')){node('stockReverseHistoryFilter').value='todos';stockReverseHistoryRender(id);node('stockReverseMessage').textContent='Somente consulta: seu nível não permite estornar estoque.';return;}
  if(!resumo.pendentes){
   node('stockReverseMessage').textContent='Não há lançamentos sem estorno.';
   return;
@@ -10745,7 +10741,7 @@ async function stockReverseRevisar(id){
 async function stockReverseExecutar(){
  const id=stockReverseSelectedWorkId;
  const obra=works.find(w=>w.id===id);
- if(!matIsAdmin()||!obra||!stockLocais.some(l=>l.obra_id===id))return;
+ if(!temPermissao('estoque.estornar')||!obra||!stockLocais.some(l=>l.obra_id===id))return;
  const motivo=node('stockReverseReason').value.trim();
  const mensagem=node('stockReverseMessage'),botao=node('stockReverseApply');
  if(motivo.length<5||motivo.length>400){
@@ -11436,7 +11432,7 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/recebimento-manual.js?v=20261121l"></script>
 <script src="/assets/cadastros-hub.js?v=20261125f"></script>
 <script src="/assets/insumos-fisicos.js?v=20261125a"></script>
-<script src="/assets/entregas-producao.js?v=20261125b"></script>
+<script src="/assets/entregas-producao.js?v=20261125c"></script>
 <script src="/assets/romaneios-transferencia.js?v=20261125a"></script>
 <script src="/assets/relatorios-custos-empresa.js?v=20261124a"></script>
 <script src="/assets/relatorios-obras.js?v=20261125c"></script>
