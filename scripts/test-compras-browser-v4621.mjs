@@ -43,8 +43,35 @@ try{
  assert.ok(await receiving.locator('#recebimentoHistoricoNotas').isHidden());
  assert.ok(await receiving.locator('#finExpensePanel').isVisible());
  assert.equal(await receiving.locator('#recebimentoWork').inputValue(),'obra');
+ assert.equal(await receiving.locator('[data-recebimento-modo="producao"]').count(),0);
  await receiving.close();
  console.log('PASS submenu de recebimento, histórico por NF, busca e estorno único');
+ const stockNav=appSource.slice(appSource.indexOf('<button id="navStock"'),appSource.indexOf('<button id="navFinanceiro"'));
+ const stockSection=appSource.slice(appSource.indexOf('<section id="stock"'),appSource.indexOf('<section id="cemImport"'));
+ const stockPage=await browser.newPage();
+ await stockPage.setContent('<html><body>'+stockNav+stockSection+'</body></html>');
+ await stockPage.addStyleTag({content:'.hidden{display:none!important}'+css});
+ await stockPage.evaluate(()=>{
+  window.node=id=>document.getElementById(id);window.ewLimparEntregasProducao=()=>{};
+  node('stock').classList.remove('hidden');node('navStockSubmenu').classList.remove('hidden');
+ });
+ await stockPage.addScriptTag({content:fn('function stockSelecionarModo(modo){','function stockProducaoSelecionar(){')});
+ await stockPage.evaluate(()=>document.querySelectorAll('[data-stock-modo]').forEach(b=>b.onclick=()=>stockSelecionarModo(b.dataset.stockModo)));
+ await stockPage.locator('[data-stock-modo="producao"]').click();
+ assert.equal(await stockPage.locator('#stockPaginaTitulo').innerText(),'Entrega à produção');
+ assert.ok(await stockPage.locator('#stockProducaoWork').isVisible());
+ assert.ok(await stockPage.locator('#stockMateriaisPanel').isHidden());
+ await stockPage.locator('[data-stock-modo="transferencias"]').click();
+ assert.ok(await stockPage.locator('#stockTransferPickLocal').isVisible());
+ assert.ok(await stockPage.locator('#stockProducaoArea').isHidden());
+ await stockPage.locator('[data-stock-modo="historico"]').click();
+ assert.ok(await stockPage.locator('#stockHistoricoAbrir').isVisible());
+ assert.ok(await stockPage.locator('#stockTransferPickLocal').isHidden());
+ await stockPage.locator('[data-stock-modo="consulta"]').click();
+ assert.ok(await stockPage.locator('#stockMateriaisPanel').isVisible());
+ assert.ok(await stockPage.locator('#stockHistoricoAtalho').isHidden());
+ await stockPage.close();
+ console.log('PASS Estoque: consulta, transferências, entrega à produção e histórico separados');
  }
  const page=await browser.newPage({viewport:{width:390,height:844}});
  page.on('pageerror',e=>console.error('Browser pageerror:',e.message));

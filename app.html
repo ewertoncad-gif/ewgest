@@ -263,7 +263,6 @@
     #recebimento[data-modo]:not([data-modo="manual"]) #finReceivePanel,
     #recebimento[data-modo]:not([data-modo="historico"]) #recebimentoHistoricoNotas,
     #recebimento[data-modo]:not([data-modo="pedido"]):not([data-modo="historico"]) #ewComprasRecebimento,
-    #recebimento[data-modo]:not([data-modo="producao"]) #entregasProducaoPanel,
     #recebimento[data-modo="manual"] #finReceivePanel .finReceiveRow:not([data-receive-type]),
     #recebimento[data-modo="historico"] #ewReceberForm,
     #recebimento[data-modo="pedido"] #ewReceberHistorico,
@@ -272,10 +271,33 @@
     .recebimentoNotaCard{border:1px solid #dce6ef;border-radius:10px;padding:15px;margin:12px 0;background:#fbfdff}
     .recebimentoNotaCard h3{margin:0 0 6px}
     .recebimentoNotaCard .topactions{margin-top:12px;justify-content:flex-start}
+    #stock[data-modo]:not([data-modo="producao"]) #stockProducaoArea,
+    #stock[data-modo="producao"] #stockMateriaisPanel,
+    #stock[data-modo="producao"] .stockTopActions,
+    #stock[data-modo]:not([data-modo="consulta"]) #stockConsultaResumo,
+    #stock[data-modo]:not([data-modo="consulta"]) #stockCreateAnother,
+    #stock[data-modo]:not([data-modo="consulta"]) #stockCreateCompanyLocal,
+    #stock[data-modo]:not([data-modo="transferencias"]) #stockTransferPickLocal,
+    #stock[data-modo]:not([data-modo="transferencias"]) #stockTransferPickWork,
+    #stock[data-modo]:not([data-modo="transferencias"]) #stockTransferBetweenLocations,
+    #stock[data-modo]:not([data-modo="transferencias"]) #insumosTransferOpen,
+    #stock[data-modo]:not([data-modo="transferencias"]) #insumosTransferFormPanel,
+    #stock[data-modo]:not([data-modo="transferencias"]) #ewTransferLocalPanel,
+    #stock[data-modo]:not([data-modo="historico"]) #stockHistoricoAtalho,
+    #stock #stockManageLocations,#stock #stockArchivedReview,#stock #stockWorkHistory,
+    #stock[data-modo="historico"] #stockRecords,
+    #stock[data-modo="historico"] #ewEstoqueEmpresaPainel,
+    #stock[data-modo="historico"] #stockLegend,
+    #stock[data-modo="historico"] .stockEntryHint,
+    #stock[data-modo="historico"] .stockReportPreview,
+    #stock[data-modo="historico"] #stockFactoryFilter,
+    #stock[data-modo="historico"] #stockType,
+    #stock[data-modo="historico"] #stockSearch,
+    #stock[data-modo="historico"] #stockHideZero {display:none!important}
     .workspaceSubnav{display:grid;gap:3px;margin:0 0 5px 24px;padding-left:9px;border-left:2px solid #e0e8f2;flex:none}
     .workspaceSublink{min-height:34px;padding:8px 10px;font-size:12px}
     .comprasNavChevron{margin-left:auto;color:#6384a7;transition:transform .15s}
-    #navCompras[aria-expanded="true"] .comprasNavChevron,#navRecebimento[aria-expanded="true"] .comprasNavChevron{transform:rotate(180deg)}
+    #navCompras[aria-expanded="true"] .comprasNavChevron,#navRecebimento[aria-expanded="true"] .comprasNavChevron,#navStock[aria-expanded="true"] .comprasNavChevron{transform:rotate(180deg)}
     @media(max-width:760px){.workspaceSubnav{display:flex;align-items:center;margin:0;padding:0 3px;border-left:0;gap:4px}.workspaceSublink{width:auto;white-space:nowrap}}
     .workspaceNavFooter{margin-top:30px;border-top:1px solid #ecf0f6;padding:15px 13px 0;color:#74869d;font-size:12px;font-weight:650}
     .workspaceNavFooter strong{color:#2074c9}
@@ -742,18 +764,23 @@
       <button type="button" class="workspaceLink workspaceSublink" data-recebimento-modo="manual">Entrada manual</button>
       <button type="button" class="workspaceLink workspaceSublink" data-recebimento-modo="pedido">Por pedido</button>
       <button type="button" class="workspaceLink workspaceSublink" data-recebimento-modo="historico">Histórico e estornos</button>
-      <button type="button" class="workspaceLink workspaceSublink" data-recebimento-modo="producao">Entrega à produção</button>
     </div>
     <button id="navEnviarNotas" class="workspaceLink hidden" type="button"><span class="navSymbol">▧</span> Enviar notas fiscais</button>
     <div class="workspaceNavCaption workspaceNavCaptionSecond">ADMINISTRAÇÃO</div>
-    <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
+    <button id="navStock" class="workspaceLink hidden" type="button" aria-expanded="false" aria-controls="navStockSubmenu"><span class="navSymbol">▣</span> Estoque <span class="comprasNavChevron" aria-hidden="true">▾</span></button>
+    <div id="navStockSubmenu" class="workspaceSubnav hidden" role="group" aria-label="Operações de estoque">
+      <button type="button" class="workspaceLink workspaceSublink" data-stock-modo="consulta">Consulta de estoque</button>
+      <button type="button" class="workspaceLink workspaceSublink" data-stock-modo="transferencias">Transferências</button>
+      <button type="button" class="workspaceLink workspaceSublink" data-stock-modo="producao">Entrega à produção</button>
+      <button type="button" class="workspaceLink workspaceSublink" data-stock-modo="historico">Histórico e estornos</button>
+    </div>
     <button id="navFinanceiro" class="workspaceLink hidden" type="button"><span class="navSymbol">◈</span> Financeiro das obras</button>
     <button id="navRelatorios" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Relatórios</button>
 
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.7</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.8</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -774,7 +801,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.7</div>
+        <div class="build">EWGEST • v46.29.8</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -840,12 +867,6 @@
           <div id="ewComprasRecebimento" class="section panel hidden"></div>
            <div id="finPendingPanel" class="section panel hidden"></div>
           <div id="finReceivePanel" class="section panel hidden"></div>
-        <div id="entregasProducaoPanel" class="section panel hidden">
-          <h2>Entregas de materiais à produção</h2>
-          <p class="hint">Após o técnico liberar e imprimir o relatório, o almoxarife confere o documento e registra a entrega física. Só essa confirmação baixa o estoque; gerar a liberação não movimenta materiais.</p>
-          <p id="entregasProducaoStatus" class="feedback" role="status"></p>
-          <div id="entregasProducaoLista"></div>
-        </div>
           <div class="section panel" id="finExpensePanel">
             <h2>Recebimento de materiais</h2>
             <p class="hint">Selecione o material, a cor ou variação, a quantidade física e o galpão. Ao confirmar, o EWGEST registra o valor da nota no Financeiro e dá entrada física somente nos materiais efetivamente recebidos. Não é necessário enviar XML.</p>
@@ -1511,10 +1532,10 @@
         </form>
       </div>
     </section>
-    <section id="stock" class="hidden">
+    <section id="stock" class="hidden" data-modo="consulta">
       <div class="head"><div>
-        <h1>Estoque por local</h1>
-        <p class="muted">Saldos por local de estoque (obra ou empresa) e galpão físico.</p>
+        <h1 id="stockPaginaTitulo">Consulta de estoque</h1>
+        <p class="muted" id="stockPaginaDescricao">Saldos por local de estoque (obra ou empresa) e galpão físico.</p>
       </div>
       <div class="stockTopActions">
           <button type="button" class="btn primary" id="stockCreateAnother">+ Criar estoque de obra</button>
@@ -1526,13 +1547,13 @@
           <button type="button" class="btn secondary hidden" id="stockArchivedReview">Saldos e estornos</button>
           <button type="button" class="btn secondary" id="stockRefresh">Atualizar</button>
         </div></div>
-      <div class="materialsSummary">
+      <div id="stockConsultaResumo" class="materialsSummary">
         <div class="stat"><div class="label">Perfis vinculados à obra</div><div class="number" id="stockPerfCount">—</div></div>
         <div class="stat"><div class="label">Acessórios vinculados à obra</div><div class="number" id="stockAcesCount">—</div></div>
         <div class="stat"><div class="label">Materiais com quantidade lançada</div><div class="number" id="stockCounted">—</div></div>
       </div>
-      <div class="section panel">
-        <h2>Materiais do local selecionado</h2>
+      <div id="stockMateriaisPanel" class="section panel">
+        <h2 id="stockMateriaisTitulo">Materiais do local selecionado</h2>
         <p class="hint">O cadastro da obra contém os materiais previstos do CEM e seus saldos físicos separados. Entrada física apenas após recebimento confirmado; perfis são controlados por barras inteiras e comprimento comercial.</p>
         <div class="stockFilters">
           <label>Local de estoque <select id="stockWork"><option value="">Todas as obras</option></select></label>
@@ -1543,6 +1564,12 @@
         <div class="stockTopActions">
           <label style="display:flex;align-items:center;gap:8px;margin:0;font-weight:600;font-size:13px"><input type="checkbox" id="stockHideZero" style="width:16px;height:16px;margin:0;accent-color:#2074c9"> Ocultar itens com saldo físico zero</label>
           <button type="button" class="btn secondary hidden" id="stockWorkHistory" disabled>Movimentações da obra</button>
+        </div>
+        <div id="stockHistoricoAtalho" class="section panel" style="margin-top:12px">
+          <h3>Movimentações e estornos</h3>
+          <p class="hint">Consulte o histórico do local selecionado e use as ações de estorno permitidas. Para cancelar notas de entrada, utilize Recebimento → Histórico e estornos.</p>
+          <button type="button" class="btn secondary" id="stockHistoricoAbrir">Consultar movimentações da obra</button>
+          <p id="stockHistoricoStatus" class="hint"></p>
         </div>
         <div class="stockLegend" id="stockLegend">
           <span><strong>Necessária:</strong> para perfis, número de barras planejadas no CEM por comprimento; para acessórios, quantidade prevista. <strong>Em estoque:</strong> saldo físico de entradas e saídas.</span>
@@ -1593,6 +1620,17 @@
           </div>
           <p class="hint">Soma dos saldos físicos registrados por obra. Quantidades previstas e pedidos não são recebimento de material.</p>
           <p id="stockReportSummary" class="hint" role="status"></p>
+        </div>
+      </div>
+      <div id="stockProducaoArea">
+        <div class="section panel">
+          <label>Selecione a obra<select id="stockProducaoWork"><option value="">Escolha a obra</option></select></label>
+        </div>
+        <div id="entregasProducaoPanel" class="section panel hidden">
+          <h2>Entregas de materiais à produção</h2>
+          <p class="hint">Após o técnico liberar e imprimir o relatório, o almoxarife confere o documento e registra a entrega física. Só essa confirmação baixa o estoque; gerar a liberação não movimenta materiais.</p>
+          <p id="entregasProducaoStatus" class="feedback" role="status"></p>
+          <div id="entregasProducaoLista"></div>
         </div>
       </div>
     </section>
@@ -2632,6 +2670,11 @@ function setView(view){
     node('navRecebimentoSubmenu').classList.add('hidden');
     node('navRecebimento').setAttribute('aria-expanded','false');
     node('navRecebimentoSubmenu').querySelectorAll('[data-recebimento-modo]').forEach(b=>{b.classList.remove('active');b.removeAttribute('aria-current');});
+  }
+  if(view!=='stock'){
+    node('navStockSubmenu').classList.add('hidden');node('navStock').setAttribute('aria-expanded','false');
+    node('navStockSubmenu').querySelectorAll('[data-stock-modo]').forEach(b=>{b.classList.remove('active');b.removeAttribute('aria-current');});
+    window.ewLimparEntregasProducao?.();
   }
   const ativo=view==='detail'?'worksPage':view;
   for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],['navCompras','compras'],['navRecebimento','recebimento'],['navEnviarNotas','almoxNotas'],['navCadastros','cadastros'],
@@ -5194,7 +5237,12 @@ node('navRomaneios').addEventListener('click',abrirAreaRomaneios);
 node('navTypologies').addEventListener('click',()=>node('openTypologies').click());
 node('navManufacturers').addEventListener('click',()=>node('openManufacturers').click());
 node('navMaterials').addEventListener('click',async()=>{matSelecionarTipo('perfil');await abrirMateriais();});
-node('navStock').addEventListener('click',abrirEstoque);
+node('navStock').addEventListener('click',()=>{
+ if(!temPermissao('estoque.consultar'))return;
+ const sub=node('navStockSubmenu'),open=sub.classList.contains('hidden');
+ sub.classList.toggle('hidden',!open);node('navStock').setAttribute('aria-expanded',String(open));
+});
+node('navStockSubmenu').querySelectorAll('[data-stock-modo]').forEach(b=>b.addEventListener('click',()=>void abrirEstoque(b.dataset.stockModo)));
 node('navCem').addEventListener('click',()=>setView('cemImport'));
 node('navUsers').addEventListener('click',()=>node('openUsers').click());
 node('hubWorkSelect').addEventListener('change',()=>{
@@ -8051,10 +8099,11 @@ const finMoney=n=>Number(n||0).toLocaleString('pt-BR',{style:'currency',currency
 /* Recebimento tem navegação própria. O almoxarife só busca dados técnicos,
    fornecedores e quantidades físicas, nunca orçamento, tetos ou faturamentos. */
 function recebimentoSelecionarModo(modo){
- const hints={manual:'Registre a nota e os materiais que chegaram fisicamente.',pedido:'Escolha um pedido de compra para dar entrada total ou parcial.',historico:'Consulte os recebimentos e estorne somente o documento ou a entrada desejada.',producao:'Confirme a entrega física dos materiais já liberados para a fábrica.'};
+ const hints={manual:'Registre a nota e os materiais que chegaram fisicamente.',pedido:'Escolha um pedido de compra para dar entrada total ou parcial.',historico:'Consulte os recebimentos e estorne somente o documento ou a entrada desejada.'};
  if(!Object.hasOwn(hints,modo))return;
  if(!temPermissao('estoque.receber'))return;
- const titles={manual:'Entrada manual',pedido:'Recebimento por pedido',historico:'Histórico e estornos',producao:'Entrega à produção'};
+ const titles={manual:'Entrada manual',pedido:'Recebimento por pedido',historico:'Histórico e estornos'};
+ if(node('recebimento').dataset.modo!==modo)node('recebimentoMessage').textContent='';
  node('recebimento').dataset.modo=modo;
  node('recebimentoPaginaTitulo').textContent=titles[modo];
  node('recebimentoPaginaDescricao').textContent=hints[modo];
@@ -8083,8 +8132,6 @@ async function carregarRecebimento(){
  for(const id of ['finPendingPanel','finReceivePanel','recebimentoHistoricoNotas']) {
    node(id).classList.add('hidden');node(id).replaceChildren();
  }
- node('entregasProducaoPanel').classList.add('hidden');
- node('entregasProducaoLista').replaceChildren();
  finState=null;
  finCostOpId=null;
  if(window.ewCompras)void window.ewCompras.atualizarRecebimento(obraId);
@@ -8123,7 +8170,6 @@ async function carregarRecebimento(){
   node('finExpensePanel').classList.remove('hidden');
   msg.textContent='Local selecionado. Escolha a operação desejada.';
   if(!temPermissao('financeiro.consultar')){const h=node('recebimentoHistoricoNotas');h.classList.remove('hidden');h.textContent='Histórico de notas fiscais restrito aos níveis com acesso financeiro.';}
-  if(window.ewCarregarEntregasProducao)await window.ewCarregarEntregasProducao(obraId);
  }catch(e){msg.textContent='Não foi possível carregar o recebimento: '+e.message;}
 }
 function finOptionsObras(prefer){
@@ -9163,9 +9209,34 @@ for(const id of ['cemFlagEsquadrias','cemFlagPerfis','cemFlagAcessorios']){
 
 /* Estoque: cadastro importado, planejamento CEM e saldo físico são separados. */
 let estoqueLinks=[],estoqueMovimentos=[],estoqueVarianteEscolhida=null,estoqueObraMovimentos=[],stockLocais=[],stockComprimentos=[],stockLocaisFisicos=[];
-async function abrirEstoque(){
+function stockSelecionarModo(modo){
+ const info={consulta:['Consulta de estoque','Saldos físicos por local e galpão.'],transferencias:['Transferências','Movimente materiais disponíveis entre galpões, obras e locais da empresa.'],historico:['Histórico e estornos','Consulte movimentações e estornos de estoque.'],producao:['Entrega à produção','Confirme a entrega física dos materiais liberados à fábrica.']};
+ if(!Object.hasOwn(info,modo))return;
+ node('stock').dataset.modo=modo;
+ node('stockPaginaTitulo').textContent=info[modo][0];node('stockPaginaDescricao').textContent=info[modo][1];
+ node('stockMateriaisTitulo').textContent=modo==='historico'?'Selecione o local para consultar o histórico':'Materiais do local selecionado';
+ node('navStockSubmenu').querySelectorAll('[data-stock-modo]').forEach(b=>{const ativo=b.dataset.stockModo===modo;b.classList.toggle('active',ativo);if(ativo)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+ if(modo!=='producao')window.ewLimparEntregasProducao?.();
+}
+function stockProducaoSelecionar(){
+ const sel=node('stockProducaoWork'),anterior=sel.value||node('stockWork').value;
+ sel.innerHTML='<option value="">Escolha a obra</option>'+works.map(w=>'<option value="'+escapeHTML(w.id)+'">'+escapeHTML(w.nome+' · '+(w.codigo||''))+'</option>').join('');
+ if(works.some(w=>w.id===anterior))sel.value=anterior;
+ void window.ewCarregarEntregasProducao?.(sel.value);
+}
+node('stockProducaoWork').addEventListener('change',()=>window.ewCarregarEntregasProducao?.(node('stockProducaoWork').value));
+node('stockHistoricoAbrir').addEventListener('click',()=>{
+ if(!matIsAdmin()){node('stockHistoricoStatus').textContent='Consulta de estornos restrita ao administrador.';return;}
+ const id=node('stockWork').value;
+ if(!id||!stockLocais.some(l=>l.obra_id===id)){node('stockHistoricoStatus').textContent='Selecione um estoque de obra para consultar seu histórico.';return;}
+ stockManageOpen();stockReverseRevisar(id);
+});
+async function abrirEstoque(modo){
   if(!temPermissao('estoque.consultar'))return;
+  if(typeof modo!=='string')modo=node('stock').dataset.modo||'consulta';
   setView('stock');
+  node('navStockSubmenu').classList.remove('hidden');node('navStock').setAttribute('aria-expanded','true');
+  stockSelecionarModo(modo);
   node('stockMessage').textContent='Consultando materiais e movimentações…';
   try{
     await ensureSession();
@@ -9205,6 +9276,7 @@ async function abrirEstoque(){
     renderEstoque();
     if(window.ewCompras)await window.ewCompras.carregarLocaisEstoque(previous);
     stockReportRender();
+    if(node('stock').dataset.modo==='producao'&&!node('stock').classList.contains('hidden'))stockProducaoSelecionar();
     node('stockMessage').textContent='';
   }catch(e){node('stockMessage').textContent='Não foi possível carregar estoque: '+e.message;}
 }
@@ -11364,7 +11436,7 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/recebimento-manual.js?v=20261121l"></script>
 <script src="/assets/cadastros-hub.js?v=20261125f"></script>
 <script src="/assets/insumos-fisicos.js?v=20261125a"></script>
-<script src="/assets/entregas-producao.js?v=20261121a"></script>
+<script src="/assets/entregas-producao.js?v=20261125b"></script>
 <script src="/assets/romaneios-transferencia.js?v=20261125a"></script>
 <script src="/assets/relatorios-custos-empresa.js?v=20261124a"></script>
 <script src="/assets/relatorios-obras.js?v=20261125c"></script>
