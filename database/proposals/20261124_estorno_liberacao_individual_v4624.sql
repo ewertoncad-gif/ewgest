@@ -15,7 +15,7 @@ BEGIN
  THEN RETURN 'Existe saída ou quantidade fabricada desta esquadria. Concilie antes.'; END IF;
  IF EXISTS(SELECT 1 FROM public.ew_liberacoes_lotes t CROSS JOIN LATERAL jsonb_array_elements(t.itens_confirmados) i WHERE t.obra_id=e.obra_id AND t.cancelado_em IS NULL AND i->>'esquadria_id'=e.id::text)
  THEN RETURN 'Esquadria vinculada a lote CEM ativo. Utilize o cancelamento do lote/obra após conferir suas dependências.'; END IF;
- IF EXISTS(SELECT 1 FROM public.ew_planos_liberados p WHERE p.liberacao_id=l.id AND p.entregue_em IS NOT NULL)
+ IF EXISTS(SELECT 1 FROM public.ew_planos_liberados p WHERE p.liberacao_id=l.id AND p.entregue_em IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.ew_estoque_obras_movimentos m WHERE m.liberacao_id=l.id AND m.quantidade_delta<0))
  OR EXISTS(SELECT 1 FROM public.ew_estoque_obras_movimentos m WHERE m.liberacao_id=l.id AND m.quantidade_delta<0 AND NOT EXISTS(SELECT 1 FROM public.ew_estoque_obras_movimentos x WHERE x.estorno_de_id=m.id))
  THEN RETURN 'Material entregue à produção. Estorne a baixa vinculada antes.'; END IF;
  RETURN NULL;
@@ -45,6 +45,8 @@ BEGIN
  SELECT * INTO e FROM public.esquadrias WHERE id=l.esquadria_id FOR UPDATE;
  SELECT * INTO l FROM public.liberacoes_corte WHERE id=p_liberacao_id FOR UPDATE;
  SELECT * INTO o FROM public.obras WHERE id=e.obra_id FOR UPDATE;
+ -- O almoxarife bloqueia o mesmo plano antes de conferir a liberação.
+ PERFORM 1 FROM public.ew_planos_liberados WHERE liberacao_id=l.id ORDER BY id FOR UPDATE;
  v_imp:=public.ew_motivo_estorno_liberacao(l.id);
  IF v_imp IS NOT NULL THEN RAISE EXCEPTION '%',v_imp; END IF;
  SELECT greatest(coalesce(sum(quantidade) FILTER(WHERE tipo_componente IN ('completo','marco')),0),coalesce(sum(quantidade) FILTER(WHERE tipo_componente IN ('completo','folhas')),0))::int INTO v_antes FROM public.liberacoes_corte WHERE esquadria_id=e.id AND cancelado_em IS NULL;
