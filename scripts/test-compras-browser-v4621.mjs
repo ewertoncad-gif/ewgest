@@ -268,7 +268,7 @@ try{
 
  // v46.28: tela real de cotação — agrupamento, fornecedores e preços independentes.
  const quoting=await browser.newPage({viewport:{width:1280,height:800}});
- await quoting.setContent('<!doctype html><html><body><button id="cadastroJumpFornecedores" hidden></button><button id="comprasTabSolicitacao"></button><button id="comprasTabCotacao"></button><button id="comprasTabPedido"></button><div id="comprasMensagem"></div><main id="comprasConteudo"></main></body></html>');
+ await quoting.setContent('<!doctype html><html><body><button id="cadastroJumpFornecedores" hidden></button><aside><button id="navCompras" aria-expanded="false"></button><div id="navComprasSubmenu"><button id="comprasTabSolicitacao">Solicitação</button><button id="comprasTabCotacao">Cotação</button><button id="comprasTabPedido">Compra</button></div></aside><h1 id="comprasPaginaTitulo"></h1><p id="comprasPaginaDescricao"></p><div id="comprasMensagem"></div><main id="comprasConteudo"></main></body></html>');
  await quoting.evaluate(()=>{
   window.escapeHTML=v=>String(v??'').replace(/[&<>"]/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[x]));
   window.currentCompany={id:'empresa-teste'};window.session={access_token:'MOCK'};window.ensureSession=async()=>{};
@@ -324,7 +324,11 @@ try{
  });
  await quoting.addScriptTag({content:readFileSync(new URL('../assets/compras-estoque.js',import.meta.url),'utf8')});
  await quoting.locator('#comprasTabCotacao').click();
- await quoting.evaluate(()=>window.ewCompras.abrir());
+ await quoting.locator('#comprasCotacaoSolic').waitFor();
+ assert.equal(await quoting.locator('#comprasPaginaTitulo').innerText(),'Cotação');
+ assert.equal(await quoting.locator('#comprasTabCotacao').getAttribute('aria-current'),'page');
+ assert.equal(await quoting.locator('#navCompras').getAttribute('aria-expanded'),'true');
+ assert.equal(await quoting.locator('#comprasConteudo [id^="comprasTab"]').count(),0);
  assert.ok(await quoting.locator('#comprasAgruparPainel').isHidden());
  await quoting.locator('#comprasAgruparAbrir').click();
  assert.ok(await quoting.locator('#comprasAgruparPainel').isVisible());
@@ -409,5 +413,14 @@ try{
  assert.equal(await quoting.locator('#comprasCotacaoSolic').inputValue(),'grupo-perfis');
  assert.equal(await quoting.locator('[data-quote-key="1"] input').inputValue(),'');
  console.log('PASS Chromium v46.28: agrupamento por obra, fornecedores em lote, preços independentes e registro da cotação.');
+ await quoting.locator('#comprasTabPedido').click();
+ await quoting.locator('#comprasPedidoForm').waitFor();
+ assert.equal(await quoting.locator('#comprasPaginaTitulo').innerText(),'Compra');
+ assert.equal(await quoting.locator('#comprasTabPedido').getAttribute('aria-current'),'page');
+ assert.equal(await quoting.locator('#comprasCotacaoSolic').count(),0);
+ await quoting.locator('#comprasTabSolicitacao').click();
+ await quoting.waitForFunction(()=>document.querySelector('#comprasTabSolicitacao')?.getAttribute('aria-current')==='page');
+ assert.equal(await quoting.locator('#comprasPaginaTitulo').innerText(),'Solicitação de compra');
+ assert.equal(await quoting.locator('#comprasPedidoForm').count(),0);
  await quoting.close();
 }finally{await browser.close()}
