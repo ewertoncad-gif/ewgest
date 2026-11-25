@@ -267,7 +267,9 @@
     #recebimento[data-modo]:not([data-modo="producao"]) #entregasProducaoPanel,
     #recebimento[data-modo="manual"] #finReceivePanel .finReceiveRow:not([data-receive-type]),
     #recebimento[data-modo="historico"] #ewReceberForm,
-    #recebimento[data-modo="pedido"] #ewReceberHistorico {display:none!important}
+    #recebimento[data-modo="pedido"] #ewReceberHistorico,
+    #recebimento[data-modo="pedido"] .recebimentoPedidoHistorico,
+    #recebimento[data-modo="historico"] .recebimentoPedidoEntrada {display:none!important}
     .recebimentoNotaCard{border:1px solid #dce6ef;border-radius:10px;padding:15px;margin:12px 0;background:#fbfdff}
     .recebimentoNotaCard h3{margin:0 0 6px}
     .recebimentoNotaCard .topactions{margin-top:12px;justify-content:flex-start}
@@ -11348,7 +11350,7 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/relatorios-obras.js?v=20261125c"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>
 <script src="/assets/niveis-acesso.js?v=20261124c"></script>
-<script src="/assets/compras-estoque.js?v=20261125i"></script>
+<script src="/assets/compras-estoque.js?v=20261125j"></script>
 <script src="/assets/compras-comprovante-transferencia.js?v=20261124a"></script>
 <script src="/assets/compras-conciliacao-nfe.js?v=20261124b"></script>
 <script src="/assets/compras-nota-empresa.js?v=20261124a"></script>
