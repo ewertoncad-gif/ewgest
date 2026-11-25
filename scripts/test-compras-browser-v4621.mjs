@@ -348,7 +348,14 @@ try{
  await quoting.locator('[data-convite="f1"]').waitFor();
  assert.equal(await quoting.locator('[data-convite]').count(),2);
  await quoting.locator('[data-convite="f1"]').click();
- await quoting.locator('[data-quote-key="1"] input').fill('125,00');
+ const price=quoting.locator('[data-quote-key="1"] input');
+ await price.fill('55');
+ await price.press('Tab');
+ assert.equal(await price.inputValue(),'55,00');
+ await price.fill('1250,5');
+ await price.press('Tab');
+ assert.equal(await price.inputValue(),'1.250,50');
+ await price.fill('125,00');
  await quoting.locator('[data-convite="f2"]').click();
  assert.equal(await quoting.locator('[data-quote-key="1"] input').inputValue(),'','Não copiar preço entre fornecedores');
  await quoting.locator('[data-quote-key="1"] input').fill('125,001');
