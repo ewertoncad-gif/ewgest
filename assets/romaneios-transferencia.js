@@ -30,7 +30,9 @@ function itemResumo(i){
  (i.tipo==='AVULSO'?'Avulso (sem movimentação de estoque)':i.estornado?'Transferência estornada':esc(obra(i.origem_obra_id)))+
  '</td></tr>';
 }
+function podeJuntar(){return typeof temPermissao==='function'&&temPermissao('romaneios.juntar')&&temPermissao('romaneios.transferir');}
 function render(){
+ el('romTransfMerge').classList.toggle('hidden',!podeJuntar());
  const box=el('romTransfList');
  if(!box)return;
  const exibidos=docs.filter(d=>!obraArquivada(d.obra_id));
@@ -43,14 +45,14 @@ function render(){
  const grouped=d.status==='AGRUPADO';
  const historico=obraArquivada(d.obra_id);
  return '<div class="romTransfDoc'+(grouped?' grouped':'')+'"><div class="romTransfDocHead">'+
- '<label class="romTransfPick">'+(d.status==='RASCUNHO'&&!historico?
+ '<label class="romTransfPick">'+(d.status==='RASCUNHO'&&!historico&&podeJuntar()?
  '<input type="checkbox" data-transf-pick="'+esc(d.id)+'" aria-label="Selecionar '+esc(d.numero)+' para juntar">':'')+
  '<strong>'+esc(d.numero)+'</strong></label><span class="romTransfState">'+
  esc(grouped?'AGRUPADO':d.status)+'</span></div><div class="romTransfMeta"><strong>'+esc(rota(d))+
  '</strong> · '+esc(d.data||'')+' · '+(d.itens||[]).length+' item(ns) · '+esc(obra(d.obra_id))+
  (historico?' · <strong>OBRA ARQUIVADA · SOMENTE HISTÓRICO</strong>':'')+
  (estaEstornado(d)?' · <strong class="romTransfWarning">TRANSFERÊNCIA ESTORNADA</strong>':'')+
- (grouped?' · Agrupado no '+esc(docs.find(x=>x.id===d.agrupado_em)?.numero||'romaneio principal'):'')+
+ (grouped?' · Número histórico, pode ser reutilizado · Agrupado no '+esc(docs.find(x=>x.id===d.agrupado_em)?.numero||'romaneio principal'):'')+
  '</div><div class="romTransfBtns">'+
  '<button type="button" class="btn secondary" data-t-view="'+esc(d.id)+'">Consultar</button>'+
  (d.status==='RASCUNHO'&&!historico?'<button type="button" class="btn secondary" data-t-edit="'+esc(d.id)+'">Editar / incluir itens</button>':'')+
@@ -187,19 +189,20 @@ async function salvar(){
  }catch(e){el('romTransfEditStatus').textContent='Não foi possível salvar: '+e.message;busy=false;}
 }
 async function juntar(){
+ if(!podeJuntar()||busy)return;
  const ids=[...el('romTransfList').querySelectorAll('[data-transf-pick]:checked')].map(x=>x.dataset.transfPick);
  if(ids.length<2){erro('Selecione pelo menos dois romaneios em rascunho para juntar.');return;}
- const sel=docs.filter(x=>ids.includes(x.id));
- if(sel.some(x=>x.status!=='RASCUNHO'||rota(x)!==rota(sel[0]))){
-  erro('Só é possível juntar rascunhos com os mesmos galpões de origem e destino.');return;
+ const sel=docs.filter(x=>ids.includes(x.id)).sort((a,b)=>Number(a.numero.slice(2))-Number(b.numero.slice(2)));
+ if(sel.length!==ids.length||sel.some(x=>x.status!=='RASCUNHO'||x.obra_id!==sel[0].obra_id||rota(x)!==rota(sel[0]))){
+  erro('Só é possível juntar rascunhos da mesma obra e rota.');return;
  }
- if(!window.confirm('Juntar '+sel.length+' romaneios em '+sel[0].numero+'? Os números antigos ficarão registrados no histórico.'))return;
+ if(!window.confirm('Juntar '+sel.map(x=>x.numero).join(' / ')+' em '+sel[0].numero+'? Os códigos históricos ficam registrados; números liberados no final da sequência poderão ser reutilizados.'))return;
  if(busy)return;
  busy=true;
  try{
   const result=await rpc('ew_romaneios_transferencia_juntar',{
-   p_empresa_id:empresa(),p_principal_id:ids[0],p_outros:ids.slice(1)});
-  busy=false;await carregar();erro('Romaneios agrupados no '+result.numero+'.');
+   p_empresa_id:empresa(),p_principal_id:sel[0].id,p_outros:sel.slice(1).map(x=>x.id)});
+  busy=false;await carregar();erro('Romaneios agrupados no '+result.numero+'. Próximo código da obra: '+result.proximo_codigo+'.');
  }catch(e){busy=false;erro('Falha ao juntar: '+e.message);}
 }
 async function emitir(id){
