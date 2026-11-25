@@ -276,32 +276,35 @@ try{
   window.works=[{id:'a',nome:'Obra A'},{id:'b',nome:'Obra B'}];
   if(typeof crypto.randomUUID!=='function')Object.defineProperty(crypto,'randomUUID',{value:()=> '00000000-0000-4000-8000-000000000987'});
   const item={chave:'1',variacao_id:'v',unidade:'BARRA',quantidade:2,comprimento_mm:6000};
-  window._q={calls:[],invites:[],links:[],sols:['s1','s2','s3'].map((id,i)=>({id,obra_id:i===2?'b':'a',status:'ABERTA',itens:[item],criado_em:'2026-11-25',observacoes:id})),quotes:[]};
+  const acc={chave:'2',variacao_id:'va',unidade:'PC',quantidade:1,comprimento_mm:null};
+  window._q={calls:[],invites:[],links:[],sols:['s1','s2','s3'].map((id,i)=>({id,obra_id:i===2?'b':'a',status:'ABERTA',itens:i===1?[item,acc]:[item],criado_em:'2026-11-25',observacoes:id})),quotes:[]};
   window.apiGet=async table=>{
    if(table==='ew_compras_solicitacoes')return structuredClone(window._q.sols);
    if(table==='ew_compras_cotacoes')return structuredClone(window._q.quotes);
-   if(table==='ew_fornecedores')return [{id:'f1',nome:'Fornecedor 1',ativo:true},{id:'f2',nome:'Fornecedor 2',ativo:true}];
-   if(table==='ew_materiais_variacoes')return [{id:'v',tipo:'perfil',perfil_id:'pf',cor:'NATURAL',ativo:true}];
+   if(table==='ew_fornecedores')return [{id:'f1',nome:'Fornecedor 1',ativo:true},{id:'f2',nome:'Fornecedor 2',ativo:true},{id:'f3',nome:'Fornecedor de acessórios',ativo:true}];
+   if(table==='ew_materiais_variacoes')return [{id:'v',tipo:'perfil',perfil_id:'pf',cor:'NATURAL',ativo:true},{id:'va',tipo:'acessorio',acessorio_id:'ac',cor:'PRETO',ativo:true}];
+   if(table==='ew_acessorios')return [{id:'ac',codigo:'A01',descricao:'Acessório teste',unidade_item:'PC'}];
    if(table==='ew_perfis')return [{id:'pf',codigo:'P01',descricao:'Perfil teste',comprimento_comercial_mm:6000}];
    return [];
   };
   window.request=async(path,opts)=>{
    const fn=path.split('/').pop(),body=opts.body,m=window._q;
    if(fn==='ew_compras_pedidos_resumo')return [];
-   if(fn==='ew_compras_grupos_catalogo')return {grupos:[{id:'gp',nome:'Perfis',ativo:true}],fornecedores:[{id:'f1',grupos:['gp']},{id:'f2',grupos:['gp']}],legados:[]};
+   if(fn==='ew_compras_grupos_catalogo')return {grupos:[{id:'gp',nome:'Perfis',ativo:true},{id:'ga',nome:'Acessórios',ativo:true}],fornecedores:[{id:'f1',grupos:['gp']},{id:'f2',grupos:['gp']},{id:'f3',grupos:['ga']}],legados:[]};
    if(fn==='ew_compras_grupos_desdobrados')return structuredClone(m.links);
-   if(fn==='ew_compras_previa_grupos')return [{grupo_id:'gp',nome:'Perfis',ativo:true,itens:[{...item,quantidade:4}],fornecedores:[{id:'f1',nome:'Fornecedor 1'},{id:'f2',nome:'Fornecedor 2'}]}];
+   if(fn==='ew_compras_previa_grupos')return [{grupo_id:'gp',nome:'Perfis',ativo:true,itens:[{...item,quantidade:4}],fornecedores:[{id:'f1',nome:'Fornecedor 1'},{id:'f2',nome:'Fornecedor 2'}]},{grupo_id:'ga',nome:'Acessórios',ativo:true,itens:[acc],fornecedores:[{id:'f3',nome:'Fornecedor de acessórios'}]}];
    if(fn==='ew_compras_convites_cotacao')return structuredClone(m.invites);
    m.calls.push({fn,body});
    if(fn==='ew_compras_agrupar_solicitacoes'){
     m.sols=m.sols.map(s=>body.p_solicitacoes.includes(s.id)?{...s,status:'AGRUPADA'}:s);
-    m.sols.push({id:'grupo',obra_id:'a',status:'ABERTA',itens:[{...item,quantidade:4}],criado_em:'2026-11-25'});
+    m.sols.push({id:'grupo',obra_id:'a',status:'ABERTA',itens:[{...item,quantidade:4},acc],criado_em:'2026-11-25'});
     return {id:'grupo'};
    }
    if(fn==='ew_compras_desdobrar_grupos'){
     m.sols=m.sols.map(s=>s.id==='grupo'?{...s,status:'DESDOBRADA'}:s);
     m.sols.push({id:'grupo-perfis',obra_id:'a',status:'ABERTA',itens:[{...item,quantidade:4}],criado_em:'2026-11-25'});
-    m.links=[{solicitacao_id:'grupo',filha_id:'grupo-perfis',grupo_id:'gp',nome:'Perfis',status:'ABERTA'}];
+    m.sols.push({id:'grupo-acessorios',obra_id:'a',status:'ABERTA',itens:[acc],criado_em:'2026-11-25'});
+    m.links=[{solicitacao_id:'grupo',filha_id:'grupo-perfis',grupo_id:'gp',nome:'Perfis',status:'ABERTA'},{solicitacao_id:'grupo',filha_id:'grupo-acessorios',grupo_id:'ga',nome:'Acessórios',status:'ABERTA'}];
     return {id:'desdobramento'};
    }
    if(fn==='ew_compras_replicar_cotacao'){
@@ -329,7 +332,14 @@ try{
  assert.equal(await quoting.locator('#comprasCotacaoSolic option[value="s1"]').count(),0);
  assert.equal(await quoting.locator('#comprasCotacaoSolic option[value="s3"]').count(),1);
  await quoting.locator('#comprasPrepararGrupos').click();
+ await quoting.locator('[data-escolher-grupo="grupo-acessorios"]').click();
+ assert.equal(await quoting.locator('#comprasCotacaoFornecedor option[value="f3"]').count(),1);
+ assert.equal(await quoting.locator('#comprasCotacaoFornecedor option[value="f1"]').count(),0);
+ assert.equal(await quoting.locator('[data-quote-key="1"]').count(),0);
+ await quoting.locator('#comprasCotacaoSolic').selectOption('grupo');
  await quoting.locator('[data-escolher-grupo="grupo-perfis"]').click();
+ assert.equal(await quoting.locator('#comprasCotacaoFornecedor option[value="f3"]').count(),0);
+ assert.equal(await quoting.locator('[data-quote-key="2"]').count(),0);
  await quoting.waitForFunction(()=>document.querySelector('#comprasCotacaoSolic')?.value==='grupo-perfis');
  await quoting.locator('#comprasConvites details summary').click();
  await quoting.locator('[data-fornecedor="f1"]').check();
