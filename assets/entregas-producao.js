@@ -10,10 +10,10 @@
  let pending=[];
  const operationIds=new Map();
  function descricaoMaterial(item){
-  const variation=(finState?.variacoes||[]).find(x=>x.id===item.variacao_id);
+  const variation=matVariacoes.find(x=>x.id===item.variacao_id);
   const mat=variation?.tipo==='perfil'?
-    finState?.perfis?.find(x=>x.id===variation.perfil_id):
-    finState?.acessorios?.find(x=>x.id===variation?.acessorio_id);
+    matPerfis.find(x=>x.id===variation.perfil_id):
+    matAcessorios.find(x=>x.id===variation?.acessorio_id);
   const cor=[variation?.cor,variation?.acabamento].filter(Boolean).join(' / ');
   return [mat?.codigo||'Material',mat?.descricao,cor].filter(Boolean).join(' · ');
  }
@@ -24,7 +24,7 @@
   byId('entregasProducaoStatus').textContent='';
  }
  async function buscar(obraId){
-  if(!(isAlmoxarife()||isFullAdminUser())||!currentCompany||!obraId){
+  if(!(isAlmoxarife()||isFullAdminUser())||!currentCompany||!obraId||!temPermissao('estoque.consultar')||!temPermissao('estoque.receber')){
    limpar();return;
   }
   const thisSeq=++seq;
@@ -38,11 +38,11 @@
      method:'POST',token:session.access_token,timeoutMs:30000,
      body:{p_empresa_id:currentCompany.id,p_obra_id:obraId}
    });
-   if(thisSeq!==seq||byId('recebimentoWork').value!==obraId)return;
+   if(thisSeq!==seq||byId('stockProducaoWork').value!==obraId)return;
    pending=Array.isArray(result)?result:[];
    render();
   }catch(e){
-   if(thisSeq!==seq||byId('recebimentoWork').value!==obraId)return;
+   if(thisSeq!==seq||byId('stockProducaoWork').value!==obraId)return;
    byId('entregasProducaoLista').replaceChildren();
    byId('entregasProducaoStatus').textContent='Não foi possível consultar as entregas à produção: '+e.message;
   }
@@ -78,8 +78,8 @@
  }
  async function confirmar(card){
   const index=Number(card.dataset.entregaIndex),registro=pending[index];
-  if(!registro||!currentCompany)return;
-  const obra=byId('recebimentoWork').value;
+  if(!registro||!currentCompany||!temPermissao('estoque.consultar')||!temPermissao('estoque.receber'))return;
+  const obra=byId('stockProducaoWork').value;
   if(!obra||!card.querySelector('.entregaRelatorioCheck').checked)return;
   const unitCount=(registro.materiais||[]).reduce((n,x)=>n+Number(x.quantidade||0),0);
   if(!window.confirm('Confirma a ENTREGA FÍSICA à produção do relatório '+(registro.codigo||registro.arquivo||'')+
@@ -99,7 +99,7 @@
       p_tipo:registro.tipo,p_referencia_id:registro.id,p_operacao_id:operacao}
    });
    operationIds.delete(key);
-   if(byId('recebimentoWork').value!==obra)return;
+   if(byId('stockProducaoWork').value!==obra)return;
    await buscar(obra);
    byId('entregasProducaoStatus').textContent=result?.repetida?
     'Esta entrega já estava registrada; não houve nova baixa.':
