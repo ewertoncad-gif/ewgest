@@ -39,7 +39,7 @@ for c in sheet.iter(n('c')):
   c.set('t','s');E.SubElement(c,n('v')).text=str(index)
 rel=E.fromstring(src.read('xl/_rels/workbook.xml.rels'))
 rp='http://schemas.openxmlformats.org/package/2006/relationships'
-E.SubElement(rel,'{'+rp+'}Relationship',{'Id':'rId2','Type':'http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings','Target':'sharedStrings.xml'})
+E.SubElement(rel,'{'+rp+'}Relationship',{'Id':'rId4','Type':'http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings','Target':'sharedStrings.xml'})
 types=E.fromstring(src.read('[Content_Types].xml'))
 E.SubElement(types,'{http://schemas.openxmlformats.org/package/2006/content-types}Override',{'PartName':'/xl/sharedStrings.xml','ContentType':'application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml'})
 with zipfile.ZipFile(dst,'w',zipfile.ZIP_DEFLATED) as z:
@@ -51,6 +51,24 @@ with zipfile.ZipFile(dst,'w',zipfile.ZIP_DEFLATED) as z:
   z.writestr(name,data)
  z.writestr('xl/sharedStrings.xml',E.tostring(sst,encoding='utf-8'))
 sys.stdout.buffer.write(dst.getvalue())`;
+ const inspect=String.raw`import sys,io,zipfile,xml.etree.ElementTree as E
+z=zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read()))
+ns={'s':'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
+wb=E.fromstring(z.read('xl/workbook.xml'))
+assert wb.find('.//s:sheet[@name="CONTROLE"]',ns).get('state')=='veryHidden'
+sheet=E.fromstring(z.read('xl/worksheets/sheet1.xml'))
+styles=E.fromstring(z.read('xl/styles.xml'))
+assert sheet.find('.//s:pane',ns).get('ySplit')=='6'
+assert sheet.find('s:sheetProtection',ns).get('sheet')=='1'
+assert sheet.find('.//s:c[@r="G7"]',ns).get('s')=='8'
+assert sheet.find('.//s:c[@r="H7"]/s:f',ns) is not None
+assert styles.find('.//s:protection',ns).get('locked')=='0'
+assert not any('EWGEST-COTACAO-V1' in (t.text or '') for t in sheet.findall('.//s:t',ns))
+assert len({r.get('Id') for r in E.fromstring(z.read('xl/_rels/workbook.xml.rels'))})==3
+print('PASS layout comercial e controle oculto')`;
+ const inspected=spawnSync('python3',['-c',inspect],{input:Buffer.from(exported)});
+ assert.equal(inspected.status,0,inspected.stderr.toString());
+ console.log(inspected.stdout.toString().trim());
  const repacked=spawnSync('python3',['-c',py],{input:Buffer.from(exported)});
  assert.equal(repacked.status,0,repacked.stderr.toString());
  const prices=await page.evaluate(async bytes=>{
