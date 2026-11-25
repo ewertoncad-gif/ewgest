@@ -127,7 +127,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.9',
+ 'EWGEST • v46.29.10',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -757,7 +757,7 @@ assert.ok(source.includes('class="releaseMirrorIntro hidden"')&&
  source.includes('id="releaseComponent" required')&&
  source.includes('id="releaseMirrorPanel" class="hidden"')&&
  source.includes("p_materiais:[],p_fonte:'SEM_BAIXA'"),
- 'Liberação individual é somente técnica, com parte selecionada e sem baixa');
+ 'Liberação individual é somente técnica, completa e sem baixa');
 assert.ok(source.includes('id="releaseBatchOpen"')&&source.includes('id="releaseBatchPreview"')&&
  source.includes("'/rest/v1/rpc/ew_liberar_lote_cem'")&&source.includes('function releaseBatchCollect()'),
  'Liberação em lote CEM deve ter espelho editável, validação e confirmação única');
@@ -2123,9 +2123,9 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.9')&&
+assert.ok(source.includes('v46.29.10')&&
  source.includes('id="entregasProducaoPanel"')&&
- source.includes('entregas-producao.js?v=20261125b')&&
+ source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
  source.includes("const anterior=prefer||sel.value||'';")&&
  source.includes("if(!obraId){msg.textContent='Selecione um local de estoque para iniciar o recebimento.';return;}")&&
@@ -2359,7 +2359,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.29.9</strong>'),
+ source.includes('EWGEST <strong>· v46.29.10</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2996,3 +2996,15 @@ for(const x of ['pg_try_advisory_xact_lock','romaneios_obra_numero_key',"WHERE s
 assert.ok(source.includes('p_empresa_id:empresaId,p_obra_id:obraId')&&source.includes('historico_romaneios'));
 assert.ok(transferDocsJS.includes('x.obra_id!==sel[0].obra_id')&&transferDocsJS.includes('result.proximo_codigo'));
 console.log('OK v46.28: numeração por obra, flags e histórico de junções.');
+
+// v46.29.10 — interface acompanha as autorizações e conserva o histórico legado.
+assert.ok(source.includes("if(componente!=='completo'||") && !source.includes('Liberação parcial: somente o marco'));
+assert.ok(deliveryClient.includes("temPermissao('estoque.baixar')") && !deliveryClient.includes("temPermissao('estoque.receber')"));
+assert.ok(source.includes("function stockModoPermitido(modo)") && source.includes("Somente consulta: seu nível não permite estornar estoque."));
+const stockModeSource=source.slice(source.indexOf('function stockModoPermitido(modo)'),source.indexOf('function stockSelecionarModo(modo)'));
+const stockModeTest=flags=>new Function('temPermissao',stockModeSource+'return stockModoPermitido;')(f=>flags.includes(f));
+assert.equal(stockModeTest(['estoque.consultar','estoque.receber'])('producao'),false);
+assert.equal(stockModeTest(['estoque.consultar','estoque.baixar'])('producao'),true);
+assert.equal(stockModeTest(['estoque.consultar'])('transferencias'),false);
+assert.equal(stockModeTest(['estoque.consultar'])('historico'),true);
+assert.equal(stockModeTest([])('consulta'),false);
