@@ -1,5 +1,5 @@
 -- Execute only in rollback on restored test DB.
-DO $test$ DECLARE u uuid;e uuid;o uuid;a uuid;b uuid;ra uuid;rb uuid;rr uuid;r jsonb; BEGIN
+DO $test$ DECLARE u uuid;e uuid;o uuid;a uuid;b uuid;ra uuid;rb uuid;rr uuid;s uuid;r jsonb; BEGIN
 SELECT usuario_id,empresa_id INTO STRICT u,e FROM public.usuarios_empresas WHERE nivel_acesso=1 LIMIT 1;
 PERFORM set_config('request.jwt.claim.sub',u::text,true); PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',u,'role','authenticated')::text,true);
 INSERT INTO public.usuarios_login(usuario_id,empresa_id,perfil,nivel_acesso,nome,ativo) VALUES(u,e,'administrador',1,'Teste',true);
@@ -9,7 +9,8 @@ INSERT INTO public.esquadrias(empresa_id,obra_id,codigo,descricao,largura_mm,alt
 INSERT INTO public.liberacoes_corte(esquadria_id,quantidade,data_liberacao,usuario_id,fabrica,tipo_componente) VALUES(a,2,current_date,u,'AFOGADOS','completo') RETURNING id INTO ra;
 INSERT INTO public.liberacoes_corte(esquadria_id,quantidade,data_liberacao,usuario_id,fabrica,tipo_componente) VALUES(b,1,current_date,u,'AFOGADOS','completo') RETURNING id INTO rb;
 INSERT INTO public.romaneios(empresa_id,obra_id,numero,chave_operacao,data_saida,motorista,placa,criado_por) VALUES(e,o,'RMTEST4624',gen_random_uuid(),current_date,'TESTE','ABC1234',u) RETURNING id INTO rr;
-INSERT INTO public.romaneios_itens(romaneio_id,sequencia,natureza,esquadria_id,quantidade) VALUES(rr,1,'esquadria',b,1);
+INSERT INTO public.saidas_producao(id,esquadria_id,tipo,quantidade,data_saida,usuario_id) VALUES(gen_random_uuid(),b,'completo',1,current_date,u) RETURNING id INTO s;
+INSERT INTO public.romaneios_itens(romaneio_id,sequencia,natureza,esquadria_id,saida_producao_id,descricao,quantidade,tipo_saida) VALUES(rr,1,'esquadria',b,s,'TESTE',1,'completo');
 IF public.ew_motivo_estorno_liberacao(ra) IS NOT NULL OR public.ew_motivo_estorno_liberacao(rb) NOT LIKE 'Existe romaneio%' THEN RAISE EXCEPTION 'Bloqueio deve considerar somente esquadria correspondente'; END IF;
 BEGIN PERFORM public.ew_estornar_liberacao_individual(rb,'Teste bloqueio romaneio'); RAISE EXCEPTION 'FALHA: estorno indevido'; EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Existe romaneio%' THEN RAISE; END IF; END;
 r:=public.ew_estornar_liberacao_individual(ra,'Teste estorno permitido');
