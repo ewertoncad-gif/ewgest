@@ -16,7 +16,7 @@
  }
  function aviso(id,msg){byId(id).textContent=msg;}
  async function carregarCatalogo(){
-  if(!(isFullAdminUser()||isAlmoxarife())||!currentCompany)return;
+  if(!currentCompany||!['cadastros.consultar','estoque.consultar','estoque.receber','financeiro.despesas'].some(temPermissao))return;
   try{
    catalogo=await rpc('ew_insumos_catalogo_listar',{p_empresa_id:currentCompany.id});
    if(!Array.isArray(catalogo))throw Error('Resposta inesperada do catálogo.');
@@ -33,6 +33,7 @@
   }
  }
  function mostrarCatalogo(){
+  byId('cadastroInsumosForm').classList.toggle('hidden',!temPermissao('cadastros.editar'));
   const host=byId('cadastroInsumosList');
   if(!host)return;
   const filtro=byId('cadastroInsumosCategory').value;
@@ -41,12 +42,12 @@
    '<div class="cadastrosListRow insumosCatalogRow">'+
    '<span><strong>'+esc(x.descricao)+'</strong> · '+esc(unidadeRotulo(x.unidade))+
    (x.ativo?'':' · Inativo')+'</span>'+
-   (isFullAdminUser()?'<div><button type="button" class="btn secondary" data-insumo-edit="'+esc(x.id)+'">Editar</button> '+
+   (temPermissao('cadastros.editar')?'<div><button type="button" class="btn secondary" data-insumo-edit="'+esc(x.id)+'">Editar</button> '+
     '<button type="button" class="btn secondary" data-insumo-delete="'+esc(x.id)+'">Excluir</button></div>':'')+
    '</div>').join(''):'<p class="hint">Ainda não existem materiais desta categoria.</p>';
  }
  function editar(id){
-  if(!isFullAdminUser())return;
+  if(!temPermissao('cadastros.editar'))return;
   const c=catalogo.find(x=>x.id===id);
   if(!c)return;
   editId=c.id;
@@ -67,7 +68,7 @@
  }
  async function enviarCadastro(event){
   event.preventDefault();
-  if(!isFullAdminUser()||!currentCompany)return;
+  if(!temPermissao('cadastros.editar')||!currentCompany)return;
   const descricao=byId('cadastroInsumosDescription').value.trim().replace(/\s+/g,' ').toLocaleUpperCase('pt-BR');
   const categoria=byId('cadastroInsumosCategory').value,unidade=byId('cadastroInsumosUnit').value;
   if(descricao.length<2||descricao.length>500){aviso('cadastroInsumosStatus','Descrição deve ter de 2 a 500 caracteres.');return;}
@@ -82,7 +83,7 @@
   finally{btn.disabled=false;}
  }
  async function excluirCadastro(id){
-  if(!isFullAdminUser())return;
+  if(!temPermissao('cadastros.editar'))return;
   const c=catalogo.find(x=>x.id===id);if(!c)return;
   if(!window.confirm('Excluir '+c.descricao+' ('+c.unidade+')? O servidor bloqueará se houver qualquer histórico de uso.'))return;
   try{
@@ -96,15 +97,15 @@
   const seq=++saldosEpoch,empresa=currentCompany?.id,obra=byId('stockWork').value;
   saldos=[];historico=[];fecharTransferencia();
   renderEstoqueInsumos();
-  if(!empresa||!isFullAdminUser()||!temPermissao('estoque.consultar')||!obra||obra.startsWith('empresa:')){
+  if(!empresa||!temPermissao('estoque.consultar')||!obra||obra.startsWith('empresa:')){
    aviso('insumosStockMessage','');return;
   }
-  const atual=()=>seq===saldosEpoch&&currentCompany?.id===empresa&&byId('stockWork').value===obra&&isFullAdminUser()&&temPermissao('estoque.consultar');
+  const atual=()=>seq===saldosEpoch&&currentCompany?.id===empresa&&byId('stockWork').value===obra&&temPermissao('estoque.consultar');
   aviso('insumosStockMessage','Consultando saldos físicos de vidros e insumos…');
   try{
    const [itens,transfers]=await Promise.all([
     rpc('ew_insumos_saldos_obra',{p_empresa_id:empresa,p_obra_id:obra}),
-    temPermissao('estoque.estornar')?rpc('ew_insumos_transferencias_obra',{p_empresa_id:empresa,p_obra_id:obra}):Promise.resolve([])
+    rpc('ew_insumos_transferencias_obra',{p_empresa_id:empresa,p_obra_id:obra})
    ]);
    if(!atual())return;
    saldos=Array.isArray(itens)?itens:[];
@@ -116,7 +117,7 @@
  function renderEstoqueInsumos(){
   const panel=byId('insumosStockPanel'),obra=byId('stockWork').value;
   const tipo=byId('stockType').value,filtrar=['vidros','outros'].includes(tipo);
-  panel.classList.toggle('hidden',!isFullAdminUser()||!temPermissao('estoque.consultar')||obra.startsWith('empresa:')||['perfil','acessorio'].includes(tipo));
+  panel.classList.toggle('hidden',!temPermissao('estoque.consultar')||obra.startsWith('empresa:')||['perfil','acessorio'].includes(tipo));
   const list=byId('insumosStockTable');
   if(!obra){
     list.innerHTML='<p class="hint">Selecione uma obra para consultar vidros e outros insumos.</p>';
@@ -139,7 +140,7 @@
    '</tbody></table></div>':
    '<p class="hint">Não há saldos de vidros/insumos para os filtros desta obra.</p>';
   const available=saldos.filter(x=>Number(x.saldo)>0);
-  byId('insumosTransferOpen').disabled=!available.length||!isFullAdminUser()||!(temPermissao('estoque.transferir_galpoes')||temPermissao('estoque.transferir_obras'));
+  byId('insumosTransferOpen').disabled=!available.length||!(temPermissao('estoque.transferir_galpoes')||temPermissao('estoque.transferir_obras'));
   const seen=new Set();
   const display=historico.filter(x=>{
    if(seen.has(x.operacao_id))return false;seen.add(x.operacao_id);return true;
@@ -155,7 +156,7 @@
     '<p class="hint">Sem transferências de vidros/insumos nesta obra.</p>';
  }
  function abrirTransferencia(){
-  const obra=byId('stockWork').value;if(!obra||!isFullAdminUser()||!(temPermissao('estoque.transferir_galpoes')||temPermissao('estoque.transferir_obras')))return;
+  const obra=byId('stockWork').value;if(!obra||!(temPermissao('estoque.transferir_galpoes')||temPermissao('estoque.transferir_obras')))return;
   const opts=saldos.filter(x=>Number(x.saldo)>0);
   if(!opts.length){aviso('insumosStockMessage','Não há saldo físico disponível para transferência.');return;}
   const origem=byId('insumosTransferSource');
@@ -195,7 +196,7 @@
  }
  async function enviarTransferencia(event){
   event.preventDefault();
-  if(!isFullAdminUser()||!currentCompany)return;
+  if(!currentCompany||!temPermissao('estoque.consultar'))return;
   const origemId=byId('insumosTransferSource').value;
   const item=origemId===''?null:saldos[Number(origemId)];
   const origemObra=byId('stockWork').value,destinoObra=byId('insumosTransferWork').value;
@@ -232,7 +233,7 @@
   }finally{btn.disabled=false;}
  }
  async function estornarTransferencia(op){
-  if(!isFullAdminUser()||!currentCompany||!temPermissao('estoque.estornar'))return;
+  if(!currentCompany||!temPermissao('estoque.estornar'))return;
   const reason=window.prompt('Informe o motivo para estornar a transferência (mínimo 5 caracteres):','');
   if(reason===null||reason.trim().length<5)return;
   if(!window.confirm('Estornar esta transferência? A operação será bloqueada se o destino já não tiver saldo suficiente.'))return;
@@ -272,7 +273,7 @@
   if(del)excluirCadastro(del.dataset.insumoDelete);
  });
  function abrirCategoria(categoria){
-  if(!canAdministrate()||!currentCompany||!Object.hasOwn(tipos,categoria))return;
+  if(!temPermissao('cadastros.consultar')||!currentCompany||!Object.hasOwn(tipos,categoria))return;
   categoriaAtual=categoria;
   encerrarEdicao();
   byId('cadastroInsumosCategory').value=categoria;
