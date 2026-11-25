@@ -181,7 +181,7 @@ async function cancelarRegistro(tipo,id){
   const args={p_motivo:reason,p_operacao_id:operationToken('cancel_'+tipo,{tipo,id,reason})};
   args[c.arg]=id;
   await rpc(c.rpc,args);pendingOps.delete('cancel_'+tipo);
-  await reload();render();say('comprasMensagem','Cancelamento realizado. Histórico e estoque preservados.');
+  await reload();groupCatalog=null;groupLinks=[];render();say('comprasMensagem','Cancelamento realizado. Histórico e estoque preservados.');
  }catch(e){say('comprasMensagem','Cancelamento bloqueado: '+e.message)}
  finally{if(button?.isConnected)button.disabled=false;}
 }
@@ -426,7 +426,7 @@ for(const id of ['stockTransferPickLocal','stockTransferPickWork','stockManageLo
  },true);
 }
 for(const [tabValue,id] of [['solicitacao','comprasTabSolicitacao'],['cotacao','comprasTabCotacao'],['pedido','comprasTabPedido']])
- $(id).addEventListener('click',()=>{tab=tabValue;if(loaded)render();});
+ $(id).addEventListener('click',()=>{tab=tabValue;if(tabValue==='cotacao'){groupCatalog=null;groupLinks=[];}if(loaded)render();});
 async function carregarLocaisRecebimento(select){
  if(!permission('compras.receber')||!currentCompany)return;
  try{
