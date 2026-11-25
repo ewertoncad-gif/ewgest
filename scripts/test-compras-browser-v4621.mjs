@@ -365,10 +365,14 @@ try{
  const price=quoting.locator('[data-quote-key="1"] input');
  await price.fill('55');
  await price.press('Tab');
- assert.equal(await price.inputValue(),'55,00');
+ assert.equal((await price.inputValue()).replace(/\s/g,' '),'R$ 55,00');
  await price.fill('1250,5');
  await price.press('Tab');
- assert.equal(await price.inputValue(),'1.250,50');
+ assert.equal((await price.inputValue()).replace(/\s/g,' '),'R$ 1.250,50');
+ await price.fill('R$ 151,00');
+ await price.press('Tab');
+ assert.equal((await price.inputValue()).replace(/\s/g,' '),'R$ 151,00');
+ assert.equal(await price.getAttribute('placeholder'),'R$ 0,00');
  await price.fill('125,00');
  await quoting.locator('[data-convite="f2"]').click();
  assert.equal(await quoting.locator('[data-quote-key="1"] input').inputValue(),'','Não copiar preço entre fornecedores');
