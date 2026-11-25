@@ -13,7 +13,7 @@ for(const token of ['value="liberacoes"','value="expedicao"','value="aluminio"',
  'data-report-stock="recebimento"','data-report-stock="producao"',
  'data-report-stock="galpoes"','data-report-stock="obras"',
  'data-report-stock="direto"','data-report-stock="outros"',
- 'relatorios-obras.js?v=20261122c','relatorios-obras.css?v=20261122b']){
+ 'relatorios-obras.js?v=20261125a','relatorios-obras.css?v=20261122b']){
  assert.ok(html.includes(token),'Falta componente no relatório: '+token);
 }
 assert.ok(js.includes("async function liberacoes(ctx)")&&
