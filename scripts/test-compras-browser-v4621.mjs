@@ -276,7 +276,7 @@ try{
   window.works=[{id:'a',nome:'Obra A'},{id:'b',nome:'Obra B'}];
   if(typeof crypto.randomUUID!=='function')Object.defineProperty(crypto,'randomUUID',{value:()=> '00000000-0000-4000-8000-000000000987'});
   const item={chave:'1',variacao_id:'v',unidade:'BARRA',quantidade:2,comprimento_mm:6000};
-  window._q={calls:[],invites:[],sols:['s1','s2','s3'].map((id,i)=>({id,obra_id:i===2?'b':'a',status:'ABERTA',itens:[item],criado_em:'2026-11-25',observacoes:id})),quotes:[]};
+  window._q={calls:[],invites:[],links:[],sols:['s1','s2','s3'].map((id,i)=>({id,obra_id:i===2?'b':'a',status:'ABERTA',itens:[item],criado_em:'2026-11-25',observacoes:id})),quotes:[]};
   window.apiGet=async table=>{
    if(table==='ew_compras_solicitacoes')return structuredClone(window._q.sols);
    if(table==='ew_compras_cotacoes')return structuredClone(window._q.quotes);
@@ -288,12 +288,21 @@ try{
   window.request=async(path,opts)=>{
    const fn=path.split('/').pop(),body=opts.body,m=window._q;
    if(fn==='ew_compras_pedidos_resumo')return [];
+   if(fn==='ew_compras_grupos_catalogo')return {grupos:[{id:'gp',nome:'Perfis',ativo:true}],fornecedores:[{id:'f1',grupos:['gp']},{id:'f2',grupos:['gp']}],legados:[]};
+   if(fn==='ew_compras_grupos_desdobrados')return structuredClone(m.links);
+   if(fn==='ew_compras_previa_grupos')return [{grupo_id:'gp',nome:'Perfis',ativo:true,itens:[{...item,quantidade:4}],fornecedores:[{id:'f1',nome:'Fornecedor 1'},{id:'f2',nome:'Fornecedor 2'}]}];
    if(fn==='ew_compras_convites_cotacao')return structuredClone(m.invites);
    m.calls.push({fn,body});
    if(fn==='ew_compras_agrupar_solicitacoes'){
     m.sols=m.sols.map(s=>body.p_solicitacoes.includes(s.id)?{...s,status:'AGRUPADA'}:s);
     m.sols.push({id:'grupo',obra_id:'a',status:'ABERTA',itens:[{...item,quantidade:4}],criado_em:'2026-11-25'});
     return {id:'grupo'};
+   }
+   if(fn==='ew_compras_desdobrar_grupos'){
+    m.sols=m.sols.map(s=>s.id==='grupo'?{...s,status:'DESDOBRADA'}:s);
+    m.sols.push({id:'grupo-perfis',obra_id:'a',status:'ABERTA',itens:[{...item,quantidade:4}],criado_em:'2026-11-25'});
+    m.links=[{solicitacao_id:'grupo',filha_id:'grupo-perfis',grupo_id:'gp',nome:'Perfis',status:'ABERTA'}];
+    return {id:'desdobramento'};
    }
    if(fn==='ew_compras_replicar_cotacao'){
     m.invites=body.p_fornecedores.map(id=>({fornecedor_id:id,fornecedor:id==='f1'?'Fornecedor 1':'Fornecedor 2',status:'AGUARDANDO',ativo:true}));
@@ -319,6 +328,9 @@ try{
  await quoting.waitForFunction(()=>document.querySelector('#comprasCotacaoSolic')?.value==='grupo');
  assert.equal(await quoting.locator('#comprasCotacaoSolic option[value="s1"]').count(),0);
  assert.equal(await quoting.locator('#comprasCotacaoSolic option[value="s3"]').count(),1);
+ await quoting.locator('#comprasPrepararGrupos').click();
+ await quoting.locator('[data-escolher-grupo="grupo-perfis"]').click();
+ await quoting.waitForFunction(()=>document.querySelector('#comprasCotacaoSolic')?.value==='grupo-perfis');
  await quoting.locator('#comprasConvites details summary').click();
  await quoting.locator('[data-fornecedor="f1"]').check();
  await quoting.locator('[data-fornecedor="f2"]').check();
@@ -332,17 +344,18 @@ try{
  await quoting.locator('[data-quote-key="1"] input').fill('125,001');
  await quoting.locator('#comprasCotarForm button[type="submit"]').click();
  assert.equal(await quoting.locator('#comprasMensagem').innerText(),'Valores inválidos.');
- assert.equal(await quoting.evaluate(()=>window._q.calls.length),2);
+ assert.equal(await quoting.evaluate(()=>window._q.calls.length),3);
  await quoting.locator('[data-quote-key="1"] input').fill('125,00');
  await quoting.locator('#comprasCotarForm button[type="submit"]').click();
  await quoting.waitForFunction(()=>document.querySelector('#comprasMensagem').textContent==='Cotação registrada.');
  const qcalls=await quoting.evaluate(()=>window._q.calls);
  assert.deepEqual(qcalls[0].body.p_solicitacoes,['s1','s2']);
- assert.deepEqual(qcalls[1].body.p_fornecedores,['f1','f2']);
- assert.equal(qcalls[2].body.p_fornecedor_id,'f2');
- assert.deepEqual(qcalls[2].body.p_precos,[{chave:'1',preco_unitario_centavos:12500}]);
+ assert.equal(qcalls[1].fn,'ew_compras_desdobrar_grupos');
+ assert.deepEqual(qcalls[2].body.p_fornecedores,['f1','f2']);
+ assert.equal(qcalls[3].body.p_fornecedor_id,'f2');
+ assert.deepEqual(qcalls[3].body.p_precos,[{chave:'1',preco_unitario_centavos:12500}]);
  await quoting.locator('[data-cotacao-replicar]').click();
- assert.equal(await quoting.locator('#comprasCotacaoSolic').inputValue(),'grupo');
+ assert.equal(await quoting.locator('#comprasCotacaoSolic').inputValue(),'grupo-perfis');
  assert.equal(await quoting.locator('[data-quote-key="1"] input').inputValue(),'');
  console.log('PASS Chromium v46.28: agrupamento por obra, fornecedores em lote, preços independentes e registro da cotação.');
  await quoting.close();
