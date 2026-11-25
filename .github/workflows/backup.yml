@@ -1,4 +1,4 @@
-# Backup operacional pré-migração v46.28: cotações, preços e compromissos de compras.
+# Backup operacional pré-migração v46.29: grupos de compra e cotações por fornecedor.
 name: EWGEST - Backup criptografado
 
 on:
