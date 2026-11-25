@@ -723,7 +723,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.24</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.26</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -744,7 +744,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.24</div>
+        <div class="build">EWGEST • v46.26</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -2578,6 +2578,7 @@ function setView(view){
   node('logout').classList.toggle('hidden',view==='login');
   node('myPasswordHeader').classList.toggle('hidden',view==='login');
   const autenticado=view!=='login';
+  if(!autenticado){expCompSeq++;expCompCtx=null;romaneioComposicaoSeq++;romaneioComposicoes=new Map();expedicaoAtivaMap=new Map();node('expCompOverlay').classList.add('hidden');node('expCompRows').replaceChildren();node('expCompSimilar').replaceChildren();node('romaneioModal').classList.add('hidden');node('typologyEditOverlay').classList.add('hidden');}
   node('workspaceNav').classList.toggle('hidden',!autenticado);
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
   const ativo=view==='detail'?'worksPage':view;
@@ -3302,13 +3303,13 @@ async function consultarComposicoesRomaneio(obraId){
 }
 async function abrirEmissaoRomaneio(preselectId){
   if(!selectedWork||!dispatchReady||romaneioLoadError||!podeEmitirRomaneio())return;
-  const seq=++romaneioComposicaoSeq,obraId=selectedWork.id,company=currentCompany.id;
+  const seq=++romaneioComposicaoSeq,obraId=selectedWork.id,company=currentCompany.id,user=currentUser?.id;
   let estados;
   node('romaneioError').textContent='';node('detailError').textContent='Conferindo composição das esquadrias…';
   node('hubRomaneioMessage').textContent='Conferindo composição das esquadrias…';
   try{estados=await consultarComposicoesRomaneio(obraId);}
   catch(err){if(seq===romaneioComposicaoSeq){node('detailError').textContent=err.message;node('hubRomaneioMessage').textContent=err.message;}return;}
-  if(seq!==romaneioComposicaoSeq||!session||currentCompany?.id!==company||selectedWork?.id!==obraId)return;
+  if(seq!==romaneioComposicaoSeq||!session||currentCompany?.id!==company||currentUser?.id!==user||selectedWork?.id!==obraId)return;
   romaneioComposicoes=estados;node('detailError').textContent='';node('hubRomaneioMessage').textContent='';
   node('romaneioWorkInfo').textContent='Cliente: '+(selectedWork.cliente||'Não informado')+
     ' · Obra: '+selectedWork.nome;
@@ -6564,7 +6565,7 @@ function expCompClose(){
  if(session&&ctx?.company===currentCompany?.id&&editingTypology?.id===ctx?.source.id)node('typologyEditOverlay').classList.remove('hidden');
 }
 async function expCompOpen(){
- const source=editingTypology,company=currentCompany?.id;
+ const source=editingTypology,company=currentCompany?.id,user=currentUser?.id;
  if(!source||!company||source.provisoria||!temPermissao('cadastros.editar'))return;
  const seq=++expCompSeq;
  node('expCompEntry').querySelector('button').disabled=true;
@@ -6583,8 +6584,8 @@ async function expCompOpen(){
    if(!Array.isArray(data))throw Error('Resposta inválida do cadastro.');
    data.forEach(r=>revisions.set(r.tipologia_id,r));
   }
-  if(seq!==expCompSeq||!session||currentCompany?.id!==company||editingTypology?.id!==source.id)return;
-  expCompCtx={company,source,core,revisions,suggestions,busy:false,op:null,signature:null};
+  if(seq!==expCompSeq||!session||currentCompany?.id!==company||currentUser?.id!==user||editingTypology?.id!==source.id)return;
+  expCompCtx={company,user,source,core,revisions,suggestions,busy:false,op:null,signature:null};
   node('expCompSource').textContent=source.codigo+' · '+source.descricao+(revisions.has(source.id)?' · Revisão '+revisions.get(source.id).revisao:' · Sem composição cadastrada');
   node('expCompRows').replaceChildren();node('expCompSimilar').replaceChildren();
   node('expCompSimilarBox').open=false;
@@ -6610,7 +6611,7 @@ async function expCompOpen(){
 }
 async function expCompSave(){
  const ctx=expCompCtx;
- if(!ctx||ctx.busy||!session||ctx.company!==currentCompany?.id||!temPermissao('cadastros.editar'))return;
+ if(!ctx||ctx.busy||!session||ctx.company!==currentCompany?.id||ctx.user!==currentUser?.id||!temPermissao('cadastros.editar'))return;
  let parts;
  try{parts=ctx.core.validarComposicao(expCompRead());}catch(e){node('expCompMessage').textContent=e.message;return;}
  const ids=[ctx.source.id,...[...node('expCompSimilar').querySelectorAll('input:checked')].map(x=>x.value)];
@@ -6627,7 +6628,7 @@ async function expCompSave(){
   await ensureSession();
   const data=await request('/rest/v1/rpc/ew_salvar_composicoes_expedicao',{method:'POST',token:session.access_token,
    body:{p_empresa_id:ctx.company,p_alvos:targets,p_partes:parts,p_operacao_id:ctx.op}});
-  if(expCompCtx!==ctx||currentCompany?.id!==ctx.company)return;
+  if(expCompCtx!==ctx||currentCompany?.id!==ctx.company||currentUser?.id!==ctx.user)return;
   if(!Array.isArray(data)||data.length!==ids.length)throw Error('Confirme o resultado do salvamento antes de repetir.');
   data.forEach(r=>ctx.revisions.set(r.tipologia_id,{...r,partes:parts}));ctx.signature=null;ctx.op=null;
   ctx.busy=false;expCompClose();node('typologyEditError').textContent='Composição salva em '+data.length+' tipologia(s).';
@@ -8620,7 +8621,8 @@ function finRenderFaturaveis(){
   const precificacao=finState.precoPorEsquadria.get(e.id)||null;
   const areaUnit=area(e,1),jaArea=finState.billedAreas[tipo].get(e.id)||0;
   const areaMax=Math.max(0,Math.round((Math.round(enviados*areaUnit*1000000)/1000000-jaArea)*1000000)/1000000);
-  const sugestao=finPrecoM2Sugerido(precificacao,tipo,e.quantidade,areaUnit,areaMax,areaUnit>0?jaArea/areaUnit:0,
+  const jaEquiv=areaUnit>0?jaArea/areaUnit:0;
+  const sugestao=finPrecoM2Sugerido(precificacao,tipo,e.quantidade,areaUnit,areaMax,jaEquiv,
    finState.billedValues[tipo].get(e.id)||0);
   return {e,enviados,ja,jaArea,disponivel,areaUnit,areaMax,precificacao,sugestao};
  }).filter(r=>r.enviados>0);
