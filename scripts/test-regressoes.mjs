@@ -127,7 +127,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.23',
+ 'EWGEST • v46.24',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -1033,7 +1033,7 @@ assert.ok(restoreFn.includes('if(!session||erroDeSessaoIrrecuperavel(error))')&&
 // Exclusão de obra segura somente antes de qualquer liberação/romaneio/estoque.
 const worksMigration=readFileSync(fileURLToPath(new URL(
  '../supabase/migrations/20261118_exclusao_segura_obras_pre_operacao.sql',import.meta.url)),'utf8');
-for(const id of ['manageWorks','navManageWorks','manageWorksList',
+for(const id of ['manageWorks','worksManageButton','detailWorkReview','manageWorksList',
  'manageWorksReview','manageWorksReason','manageWorksDelete',
  'manageWorksRefresh','manageWorksFeedback'])
  assert.ok(source.includes('id="'+id+'"'), 'Gestão de obras incompleta: '+id);
@@ -1328,8 +1328,8 @@ assert.ok(source.includes('Esquadrias e materiais serão cadastrados somente ap�
 // v44.3: evitar duplicidade de navegação Gerenciar obras na Tela inicial.
 assert.ok(!source.includes('id="openManageWorks"')&&
  !source.includes("node('openManageWorks')")&&
- source.includes('id="navManageWorks"')&&
- source.includes("node('navManageWorks').addEventListener('click',abrirGerenciamentoObras)"),
+ !source.includes('id="navManageWorks"')&&
+ source.includes("node('worksManageButton').addEventListener('click',abrirGerenciamentoObras)")&&source.includes('id="releaseUndoAll"')&&source.includes('data-release-undo='),
  'Gerenciar obras fica apenas na barra lateral, preservando o acesso');
 // v44.4: sem contador/importação global de croquis; upload individual só ao editar a tipologia.
 for(const deleted of ['croquiCatalogCount','croquiPackageButton','croquiPackageInput',
@@ -1386,7 +1386,7 @@ for(const id of obsoleteHeaderButtons){
   'Atalho de navegação redundante ou evento órfão: '+id);
 }
 for(const id of ['navHome','navRomaneios','navTypologies','navManufacturers',
- 'navMaterials','navStock','navCem','navUsers','navManageWorks']){
+ 'navMaterials','navStock','navCem','navUsers']){
  assert.ok(source.includes('id="'+id+'"'),'Preservar acesso no menu lateral: '+id);
 }
 for(const id of ['userAccessHistoryToggle','userOperationsToggle',
@@ -2096,7 +2096,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.23')&&
+assert.ok(source.includes('v46.24')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2330,7 +2330,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.23</strong>'),
+ source.includes('EWGEST <strong>· v46.24</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2946,3 +2946,8 @@ console.log('OK: filtro de saldo zero preserva saldos positivos e negativos.');
 assert.ok(source.includes('#cadastroLocaisLista .btn:disabled')&&source.includes('opacity:.48;cursor:not-allowed;transform:none'));
 const cadastroLocaisScript=readFileSync(fileURLToPath(new URL('../assets/cadastro-locais-estoque.js',import.meta.url)),'utf8');
 assert.ok(cadastroLocaisScript.includes('b.disabled=!!r.impedimento')&&cadastroLocaisScript.includes('if(!allowed()||r.impedimento)return;'));
+
+const undoReleaseScript=readFileSync(fileURLToPath(new URL('../assets/estorno-liberacao.js',import.meta.url)),'utf8');
+assert.doesNotThrow(()=>new Function(undoReleaseScript));
+assert.ok(undoReleaseScript.includes('ew_listar_estornos_liberacao')&&undoReleaseScript.includes('ew_estornar_liberacao_individual')&&undoReleaseScript.includes('btn.disabled=!!r.impedimento'));
+assert.ok(source.includes('id="detailWorkReview"')&&source.includes('id="releaseUndoAll"')&&!source.includes('id="navManageWorks"'));
