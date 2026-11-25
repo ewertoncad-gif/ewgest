@@ -1480,7 +1480,7 @@
           <button type="button" class="btn secondary hidden" id="stockCreateCompanyLocal">Cadastrar locais de estoque</button>
           <button type="button" class="btn secondary" id="stockTransferPickLocal">Transferência entre galpões</button>
           <button type="button" class="btn secondary" id="stockTransferPickWork">Transferência entre obras</button>
-          <button type="button" class="btn secondary hidden" id="stockTransferBetweenLocations">Transferir entre locais</button>
+          <button type="button" class="btn secondary hidden" id="stockTransferBetweenLocations" title="Transferência entre obra e estoque próprio da empresa, ou entre estoques próprios">Transferência com estoque da empresa</button>
           <button type="button" class="btn secondary" id="stockManageLocations" title="Consultar saldos e estornar lançamentos; exclusão definitiva da obra em Gerenciar obras">Gerenciar estoques</button>
           <button type="button" class="btn secondary hidden" id="stockArchivedReview">Saldos e estornos</button>
           <button type="button" class="btn secondary" id="stockRefresh">Atualizar</button>
@@ -1500,6 +1500,7 @@
           <label>Buscar material <input id="stockSearch" type="search" placeholder="Código, descrição ou cor"></label>
         </div>
         <div class="stockTopActions">
+          <label style="display:flex;align-items:center;gap:8px;margin:0;font-weight:600;font-size:13px"><input type="checkbox" id="stockHideZero" style="width:16px;height:16px;margin:0;accent-color:#2074c9"> Ocultar itens com saldo físico zero</label>
           <button type="button" class="btn secondary hidden" id="stockWorkHistory" disabled>Movimentações da obra</button>
         </div>
         <div class="stockLegend" id="stockLegend">
@@ -8946,12 +8947,13 @@ function renderEstoque(){
     node('stockPerfCount').textContent=(new Set(linhas.filter(x=>x.v.tipo==='perfil'&&x.informado).map(x=>x.v.id))).size.toLocaleString('pt-BR');
     node('stockAcesCount').textContent=(new Set(linhas.filter(x=>x.v.tipo==='acessorio'&&x.informado).map(x=>x.v.id))).size.toLocaleString('pt-BR');
   }
-  linhas.sort((a,b)=>a.mat.codigo.localeCompare(b.mat.codigo,'pt-BR')||
+  const linhasVisiveis=node('stockHideZero').checked?linhas.filter(x=>Math.abs(x.quantidade)>1e-9):linhas;
+  linhasVisiveis.sort((a,b)=>a.mat.codigo.localeCompare(b.mat.codigo,'pt-BR')||
     (a.comprimento||0)-(b.comprimento||0)||String(a.local_estoque).localeCompare(String(b.local_estoque),'pt-BR'));
   out.innerHTML='<div class="stockTableWrap"><table class="stockTable"><thead><tr>'+
     '<th>Código</th><th>Material / fabricante</th><th>Cor e acabamento</th>'+
     '<th>Quantidade necessária</th><th>Em estoque</th><th>Situação</th><th>Comprimento da barra</th><th>Galpão</th></tr></thead><tbody>'+
-    linhas.map(x=>{
+    linhasVisiveis.map(x=>{
       const unit=x.v.tipo==='perfil'?'barra(s)':escapeHTML(x.unidade);
       const amount=x.informado?
         '<span class="stockValue">'+matFormat(x.quantidade,x.v.tipo==='perfil'?0:3)+
@@ -8970,7 +8972,7 @@ function renderEstoque(){
         '<td>'+size+'</td><td><strong>'+escapeHTML(x.local_estoque||'—')+'</strong></td>'+
         '</tr>';
     }).join('')+'</tbody></table></div>'+
-    '<p class="stockFoot">'+linhas.length+' linha(s) de material nesta obra. '+
+    '<p class="stockFoot">'+linhasVisiveis.length+' linha(s) de material exibida(s)'+(linhasVisiveis.length!==linhas.length?' de '+linhas.length:'')+'. '+
     'Quando houver barras de comprimentos diferentes, elas aparecerão separadas. '+
     'A quantidade necessária dos perfis é o número de BARRAS do CEM, não cortes; o estoque é saldo físico.'+
     ' O cálculo é separado por comprimento, sem presumir aproveitamento dos cortes.'+
@@ -9394,6 +9396,7 @@ node('stockWork').addEventListener('change',renderEstoque);
 node('stockFactoryFilter').addEventListener('change',renderEstoque);
 node('stockType').addEventListener('change',renderEstoque);
 node('stockSearch').addEventListener('input',renderEstoque);
+node('stockHideZero').addEventListener('change',renderEstoque);
 node('stockEntryCancel').addEventListener('click',fecharMovimentoEstoque);
 node('stockEntryForm').addEventListener('submit',registrarMovimentoEstoque);
 
@@ -10908,14 +10911,14 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/precificacao-importacao.js?v=20261122a"></script>
 <script src="/assets/recebimento-manual.js?v=20261121l"></script>
 <script src="/assets/cadastros-hub.js?v=20261121c"></script>
-<script src="/assets/insumos-fisicos.js?v=20261121d"></script>
+<script src="/assets/insumos-fisicos.js?v=20261125a"></script>
 <script src="/assets/entregas-producao.js?v=20261121a"></script>
 <script src="/assets/romaneios-transferencia.js?v=20261122b"></script>
 <script src="/assets/relatorios-custos-empresa.js?v=20261124a"></script>
 <script src="/assets/relatorios-obras.js?v=20261122c"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>
 <script src="/assets/niveis-acesso.js?v=20261124c"></script>
-<script src="/assets/compras-estoque.js?v=20261124c"></script>
+<script src="/assets/compras-estoque.js?v=20261125a"></script>
 <script src="/assets/compras-comprovante-transferencia.js?v=20261124a"></script>
 <script src="/assets/compras-conciliacao-nfe.js?v=20261124b"></script>
 <script src="/assets/compras-nota-empresa.js?v=20261124a"></script>
