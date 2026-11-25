@@ -312,7 +312,7 @@ async function renderEstoqueEmpresa(){
  if(epoch!==stockEpoch||$('stockWork').value!=='empresa:'+id)return;
  const totals=new Map();for(const r of rows||[]){if($('stockFactoryFilter').value&&$('stockFactoryFilter').value!==r.galpao)continue;
  const key=[r.variacao_id,r.unidade,r.comprimento_mm||'',r.galpao].join('|');const old=totals.get(key)||{...r,quantidade:0};old.quantidade+=Number(r.quantidade_delta);totals.set(key,old)}
- const list=[...totals.values()].filter(x=>x.quantidade>0);$('stockCounted').textContent=String(list.length);
+ const all=[...totals.values()];const list=all.filter(x=>!$('stockHideZero').checked||Math.abs(x.quantidade)>1e-9);$('stockCounted').textContent=String(all.filter(x=>Math.abs(x.quantidade)>1e-9).length);
  const displayMaterial=id=>{const v=variations.find(v=>v.id===id)||matVariacoes.find(v=>v.id===id);if(!v)return id;
  const mat=v.tipo==='perfil'?matPerfis.find(p=>p.id===v.perfil_id):matAcessorios.find(a=>a.id===v.acessorio_id);
  return mat?(mat.codigo+' · '+mat.descricao+' · '+v.cor):id;};

@@ -25,7 +25,7 @@ const receiptFormIdx=source.indexOf('id="finExpensePanel"');
 assert.ok(receiptIdx>0&&financeIdx>receiptIdx&&receiptFormIdx>receiptIdx&&receiptFormIdx<financeIdx,
  'O formulário de recebimento deve pertencer à tela Recebimento, não ao Financeiro');
 assert.ok(source.includes('id="navRecebimento"')&&source.includes("['navRecebimento','recebimento']")&&
- source.includes("node('navRecebimento').classList.toggle('hidden',!temPermissao('estoque.receber'))"),
+ source.includes("setNavPermission('navRecebimento',temPermissao('estoque.receber'))"),
  'Menu Recebimento liberado por perfil, sem exibir o Financeiro ao almoxarife');
 const recebimentoLoader=source.slice(source.indexOf('async function carregarRecebimento(){'),
  source.indexOf('function finOptionsObras(prefer){'));
@@ -127,7 +127,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.21',
+ 'EWGEST • v46.22',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -1267,7 +1267,7 @@ assert.ok(source.includes("node('stockReverseApply').textContent='Estornar todos
 assert.ok(source.includes('id="navWorks"')&&
  source.includes('id="worksPage"')&&source.includes('id="worksPageList"')&&
  source.includes("node('navWorks').addEventListener('click',abrirObrasPelaBarra)")&&
- source.includes("node('navWorks').classList.toggle('hidden',!temPermissao('obras.consultar'))")&&
+ source.includes("setNavPermission('navWorks',temPermissao('obras.consultar'))")&&
  source.includes("['navWorks','worksPage']"),
  'A navegação Obras precisa respeitar permissões e destacar o menu ativo');
 assert.ok(source.includes('function abrirObrasPelaBarra()')&&
@@ -1914,7 +1914,7 @@ assert.doesNotThrow(()=>new Function(insumosClient),'O script do estoque físico
 assert.ok(source.includes('id="finMiscBlock"')&&source.includes('id="finMiscRows"')&&
  source.includes('id="finMiscSum"')&&source.includes('id="insumosStockPanel"')&&
  source.includes('id="insumosTransferForm"')&&source.includes('id="cadastroInsumosForm"')&&
- source.includes('insumos-fisicos.js?v=20261121d')&&
+ source.includes('insumos-fisicos.js?v=20261125a')&&
  receiveScript.includes('function miscNormalized(){')&&
  receiveScript.includes('function miscUpdateSum(){')&&
  receiveScript.includes("byId('finMiscRows').replaceChildren()")&&
@@ -2096,7 +2096,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.21')&&
+assert.ok(source.includes('v46.22')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2227,7 +2227,7 @@ for(const id of ['navUnidades','unidadesPage','unidadeForm','unidadeCodigo','uni
 }
 assert.ok(source.includes('unidades-medida.js?v=20261121a')&&
  source.includes("'insumosPage','unidadesPage'")&&
- source.includes("'insumosPage','unidadesPage'].includes(ativo)")&&
+ source.includes("'insumosPage','unidadesPage','cadastroLocaisEstoque'].includes(ativo)")&&
  source.includes('Voltar para cadastros')&&
  unidadesJS.includes("byId('navUnidades').addEventListener('click',abrir)")&&
  unidadesJS.includes('window.ewUnidadesMedida={lista,ativa,nome,carregar}')&&
@@ -2237,7 +2237,7 @@ assert.ok(receiveScript.includes("window.ewUnidadesMedida?.lista()")&&
  receiveScript.includes("window.ewUnidadesMedida?.ativa(r.unidade)")&&
  receiveScript.includes("window.ewRecebimentoAtualizarUnidades=")&&
  insumosClient.includes("window.ewUnidadesMedida?.nome(codigo)")&&
- source.includes('insumos-fisicos.js?v=20261121d'),
+ source.includes('insumos-fisicos.js?v=20261125a'),
  'Unidades novas devem entrar no cadastro, NF e saldos do estoque');
 for(const token of [
  'create table if not exists public.ew_unidades_medida',
@@ -2330,7 +2330,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.21</strong>'),
+ source.includes('EWGEST <strong>· v46.22</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2913,3 +2913,32 @@ assert.ok(precificacaoMapeamento.includes("RETURNING id INTO v_esquadria_id")&&
  'A proposta de banco precisa mapear os IDs exatos e preservar históricos com RLS');
 
 console.log('OK: '+cases.length+' classificações; cadastros, estoque, histórico e sessão única.');
+
+const navHelper=source.slice(source.indexOf('function setNavPermission('),source.indexOf('function setView('));
+const navClasses=new Set(['hidden','active']);
+const navAttrs=new Map([['aria-current','page']]);
+const navButton={disabled:false,classList:{remove:name=>navClasses.delete(name)},setAttribute:(k,v)=>navAttrs.set(k,v),removeAttribute:k=>navAttrs.delete(k)};
+const applyNavPermission=new Function('node',navHelper+'\nreturn setNavPermission;')(()=>navButton);
+applyNavPermission('navAccessLevels',false);
+assert.equal(navButton.disabled,true);
+assert.equal(navAttrs.get('aria-disabled'),'true');
+assert.ok(!navClasses.has('hidden')&&!navClasses.has('active')&&!navAttrs.has('aria-current'));
+applyNavPermission('navAccessLevels',true);
+assert.equal(navButton.disabled,false);
+assert.equal(navAttrs.get('aria-disabled'),'false');
+assert.equal(navButton.title,'');
+assert.ok(source.includes('.workspaceLink:disabled{opacity:.48;cursor:not-allowed'));
+assert.ok(source.includes("setNavPermission('navAccessLevels',currentAccessLevel===1&&temPermissao('niveis.gerenciar'))"));
+assert.ok(source.includes("node('navEnviarNotas').classList.add('hidden')"));
+console.log('OK: módulos sem acesso permanecem visíveis e desabilitados, proteção do ADM preservada.');
+
+assert.ok(source.includes('id="stockHideZero"')&&source.includes("node('stockHideZero').addEventListener('change',renderEstoque)"));
+const stockZeroFilter=source.match(/const linhasVisiveis=([^;]+);/)[1];
+const stockZeroRows=[{quantidade:0},{quantidade:2},{quantidade:-1},{quantidade:.001}];
+const filterStockZero=new Function('node','linhas','return '+stockZeroFilter);
+assert.equal(filterStockZero(()=>({checked:false}),stockZeroRows).length,4);
+assert.deepEqual(filterStockZero(()=>({checked:true}),stockZeroRows).map(x=>x.quantidade),[2,-1,.001]);
+assert.ok(insumosClient.includes("byId('stockHideZero').checked"));
+const companyStockUI=readFileSync(fileURLToPath(new URL('../assets/compras-estoque.js',import.meta.url)),'utf8');
+assert.ok(companyStockUI.includes("!$('stockHideZero').checked||Math.abs(x.quantidade)>1e-9"));
+console.log('OK: filtro de saldo zero preserva saldos positivos e negativos.');

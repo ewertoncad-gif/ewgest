@@ -17,7 +17,7 @@ for(const key of [
  'relatorios-obras.js?v=20261122c','romaneios-transferencia.js?v=20261122b']){
  assert.ok(app.includes(key),'Componente ausente: '+key);
 }
-assert.ok(app.includes("node('navRelatorios').classList.toggle('hidden',!podeVerRelatorios())")&&
+assert.ok(app.includes("setNavPermission('navRelatorios',podeVerRelatorios())")&&
  reports.includes("podeVerRelatorios()"),
  'Relatórios devem seguir flags independentes de acesso, não o antigo perfil financeiro');
 assert.match(reports,/listarTudo\('ew_obra_faturamentos'/,
