@@ -265,4 +265,81 @@ try{
  assert.ok(!(await levels.locator('#userLevelsPanel').isVisible()));
  console.log('PASS Chromium: oito níveis, proteção ADM, filtro, flags, salvar, ações em massa e acesso restrito.');
  await levels.close();
+
+ // v46.28: tela real de cotação — agrupamento, fornecedores e preços independentes.
+ const quoting=await browser.newPage({viewport:{width:1280,height:800}});
+ await quoting.setContent('<!doctype html><html><body><button id="comprasTabSolicitacao"></button><button id="comprasTabCotacao"></button><button id="comprasTabPedido"></button><div id="comprasMensagem"></div><main id="comprasConteudo"></main></body></html>');
+ await quoting.evaluate(()=>{
+  window.escapeHTML=v=>String(v??'').replace(/[&<>"]/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[x]));
+  window.currentCompany={id:'empresa-teste'};window.session={access_token:'MOCK'};window.ensureSession=async()=>{};
+  window.temPermissao=()=>true;window.setView=()=>{};window.confirm=()=>true;
+  window.works=[{id:'a',nome:'Obra A'},{id:'b',nome:'Obra B'}];
+  if(typeof crypto.randomUUID!=='function')Object.defineProperty(crypto,'randomUUID',{value:()=> '00000000-0000-4000-8000-000000000987'});
+  const item={chave:'1',variacao_id:'v',unidade:'BARRA',quantidade:2,comprimento_mm:6000};
+  window._q={calls:[],invites:[],sols:['s1','s2','s3'].map((id,i)=>({id,obra_id:i===2?'b':'a',status:'ABERTA',itens:[item],criado_em:'2026-11-25',observacoes:id})),quotes:[]};
+  window.apiGet=async table=>{
+   if(table==='ew_compras_solicitacoes')return structuredClone(window._q.sols);
+   if(table==='ew_compras_cotacoes')return structuredClone(window._q.quotes);
+   if(table==='ew_fornecedores')return [{id:'f1',nome:'Fornecedor 1',ativo:true},{id:'f2',nome:'Fornecedor 2',ativo:true}];
+   if(table==='ew_materiais_variacoes')return [{id:'v',tipo:'perfil',perfil_id:'pf',cor:'NATURAL',ativo:true}];
+   if(table==='ew_perfis')return [{id:'pf',codigo:'P01',descricao:'Perfil teste',comprimento_comercial_mm:6000}];
+   return [];
+  };
+  window.request=async(path,opts)=>{
+   const fn=path.split('/').pop(),body=opts.body,m=window._q;
+   if(fn==='ew_compras_pedidos_resumo')return [];
+   if(fn==='ew_compras_convites_cotacao')return structuredClone(m.invites);
+   m.calls.push({fn,body});
+   if(fn==='ew_compras_agrupar_solicitacoes'){
+    m.sols=m.sols.map(s=>body.p_solicitacoes.includes(s.id)?{...s,status:'AGRUPADA'}:s);
+    m.sols.push({id:'grupo',obra_id:'a',status:'ABERTA',itens:[{...item,quantidade:4}],criado_em:'2026-11-25'});
+    return {id:'grupo'};
+   }
+   if(fn==='ew_compras_replicar_cotacao'){
+    m.invites=body.p_fornecedores.map(id=>({fornecedor_id:id,fornecedor:id==='f1'?'Fornecedor 1':'Fornecedor 2',status:'AGUARDANDO',ativo:true}));
+    return {ok:true};
+   }
+   if(fn==='ew_compras_criar_cotacao'){
+    m.quotes.push({id:'q1',solicitacao_id:body.p_solicitacao_id,fornecedor_id:body.p_fornecedor_id,status:'ABERTA',total_centavos:50000});
+    return {id:'q1'};
+   }
+   throw Error('RPC inesperada: '+fn);
+  };
+ });
+ await quoting.addScriptTag({content:readFileSync(new URL('../assets/compras-estoque.js',import.meta.url),'utf8')});
+ await quoting.locator('#comprasTabCotacao').click();
+ await quoting.evaluate(()=>window.ewCompras.abrir());
+ await quoting.locator('#comprasAgruparBox summary').click();
+ await quoting.locator('#comprasAgruparObra').selectOption('a');
+ assert.equal(await quoting.locator('#comprasAgruparLista input').count(),2);
+ await quoting.locator('#comprasAgruparLista input[value="s1"]').check();
+ assert.ok(await quoting.locator('#comprasAgruparConfirmar').isDisabled());
+ await quoting.locator('#comprasAgruparLista input[value="s2"]').check();
+ await quoting.locator('#comprasAgruparConfirmar').click();
+ await quoting.waitForFunction(()=>document.querySelector('#comprasCotacaoSolic')?.value==='grupo');
+ assert.equal(await quoting.locator('#comprasCotacaoSolic option[value="s1"]').count(),0);
+ assert.equal(await quoting.locator('#comprasCotacaoSolic option[value="s3"]').count(),1);
+ await quoting.locator('#comprasConvites details summary').click();
+ await quoting.locator('[data-fornecedor="f1"]').check();
+ await quoting.locator('[data-fornecedor="f2"]').check();
+ await quoting.locator('#comprasReplicarLote').click();
+ await quoting.locator('[data-convite="f1"]').waitFor();
+ assert.equal(await quoting.locator('[data-convite]').count(),2);
+ await quoting.locator('[data-convite="f1"]').click();
+ await quoting.locator('[data-quote-key="1"] input').fill('125,00');
+ await quoting.locator('[data-convite="f2"]').click();
+ assert.equal(await quoting.locator('[data-quote-key="1"] input').inputValue(),'','Não copiar preço entre fornecedores');
+ await quoting.locator('[data-quote-key="1"] input').fill('125,00');
+ await quoting.locator('#comprasCotarForm button[type="submit"]').click();
+ await quoting.waitForFunction(()=>document.querySelector('#comprasMensagem').textContent==='Cotação registrada.');
+ const qcalls=await quoting.evaluate(()=>window._q.calls);
+ assert.deepEqual(qcalls[0].body.p_solicitacoes,['s1','s2']);
+ assert.deepEqual(qcalls[1].body.p_fornecedores,['f1','f2']);
+ assert.equal(qcalls[2].body.p_fornecedor_id,'f2');
+ assert.deepEqual(qcalls[2].body.p_precos,[{chave:'1',preco_unitario_centavos:12500}]);
+ await quoting.locator('[data-cotacao-replicar]').click();
+ assert.equal(await quoting.locator('#comprasCotacaoSolic').inputValue(),'grupo');
+ assert.equal(await quoting.locator('[data-quote-key="1"] input').inputValue(),'');
+ console.log('PASS Chromium v46.28: agrupamento por obra, fornecedores em lote, preços independentes e registro da cotação.');
+ await quoting.close();
 }finally{await browser.close()}
