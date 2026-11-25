@@ -861,7 +861,7 @@ assert.ok(source.includes("node('stockManualContinue').checked")&&
 
 
 
-assert.ok(source.includes('const obrasComEsquadrias=works.filter(w=>elements.some(e=>e.obra_id===w.id));')&&
+assert.ok(source.includes('const obrasComEsquadrias=works.filter(w=>w.cadastro_manual===true||elements.some(e=>e.obra_id===w.id));')&&
  source.includes('node(\'count\').textContent=obrasComEsquadrias.length;')&&
  source.includes('node(\'works\').innerHTML=obrasComEsquadrias.map('),
  'Tela inicial exibe apenas obras com esquadrias');
@@ -1277,7 +1277,7 @@ assert.ok(source.includes('function abrirObrasPelaBarra()')&&
  source.includes("if(detailBackTarget==='worksPage')mostrarListaDeObras()"),
  'Uma única obra deve abrir diretamente; múltiplas obras exigem lista e volta correta');
 assert.ok(source.includes('function obrasComEsquadriasAtivas()')&&
- source.includes('return works.filter(w=>ids.has(w.id))'),
+ source.includes('return works.filter(w=>ids.has(w.id)||w.cadastro_manual===true)'),
  'Obras exclusivamente de estoque não devem poluir navegação de obras técnicas');
 // v44.1: cancelamento visível em cada linha, independente de Verificar exclusão.
 for(const id of ['manageWorksDeleteReasonBox','manageWorksDeleteBlockedMessage',
