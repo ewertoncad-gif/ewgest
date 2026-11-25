@@ -51,6 +51,7 @@ function purchaseOptions(catalog,needs,kind,extras,category,search){
  for(const n of needs){
   const v=byId.get(n.variacao_id);if(!v)continue;
   if(!extras&&n.faltante!==null&&Number(n.faltante)<=0)continue;
+  if(!extras&&v.tipo==='perfil'&&n.comprimento_mm==null)continue;
   options.push({...v,...n,id:v.id,key:key(v.id,n.comprimento_mm),planned:true});
  }
  if(extras||kind==='empresa'){
@@ -62,10 +63,10 @@ function purchaseOptions(catalog,needs,kind,extras,category,search){
  const norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
  return options.filter(v=>(!category||v.tipo===category)&&norm(productLabel(v)+' '+(v.acabamento||'')).includes(norm(search))).sort((a,b)=>productLabel(a).localeCompare(productLabel(b),'pt-BR')||Number(a.comprimento_mm||0)-Number(b.comprimento_mm||0));
 }
-function requestOptions(){
+function requestOptions(all=false){
  const kind=$('comprasDestino')?.value.split(':')[0];
  if(!kind||!requestNeedsReady)return [];
- return purchaseOptions(variations,requestNeeds,kind,$('comprasExtras').checked,$('comprasCategoria').value,$('comprasBuscaMaterial').value.trim());
+ return purchaseOptions(variations,requestNeeds,kind,$('comprasExtras').checked,all?'':$('comprasCategoria').value,all?'':$('comprasBuscaMaterial').value.trim());
 }
 function optionLabel(v){
  const base=productLabel(v)+(v.comprimento_mm?' · '+number(v.comprimento_mm)+' mm':'');
@@ -74,16 +75,18 @@ function optionLabel(v){
  return base+' · Falta '+number(v.faltante)+' '+v.unidade+(Number(v.faltante)<=0?' (atendido)':'');
 }
 function updateRequestRows(reset=false){
- const opts=requestOptions();
+ const opts=requestOptions(),eligible=requestOptions(true);
  for(const row of $('comprasLinhas').children){
   const select=row.querySelector('[data-buy="variation"]'),old=reset?'':select.value;
-  select.innerHTML=option('','Selecione')+opts.map(v=>option(v.key,optionLabel(v))).join('');
-  if(opts.some(v=>v.key===old))select.value=old;
+  const previous=eligible.find(v=>v.key===old);
+  const visible=previous&&!opts.some(v=>v.key===old)?[previous,...opts]:opts;
+  select.innerHTML=option('','Selecione')+visible.map(v=>option(v.key,optionLabel(v))).join('');
+  if(previous){select.value=old;row.querySelector('[data-buy="length"]').disabled=previous.unidade!=='BARRA'||(previous.planned&&previous.comprimento_mm!=null&&!$('comprasExtras').checked);}
   else {select.value='';row.querySelector('[data-buy="info"]').textContent='';}
-  select.disabled=!requestNeedsReady||!opts.length;
+  select.disabled=!requestNeedsReady||!visible.length;
  }
  $('comprasAddLine').disabled=!requestNeedsReady||!opts.length;
- $('comprasSolicitarForm').querySelector('[type=submit]').disabled=!requestNeedsReady||!opts.length;
+ $('comprasSolicitarForm').querySelector('[type=submit]').disabled=!requestNeedsReady||!eligible.length;
 }
 async function loadRequestNeeds(){
  const epoch=++requestNeedsEpoch,form=$('comprasSolicitarForm'),dest=$('comprasDestino').value,company=currentCompany.id;
@@ -141,7 +144,7 @@ function formRow(index){
 function makeLine(){const container=$('comprasLinhas');if(!container)return;const div=document.createElement('div');div.innerHTML=formRow(container.children.length);
  const row=div.firstElementChild;container.append(row);
  row.querySelector('[data-buy="variation"]').addEventListener('change',()=>{
-  const v=requestOptions().find(v=>v.key===row.querySelector('[data-buy="variation"]').value);if(!v)return;
+  const v=requestOptions(true).find(v=>v.key===row.querySelector('[data-buy="variation"]').value);if(!v)return;
   row.querySelector('[data-buy="unit"]').value=v.unidade;
   row.querySelector('[data-buy="length"]').value=v.comprimento_mm||'';
   row.querySelector('[data-buy="length"]').disabled=v.unidade!=='BARRA'||(v.planned&&v.comprimento_mm!=null&&!$('comprasExtras').checked);
@@ -195,17 +198,22 @@ function renderRequest(){
  '<h3>Solicitações registradas</h3><div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Data</th><th>Destino</th><th>Itens</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+
  sols.map(s=>'<tr><td>'+esc(String(s.criado_em||'').slice(0,10).split('-').reverse().join('/'))+'</td><td>'+esc(titleLocal(s))+'</td><td>'+number((s.itens||[]).length)+'</td><td>'+esc(s.status)+cancelDetails(s)+'</td><td>'+(editable&&s.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===s.id)?'<button type="button" class="btn secondary" data-compras-tipo="solicitacao" data-compras-cancel="'+esc(s.id)+'">Cancelar</button>':'—')+'</td></tr>').join('')+
  '</tbody></table></div>';bindCancelButtons();if(editable){requestNeeds=[];requestNeedsReady=false;makeLine();$('comprasAddLine').onclick=makeLine;
- $('comprasDestino').onchange=loadRequestNeeds;$('comprasCategoria').onchange=()=>updateRequestRows();$('comprasBuscaMaterial').oninput=()=>updateRequestRows();$('comprasExtras').onchange=()=>updateRequestRows(true);void loadRequestNeeds();
+ $('comprasDestino').onchange=loadRequestNeeds;$('comprasCategoria').onchange=()=>updateRequestRows();$('comprasBuscaMaterial').oninput=()=>updateRequestRows();$('comprasExtras').onchange=()=>updateRequestRows();void loadRequestNeeds();
  $('comprasSolicitarForm').onsubmit=async e=>{e.preventDefault();const value=$('comprasDestino').value;
  const lines=[...document.querySelectorAll('#comprasLinhas .ewComprasLine')].map((row,i)=>{
   const get=x=>row.querySelector('[data-buy="'+x+'"]').value;
-  const v=requestOptions().find(v=>v.key===get('variation'));
+  const v=requestOptions(true).find(v=>v.key===get('variation'));
   return {chave:String(i+1),variacao_id:v?.id||'',quantidade:Number(get('qty')),
    unidade:get('unit'),comprimento_mm:get('unit')==='BARRA'?Number(get('length')):null};});
  if(!value||lines.some(x=>!x.variacao_id||!validQty(x.quantidade,x.unidade)||
    (x.unidade==='BARRA'&&(!Number.isSafeInteger(x.comprimento_mm)||x.comprimento_mm<100||x.comprimento_mm>20000)))){
   say('comprasMensagem','Preencha destino, material e quantidades válidas.');return;}
  if(!requestNeedsReady)return;
+ if(!$('comprasExtras').checked&&value.startsWith('obra:')){
+  const combined=new Map();for(const line of lines){const k=line.variacao_id+'|'+(line.comprimento_mm??'');combined.set(k,(combined.get(k)||0)+line.quantidade);}
+  const eligible=requestOptions(true);
+  for(const [k,q] of combined){const v=eligible.find(v=>v.key===k);if(!v||v.faltante!==null&&q>Number(v.faltante)+1e-8){say('comprasMensagem','Quantidade ou comprimento fora da necessidade. Marque materiais extras e já atendidos para solicitar além da previsão.');return;}}
+ }
  const [kind,id]=value.split(':');const btn=$('comprasSolicitarForm').querySelector('[type="submit"]');if(btn.disabled)return;btn.disabled=true;
  try{await ensureSession();await rpc('ew_compras_criar_solicitacao',{p_empresa_id:currentCompany.id,
   p_obra_id:kind==='obra'?id:null,p_local_empresa_id:kind==='empresa'?id:null,
