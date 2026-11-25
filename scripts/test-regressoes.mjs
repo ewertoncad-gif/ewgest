@@ -2227,7 +2227,7 @@ for(const id of ['navUnidades','unidadesPage','unidadeForm','unidadeCodigo','uni
 }
 assert.ok(source.includes('unidades-medida.js?v=20261121a')&&
  source.includes("'insumosPage','unidadesPage'")&&
- source.includes("'insumosPage','unidadesPage'].includes(ativo)")&&
+ source.includes("'insumosPage','unidadesPage','cadastroLocaisEstoque'].includes(ativo)")&&
  source.includes('Voltar para cadastros')&&
  unidadesJS.includes("byId('navUnidades').addEventListener('click',abrir)")&&
  unidadesJS.includes('window.ewUnidadesMedida={lista,ativa,nome,carregar}')&&
