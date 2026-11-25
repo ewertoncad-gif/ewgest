@@ -57,6 +57,8 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Validar Compras, conciliação e notas corporativas no Chromium
         run: node scripts/test-compras-browser-v4621.mjs
+      - name: Validar editor e componentes de expedição no Chromium
+        run: node scripts/test-composicao-browser.mjs
 
   concorrencia-compras:
     if: github.event_name == 'pull_request'
