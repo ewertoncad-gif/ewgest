@@ -2108,7 +2108,7 @@ assert.ok(source.includes('v46.24')&&
  source.includes("state.obraId!==selected"),
  'Notas aprovadas/pedidas GN096 não podem aparecer sem seleção explícita da obra');
 assert.ok(source.includes('finReceiveUndo')&&
- source.includes("ew_estornar_recebimento_nfe")&&
+ source.includes("ew_estornar_nfe_com_recebimentos")&&
  source.includes('estornado_em,estorno_motivo,estorno_detalhes')&&
  receiptUndoSQL.includes('ew_estornar_recebimento_nfe')&&
  receiptUndoSQL.includes('estorno_detalhes')&&
@@ -2953,3 +2953,10 @@ assert.ok(undoReleaseScript.includes('ew_listar_estornos_liberacao')&&undoReleas
 assert.ok(source.includes('id="cadastroJumpObras"')&&source.includes('id="releaseUndoAll"')&&!source.includes('id="navManageWorks"'));
 
 assert.ok(source.includes('id="worksManualForm"')&&source.includes('cadastro_manual===true')&&source.includes('id="worksManualName"'));
+
+const areaSource4624=source.slice(source.indexOf('function finAreaDisponivel('),source.indexOf('function finRenderFaturaveis(){'));
+const areaCalc4624=new Function(areaSource4624+'\nreturn {finAreaDisponivel,finPrecoM2Sugerido};')();
+assert.equal(areaCalc4624.finAreaDisponivel(.5,1.38),.69);
+assert.equal(areaCalc4624.finPrecoM2Sugerido({fabricacao_centavos:27600},'fabricacao',1,1.38,.69,0,0),200);
+assert.ok(source.includes('area_m2:qtd,preco_m2:preco')&&source.includes('Área a faturar (m²)')&&source.includes('Preço (R$/m²)'));
+assert.ok(source.includes('ew_estornar_nfe_com_recebimentos')&&source.includes('Todas as '));
