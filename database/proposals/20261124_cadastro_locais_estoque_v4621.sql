@@ -71,7 +71,7 @@ BEGIN
  IF p_tipo='EMPRESA' THEN
   UPDATE public.ew_compras_locais_empresa SET ativo=false,excluido_em=now(),excluido_por=v_uid,exclusao_motivo=v_motivo WHERE id=p_id;
  ELSE
-  UPDATE public.ew_estoques_locais SET excluido_em=now(),excluido_por=v_uid,restauravel_ate=NULL WHERE obra_id=p_id AND empresa_id=p_empresa_id;
+  UPDATE public.ew_estoques_locais SET excluido_em=now(),excluido_por=v_uid,restauravel_ate=now() WHERE obra_id=p_id AND empresa_id=p_empresa_id;
   UPDATE public.obras SET arquivada_em=now(),arquivada_por=v_uid,motivo_arquivamento='Exclusão de local manual: '||v_motivo WHERE id=p_id;
   INSERT INTO public.ew_auditoria_operacoes(empresa_id,obra_id,obra_nome,obra_codigo,usuario_id,acao,operacao_id,motivo,detalhes)
    VALUES(p_empresa_id,p_id,o.nome,o.codigo,v_uid,'ARQUIVAR_OBRA',gen_random_uuid(),v_motivo,jsonb_build_object('modo','exclusao_local_manual','historico_preservado',true));
