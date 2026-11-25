@@ -1239,6 +1239,15 @@
       </div>
       <p class="notice">Desativar um usuário bloqueia seu acesso, mas preserva seu histórico de liberações, saídas e outras alterações. Não são armazenadas senhas no banco de cadastro.</p>
     </section>
+    <section id="cadastroLocaisEstoque" class="hidden">
+      <div class="head"><div><button id="cadastroLocaisVoltar" type="button" class="btn secondary">← Voltar para cadastros</button><h1 style="margin-top:18px">Locais de estoque</h1><p class="muted">Locais de obras permanecem cadastrados. Locais independentes podem ser excluídos quando zerados e sem dependências ativas.</p></div></div>
+      <div class="section panel">
+        <div class="row" style="gap:12px;flex-wrap:wrap"><button id="cadastroLocaisNovo" class="btn primary" type="button">+ Novo local da empresa</button><button id="cadastroLocaisAtualizar" class="btn secondary" type="button">Atualizar</button></div>
+        <label>Buscar local <input id="cadastroLocaisBusca" type="search" placeholder="Nome ou código"></label>
+        <p id="cadastroLocaisStatus" class="feedback" role="status"></p>
+        <div id="cadastroLocaisLista"></div>
+      </div>
+    </section>
     <section id="accessLevels" class="hidden">
       <div class="head"><div><h1>Níveis de acesso</h1><p class="muted">Configure as permissões de cada nível de usuário.</p></div></div>
       <div id="userLevelsPanel" class="section panel hidden">
@@ -1352,6 +1361,7 @@
         <button id="navManufacturers" type="button" class="cadastrosTile"><strong>Fabricantes</strong><span>Catálogo de fabricantes</span></button>
         <button id="cadastroJumpFornecedores" type="button" class="cadastrosTile"><strong>Fornecedores</strong><span>Fornecedores das notas fiscais</span></button>
         <button id="cadastroJumpGalpoes" type="button" class="cadastrosTile"><strong>Galpões</strong><span>Imbiribeira, Afogados, Olinda e outros</span></button>
+        <button id="cadastroJumpLocaisEstoque" type="button" class="cadastrosTile"><strong>Locais de estoque</strong><span>Obras vinculadas e estoques independentes da empresa</span></button>
         <button id="navVidros" type="button" class="cadastrosTile"><strong>Vidros</strong><span>Catálogo e unidades dos vidros</span></button>
         <button id="navOutrosInsumos" type="button" class="cadastrosTile"><strong>Outros insumos</strong><span>Catálogo de insumos diversos</span></button>
         <button id="navUnidades" type="button" class="cadastrosTile"><strong>Unidades de medida</strong><span>Litros, metros, peças e outras unidades</span></button>
@@ -1467,7 +1477,7 @@
       </div>
       <div class="stockTopActions">
           <button type="button" class="btn primary" id="stockCreateAnother">+ Criar estoque de obra</button>
-          <button type="button" class="btn secondary hidden" id="stockCreateCompanyLocal">+ Local da empresa</button>
+          <button type="button" class="btn secondary hidden" id="stockCreateCompanyLocal">Cadastrar locais de estoque</button>
           <button type="button" class="btn secondary" id="stockTransferPickLocal">Transferência entre galpões</button>
           <button type="button" class="btn secondary" id="stockTransferPickWork">Transferência entre obras</button>
           <button type="button" class="btn secondary hidden" id="stockTransferBetweenLocations">Transferir entre locais</button>
@@ -2473,6 +2483,7 @@ function permissaoParaTela(view){
   cemImport:'obras.importar',users:'usuarios.gerenciar'};
  if(view==='relatorios')return podeVerRelatorios();
  if(view==='accessLevels')return currentAccessLevel===1&&temPermissao('niveis.gerenciar');
+ if(view==='cadastroLocaisEstoque')return temPermissao('cadastros.consultar')&&temPermissao('estoque.gerenciar_locais');
   if(view==='compras')return temPermissao('compras.consultar');
  return !requires[view]||temPermissao(requires[view]);
 }
@@ -2526,7 +2537,7 @@ function setView(view){
   node('startup').classList.add('hidden');
   if(view!=='login'&&view!=='dashboard'&&view!=='myPassword'&&accessReady&&!permissaoParaTela(view))
     view='dashboard';
-  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','compras','recebimento','almoxNotas','cadastros','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','typologies','manufacturers','materials','stock','financeiro','relatorios','cemImport','users','accessLevels','myPassword'])
+  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','compras','recebimento','almoxNotas','cadastros','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','typologies','manufacturers','materials','stock','financeiro','relatorios','cemImport','users','accessLevels','cadastroLocaisEstoque','myPassword'])
     node(id).classList.toggle('hidden',id!==view);
   node('logout').classList.toggle('hidden',view==='login');
   node('myPasswordHeader').classList.toggle('hidden',view==='login');
@@ -2538,7 +2549,7 @@ function setView(view){
       ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navRelatorios','relatorios'],['navCem','cemImport'],['navUsers','users'],['navAccessLevels','accessLevels'],['navManageWorks','manageWorks']]){
     const button=node(id);
     const selecionado=!button.disabled&&(ativo===target||(id==='navCadastros'&&
-      ['materials','typologies','manufacturers','users','fornecedoresPage','galpoesPage','insumosPage','unidadesPage'].includes(ativo)));
+      ['materials','typologies','manufacturers','users','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','cadastroLocaisEstoque'].includes(ativo)));
     button.classList.toggle('active',selecionado);
     if(selecionado)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
   }
@@ -2719,6 +2730,7 @@ async function loadPanel(){
   }
   setNavPermission('navRelatorios',podeVerRelatorios());
   setNavPermission('navAccessLevels',currentAccessLevel===1&&temPermissao('niveis.gerenciar'));
+  node('cadastroJumpLocaisEstoque').disabled=!temPermissao('estoque.gerenciar_locais');
   node('openRomaneioHub').classList.toggle('hidden',!podeEmitirRomaneio()||somenteRomaneios);
   node('topTag').textContent='Nível '+String(currentAccessLevel).padStart(2,'0')+
    ' · '+(somenteRomaneios?'Almoxarifado':'Gestão de obras');
@@ -8651,7 +8663,7 @@ node('almoxNotaForm').addEventListener('submit',almoxNotaEnviar);
 node('navFinanceiro').addEventListener('click',()=>abrirFinanceiro());
 node('navRecebimento').addEventListener('click',()=>abrirRecebimento());
  node('navCompras').addEventListener('click',()=>window.ewCompras?.abrir());
- node('stockCreateCompanyLocal').addEventListener('click',()=>window.ewCompras?.criarLocalEmpresa());
+ node('stockCreateCompanyLocal').addEventListener('click',()=>window.ewCadastroLocais?.abrir());
  node('stockTransferBetweenLocations').addEventListener('click',()=>window.ewCompras?.abrirTransferLocal());
 node('recebimentoWork').addEventListener('change',()=>carregarRecebimento());
 node('recebimentoRefresh').addEventListener('click',()=>carregarRecebimento());
@@ -10907,6 +10919,7 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/compras-comprovante-transferencia.js?v=20261124a"></script>
 <script src="/assets/compras-conciliacao-nfe.js?v=20261124b"></script>
 <script src="/assets/compras-nota-empresa.js?v=20261124a"></script>
+<script src="/assets/cadastro-locais-estoque.js?v=20261124a"></script>
 <script defer src="/pwa-install.js?v=25"></script>
 </body>
 </html>
