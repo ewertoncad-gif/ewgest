@@ -55,7 +55,7 @@ assert.ok(inlineJS.length>=1,'Script principal da interface deve estar no HTML')
 for(const js of inlineJS)assert.doesNotThrow(()=>new Function(js),
  'JavaScript principal da interface deve ser sintaticamente válido');
 const receiptCacheHeaders=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
-assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121l')&&
+assert.ok(source.includes('/assets/recebimento-manual.js?v=20261125a')&&
  source.includes('/assets/recebimento-manual.css?v=20261121g'),
  'O recebimento precisa de URLs versionadas para evitar assets antigos após deploy');
 assert.match(receiptCacheHeaders,/\/assets\/recebimento-manual\.js\s+Content-Type: text\/javascript; charset=utf-8\s+Cache-Control: no-store/,
@@ -127,7 +127,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.11',
+ 'EWGEST • v46.29.12',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -1582,7 +1582,7 @@ assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
  !source.includes('<label>XML da nota fiscal (NF-e)')&&
  source.includes('id="finCostCategory" required'),
  'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
-assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
+assert.ok(source.includes('recebimento-manual.js?v=20261125a')&&
  source.includes('recebimento-manual.css?v=20261121g')&&receiveCSS.includes('.finManualTable'),
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
@@ -1924,7 +1924,7 @@ assert.doesNotThrow(()=>new Function(insumosClient),'O script do estoque físico
 assert.ok(source.includes('id="finMiscBlock"')&&source.includes('id="finMiscRows"')&&
  source.includes('id="finMiscSum"')&&source.includes('id="insumosStockPanel"')&&
  source.includes('id="insumosTransferForm"')&&source.includes('id="cadastroInsumosForm"')&&
- source.includes('insumos-fisicos.js?v=20261125b')&&
+ source.includes('insumos-fisicos.js?v=20261125c')&&
  receiveScript.includes('function miscNormalized(){')&&
  receiveScript.includes('function miscUpdateSum(){')&&
  receiveScript.includes("byId('finMiscRows').replaceChildren()")&&
@@ -2123,7 +2123,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.11')&&
+assert.ok(source.includes('v46.29.12')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2254,7 +2254,7 @@ for(const id of ['navUnidades','unidadesPage','unidadeForm','unidadeCodigo','uni
  'unidadeLista','unidadeMessage','unidadeEdicao','unidadeNovoNome','unidadeEdicaoForm']){
  assert.ok(source.includes('id="'+id+'"'),'Unidades de medida: falta '+id);
 }
-assert.ok(source.includes('unidades-medida.js?v=20261121a')&&
+assert.ok(source.includes('unidades-medida.js?v=20261125a')&&
  source.includes("'insumosPage','unidadesPage'")&&
  source.includes("'insumosPage','unidadesPage','cadastroLocaisEstoque','manageWorks'].includes(ativo)")&&
  source.includes('Voltar para cadastros')&&
@@ -2266,7 +2266,7 @@ assert.ok(receiveScript.includes("window.ewUnidadesMedida?.lista()")&&
  receiveScript.includes("window.ewUnidadesMedida?.ativa(r.unidade)")&&
  receiveScript.includes("window.ewRecebimentoAtualizarUnidades=")&&
  insumosClient.includes("window.ewUnidadesMedida?.nome(codigo)")&&
- source.includes('insumos-fisicos.js?v=20261125b'),
+ source.includes('insumos-fisicos.js?v=20261125c'),
  'Unidades novas devem entrar no cadastro, NF e saldos do estoque');
 for(const token of [
  'create table if not exists public.ew_unidades_medida',
@@ -2312,7 +2312,7 @@ assert.ok(!source.includes('id="stockTransferQty" type="number" min="0.001" step
 // EWGEST v45.8 — acessórios em PC/UN/PR/CJ/CX não podem ser fracionados em NF.
 const countableMigration=readFileSync(fileURLToPath(new URL(
  '../database/proposals/20261121_recebimento_quantidades_contaveis_v458.sql',import.meta.url)),'utf8');
-assert.ok(source.includes('/assets/recebimento-manual.js?v=20261121l'),
+assert.ok(source.includes('/assets/recebimento-manual.js?v=20261125a'),
  'Novas regras de quantidade devem invalidar o cache do JS anterior');
 for(const marker of [
  "const unidadesContaveis=new Set(['PC','UN','PR','CJ','CX','MT'])",
@@ -2358,8 +2358,8 @@ assert.ok(
  receiveScript.includes("item.quantidade='1';")&&
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
-assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.29.11</strong>'),
+assert.ok(source.includes('recebimento-manual.js?v=20261125a')&&
+ source.includes('EWGEST <strong>· v46.29.12</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2997,7 +2997,7 @@ assert.ok(source.includes('p_empresa_id:empresaId,p_obra_id:obraId')&&source.inc
 assert.ok(transferDocsJS.includes('x.obra_id!==sel[0].obra_id')&&transferDocsJS.includes('result.proximo_codigo'));
 console.log('OK v46.28: numeração por obra, flags e histórico de junções.');
 
-// v46.29.11 — interface acompanha as autorizações e conserva o histórico legado.
+// v46.29.12 — interface acompanha as autorizações e conserva o histórico legado.
 assert.ok(source.includes("if(componente!=='completo'||") && !source.includes('Liberação parcial: somente o marco'));
 assert.ok(deliveryClient.includes("temPermissao('estoque.baixar')") && !deliveryClient.includes("temPermissao('estoque.receber')"));
 assert.ok(source.includes("function stockModoPermitido(modo)") && source.includes("Somente consulta: seu nível não permite estornar estoque."));
@@ -3009,7 +3009,7 @@ assert.equal(stockModeTest(['estoque.consultar'])('transferencias'),false);
 assert.equal(stockModeTest(['estoque.consultar'])('historico'),true);
 assert.equal(stockModeTest([])('consulta'),false);
 
-// v46.29.11 — o módulo de insumos deve conservar o modo de navegação e ignorar respostas antigas.
+// v46.29.12 — o módulo de insumos deve conservar o modo de navegação e ignorar respostas antigas.
 assert.ok(insumosClient.includes('await abrirEstoqueOriginal(...args)'));
 assert.ok(insumosClient.includes('seq===saldosEpoch&&currentCompany?.id===empresa&&byId(\'stockWork\').value===obra'));
 assert.ok(insumosClient.includes("obra.startsWith('empresa:')"));
@@ -3021,3 +3021,9 @@ assert.ok(insumosClient.includes("obra.startsWith('empresa:')"));
  await wrap('producao');await wrap('transferencias');
  assert.deepEqual(calls,[['producao'],'saldos',['transferencias'],'saldos']);
 }
+
+// v46.29.12 — autorização por flag nos cadastros e insumos.
+assert.ok(!insumosClient.includes('isFullAdminUser()')&&!insumosClient.includes('canAdministrate()'));
+assert.ok(insumosClient.includes("temPermissao('cadastros.editar')")&&insumosClient.includes("temPermissao('estoque.estornar')"));
+assert.ok(receiveScript.includes("!hasStock&&!temPermissao('financeiro.despesas')"));
+assert.ok(source.includes("insumosPage:'cadastros.consultar'")&&source.includes("unidadesPage:'cadastros.consultar'"));
