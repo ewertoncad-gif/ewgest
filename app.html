@@ -258,6 +258,11 @@
     .workspaceLink.active{background:#eaf3ff;border-color:#dceaff;color:#1864bc}
     .navSymbol{display:inline-flex;justify-content:center;align-items:center;flex:none;width:27px;height:27px;border-radius:8px;background:#f0f5fa;color:#3d708f;font-size:17px}
     .workspaceLink.active .navSymbol{background:#d7eaff;color:#216bc2}
+    .workspaceSubnav{display:grid;gap:3px;margin:0 0 5px 24px;padding-left:9px;border-left:2px solid #e0e8f2;flex:none}
+    .workspaceSublink{min-height:34px;padding:8px 10px;font-size:12px}
+    .comprasNavChevron{margin-left:auto;color:#6384a7;transition:transform .15s}
+    #navCompras[aria-expanded="true"] .comprasNavChevron{transform:rotate(180deg)}
+    @media(max-width:760px){.workspaceSubnav{display:flex;align-items:center;margin:0;padding:0 3px;border-left:0;gap:4px}.workspaceSublink{width:auto;white-space:nowrap}}
     .workspaceNavFooter{margin-top:30px;border-top:1px solid #ecf0f6;padding:15px 13px 0;color:#74869d;font-size:12px;font-weight:650}
     .workspaceNavFooter strong{color:#2074c9}
     .workspaceNavFooter small{display:block;margin-top:3px;font-size:11px;font-weight:400}
@@ -712,7 +717,12 @@
     <button id="navHome" class="workspaceLink" type="button"><span class="navSymbol">⌂</span> Tela inicial</button>
     <button id="navWorks" class="workspaceLink" type="button"><span class="navSymbol">▦</span> Obras</button>
     <button id="navRomaneios" class="workspaceLink" type="button"><span class="navSymbol">▤</span> Romaneios e expedição</button>
-    <button id="navCompras" class="workspaceLink hidden" type="button"><span class="navSymbol">▧</span> Compras</button>
+    <button id="navCompras" class="workspaceLink hidden" type="button" aria-expanded="false" aria-controls="navComprasSubmenu"><span class="navSymbol">▧</span> Compras <span class="comprasNavChevron" aria-hidden="true">▾</span></button>
+    <div id="navComprasSubmenu" class="workspaceSubnav hidden" role="group" aria-label="Etapas de compras">
+      <button id="comprasTabSolicitacao" type="button" class="workspaceLink workspaceSublink">Solicitação</button>
+      <button id="comprasTabCotacao" type="button" class="workspaceLink workspaceSublink">Cotação</button>
+      <button id="comprasTabPedido" type="button" class="workspaceLink workspaceSublink">Compra</button>
+    </div>
     <button id="navRecebimento" class="workspaceLink hidden" type="button"><span class="navSymbol">▧</span> Recebimento</button>
     <button id="navEnviarNotas" class="workspaceLink hidden" type="button"><span class="navSymbol">▧</span> Enviar notas fiscais</button>
     <div class="workspaceNavCaption workspaceNavCaptionSecond">ADMINISTRAÇÃO</div>
@@ -723,7 +733,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.4</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.5</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -744,7 +754,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.4</div>
+        <div class="build">EWGEST • v46.29.5</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -785,13 +795,8 @@
       </div>
     </section>
     <section id="compras" class="hidden">
-      <div class="head"><div><h1>Compras</h1><p class="muted">Da solicitação ao pedido, com histórico por local de estoque e recebimentos parciais.</p></div></div>
+      <div class="head"><div><h1 id="comprasPaginaTitulo">Compras</h1><p class="muted" id="comprasPaginaDescricao">Da solicitação ao pedido, com histórico por local de estoque e recebimentos parciais.</p></div></div>
       <div class="section panel">
-        <div class="ewComprasTabs" role="tablist" aria-label="Etapas de compras">
-          <button type="button" class="btn secondary" id="comprasTabSolicitacao">Solicitação</button>
-          <button type="button" class="btn secondary" id="comprasTabCotacao">Cotação</button>
-          <button type="button" class="btn secondary" id="comprasTabPedido">Pedido</button>
-        </div>
         <p id="comprasMensagem" class="feedback" role="status"></p>
         <div id="comprasConteudo"></div>
       </div>
@@ -2596,6 +2601,11 @@ function setView(view){
   if(!autenticado){expCompSeq++;expCompCtx=null;romaneioComposicaoSeq++;romaneioComposicoes=new Map();expedicaoAtivaMap=new Map();node('expCompOverlay').classList.add('hidden');node('expCompPicker').classList.add('hidden');node('expCompRows').replaceChildren();node('expCompSimilar').replaceChildren();node('romaneioModal').classList.add('hidden');node('typologyEditOverlay').classList.add('hidden');}
   node('workspaceNav').classList.toggle('hidden',!autenticado);
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
+  if(view!=='compras'){
+    node('navComprasSubmenu').classList.add('hidden');
+    node('navCompras').setAttribute('aria-expanded','false');
+    for(const id of ['comprasTabSolicitacao','comprasTabCotacao','comprasTabPedido']){node(id).classList.remove('active');node(id).removeAttribute('aria-current');}
+  }
   const ativo=view==='detail'?'worksPage':view;
   for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],['navCompras','compras'],['navRecebimento','recebimento'],['navEnviarNotas','almoxNotas'],['navCadastros','cadastros'],
       ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navRelatorios','relatorios'],['navCem','cemImport'],['navUsers','users'],['navAccessLevels','accessLevels']]){
@@ -2767,6 +2777,7 @@ async function loadPanel(){
   node('navEnviarNotas').classList.add('hidden'); // Fluxo antigo preservado internamente; nova entrada no Recebimento.
   setNavPermission('navRecebimento',temPermissao('estoque.receber'));
    setNavPermission('navCompras',temPermissao('compras.consultar'));
+   if(!temPermissao('compras.consultar')){node('navComprasSubmenu').classList.add('hidden');node('navCompras').setAttribute('aria-expanded','false');}
    node('stockCreateCompanyLocal').classList.toggle('hidden',!temPermissao('estoque.gerenciar_locais'));
    node('stockTransferBetweenLocations').classList.toggle('hidden',!temPermissao('estoque.transferir_obras'));
   node('recebimentoXmlLegacy').classList.toggle('hidden',!isAlmoxarife());
@@ -9015,7 +9026,12 @@ node('almoxNotaForm').addEventListener('submit',almoxNotaEnviar);
 
 node('navFinanceiro').addEventListener('click',()=>abrirFinanceiro());
 node('navRecebimento').addEventListener('click',()=>abrirRecebimento());
- node('navCompras').addEventListener('click',()=>window.ewCompras?.abrir());
+ node('navCompras').addEventListener('click',()=>{
+   if(!temPermissao('compras.consultar'))return;
+   const submenu=node('navComprasSubmenu'),expanded=submenu.classList.contains('hidden');
+   submenu.classList.toggle('hidden',!expanded);
+   node('navCompras').setAttribute('aria-expanded',String(expanded));
+ });
  node('stockCreateCompanyLocal').addEventListener('click',()=>window.ewCadastroLocais?.abrir());
  node('stockTransferBetweenLocations').addEventListener('click',()=>window.ewCompras?.abrirTransferLocal());
 node('recebimentoWork').addEventListener('change',()=>carregarRecebimento());
@@ -11274,7 +11290,7 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/relatorios-obras.js?v=20261125c"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>
 <script src="/assets/niveis-acesso.js?v=20261124c"></script>
-<script src="/assets/compras-estoque.js?v=20261125h"></script>
+<script src="/assets/compras-estoque.js?v=20261125i"></script>
 <script src="/assets/compras-comprovante-transferencia.js?v=20261124a"></script>
 <script src="/assets/compras-conciliacao-nfe.js?v=20261124b"></script>
 <script src="/assets/compras-nota-empresa.js?v=20261124a"></script>
