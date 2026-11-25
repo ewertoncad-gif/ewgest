@@ -414,7 +414,13 @@ function renderQuote(){
   supplier.innerHTML=option('','Escolha')+(isGroup?eligibleSuppliers(s.id).map(x=>option(x.id,x.nome)).join(''):'');
   $('comprasCotarForm').querySelector('[type=submit]').disabled=!isGroup||!eligibleSuppliers(s.id).length;
   if(!isGroup){$('comprasCotacaoItens').replaceChildren();$('comprasConvites').replaceChildren();if(s)void previewQuoteGroups(s,preview,$('comprasCotarForm'),currentCompany.id);return;}
-  if(!eligibleSuppliers(s.id).length)preview.textContent='Nenhum fornecedor habilitado. Classifique fornecedores em Cadastros do sistema → Grupos de compra.';
+  if(!eligibleSuppliers(s.id).length){
+   preview.innerHTML='<p class="hint">Nenhum fornecedor habilitado neste grupo. Cadastros do sistema → Fornecedores → Grupos atendidos por fornecedor.</p>';
+   if(permission('compras.gerenciar_grupos')&&$('cadastroJumpFornecedores')){
+    const btn=document.createElement('button');btn.type='button';btn.className='btn primary';btn.id='comprasAbrirCadastroFornecedor';btn.textContent='Classificar fornecedores';
+    btn.onclick=()=>{$('cadastroJumpFornecedores').click();};preview.append(btn);
+   }
+  }
   void renderConvites();
   $('comprasCotacaoItens').innerHTML=s?'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Material</th><th>Quantidade</th><th>Un.</th><th>Preço unitário (R$)</th></tr></thead><tbody>'+
   (s.itens||[]).map(i=>'<tr data-quote-key="'+esc(i.chave)+'"><td>'+esc(productLabel(variations.find(v=>v.id===i.variacao_id)||{nome:i.variacao_id}))+'</td><td>'+number(i.quantidade)+'</td><td>'+esc(i.unidade)+'</td><td><input type="text" inputmode="decimal" required placeholder="R$ 0,00" aria-label="Preço unitário em reais" style="text-align:right;font-variant-numeric:tabular-nums"></td></tr>').join('')+'</tbody></table></div>':'';
