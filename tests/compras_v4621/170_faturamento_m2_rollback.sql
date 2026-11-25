@@ -9,7 +9,7 @@ INSERT INTO public.usuarios_login(usuario_id,empresa_id,perfil,nivel_acesso,nome
 INSERT INTO public.obras(empresa_id,nome,codigo) VALUES(e,'TESTE M2 FAT','TESTE-M2-4624') RETURNING id INTO o;
 INSERT INTO public.esquadrias(empresa_id,obra_id,codigo,descricao,largura_mm,altura_mm,quantidade,qtd_liberada) VALUES(e,o,'EA1','JANELA',1200,1000,5,2) RETURNING id INTO a;
 INSERT INTO public.ew_obra_orcamento(empresa_id,obra_id,valor_total,aluminio,acessorios,vidros,outros,fabricacao,instalacao,criado_por) VALUES(e,o,1000,0,0,0,0,1000,0,u);
-INSERT INTO public.saidas_producao(esquadria_id,tipo,quantidade) VALUES(a,'completo',2) RETURNING id INTO s;
+INSERT INTO public.saidas_producao(id,esquadria_id,tipo,quantidade,data_saida,usuario_id) VALUES(gen_random_uuid(),a,'completo',2,current_date,u) RETURNING id INTO s;
 INSERT INTO public.romaneios(empresa_id,obra_id,numero,chave_operacao,data_saida,motorista,placa,criado_por) VALUES(e,o,'RMTESTM2',gen_random_uuid(),current_date,'TESTE','ABC1234',u) RETURNING id INTO rom;
 INSERT INTO public.romaneios_itens(romaneio_id,sequencia,natureza,esquadria_id,saida_producao_id,descricao,quantidade,tipo_saida) VALUES(rom,1,'esquadria',a,s,'TESTE',2,'completo');
 r:=public.ew_registrar_faturamento_financeiro(e,o,'fabricacao',current_date,'FAT M2 TESTE','',jsonb_build_array(jsonb_build_object('esquadria_id',a,'quantidade',1,'valor_unitario',180,'area_m2',1.2,'preco_m2',150)),gen_random_uuid(),false);
