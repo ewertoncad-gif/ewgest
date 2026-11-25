@@ -1914,7 +1914,7 @@ assert.doesNotThrow(()=>new Function(insumosClient),'O script do estoque físico
 assert.ok(source.includes('id="finMiscBlock"')&&source.includes('id="finMiscRows"')&&
  source.includes('id="finMiscSum"')&&source.includes('id="insumosStockPanel"')&&
  source.includes('id="insumosTransferForm"')&&source.includes('id="cadastroInsumosForm"')&&
- source.includes('insumos-fisicos.js?v=20261121d')&&
+ source.includes('insumos-fisicos.js?v=20261125a')&&
  receiveScript.includes('function miscNormalized(){')&&
  receiveScript.includes('function miscUpdateSum(){')&&
  receiveScript.includes("byId('finMiscRows').replaceChildren()")&&
@@ -2237,7 +2237,7 @@ assert.ok(receiveScript.includes("window.ewUnidadesMedida?.lista()")&&
  receiveScript.includes("window.ewUnidadesMedida?.ativa(r.unidade)")&&
  receiveScript.includes("window.ewRecebimentoAtualizarUnidades=")&&
  insumosClient.includes("window.ewUnidadesMedida?.nome(codigo)")&&
- source.includes('insumos-fisicos.js?v=20261121d'),
+ source.includes('insumos-fisicos.js?v=20261125a'),
  'Unidades novas devem entrar no cadastro, NF e saldos do estoque');
 for(const token of [
  'create table if not exists public.ew_unidades_medida',
@@ -2931,3 +2931,14 @@ assert.ok(source.includes('.workspaceLink:disabled{opacity:.48;cursor:not-allowe
 assert.ok(source.includes("setNavPermission('navAccessLevels',currentAccessLevel===1&&temPermissao('niveis.gerenciar'))"));
 assert.ok(source.includes("node('navEnviarNotas').classList.add('hidden')"));
 console.log('OK: módulos sem acesso permanecem visíveis e desabilitados, proteção do ADM preservada.');
+
+assert.ok(source.includes('id="stockHideZero"')&&source.includes("node('stockHideZero').addEventListener('change',renderEstoque)"));
+const stockZeroFilter=source.match(/const linhasVisiveis=([^;]+);/)[1];
+const stockZeroRows=[{quantidade:0},{quantidade:2},{quantidade:-1},{quantidade:.001}];
+const filterStockZero=new Function('node','linhas','return '+stockZeroFilter);
+assert.equal(filterStockZero(()=>({checked:false}),stockZeroRows).length,4);
+assert.deepEqual(filterStockZero(()=>({checked:true}),stockZeroRows).map(x=>x.quantidade),[2,-1,.001]);
+assert.ok(insumosClient.includes("byId('stockHideZero').checked"));
+const companyStockUI=readFileSync(fileURLToPath(new URL('../assets/compras-estoque.js',import.meta.url)),'utf8');
+assert.ok(companyStockUI.includes("!$('stockHideZero').checked||Math.abs(x.quantidade)>1e-9"));
+console.log('OK: filtro de saldo zero preserva saldos positivos e negativos.');
