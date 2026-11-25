@@ -26,7 +26,7 @@ jobs:
           import re
           from pathlib import Path
           s = Path('app.html').read_text(encoding='utf-8')
-          m = re.search(r'workspaceNavFooter">EWGEST <strong>· (v\d+\.\d+)', s)
+          m = re.search(r'workspaceNavFooter">EWGEST <strong>· (v\d+\.\d+(?:\.\d+)?)', s)
           if not m:
               raise SystemExit('Versao nao encontrada no app.html')
           print(m.group(1))
@@ -40,7 +40,7 @@ jobs:
               --max-time 15 --retry 0 \
               -H 'Cache-Control: no-cache' \
               "https://ewgest.com.br/app.html?verify=${GITHUB_SHA}" -o "$file"; then
-              if grep -Fq "$expected" "$file" && grep -Fq 'id="navRecebimento"' "$file"; then
+              if grep -Fq "EWGEST <strong>· $expected</strong>" "$file" && grep -Fq 'id="navRecebimento"' "$file"; then
                 echo "PUBLICACAO CONFIRMADA: HTML publico contem $expected e menu Recebimento."
                 exit 0
               fi
