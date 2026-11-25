@@ -668,7 +668,7 @@ assert.ok(source.includes('Quantidade necessária')&&source.includes('Em estoque
  source.includes('Comprimento da barra')&&source.includes('id="stockTransferPickWork"')&&
  !source.includes('data-stock-adjust')&&!source.includes('data-stock-open-new'),
  'Estoque mostra planejamento, saldo e transferência, sem cadastro direto de quantidade');
-assert.ok(source.includes('async function abrirEstoque()')&&source.includes('async function registrarMovimentoEstoque(e)'),
+assert.ok(source.includes('async function abrirEstoque(modo)')&&source.includes('async function registrarMovimentoEstoque(e)'),
  'Estoque possui consulta real e movimentação auditável');
 for(const id of ['navMaterials','navStock','navCem','materials','stock','cemImport',
  'cemFlagEsquadrias','cemFlagPerfis','cemFlagAcessorios','cemPreview','cemCommit']){
