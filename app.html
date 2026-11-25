@@ -3390,7 +3390,7 @@ function buscarEsquadriasRomaneio(row){
   const disponiveis=candidatos.filter(x=>
     Number(x.qtd_liberada)>0 &&
     (tipo==='completo'||!ehMaximArRomaneio(x)) &&
-    (romaneioSaldoPorTipo(x,tipo,null)===null||romaneioSaldoPorTipo(x,tipo,null)>0)
+    (romaneioSaldoPorTipo(x,tipo,null)>0||(tipo==='folha'&&releaseParts(x).folhas>0&&romaneioSaldoPorTipo(x,tipo,null)===null))
   ).sort((x,y)=>x.codigo.localeCompare(y.codigo,'pt-BR',{numeric:true}));
   row.dataset.mensagemSemSaldo=disponiveis.length?'':mensagemSemSaldoRomaneio(tipo,candidatos);
   combo.replaceChildren();
@@ -3546,7 +3546,6 @@ function coletarItensRomaneio(){
       const chave=id+'|'+tipo;
       if(usados.has(chave))throw new Error(item.codigo+': a parte '+tipo+' já está neste romaneio. Altere a quantidade na mesma linha.');
       usados.add(chave);
-      const config=dispatchConfig.find(x=>x.esquadria_id===id);
       // Completo usa a composição cadastrada se já existir; caso contrário não cria estimativa.
       const folhas=tipo==='completo'?null:romaneioComposicao(item,shipmentStats(item),campo('folhas_por_unidade'));
       if(tipo!=='completo'&&(!Number.isInteger(folhas)||folhas<1||folhas>12))
@@ -3866,6 +3865,12 @@ async function emitirRomaneio(event){
   let payload,signature;
   try{
     const itens=coletarItensRomaneio();
+    const correcoes=itens.filter(i=>i.natureza==='esquadria'&&i.tipo_saida!=='completo').flatMap(i=>{
+      const item=elements.find(e=>e.id===i.esquadria_id),stats=shipmentStats(item);
+      return stats.per!==null&&stats.per!==i.folhas_por_unidade?
+        [item.codigo+': '+stats.per+' → '+i.folhas_por_unidade+' folhas por unidade']:[];
+    });
+    if(correcoes.length&&!window.confirm('Confirmar a correção da composição física e emitir o romaneio?\n'+correcoes.join('\n')))return;
     const data=node('romaneioDate').value;
     const motorista=node('romaneioDriver').value.trim();
     const placa=node('romaneioPlate').value.trim().toUpperCase();
