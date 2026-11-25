@@ -2034,12 +2034,13 @@ for(const id of ['navCadastros','cadastros','navAccessories','cadastroFornecedor
  'navTypologies','navManufacturers','navUsers']){
  assert.ok(source.includes('id="'+id+'"'),'Cadastro central faltando '+id);
 }
-assert.ok(source.includes('cadastros-hub.js?v=20261121c')&&
+assert.ok(/cadastros-hub\.js\?v=\d{8}[a-z]/.test(source)&&
  source.includes("['navCadastros','cadastros']")&&
  cadastroHubJS.includes("apiGet('ew_fornecedores'")&&
  cadastroHubJS.includes("apiGet('ew_locais_fisicos'")&&
  cadastroHubJS.includes('cadastrarGalpaoEmpresa(nome)'),
  'Um único menu de cadastros reutiliza fornecedores e galpões já cadastrados');
+assert.ok(source.includes('id="cadastroJumpGruposCompra"')&&source.includes('id="cadastroGruposCompra"')&&cadastroHubJS.includes('ew_compras_salvar_grupos_fornecedor'),'Cadastro central inclui os grupos de compra e vínculos por fornecedor');
 assert.ok(source.includes('id="stockTransferPickWork"')&&
  source.includes("stockObraTransferOpen(candidate.item.v.id")&&
  source.includes('id="stockObraTransferOverlay"')&&
