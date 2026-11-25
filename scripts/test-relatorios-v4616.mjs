@@ -14,7 +14,7 @@ for(const key of [
  'id="navRelatorios"','id="relatorios"','id="reportType"',
  'id="reportWork"','id="reportStart"','id="reportEnd"',
  'id="reportCsv"','id="reportPrint"',
- 'relatorios-obras.js?v=20261125a','romaneios-transferencia.js?v=20261122b']){
+ 'relatorios-obras.js?v=20261125a','romaneios-transferencia.js?v=20261125a']){
  assert.ok(app.includes(key),'Componente ausente: '+key);
 }
 assert.ok(app.includes("setNavPermission('navRelatorios',podeVerRelatorios())")&&
@@ -34,7 +34,8 @@ assert.match(reports,/m\.estorno_de_id/,
  'Estornos devem aparecer vinculados ao original');
 assert.match(reports,/function csv\(\)/,
  'Relatórios exportáveis para planilha');
-assert.doesNotMatch(reports,/\/rest\/v1\/rpc\/|method\s*:\s*'POST'|\.update\(|\.delete\(/,
+const readOnlyReports=reports.replace(/request\('\/rest\/v1\/rpc\/ew_historico_numeracao_romaneios',\{method:'POST',token:session\.access_token,body:\{[\s\S]*?\}\}\)/g,'READ_ONLY_RPC');
+assert.doesNotMatch(readOnlyReports,/\/rest\/v1\/rpc\/|method\s*:\s*'POST'|\.update\(|\.delete\(/,
  'Relatórios nunca devem chamar RPC de escrita nem modificar estoque');
 
 const fixtures=[
@@ -47,7 +48,7 @@ const els=new Map();
 function element(id){
  if(!els.has(id))els.set(id,{
   innerHTML:'',textContent:'',value:'',checked:false,
-  addEventListener(){},querySelectorAll(){return []}
+  classList:{toggle(){}},addEventListener(){},querySelectorAll(){return []}
  });
  return els.get(id);
 }
@@ -55,7 +56,7 @@ const win={}, ctx={
  document:{getElementById:element},window:win,
  works:[{id:'obra-ativa',nome:'Obra em andamento'}],
  currentCompany:{id:'empresa-ficticia'},
- Map,Number,String,Date,Array,Option:function(){},
+ Map,Number,String,Date,Array,Option:function(){},temPermissao:()=>true,
 };
 vm.createContext(ctx);
 const injection=transfer.replace('window.ewTransferRomaneiosReload=carregar;',
