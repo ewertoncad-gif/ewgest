@@ -1383,13 +1383,18 @@ assert.ok(/EWGEST <strong>· v\d+\.\d+<\/strong>/.test(source)&&
  'Indicador de carregamento acessível e versão presente no rodapé');
 // v44.7: os sete atalhos marcados no cabeçalho devem desaparecer, sem eventos órfãos.
 const obsoleteHeaderButtons=[
- 'manageWorksBack','romaneiosBack','usersBack','materialsBack','stockBack',
+ 'romaneiosBack','usersBack','materialsBack','stockBack',
  'cemBack','backTypologies','openManufacturersFromCatalog'
 ];
 for(const id of obsoleteHeaderButtons){
  assert.ok(!source.includes('id="'+id+'"')&&!source.includes("node('"+id+"')"),
   'Atalho de navegação redundante ou evento órfão: '+id);
 }
+assert.ok(source.includes('id="manageWorksBack"')&&
+ source.includes("node('manageWorksBack').addEventListener('click',()=>setView('cadastros'))")&&
+ source.includes('id="detailWorksBack"')&&
+ source.includes("node('detailWorksBack').addEventListener('click',mostrarListaDeObras)"),
+ 'Preservar retorno a Cadastros e à lista de Obras após remoção do menu Gerenciar obras');
 for(const id of ['navHome','navRomaneios','navTypologies','navManufacturers',
  'navMaterials','navStock','navCem','navUsers']){
  assert.ok(source.includes('id="'+id+'"'),'Preservar acesso no menu lateral: '+id);
