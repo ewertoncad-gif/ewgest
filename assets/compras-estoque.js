@@ -457,14 +457,31 @@ function renderOrder(){
   $('comprasConteudo').appendChild(box);void window.ewComprasNfe?.render(box,contextoConciliacao());
  }
 }
-function render(){for(const [k,id] of [['solicitacao','comprasTabSolicitacao'],['cotacao','comprasTabCotacao'],['pedido','comprasTabPedido']])
- $(id).classList.toggle('primary',k===tab);
+const etapasCompras={
+ solicitacao:{titulo:'Solicitação de compra',descricao:'Registre e consulte as solicitações de materiais.'},
+ cotacao:{titulo:'Cotação',descricao:'Compare fornecedores e preços por grupo de compra.'},
+ pedido:{titulo:'Compra',descricao:'Aprove cotações, gere pedidos e acompanhe os recebimentos.'}
+};
+function render(){
+ const etapa=etapasCompras[tab];
+ if($('comprasPaginaTitulo'))$('comprasPaginaTitulo').textContent=etapa.titulo;
+ if($('comprasPaginaDescricao'))$('comprasPaginaDescricao').textContent=etapa.descricao;
+ for(const [k,id] of [['solicitacao','comprasTabSolicitacao'],['cotacao','comprasTabCotacao'],['pedido','comprasTabPedido']]){
+  const btn=$(id);if(!btn)continue;btn.classList.toggle('active',k===tab);
+  if(k===tab)btn.setAttribute('aria-current','page');else btn.removeAttribute('aria-current');
+ }
  if(tab==='solicitacao')renderRequest();else if(tab==='cotacao')renderQuote();else renderOrder();
 }
-async function abrir(){
- if(!permission('compras.consultar'))return;setView('compras');
- say('comprasMensagem','Carregando compras…');try{await reload();groupCatalog=null;groupLinks=[];render();say('comprasMensagem','')}
- catch(e){say('comprasMensagem','Compras ainda indisponíveis: '+e.message);}
+let comprasNavEpoch=0;
+async function abrir(etapa=tab){
+ if(!permission('compras.consultar')||!Object.hasOwn(etapasCompras,etapa))return;
+ const seq=++comprasNavEpoch;tab=etapa;setView('compras');
+ $('navComprasSubmenu')?.classList.remove('hidden');$('navCompras')?.setAttribute('aria-expanded','true');
+ if($('comprasPaginaTitulo'))$('comprasPaginaTitulo').textContent=etapasCompras[tab].titulo;
+ if($('comprasPaginaDescricao'))$('comprasPaginaDescricao').textContent=etapasCompras[tab].descricao;
+ $('comprasConteudo').replaceChildren();say('comprasMensagem','Carregando compras…');
+ try{await reload();if(seq!==comprasNavEpoch||$('compras')?.classList.contains('hidden'))return;groupCatalog=null;groupLinks=[];render();say('comprasMensagem','')}
+ catch(e){if(seq===comprasNavEpoch)say('comprasMensagem','Compras ainda indisponíveis: '+e.message);}
 }
 // Os controles antigos movem estoque apenas entre obras existentes.
 // Para um local da empresa, bloquear ações legadas até a transferência dedicada.
@@ -476,7 +493,7 @@ for(const id of ['stockTransferPickLocal','stockTransferPickWork','stockManageLo
  },true);
 }
 for(const [tabValue,id] of [['solicitacao','comprasTabSolicitacao'],['cotacao','comprasTabCotacao'],['pedido','comprasTabPedido']])
- $(id).addEventListener('click',()=>{tab=tabValue;if(tabValue==='cotacao'){groupCatalog=null;groupLinks=[];}if(loaded)render();});
+ $(id)?.addEventListener('click',()=>{if(permission('compras.consultar'))void abrir(tabValue);});
 async function carregarLocaisRecebimento(select){
  if(!permission('compras.receber')||!currentCompany)return;
  try{
