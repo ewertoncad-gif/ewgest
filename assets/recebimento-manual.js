@@ -306,7 +306,7 @@
   byId('finCostTotal').title='Calculado automaticamente pela soma dos valores dos itens.';
   const list=hasStock?getMaterials():[];
   byId('finManualAdd').disabled=hasStock&&!list.length;
-  byId('finCostSubmit').disabled=hasStock&&!list.length;
+  byId('finCostSubmit').disabled=(hasStock&&!list.length)||!temPermissao('estoque.receber')||(!hasStock&&!temPermissao('financeiro.despesas'));
   byId('finManualHint').textContent=hasStock?
    (list.length?
     'Somente materiais cadastrados nesta obra aparecem na lista. Necessidade: quantitativos do CEM. Já recebido: entradas físicas registradas por nota. Confirme quantidade e galpão antes de gravar.':
@@ -351,7 +351,7 @@
  }
  let cadastroTipo=null;
  function cadastroAbrir(tipo){
-  if(!finState||!isFullAdminUser())return;
+  if(!finState||!temPermissao(tipo==='galpao'?'estoque.gerenciar_locais':'cadastros.editar'))return;
   cadastroTipo=tipo;
   const box=byId('finRegistryPanel'),input=byId('finRegistryName');
   box.classList.remove('hidden');
@@ -367,7 +367,7 @@
   byId('finRegistryMessage').textContent='';
  }
  async function cadastroSalvar(){
-  if(!finState||!isFullAdminUser()||!cadastroTipo)return;
+  if(!finState||!cadastroTipo||!temPermissao(cadastroTipo==='galpao'?'estoque.gerenciar_locais':'cadastros.editar'))return;
   const tipo=cadastroTipo,button=byId('finRegistrySave'),msg=byId('finRegistryMessage');
   const nome=String(byId('finRegistryName').value||'').trim()
    .replace(/\s+/g,' ').toLocaleUpperCase('pt-BR');
@@ -425,7 +425,8 @@
  }
  async function submit(event){
   event.preventDefault();
-  if(!finState||!(isFullAdminUser()||isAlmoxarife()))return;
+  if(!finState||!temPermissao('estoque.receber'))return;
+  if(!stockCategory()&&!temPermissao('financeiro.despesas')){byId('finCostMessage').textContent='Recebimento de vidros e insumos exige também permissão de lançamento financeiro.';return;}
   const el=byId('finCostMessage'),btn=byId('finCostSubmit');
   const note=cents(byId('finCostTotal').value);
   if(note===null||note<=0){el.textContent='Informe o valor total da nota com centavos válidos.';return;}
@@ -472,7 +473,7 @@
     p_data_documento:byId('finCostDate').value||null,
     p_observacoes:byId('finCostNotes').value.trim(),p_operacao_id:finCostOpId};
    if(hasStock){
-    response=await request(isAlmoxarife()?
+    response=await request(!isFullAdminUser()?
     '/rest/v1/rpc/ew_receber_materiais_almox':'/rest/v1/rpc/ew_registrar_recebimento_manual_financeiro',{
      method:'POST',token:session.access_token,timeoutMs:120000,
      body:{...common,p_local_estoque:location,p_itens:items}
