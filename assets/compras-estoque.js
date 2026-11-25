@@ -301,7 +301,7 @@ async function previewQuoteGroups(s,root,form,company){
   });
   $('comprasPrepararGrupos').onclick=async()=>{const btn=$('comprasPrepararGrupos');if(btn.disabled)return;btn.disabled=true;
    try{await ensureSession();await rpc('ew_compras_desdobrar_grupos',{p_empresa_id:company,p_solicitacao_id:s.id,p_operacao_id:operationToken('desdobrar',{id:s.id})});
-    pendingOps.delete('desdobrar');await reload();await loadQuoteGroups();quotePreferredSolic=s.id;renderQuote();say('comprasMensagem','Grupos preparados. Escolha o grupo para cotar.');
+    pendingOps.delete('desdobrar');await reload();await loadQuoteGroups();quotePreferredSolic='';renderQuote();say('comprasMensagem','Grupos preparados. Selecione um dos grupos no campo Solicitação.');
    }catch(e){say('comprasMensagem','Desdobramento bloqueado: '+e.message);if(btn.isConnected)btn.disabled=false;}
   };
  }catch(e){if(root.isConnected&&$('comprasCotacaoSolic')?.value===s.id)root.textContent='Grupos indisponíveis: '+e.message;}
@@ -397,9 +397,9 @@ function renderQuote(){
  }
  const root=$('comprasConteudo');
  if(!groupCatalog){root.innerHTML='<p class="hint">Consultando grupos de compra…</p>';void loadQuoteGroups().then(()=>{if(tab==='cotacao')renderQuote();}).catch(e=>{if(tab==='cotacao')root.textContent='Grupos indisponíveis: '+e.message;});return;}
- const list=sols.filter(s=>(s.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===s.id))||s.status==='DESDOBRADA'),editable=permission('compras.cotar');
+ const list=sols.filter(s=>s.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===s.id)),editable=permission('compras.cotar');
  $('comprasConteudo').innerHTML='<h2>Cotação</h2><p class="hint">Cotação por fornecedor. Várias cotações podem ser comparadas para uma solicitação; apenas a escolhida vira pedido.</p>'+
- (editable?groupingHtml(list.filter(s=>s.status==='ABERTA'))+'<form id="comprasCotarForm" class="ewComprasForm"><label>Solicitação<select id="comprasCotacaoSolic" required>'+option('','Escolha')+list.map(s=>option(s.id,quoteLabel(s)+(s.status==='DESDOBRADA'?' · Grupos preparados':''))).join('')+'</select></label>'+
+ (editable?groupingHtml(list.filter(s=>s.status==='ABERTA'))+'<form id="comprasCotarForm" class="ewComprasForm"><label>Solicitação<select id="comprasCotacaoSolic" required>'+option('','Escolha')+list.map(s=>option(s.id,quoteLabel(s))).join('')+'</select></label>'+
  '<div id="comprasGruposPrevia"></div><div id="comprasGrupoEditor" hidden><label>Fornecedor<select id="comprasCotacaoFornecedor" required>'+option('','Escolha')+'</select></label><div id="comprasCotacaoItens"></div><div id="comprasConvites"></div>'+
  (permission('compras.cotacao_excel')?'<div class="ewComprasActions" style="flex-wrap:wrap"><button type="button" class="btn secondary" id="comprasCotacaoExportar">Exportar Excel para fornecedor</button><label>Importar Excel preenchido<input id="comprasCotacaoArquivo" type="file" accept=".xlsx"></label></div>':'')+
  '<button class="btn primary" type="submit">Registrar cotação</button></div></form>':'')+

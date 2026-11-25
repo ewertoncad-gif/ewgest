@@ -347,7 +347,12 @@ try{
  await quoting.locator('[data-salvar-grupo]').click();
  await quoting.waitForFunction(()=>document.querySelector('[data-alterar-grupo="va"]')?.dataset.grupoAtual==='ga');
  await quoting.locator('#comprasPrepararGrupos').click();
- await quoting.locator('[data-escolher-grupo="grupo-acessorios"]').click();
+ await quoting.locator('#comprasCotacaoSolic option[value="grupo-acessorios"]').waitFor({state:'attached'});
+ assert.equal(await quoting.locator('#comprasCotacaoSolic option[value="grupo"]').count(),0,'Solicitação original não pode reaparecer após desdobramento');
+ assert.equal(await quoting.locator('#comprasCotacaoSolic option[value="grupo-perfis"]').count(),1);
+ assert.equal(await quoting.locator('#comprasCotacaoSolic option[value="grupo-acessorios"]').count(),1);
+ assert.equal(await quoting.evaluate(()=>window._q.sols.find(s=>s.id==='grupo').status),'DESDOBRADA','Histórico original preservado');
+ await quoting.locator('#comprasCotacaoSolic').selectOption('grupo-acessorios');
  assert.equal(await quoting.locator('#comprasCotacaoFornecedor option[value="f3"]').count(),1);
  await quoting.evaluate(()=>{window._q.noSuppliers=true;});
  await quoting.locator('#comprasTabCotacao').click();
@@ -361,8 +366,8 @@ try{
  assert.equal(await quoting.locator('#comprasCotacaoFornecedor option[value="f3"]').count(),1);
  assert.equal(await quoting.locator('#comprasCotacaoFornecedor option[value="f1"]').count(),0);
  assert.equal(await quoting.locator('[data-quote-key="1"]').count(),0);
- await quoting.locator('#comprasCotacaoSolic').selectOption('grupo');
- await quoting.locator('[data-escolher-grupo="grupo-perfis"]').click();
+ assert.equal(await quoting.locator('#comprasCotacaoSolic option[value="grupo"]').count(),0,'Original permanece oculta após recarregar a cotação');
+ await quoting.locator('#comprasCotacaoSolic').selectOption('grupo-perfis');
  assert.equal(await quoting.locator('#comprasCotacaoFornecedor option[value="f3"]').count(),0);
  assert.equal(await quoting.locator('[data-quote-key="2"]').count(),0);
  await quoting.waitForFunction(()=>document.querySelector('#comprasCotacaoSolic')?.value==='grupo-perfis');
