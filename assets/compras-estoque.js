@@ -14,8 +14,8 @@ const option=(v,t)=>'<option value="'+esc(v)+'">'+esc(t)+'</option>';
 const validQty=(v,un)=>{const q=Number(v);return Number.isFinite(q)&&q>0&&q<=1000000&&
  Math.abs(q*1000-Math.round(q*1000))<1e-7&&
  (!['BARRA','MT','PC','PR','CJ','UN'].includes(un)||Number.isSafeInteger(q))};
-const parseMoney=v=>{const s=String(v||'').replace(/^R\\$\\s*/,'').replace(/\\s/g,'');
- if(!/^\\d+(?:[.,]\\d{1,2})?$/.test(s))return null;const c=Math.round(Number(s.replace(',','.'))*100);
+const parseMoney=v=>{const s=String(v||'').replace(/^R\$\s*/,'').replace(/\s/g,'');
+ if(!/^\d+(?:[.,]\d{1,2})?$/.test(s))return null;const c=Math.round(Number(s.replace(',','.'))*100);
  return Number.isSafeInteger(c)&&c>=0?c:null;};
 // A API pode limitar cada resposta, mesmo com limit superior. Ler páginas
 // pequenas e ordenadas por ID; nunca calcular saldos de uma página isolada.
