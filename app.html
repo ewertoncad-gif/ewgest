@@ -723,7 +723,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.26</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.27</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -744,7 +744,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.26</div>
+        <div class="build">EWGEST • v46.27</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -949,6 +949,7 @@
               <option value="estoque">Movimentações de estoque</option>
               <option value="liberacoes">Liberações para fabricação</option>
               <option value="expedicao">Expedição / romaneios</option>
+              <option value="historico_romaneios" hidden disabled>Histórico de numeração e junções de romaneios</option>
               <option value="aluminio">m² expedidos × alumínio utilizado</option>
               <option value="custos_empresa">Custos do estoque da empresa</option>
             </select>
@@ -3332,7 +3333,7 @@ async function abrirEmissaoRomaneio(preselectId){
   node('romaneioModal').classList.remove('hidden');
   node('romaneioNumberEditor').classList.add('hidden');
   node('romaneioNumberMessage').textContent='';
-  node('romaneioChangeCode').classList.toggle('hidden',!['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()));
+  node('romaneioChangeCode').classList.toggle('hidden',!temPermissao('romaneios.adiantar_numeracao'));
   atualizarCodigoRomaneio();
   // Mesmo sem saldo, mostrar o seletor e explicar qual liberação está pendente.
   if(elements.some(x=>x.obra_id===selectedWork.id))
@@ -5094,12 +5095,15 @@ function openManagedUserEdit(id){
   node('userEditLogin').focus();
 }
 async function atualizarCodigoRomaneio(){
+  const obraId=selectedWork?.id,empresaId=currentCompany?.id;
+  if(!obraId||!empresaId)return;
   node('romaneioNextCode').textContent='Próximo código: consultando…';
   try{
     await ensureSession();
     const r=await request('/rest/v1/rpc/consultar_proximo_romaneio',{
-      method:'POST',token:session.access_token,body:{}});
-    node('romaneioNextCode').textContent='Próximo código: '+r.codigo;
+      method:'POST',token:session.access_token,body:{p_empresa_id:empresaId,p_obra_id:obraId}});
+    if(selectedWork?.id!==obraId||currentCompany?.id!==empresaId)return;
+    node('romaneioNextCode').textContent='Próximo código da obra: '+r.codigo;
     node('romaneioNextInput').min=String(r.proximo_numero+1);
   }catch(e){node('romaneioNextCode').textContent='Próximo código: atribuído ao emitir';
     node('romaneioNumberMessage').textContent='Não foi possível consultar a numeração: '+e.message;}
@@ -5110,6 +5114,8 @@ node('romaneioChangeCode').addEventListener('click',()=>{
 });
 node('romaneioSaveNumber').addEventListener('click',async()=>{
   const btn=node('romaneioSaveNumber');
+  const obraId=selectedWork?.id,empresaId=currentCompany?.id;
+  if(!obraId||!empresaId||!temPermissao('romaneios.adiantar_numeracao'))return;
   const num=Number(node('romaneioNextInput').value);
   const motivo=node('romaneioNumberReason').value.trim();
   if(!Number.isSafeInteger(num)||num<1||motivo.length<8){
@@ -5120,7 +5126,8 @@ node('romaneioSaveNumber').addEventListener('click',async()=>{
     await ensureSession();
     const r=await request('/rest/v1/rpc/adiantar_numero_romaneio',{
       method:'POST',token:session.access_token,
-      body:{p_proximo_numero:num,p_justificativa:motivo}});
+      body:{p_empresa_id:empresaId,p_obra_id:obraId,p_proximo_numero:num,p_justificativa:motivo}});
+    if(selectedWork?.id!==obraId||currentCompany?.id!==empresaId)return;
     node('romaneioNumberEditor').classList.add('hidden');
     await atualizarCodigoRomaneio();
     node('romaneioNumberMessage').textContent='Sequência atualizada: próximo '+r.codigo+'.';
@@ -11225,9 +11232,9 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/cadastros-hub.js?v=20261121c"></script>
 <script src="/assets/insumos-fisicos.js?v=20261125a"></script>
 <script src="/assets/entregas-producao.js?v=20261121a"></script>
-<script src="/assets/romaneios-transferencia.js?v=20261122b"></script>
+<script src="/assets/romaneios-transferencia.js?v=20261125a"></script>
 <script src="/assets/relatorios-custos-empresa.js?v=20261124a"></script>
-<script src="/assets/relatorios-obras.js?v=20261122c"></script>
+<script src="/assets/relatorios-obras.js?v=20261125a"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>
 <script src="/assets/niveis-acesso.js?v=20261124c"></script>
 <script src="/assets/compras-estoque.js?v=20261125b"></script>
