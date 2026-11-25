@@ -127,7 +127,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.10',
+ 'EWGEST • v46.29.11',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -1924,7 +1924,7 @@ assert.doesNotThrow(()=>new Function(insumosClient),'O script do estoque físico
 assert.ok(source.includes('id="finMiscBlock"')&&source.includes('id="finMiscRows"')&&
  source.includes('id="finMiscSum"')&&source.includes('id="insumosStockPanel"')&&
  source.includes('id="insumosTransferForm"')&&source.includes('id="cadastroInsumosForm"')&&
- source.includes('insumos-fisicos.js?v=20261125a')&&
+ source.includes('insumos-fisicos.js?v=20261125b')&&
  receiveScript.includes('function miscNormalized(){')&&
  receiveScript.includes('function miscUpdateSum(){')&&
  receiveScript.includes("byId('finMiscRows').replaceChildren()")&&
@@ -2123,7 +2123,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.10')&&
+assert.ok(source.includes('v46.29.11')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2266,7 +2266,7 @@ assert.ok(receiveScript.includes("window.ewUnidadesMedida?.lista()")&&
  receiveScript.includes("window.ewUnidadesMedida?.ativa(r.unidade)")&&
  receiveScript.includes("window.ewRecebimentoAtualizarUnidades=")&&
  insumosClient.includes("window.ewUnidadesMedida?.nome(codigo)")&&
- source.includes('insumos-fisicos.js?v=20261125a'),
+ source.includes('insumos-fisicos.js?v=20261125b'),
  'Unidades novas devem entrar no cadastro, NF e saldos do estoque');
 for(const token of [
  'create table if not exists public.ew_unidades_medida',
@@ -2359,7 +2359,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.29.10</strong>'),
+ source.includes('EWGEST <strong>· v46.29.11</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2997,7 +2997,7 @@ assert.ok(source.includes('p_empresa_id:empresaId,p_obra_id:obraId')&&source.inc
 assert.ok(transferDocsJS.includes('x.obra_id!==sel[0].obra_id')&&transferDocsJS.includes('result.proximo_codigo'));
 console.log('OK v46.28: numeração por obra, flags e histórico de junções.');
 
-// v46.29.10 — interface acompanha as autorizações e conserva o histórico legado.
+// v46.29.11 — interface acompanha as autorizações e conserva o histórico legado.
 assert.ok(source.includes("if(componente!=='completo'||") && !source.includes('Liberação parcial: somente o marco'));
 assert.ok(deliveryClient.includes("temPermissao('estoque.baixar')") && !deliveryClient.includes("temPermissao('estoque.receber')"));
 assert.ok(source.includes("function stockModoPermitido(modo)") && source.includes("Somente consulta: seu nível não permite estornar estoque."));
@@ -3008,3 +3008,16 @@ assert.equal(stockModeTest(['estoque.consultar','estoque.baixar'])('producao'),t
 assert.equal(stockModeTest(['estoque.consultar'])('transferencias'),false);
 assert.equal(stockModeTest(['estoque.consultar'])('historico'),true);
 assert.equal(stockModeTest([])('consulta'),false);
+
+// v46.29.11 — o módulo de insumos deve conservar o modo de navegação e ignorar respostas antigas.
+assert.ok(insumosClient.includes('await abrirEstoqueOriginal(...args)'));
+assert.ok(insumosClient.includes('seq===saldosEpoch&&currentCompany?.id===empresa&&byId(\'stockWork\').value===obra'));
+assert.ok(insumosClient.includes("obra.startsWith('empresa:')"));
+{
+ const begin=insumosClient.indexOf(' const abrirEstoqueOriginal=abrirEstoque;');
+ const end=insumosClient.indexOf(" byId('stockWork').addEventListener",begin);
+ const calls=[];
+ const wrap=new Function('calls',"let abrirEstoque=async (...args)=>calls.push(args);const byId=()=>({classList:{contains:()=>false}});const carregarSaldos=async()=>calls.push('saldos');"+insumosClient.slice(begin,end)+'return abrirEstoque;')(calls);
+ await wrap('producao');await wrap('transferencias');
+ assert.deepEqual(calls,[['producao'],'saldos',['transferencias'],'saldos']);
+}
