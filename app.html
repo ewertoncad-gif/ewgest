@@ -8076,7 +8076,7 @@ async function carregarRecebimento(){
  finCostOpId=null;
  if(window.ewCompras)void window.ewCompras.atualizarRecebimento(obraId);
   if(!obraId){msg.textContent='Selecione um local de estoque para iniciar o recebimento.';return;}
-  if(obraId.startsWith('empresa:')){msg.textContent='Estoque da empresa: recebimento físico exclusivamente por pedido de compra.';return;}
+  if(obraId.startsWith('empresa:')){if(!['pedido','historico'].includes(node('recebimento').dataset.modo))recebimentoSelecionarModo('pedido');msg.textContent='Estoque da empresa: recebimento físico exclusivamente por pedido de compra.';return;}
  msg.textContent='Consultando materiais previstos e recebidos…';
  try{
   if(temPermissao('financeiro.consultar')){
@@ -8108,7 +8108,8 @@ async function carregarRecebimento(){
   node('finSupplierAdd').classList.toggle('hidden',!temPermissao('cadastros.editar'));
   node('finWarehouseAdd').classList.toggle('hidden',!temPermissao('cadastros.editar'));
   node('finExpensePanel').classList.remove('hidden');
-  msg.textContent='Informe apenas materiais efetivamente recebidos. Os valores digitados não dão acesso ao orçamento da obra.';
+  msg.textContent='Local selecionado. Escolha a operação desejada.';
+  if(!temPermissao('financeiro.consultar')){const h=node('recebimentoHistoricoNotas');h.classList.remove('hidden');h.textContent='Histórico de notas fiscais restrito aos níveis com acesso financeiro.';}
   if(window.ewCarregarEntregasProducao)await window.ewCarregarEntregasProducao(obraId);
  }catch(e){msg.textContent='Não foi possível carregar o recebimento: '+e.message;}
 }
@@ -8160,7 +8161,7 @@ async function finLoad(){
   const invoiceIds=(fat||[]).map(x=>x.id),romaneioIds=(roms||[]).filter(x=>x.status==='emitido'&&!x.cancelado_em).map(x=>x.id);
   const pendentes=(c||[]).filter(x=>x.status==='pendente'),pendingIds=pendentes.map(x=>x.id);
   const aprovadas=(c||[]).filter(x=>x.status==='aprovada'&&['aluminio','acessorios'].includes(x.categoria));
-  const approvedIds=aprovadas.map(x=>x.id);
+  const approvedIds=(c||[]).filter(x=>['aluminio','acessorios'].includes(x.categoria)&&['aprovada','cancelada'].includes(x.status)).map(x=>x.id);
   const [linhas,romLinhas,pendentesItens,approvedItems,stockReceipts,precoLinhas,precoCategorias]=await Promise.all([
    invoiceIds.length?apiGet('ew_obra_faturamentos_itens',{select:'faturamento_id,esquadria_id,quantidade,valor_total,area_m2',empresa_id:empresa,faturamento_id:'in.('+invoiceIds.join(',')+')',limit:'5000'}):[],
    romaneioIds.length?apiGet('romaneios_itens',{select:'romaneio_id,esquadria_id,quantidade,natureza,tipo_saida,composicao_revisao_id,equivalente_expedido',romaneio_id:'in.('+romaneioIds.join(',')+')',limit:'10000'}):[],
@@ -8216,14 +8217,14 @@ async function finLoad(){
    precificacao:precificacoes?.[0]||null,precoPorEsquadria,
    precificacaoCategorias:precoCategorias||[],
    pendentes,pendentesItens:pendentesItens||[],
-   aprovadas,approvedItems:approvedItems||[],stockReceipts:stockReceipts||[],
+   aprovadas,approvedItems:(approvedItems||[]).filter(i=>aprovadas.some(d=>d.id===i.despesa_id)),historicalReceiptItems:approvedItems||[],stockReceipts:stockReceipts||[],
    variacoes:variacoes||[],galpoes:(galpoes||[]).filter(x=>x.ativo).map(x=>x.nome),
    fornecedores:(fornecedores||[]).filter(x=>x.ativo).map(x=>({id:x.id,nome:x.nome})),orcamentoNiveis:niveis||[],
    materiaisObra:materiaisObra||[],comprimentosComerciais:(comprimentos||[]).map(x=>x.comprimento_mm),barrasCem:barraCem||[]};
   box.classList.remove('hidden');node('finMessage').textContent='';
   node('finExpensePanel').classList.toggle('hidden',!temPermissao('financeiro.despesas'));
   node('finBillingPanel').classList.toggle('hidden',!temPermissao('financeiro.faturar'));
-  finRenderResumo();finRenderPendentes();finRenderRecebimentos();finRenderFaturaveis();finRenderHistorico();
+  finRenderResumo();finRenderPendentes();finRenderRecebimentos();recebimentoRenderHistoricoNotas();finRenderFaturaveis();finRenderHistorico();
  }catch(e){node('finMessage').textContent='Não foi possível carregar o financeiro: '+e.message;}
 }
 function finRenderResumo(){
@@ -8401,6 +8402,34 @@ async function finRevisarNota(id,acao){
 }
 
 
+function recebimentoRenderHistoricoNotas(){
+ const el=node('recebimentoHistoricoNotas'),x=finState;
+ if(!el)return;
+ el.classList.add('hidden');el.replaceChildren();
+ if(!x||x.obraId!==node('recebimentoWork').value||node('recebimento').classList.contains('hidden')||!temPermissao('estoque.receber')||!temPermissao('financeiro.consultar'))return;
+ const items=new Map((x.historicalReceiptItems||x.approvedItems||[]).map(i=>[i.id,i]));
+ const notes=new Map((x.despesas||[]).map(d=>[d.id,d]));
+ const grouped=new Map();
+ for(const rec of x.stockReceipts||[]){
+  const item=items.get(rec.despesa_item_id),nota=notes.get(item?.despesa_id);
+  if(!nota)continue;
+  if(!grouped.has(nota.id))grouped.set(nota.id,{nota,rows:[]});
+  grouped.get(nota.id).rows.push({rec,item});
+ }
+ el.classList.remove('hidden');
+ el.innerHTML='<h2>Recebimentos por nota fiscal</h2><p class="hint">Perfis e acessórios: o estorno da nota é integral, incluindo todas as entradas ainda ativas e o lançamento financeiro. O histórico permanece disponível.</p>'+
+ '<label>Filtrar por nota, fornecedor ou material<input id="recebimentoHistoricoBusca" type="search" placeholder="Ex.: 555, GN096"></label><div id="recebimentoHistoricoLista">'+
+ ([...grouped.values()].map(({nota,rows})=>{
+  const ativos=rows.filter(({rec})=>!rec.estornado_em),pode=nota.status==='aprovada'&&ativos.length&&temPermissao('estoque.estornar')&&temPermissao('financeiro.cancelar_despesas');
+  const status=ativos.length?'Recebimento ativo':nota.status==='cancelada'?'Nota estornada':'Estorno físico realizado; nota ainda aprovada';
+  return '<article class="recebimentoNotaCard"><h3>NF '+escapeHTML(nota.numero_documento||'Sem número')+' · '+escapeHTML(nota.fornecedor||'Fornecedor não informado')+'</h3><p class="hint">'+escapeHTML(status)+' · Valor da nota: '+finMoney(nota.valor)+'</p>'+
+   '<div class="finTableWrap"><table class="finTable"><thead><tr><th>Material</th><th>Quantidade</th><th>Galpão de entrada</th><th>Situação</th></tr></thead><tbody>'+
+    rows.map(({rec,item})=>'<tr><td>'+escapeHTML((item.codigo_fornecedor||'')+' — '+(item.descricao||''))+'</td><td>'+Number(rec.quantidade).toLocaleString('pt-BR',{maximumFractionDigits:3})+' '+escapeHTML(rec.unidade||'')+'</td><td>'+escapeHTML(rec.local_estoque||'—')+'</td><td>'+escapeHTML(rec.estornado_em?'Estornado':'Recebido')+'</td></tr>').join('')+
+   '</tbody></table></div><div class="topactions">'+(pode?'<button type="button" class="btn secondary finReceiveUndo" data-receipt-id="'+escapeHTML(ativos[0].rec.id)+'">Estornar nota e recebimentos ativos</button>':'')+'</div></article>';
+ }).join('')||'<p class="hint">Nenhum recebimento de perfil ou acessório vinculado a nota fiscal nesta obra.</p>')+'</div><p class="hint">O galpão exibido é o da entrada original; transferências posteriores são verificadas pelo sistema antes do estorno. Para vidros e outros insumos, utilize o histórico de estoque correspondente.</p>';
+ el.querySelectorAll('.finReceiveUndo').forEach(b=>b.addEventListener('click',()=>finEstornarRecebimentoFisico(b.dataset.receiptId)));
+ node('recebimentoHistoricoBusca').oninput=e=>{const q=e.target.value.trim().toLocaleLowerCase('pt-BR');el.querySelectorAll('.recebimentoNotaCard').forEach(card=>card.classList.toggle('hidden',!card.textContent.toLocaleLowerCase('pt-BR').includes(q)));};
+}
 function finRenderRecebimentos(){
  const el=node('finReceivePanel'),x=finState;
  const selected=node('recebimentoWork').value;
@@ -8413,7 +8442,7 @@ function finRenderRecebimentos(){
  const estornados=new Map(x.stockReceipts.filter(r=>r.estornado_em)
   .map(r=>[r.despesa_item_id,r]));
  const rows=x.approvedItems.filter(i=>x.aprovadas.some(d=>d.id===i.despesa_id));
- if(!rows.length){el.classList.add('hidden');return;}
+ if(!rows.length||rows.every(i=>recebidos.has(i.id))){el.classList.add('hidden');return;}
  el.classList.remove('hidden');
  const optsGalpoes='<option value="">Escolha o galpão</option>'+
    x.galpoes.map(g=>'<option value="'+escapeHTML(g)+'">'+escapeHTML(g)+'</option>').join('');
@@ -8526,7 +8555,7 @@ async function finEstornarRecebimentoFisico(recebimentoId){
  const ativos=finState.stockReceipts.filter(r=>!r.estornado_em&&finState.approvedItems.some(i=>i.id===r.despesa_item_id&&i.despesa_id===nota.id)).length;
  if(!window.confirm('Estornar a NF '+nota.numero_documento+' INTEGRALMENTE?\n\nTodas as '+ativos+' entrada(s) física(s) ativa(s) desta nota serão revertidas e '+finMoney(nota.valor)+' retornará ao saldo de compras. Se houver material consumido ou transferido sem devolução, nada será estornado. Cancelamento interno no EWGEST, não na SEFAZ.'))return;
  const op=crypto.randomUUID(),obra=finState.obraId;
- const b=[...node('finReceivePanel').querySelectorAll('.finReceiveUndo')].find(x=>x.dataset.receiptId===recebimentoId);
+ const b=[...node('recebimentoHistoricoNotas').querySelectorAll('.finReceiveUndo'),...node('finReceivePanel').querySelectorAll('.finReceiveUndo')].find(x=>x.dataset.receiptId===recebimentoId);
  if(b){b.disabled=true;b.textContent='Estornando…';}
  try{
    await ensureSession();
@@ -8541,7 +8570,7 @@ async function finEstornarRecebimentoFisico(recebimentoId){
     'Recebimento e lançamento financeiro estornados. Saldo de compras recomposto: '+finMoney(result?.valor_restaurado||0)+'. Histórico preservado.';
  }catch(e){
    node('recebimentoMessage').textContent='Estorno não realizado: '+e.message;
- }finally{if(b){b.disabled=false;b.textContent='Estornar recebimento e nota';}}
+ }finally{if(b){b.disabled=false;b.textContent=b.closest('#recebimentoHistoricoNotas')?'Estornar nota e recebimentos ativos':'Estornar recebimento e nota';}}
 }
 async function finConfirmarRecebimento(row){
  if(!finState||!temPermissao('estoque.receber'))return;
