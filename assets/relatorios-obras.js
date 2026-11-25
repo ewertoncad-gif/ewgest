@@ -385,6 +385,17 @@ async function aluminio(ctx){
  el('reportTable').innerHTML=tabela(headers,rows);
  return {contagem:rows.length};
 }
+async function carregarFornecedoresPrecos(){
+ const company=currentCompany?.id;
+ if(!company||!temPermissao('compras.historico_precos')||!temPermissao('compras.consultar_valores'))return;
+ await ensureSession();
+ const suppliers=await listarTudo('ew_fornecedores',{select:'id,nome',empresa_id:'eq.'+company,order:'nome.asc,id.asc'});
+ if(currentCompany?.id!==company||el('reportType').value!=='precos_fornecedores')return;
+ const sel=el('reportCompanySupplier'),old=sel.value;
+ sel.replaceChildren(new Option('Todos os fornecedores',''));
+ for(const f of suppliers)sel.add(new Option(f.nome,f.id));
+ sel.value=suppliers.some(f=>f.id===old)?old:'';
+}
 async function precos_fornecedores(ctx){
  const dados=[],supplierId=el('reportCompanySupplier').value,latestOnly=el('reportPriceLatest').checked;
  for(let offset=0;offset<=100000;offset+=500){
@@ -532,7 +543,8 @@ el('reportType').addEventListener('change',()=>{
  exibirFiltros();
  el('reportSummary').replaceChildren();el('reportTable').replaceChildren();
  el('reportCsv').disabled=true;el('reportPrint').disabled=true;rows=[];
- if(['custos_empresa','precos_fornecedores'].includes(el('reportType').value)&&window.ewCustosEmpresa&&currentCompany?.id)
+ if(el('reportType').value==='precos_fornecedores')void carregarFornecedoresPrecos().catch(e=>{el('reportStatus').textContent='Falha ao carregar fornecedores: '+e.message;});
+ if(el('reportType').value==='custos_empresa'&&window.ewCustosEmpresa&&currentCompany?.id)
   void window.ewCustosEmpresa.carregarFiltros(currentCompany.id)
    .catch(e=>{el('reportStatus').textContent='Falha ao carregar locais/fornecedores: '+e.message;});
 });
