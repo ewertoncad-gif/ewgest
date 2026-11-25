@@ -8081,7 +8081,7 @@ function finRenderRecebimentos(){
        ' '+escapeHTML(received.unidade)+' · '+escapeHTML(received.local_estoque)+
        (received.comprimento_mm?' · '+received.comprimento_mm+' mm':'')+
        ' · Galpão informado na entrada (o saldo pode ter sido transferido)</p>'+
-       '<button type="button" class="btn secondary finReceiveUndo" data-receipt-id="'+escapeHTML(received.id)+'">Estornar recebimento</button>'+
+       '<button type="button" class="btn secondary finReceiveUndo" data-receipt-id="'+escapeHTML(received.id)+'"'+(temPermissao('estoque.estornar')&&temPermissao('financeiro.cancelar_despesas')?'':' disabled style="opacity:.48;cursor:not-allowed" title="Exige permissão de estorno de estoque e financeiro"')+'>Estornar recebimento e nota</button>'+
        '</div>';
     return '<div class="finReceiveRow" data-receive-item="'+escapeHTML(i.id)+
       '" data-receive-type="'+tipo+'" data-invoice-unit="'+escapeHTML(i.unidade||'')+
@@ -8158,19 +8158,22 @@ function finRenderRecebimentos(){
  });
 }
 async function finEstornarRecebimentoFisico(recebimentoId){
- if(!temPermissao('estoque.estornar')||!finState||!node('recebimentoWork').value)return;
- const motivo=window.prompt('Motivo do estorno da entrada física da NF-e (mínimo 5 caracteres):','');
+ if(!temPermissao('estoque.estornar')||!temPermissao('financeiro.cancelar_despesas')||!finState||!node('recebimentoWork').value)return;
+ const motivo=window.prompt('Motivo do estorno físico e financeiro da NF-e (mínimo 5 caracteres):','');
  if(motivo===null)return;
  if(motivo.trim().length<5||motivo.trim().length>400){
    node('recebimentoMessage').textContent='Informe motivo de 5 a 400 caracteres.';return;
  }
- if(!window.confirm('Estornar somente a ENTRADA FÍSICA do material?\n\nA despesa da NF-e continua aprovada. O sistema procurará o saldo no galpão original e nos demais galpões DA MESMA OBRA; não permitirá estorno de material com baixa para produção.'))return;
+ const rec=finState.stockReceipts.find(r=>r.id===recebimentoId),item=finState.approvedItems.find(i=>i.id===rec?.despesa_item_id),nota=finState.aprovadas.find(d=>d.id===item?.despesa_id);
+ if(!nota)return;
+ const ativos=finState.stockReceipts.filter(r=>!r.estornado_em&&finState.approvedItems.some(i=>i.id===r.despesa_item_id&&i.despesa_id===nota.id)).length;
+ if(!window.confirm('Estornar a NF '+nota.numero_documento+' INTEGRALMENTE?\n\nTodas as '+ativos+' entrada(s) física(s) ativa(s) desta nota serão revertidas e '+finMoney(nota.valor)+' retornará ao saldo de compras. Se houver material consumido ou transferido sem devolução, nada será estornado. Cancelamento interno no EWGEST, não na SEFAZ.'))return;
  const op=crypto.randomUUID(),obra=finState.obraId;
  const b=[...node('finReceivePanel').querySelectorAll('.finReceiveUndo')].find(x=>x.dataset.receiptId===recebimentoId);
  if(b){b.disabled=true;b.textContent='Estornando…';}
  try{
    await ensureSession();
-   const result=await request('/rest/v1/rpc/ew_estornar_recebimento_nfe',{
+   const result=await request('/rest/v1/rpc/ew_estornar_nfe_com_recebimentos',{
      method:'POST',token:session.access_token,timeoutMs:45000,
      body:{p_empresa_id:currentCompany.id,p_recebimento_id:recebimentoId,
        p_motivo:motivo.trim(),p_operacao_id:op}});
@@ -8178,10 +8181,10 @@ async function finEstornarRecebimentoFisico(recebimentoId){
    await carregarRecebimento();
    node('recebimentoMessage').textContent=result?.ja_estornado?
     'Este recebimento já havia sido estornado; nenhum saldo foi alterado.':
-    'Recebimento físico estornado com histórico e galpões registrados. A nota financeira permanece aprovada.';
+    'Recebimento e lançamento financeiro estornados. Saldo de compras recomposto: '+finMoney(result?.valor_restaurado||0)+'. Histórico preservado.';
  }catch(e){
    node('recebimentoMessage').textContent='Estorno não realizado: '+e.message;
- }finally{if(b){b.disabled=false;b.textContent='Estornar recebimento';}}
+ }finally{if(b){b.disabled=false;b.textContent='Estornar recebimento e nota';}}
 }
 async function finConfirmarRecebimento(row){
  if(!finState||!temPermissao('estoque.receber'))return;
