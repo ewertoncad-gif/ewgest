@@ -2349,6 +2349,10 @@
       </div>
       <p id="croquiUploadStatus" class="hint" role="status" aria-live="polite"></p>
     </div>
+    <div id="expCompEntry" class="identityAction hidden">
+      <button type="button" id="expCompOpen" class="btn secondary">Composição de expedição</button>
+      <p class="hint">Defina as partes físicas e o percentual de área de cada uma.</p>
+    </div>
     <form id="typologyEditForm">
       <div id="typologyEditFields">
         <label for="typologyEditCode">Código da tipologia</label>
@@ -2395,6 +2399,28 @@
     <div id="identityAction" class="identityAction">
       <button type="button" id="identityOpen" class="btn secondary">Corrigir identificação técnica</button>
       <p id="identityActionHint" class="hint">Associar um cadastro existente à tipologia correta sem apagar o código original ou o croqui.</p>
+    </div>
+  </div>
+</div>
+<div id="expCompOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="expCompTitle" style="max-width:850px;width:min(850px,94vw)">
+    <h2 id="expCompTitle">Composição de expedição</h2>
+    <p id="expCompSource" class="hint"></p>
+    <p class="hint">Cada componente tem uma quantidade física por esquadria e um percentual para todo o conjunto desse componente. Ex.: duas folhas com peso de 50% correspondem a 25% por folha.</p>
+    <div id="expCompRows"></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0">
+      <button id="expCompAdd" type="button" class="btn secondary">+ Adicionar componente</button>
+      <strong id="expCompTotal" aria-live="polite">Total: 0%</strong>
+    </div>
+    <details id="expCompSimilarBox">
+      <summary>Aplicar a outras tipologias</summary>
+      <p class="hint">As sugestões consideram a estrutura, não apenas linha ou fabricante. Confira cada uma; nenhuma é marcada automaticamente.</p>
+      <div id="expCompSimilar"></div>
+    </details>
+    <p id="expCompMessage" class="feedback" role="status" aria-live="polite"></p>
+    <div class="modalbuttons">
+      <button id="expCompClose" type="button" class="btn secondary">Voltar</button>
+      <button id="expCompSave" type="button" class="btn primary" disabled>Salvar composição</button>
     </div>
   </div>
 </div>
@@ -6026,6 +6052,7 @@ function openTypologyEdit(id) {
   if(!typology)return;
   editingTypology=typology;
   editingPendingItem=null;
+  node('expCompEntry').classList.toggle('hidden',!temPermissao('cadastros.editar')||typology.provisoria===true);
   node('typologyEditDelete').classList.toggle('hidden',!isFullAdminUser());
   const origins=typologyOrigins.filter(x=>x.tipologia_id===id);
   const originalCodes=[...new Set(origins.map(x=>x.codigo_origem))];
@@ -6072,6 +6099,7 @@ function openTypologyEdit(id) {
 
 function openPendingTypologyClassification(id) {
   if(!canAdministrate())return;
+  node('expCompEntry').classList.add('hidden');
   if(!typologyOriginReady){
     node('typologyAdminMessage').textContent='Os vínculos de origem ainda não foram carregados. Atualize o painel antes de classificar.';
     return;
@@ -6406,6 +6434,128 @@ node('croquiZoomClose').addEventListener('click',()=>{
 node('typologyEditCancel').addEventListener('click',closeTypologyEdit);
 node('typologyEditPrevious').addEventListener('click',()=>showTypologyEditStep(1));
 node('typologyEditForm').addEventListener('submit',saveTypologyEdit);
+// Editor independente, para não misturar alterações de identificação e composição.
+let expCompSeq=0,expCompCtx=null;
+function expCompPct(p){return (p/100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%';}
+function expCompRead(){
+ return [...node('expCompRows').children].map(r=>({
+  id:r.dataset.partId,nome:r.querySelector('[data-exp-name]').value.trim(),
+  quantidade:Number(r.querySelector('[data-exp-qty]').value),
+  peso:Math.round(Number(r.querySelector('[data-exp-pct]').value)*100)
+ }));
+}
+function expCompUpdate(){
+ const parts=expCompRead(),total=parts.reduce((n,p)=>n+(Number.isFinite(p.peso)?p.peso:0),0);
+ node('expCompTotal').textContent='Total: '+expCompPct(total);
+ node('expCompTotal').style.color=total===10000?'#16834a':'#b23a32';
+ let valid=false;
+ try{
+  if([...node('expCompRows').querySelectorAll('input')].some(i=>!i.checkValidity()))throw Error('Campo inválido');
+  expCompCtx?.core.validarComposicao(parts);valid=!!expCompCtx;
+ }catch{}
+ node('expCompSave').disabled=!valid||!!expCompCtx?.busy;
+}
+function expCompAddRow(p={}){
+ const host=node('expCompRows');
+ if(host.children.length>=30)return;
+ const row=document.createElement('div');row.dataset.partId=p.id||crypto.randomUUID();
+ row.style.cssText='display:grid;grid-template-columns:minmax(115px,2fr) minmax(76px,1fr) minmax(78px,1fr) auto;gap:6px;align-items:end;margin:8px 0';
+ row.innerHTML='<label>Componente<input data-exp-name type="text" maxlength="100" required></label>'+
+ '<label>Qtd./un.<input data-exp-qty type="number" min="1" max="100" step="1" required></label>'+
+ '<label>% do conjunto<input data-exp-pct type="number" min="0.01" max="100" step="0.01" required></label>'+
+ '<button type="button" class="btn secondary" aria-label="Remover componente">×</button>';
+ row.querySelector('[data-exp-name]').value=p.nome||'';
+ row.querySelector('[data-exp-qty]').value=String(p.quantidade||1);
+ row.querySelector('[data-exp-pct]').value=p.peso?String(p.peso/100):'';
+ row.querySelectorAll('input').forEach(el=>el.addEventListener('input',expCompUpdate));
+ row.querySelector('button').addEventListener('click',()=>{row.remove();expCompUpdate();});
+ host.append(row);expCompUpdate();
+}
+function expCompClose(){
+ if(expCompCtx?.busy)return;
+ const ctx=expCompCtx;expCompSeq++;expCompCtx=null;
+ node('expCompOverlay').classList.add('hidden');
+ if(session&&ctx?.company===currentCompany?.id&&editingTypology?.id===ctx?.source.id)node('typologyEditOverlay').classList.remove('hidden');
+}
+async function expCompOpen(){
+ const source=editingTypology,company=currentCompany?.id;
+ if(!source||!company||source.provisoria||!temPermissao('cadastros.editar'))return;
+ const seq=++expCompSeq;
+ node('expCompEntry').querySelector('button').disabled=true;
+ node('typologyEditError').textContent='Carregando composição…';
+ try{
+  await ensureSession();
+  const core=await import('/assets/composicao-expedicao-core.mjs');
+  const catalog=typologyCatalog.filter(t=>!t.provisoria).map(t=>({...t,empresa_id:company}));
+  const base={...source,empresa_id:company};
+  const suggestions=core.sugerirSimilares(base,catalog);
+  // A API usa lotes pequenos para manter respostas controladas.
+  const ids=[source.id,...suggestions.map(t=>t.id)],revisions=new Map();
+  for(let i=0;i<ids.length;i+=200){
+   const data=await request('/rest/v1/rpc/ew_listar_composicoes_expedicao',{method:'POST',token:session.access_token,
+    body:{p_empresa_id:company,p_tipologias:ids.slice(i,i+200)}});
+   if(!Array.isArray(data))throw Error('Resposta inválida do cadastro.');
+   data.forEach(r=>revisions.set(r.tipologia_id,r));
+  }
+  if(seq!==expCompSeq||!session||currentCompany?.id!==company||editingTypology?.id!==source.id)return;
+  expCompCtx={company,source,core,revisions,suggestions,busy:false,op:null,signature:null};
+  node('expCompSource').textContent=source.codigo+' · '+source.descricao+(revisions.has(source.id)?' · Revisão '+revisions.get(source.id).revisao:' · Sem composição cadastrada');
+  node('expCompRows').replaceChildren();node('expCompSimilar').replaceChildren();
+  node('expCompSimilarBox').open=false;
+  const n=suggestedLeaves(source);
+  const initial=revisions.get(source.id)?.partes||(n&&!ehMaximArRomaneio(source)?
+   [{id:crypto.randomUUID(),nome:'Marco',quantidade:1,peso:5000},{id:crypto.randomUUID(),nome:'Folhas',quantidade:n,peso:5000}]:
+   [{id:crypto.randomUUID(),nome:'Esquadria completa',quantidade:1,peso:10000}]);
+  initial.forEach(expCompAddRow);
+  for(const t of suggestions){
+   const label=document.createElement('label');label.className='originChoice';
+   const cb=document.createElement('input');cb.type='checkbox';cb.value=t.id;
+   const desc=document.createElement('span');const previous=revisions.get(t.id);
+   desc.textContent=t.codigo+' · '+t.descricao+(t.fabricante?' · '+t.fabricante:'')+
+    (previous?' · Revisão '+previous.revisao+': '+previous.partes.map(p=>p.nome+' '+expCompPct(p.peso)).join(' / '):' · Sem composição');
+   label.append(cb,desc);node('expCompSimilar').append(label);
+  }
+  if(!suggestions.length)node('expCompSimilar').textContent='Nenhuma tipologia com a mesma estrutura foi identificada.';
+  node('expCompMessage').textContent='';
+  node('typologyEditError').textContent='';
+  node('typologyEditOverlay').classList.add('hidden');node('expCompOverlay').classList.remove('hidden');expCompUpdate();
+ }catch(e){if(seq===expCompSeq)node('typologyEditError').textContent='Não foi possível consultar a composição: '+e.message;}
+ finally{node('expCompEntry').querySelector('button').disabled=false;}
+}
+async function expCompSave(){
+ const ctx=expCompCtx;
+ if(!ctx||ctx.busy||!session||ctx.company!==currentCompany?.id||!temPermissao('cadastros.editar'))return;
+ let parts;
+ try{parts=ctx.core.validarComposicao(expCompRead());}catch(e){node('expCompMessage').textContent=e.message;return;}
+ const ids=[ctx.source.id,...[...node('expCompSimilar').querySelectorAll('input:checked')].map(x=>x.value)];
+ if(ids.length>200){node('expCompMessage').textContent='Selecione até 199 tipologias adicionais.';return;}
+ const targets=ids.map(id=>({tipologia_id:id,revisao_id:ctx.revisions.get(id)?.revisao_id||null}));
+ if(!window.confirm('Salvar nova revisão para '+ids.length+' tipologia(s)? Somente as selecionadas serão alteradas. O histórico será preservado.'))return;
+ const signature=JSON.stringify([targets,parts]);
+ if(signature!==ctx.signature){ctx.signature=signature;ctx.op=crypto.randomUUID();}
+ ctx.busy=true;node('expCompClose').disabled=true;node('expCompAdd').disabled=true;
+ node('expCompRows').querySelectorAll('input,button').forEach(x=>x.disabled=true);
+ node('expCompSimilar').querySelectorAll('input').forEach(x=>x.disabled=true);
+ expCompUpdate();
+ try{
+  await ensureSession();
+  const data=await request('/rest/v1/rpc/ew_salvar_composicoes_expedicao',{method:'POST',token:session.access_token,
+   body:{p_empresa_id:ctx.company,p_alvos:targets,p_partes:parts,p_operacao_id:ctx.op}});
+  if(expCompCtx!==ctx||currentCompany?.id!==ctx.company)return;
+  if(!Array.isArray(data)||data.length!==ids.length)throw Error('Confirme o resultado do salvamento antes de repetir.');
+  data.forEach(r=>ctx.revisions.set(r.tipologia_id,{...r,partes:parts}));ctx.signature=null;ctx.op=null;
+  ctx.busy=false;expCompClose();node('typologyEditError').textContent='Composição salva em '+data.length+' tipologia(s).';
+ }catch(e){if(expCompCtx===ctx)node('expCompMessage').textContent='Não foi possível salvar: '+e.message;}
+ finally{
+  ctx.busy=false;node('expCompClose').disabled=false;node('expCompAdd').disabled=false;
+  node('expCompRows').querySelectorAll('input,button').forEach(x=>x.disabled=false);
+  node('expCompSimilar').querySelectorAll('input').forEach(x=>x.disabled=false);expCompUpdate();
+ }
+}
+node('expCompOpen').addEventListener('click',expCompOpen);
+node('expCompClose').addEventListener('click',expCompClose);
+node('expCompAdd').addEventListener('click',()=>expCompAddRow());
+node('expCompSave').addEventListener('click',expCompSave);
 
 
 function adminCanManageManufacturers() {
