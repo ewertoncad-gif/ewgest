@@ -1001,7 +1001,7 @@
       <div class="head"><div>
         <h1>Obras</h1>
         <p class="muted">Selecione a obra para consultar esquadrias, liberações e expedição.</p>
-        <button id="worksManageButton" type="button" class="btn secondary">Conferir / excluir obras</button>
+
       </div></div>
       <div class="section">
         <div id="worksPageList" class="works"></div>
@@ -1009,15 +1009,19 @@
     </section>
     <section id="manageWorks" class="hidden">
       <div class="head"><div>
-        <button id="manageWorksBack" type="button" class="btn secondary">← Voltar para obras</button><h1>Conferência e exclusão de obras</h1>
+        <button id="manageWorksBack" type="button" class="btn secondary">← Voltar para cadastros</button><h1>Cadastro de obras</h1>
         <p class="muted">Encerrar uma obra é DEFINITIVO. Cancele os romaneios e liberações, reverta as movimentações e zere o estoque. Para trabalhar novamente, será necessário importar a obra do início e refazer os processos. Somente os registros de auditoria serão preservados.</p>
       </div></div>
       <div class="section panel">
-        <div class="rowHead"><h2>Obras da empresa</h2>
+        <div class="rowHead"><h2>Obras da empresa</h2><button id="worksCreateManual" type="button" class="btn primary">+ Criar obra</button>
           <button type="button" class="btn secondary" id="manageWorksRefresh">Atualizar lista</button>
         </div>
         <p class="hint">A obra só pode ser retirada após cancelar todas as operações ativas e zerar seu saldo de estoque por material e galpão. Nenhum histórico será apagado.</p>
-        <div id="manageWorksList"></div>
+        <form id="worksManualForm" class="section panel hidden">
+<h3>Nova obra — cadastro manual</h3><p class="hint">O estoque vinculado será criado automaticamente. Nenhuma esquadria ou material será presumido.</p>
+<div class="stockFilters"><label>Nome da obra <input id="worksManualName" required minlength="3" maxlength="180"></label><label>Código (opcional) <input id="worksManualCode" maxlength="80" placeholder="Gerado automaticamente se vazio"></label><label>Cliente / construtora <input id="worksManualClient" maxlength="180"></label><label>Prazo previsto <input id="worksManualDue" type="date" min="2000-01-01"></label></div>
+<div class="topactions"><button type="submit" id="worksManualSave" class="btn primary">Cadastrar obra</button><button type="button" id="worksManualClose" class="btn secondary">Cancelar</button></div><p id="worksManualStatus" class="feedback" role="status"></p></form>
+<label>Buscar obra <input id="manageWorksSearch" type="search" placeholder="Nome, código ou cliente"></label><div id="manageWorksList"></div>
         <p id="manageWorksFeedback" class="feedback" role="status"></p>
       </div>
       <div id="manageWorksReview" class="section panel hidden">
@@ -1112,7 +1116,7 @@
       </div>
     </div>
     <section id="detail" class="hidden">
-      <div class="head"><div><div class="detailnav hidden"><button id="back" class="btn secondary" type="button">← Voltar</button><button id="goHome" class="btn secondary" type="button">⌂ Tela inicial</button><button id="detailFinanceiro" class="btn secondary hidden" type="button">Financeiro da obra</button></div><h1 id="workName"></h1><div class="topactions" style="margin:8px 0"><button id="detailWorksBack" class="btn secondary" type="button">← Obras</button><button id="detailWorkReview" class="btn secondary" type="button">Conferir / excluir obra</button></div><div id="workMeta" class="muted"></div></div></div>
+      <div class="head"><div><div class="detailnav hidden"><button id="back" class="btn secondary" type="button">← Voltar</button><button id="goHome" class="btn secondary" type="button">⌂ Tela inicial</button><button id="detailFinanceiro" class="btn secondary hidden" type="button">Financeiro da obra</button></div><h1 id="workName"></h1><div class="topactions" style="margin:8px 0"><button id="detailWorksBack" class="btn secondary" type="button">← Obras</button></div><div id="workMeta" class="muted"></div></div></div>
       <div class="stats">
         <div class="stat"><div class="label">Área total</div><div class="number" id="detailTotal">—</div></div>
         <div class="stat"><div class="label">Liberada</div><div class="number" id="detailReleased">—</div></div>
@@ -1364,6 +1368,7 @@
         <button id="navManufacturers" type="button" class="cadastrosTile"><strong>Fabricantes</strong><span>Catálogo de fabricantes</span></button>
         <button id="cadastroJumpFornecedores" type="button" class="cadastrosTile"><strong>Fornecedores</strong><span>Fornecedores das notas fiscais</span></button>
         <button id="cadastroJumpGalpoes" type="button" class="cadastrosTile"><strong>Galpões</strong><span>Imbiribeira, Afogados, Olinda e outros</span></button>
+        <button id="cadastroJumpObras" type="button" class="cadastrosTile"><strong>Obras</strong><span>Cadastrar manualmente, consultar e excluir obras</span></button>
         <button id="cadastroJumpLocaisEstoque" type="button" class="cadastrosTile"><strong>Locais de estoque</strong><span>Obras vinculadas e estoques independentes da empresa</span></button>
         <button id="navVidros" type="button" class="cadastrosTile"><strong>Vidros</strong><span>Catálogo e unidades dos vidros</span></button>
         <button id="navOutrosInsumos" type="button" class="cadastrosTile"><strong>Outros insumos</strong><span>Catálogo de insumos diversos</span></button>
@@ -1749,7 +1754,7 @@
 <div id="stockManageOverlay" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockManageTitle" style="max-width:1100px;width:min(96vw,1100px);max-height:92vh">
     <h2 id="stockManageTitle">Gerenciar estoques — saldos, histórico e estornos</h2>
-    <p class="hint">Esta tela exibe somente os estoques das obras em andamento. Para encerrar uma obra definitivamente, utilize Obras → Conferir / excluir obra após cancelar todas as operações dependentes. Não existe restauração de estoque ou de obra excluída.</p>
+    <p class="hint">Esta tela exibe somente os estoques das obras em andamento. Para encerrar uma obra definitivamente, utilize Cadastros do sistema → Obras após cancelar todas as operações dependentes. Não existe restauração de estoque ou de obra excluída.</p>
     <p id="stockManageStatus" class="hint" role="status"></p>
     <div id="stockManageRecords"></div>
     <div id="stockReversePanel" class="stockReversePanel hidden">
@@ -2480,7 +2485,7 @@ let currentAccessFlags=Object.create(null),currentAccessLevel=8,accessReady=fals
 function temPermissao(chave){return accessReady&&currentAccessFlags[chave]===true;}
 function podeVerRelatorios(){return temPermissao('relatorios.operacionais')||temPermissao('relatorios.financeiros');}
 function permissaoParaTela(view){
- const requires={worksPage:'obras.consultar',detail:'obras.consultar',manageWorks:'obras.estornar',
+ const requires={worksPage:'obras.consultar',detail:'obras.consultar',manageWorks:'cadastros.consultar',
   romaneiosPage:'romaneios.consultar',recebimento:'estoque.receber',almoxNotas:'estoque.receber',
   cadastros:'cadastros.consultar',typologies:'cadastros.consultar',manufacturers:'cadastros.consultar',
   materials:'cadastros.consultar',stock:'estoque.consultar',financeiro:'financeiro.consultar',
@@ -2553,7 +2558,7 @@ function setView(view){
       ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navRelatorios','relatorios'],['navCem','cemImport'],['navUsers','users'],['navAccessLevels','accessLevels']]){
     const button=node(id);
     const selecionado=!button.disabled&&(ativo===target||(id==='navCadastros'&&
-      ['materials','typologies','manufacturers','users','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','cadastroLocaisEstoque'].includes(ativo)));
+      ['materials','typologies','manufacturers','users','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','cadastroLocaisEstoque','manageWorks'].includes(ativo)));
     button.classList.toggle('active',selecionado);
     if(selecionado)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
   }
@@ -2742,7 +2747,7 @@ async function loadPanel(){
   node('openManufacturers').classList.toggle('hidden',!temPermissao('cadastros.consultar'));
   node('openUsers').classList.toggle('hidden',!temPermissao('usuarios.gerenciar'));
   const [w,e,tips]=await Promise.all([
-    apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,arquivada_em:'is.null',order:'nome.asc'}),
+    apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto,cadastro_manual',empresa_id:'eq.'+currentCompany.id,arquivada_em:'is.null',order:'nome.asc'}),
     apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id,rotulo_tipologia_relatorio,quantidade_modulos,modulacao_id',empresa_id:'eq.'+currentCompany.id}),
     somenteRomaneios?Promise.resolve([]):
       apiGet('tipologias',{select:'id,codigo,descricao,provisoria,fabricante,tipologia_principal_id,quantidade_modulos',empresa_id:'eq.'+currentCompany.id})
@@ -2886,7 +2891,7 @@ function progressoExpedicao(list){
 }
 function renderList(){
   // Obras utilizadas somente para estoque não entram nos indicadores de produção.
-  const obrasComEsquadrias=works.filter(w=>elements.some(e=>e.obra_id===w.id));
+  const obrasComEsquadrias=works.filter(w=>w.cadastro_manual===true||elements.some(e=>e.obra_id===w.id));
   const t=totals(elements),exp=progressoExpedicao(elements);
   node('count').textContent=obrasComEsquadrias.length;
   node('total').textContent=amount(t.total);
@@ -2928,12 +2933,12 @@ function renderList(){
 }
 function obrasComEsquadriasAtivas(){
  const ids=new Set(elements.map(e=>e.obra_id));
- return works.filter(w=>ids.has(w.id));
+ return works.filter(w=>ids.has(w.id)||w.cadastro_manual===true);
 }
 function mostrarListaDeObras(){
  if(isAlmoxarife()||!currentCompany)return;
  const lista=obrasComEsquadriasAtivas();
- node('worksManageButton').disabled=!canAdministrate()||!temPermissao('obras.estornar');
+
  const container=node('worksPageList');
  if(!lista.length){
   container.innerHTML='<div class="empty">Nenhuma obra com esquadrias cadastradas. '+
@@ -3995,7 +4000,7 @@ function renderDetail(w){
   node('romaneioActions').classList.toggle('hidden',!shipping);
   node('releaseUndoActions').classList.toggle('hidden',shipping);
   node('releaseUndoAll').disabled=!temPermissao('liberacoes.cancelar')||!releaseHistory.some(h=>list.some(x=>x.id===h.esquadria_id));
-  node('detailWorkReview').disabled=!canAdministrate()||!temPermissao('obras.estornar');
+
   node('releaseBatchActions').classList.add('hidden'); // A liberação permanece por item.
   node('openRomaneio').disabled=!temPermissao('romaneios.emitir')||!dispatchReady||Boolean(romaneioLoadError);
   node('romaneioOverview').classList.toggle('hidden',!shipping);
@@ -4506,7 +4511,7 @@ async function confirmReleaseCancelAll(){
  }
 }
 node('detailWorksBack').addEventListener('click',mostrarListaDeObras);
-node('detailWorkReview').addEventListener('click',()=>{if(!selectedWork||!canAdministrate()||!temPermissao('obras.estornar'))return;const id=selectedWork.id;abrirGerenciamentoObras();inspecionarExclusaoObra(id);});
+
 node('releaseUndoAll').addEventListener('click',()=>{if(selectedWork)openReleaseCancelAll(selectedWork.id);});
 node('releaseCancelAllClose').addEventListener('click',closeReleaseCancelAll);
 node('releaseCancelAllConfirm').addEventListener('click',confirmReleaseCancelAll);
@@ -5006,8 +5011,9 @@ node('navAccessLevels').addEventListener('click',async()=>{
  setView('accessLevels');
  try{await window.nivelAcessoPreparar();}catch(e){node('userLevelsStatus').textContent='Não foi possível consultar níveis: '+e.message;}
 });
-node('worksManageButton').addEventListener('click',abrirGerenciamentoObras);
-node('manageWorksBack').addEventListener('click',mostrarListaDeObras);
+node('cadastroJumpObras').addEventListener('click',abrirGerenciamentoObras);
+node('manageWorksBack').addEventListener('click',()=>setView('cadastros'));
+node('manageWorksSearch').addEventListener('input',renderGerenciamentoObras);
 node('openRomaneioHub').addEventListener('click',abrirAreaRomaneios);
 node('navHome').addEventListener('click',()=>setView('dashboard'));
 node('navWorks').addEventListener('click',abrirObrasPelaBarra);
@@ -10272,7 +10278,7 @@ async function stockReverseExecutar(){
    'Conciliação registrada: '+Number(result.conciliados)+' transferências históricas de '+
    obra.nome+' já estavam compensadas pelo estorno das NF-e. Saldo zero em todos os galpões; '+
    'nenhum movimento novo foi criado. Histórico preservado no relatório de operações. '+
-   'Se quiser retirar a obra de treinamento, use Obras → Conferir / excluir obra.':
+   'Se quiser retirar a obra de treinamento, use Cadastros do sistema → Obras.':
    'Estorno concluído: '+Number(result?.estornados||0)+
    ' movimento(s) revertido(s) em '+obra.nome+
    '. Os saldos devem estar zerados; histórico disponível em Usuários → Relatório de operações.';
@@ -10613,13 +10619,15 @@ function renderGerenciamentoObras(){
   out.innerHTML='<div class="empty">Nenhuma obra cadastrada nesta empresa.</div>';
   return;
  }
- out.innerHTML=works.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(w=>{
+ const busca=node('manageWorksSearch').value.trim().toLocaleLowerCase('pt-BR');
+ const lista=works.filter(w=>w.cadastro_manual===true||!/^MAN-[A-F0-9]{10}$/i.test(w.codigo||'')||elements.some(e=>e.obra_id===w.id)).filter(w=>[w.nome,w.codigo,w.cliente].join(' ').toLocaleLowerCase('pt-BR').includes(busca));
+ out.innerHTML=lista.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(w=>{
   const qtd=elements.filter(e=>e.obra_id===w.id).length;
   const ids=new Set(elements.filter(e=>e.obra_id===w.id).map(e=>e.id));
   // releaseHistory já inclui somente cancelado_em IS NULL.
   // A quantidade aparece sempre (inclusive 0) e controla o botão por obra.
   const liberacoesAtivas=releaseHistory.filter(h=>ids.has(h.esquadria_id)).length;
-  const podeCancelarLiberacoes=liberacoesAtivas>0;
+  const podeCancelarLiberacoes=liberacoesAtivas>0&&temPermissao('liberacoes.cancelar');
   return '<div class="manufacturerLine" style="gap:14px">'+
     '<div><strong>'+escapeHTML(w.nome)+'</strong><div class="hint">'+
      escapeHTML(w.codigo||'Sem código')+' · '+qtd+' esquadria(s)'+
@@ -10629,7 +10637,7 @@ function renderGerenciamentoObras(){
       '<button type="button" class="btn secondary releaseCancellationButton" data-work-cancel-releases="'+escapeHTML(w.id)+'"'+
       (podeCancelarLiberacoes?'':' disabled title="Esta obra não possui liberações ativas para cancelar."')+
       '>Cancelar liberações ('+liberacoesAtivas+')</button>'+
-      '<button type="button" class="btn secondary" data-work-review="'+escapeHTML(w.id)+'">Verificar exclusão</button>'+
+      '<button type="button" class="btn secondary" data-work-review="'+escapeHTML(w.id)+'"'+(!canAdministrate()||!temPermissao('obras.estornar')?' disabled':'')+'>Verificar exclusão</button>'+
     '</div></div>';
  }).join('');
  out.querySelectorAll('[data-work-review]').forEach(b=>
@@ -10638,7 +10646,9 @@ function renderGerenciamentoObras(){
   b.addEventListener('click',()=>openReleaseCancelAll(b.dataset.workCancelReleases)));
 }
 function abrirGerenciamentoObras(){
- if(!canAdministrate()||!currentCompany||!temPermissao('obras.estornar'))return;
+ if(!currentCompany||!temPermissao('cadastros.consultar'))return;
+ node('worksCreateManual').disabled=!temPermissao('obras.importar');
+ node('worksManualForm').classList.add('hidden');
  workDeleteInspection=null;workDeleteOperationId=null;
  node('manageWorksReview').classList.add('hidden');
  node('manageWorksFeedback').textContent='';
@@ -10676,7 +10686,7 @@ function atualizarEstadoExclusaoObra(){
   node('manageWorksDeleteBlockedMessage').textContent='';
 }
 async function inspecionarExclusaoObra(id){
- if(!canAdministrate()||!works.some(w=>w.id===id))return;
+ if(!canAdministrate()||!temPermissao('obras.estornar')||!works.some(w=>w.id===id))return;
  const seq=++workDeleteRequestId;
  workDeleteInspection=null;workDeleteOperationId=null;
  node('manageWorksReview').classList.add('hidden');
@@ -10724,7 +10734,7 @@ async function inspecionarExclusaoObra(id){
 }
 node('manageWorksReason').addEventListener('input',atualizarEstadoExclusaoObra);
 node('manageWorksRefresh').addEventListener('click',async()=>{
- if(!canAdministrate())return;
+ if(!temPermissao('cadastros.consultar'))return;
  node('manageWorksFeedback').textContent='Atualizando obras…';
  try{
   await loadPanel();abrirGerenciamentoObras();
@@ -10784,7 +10794,7 @@ node('manageWorksGoRomaneios').addEventListener('click',()=>{
  selectedWork=obra;hubObraId=obra.id;
  abrirAreaRomaneios();
  node('hubRomaneioMessage').textContent=
-  'Cancele os romaneios emitidos desta obra, depois retorne à obra e clique Verificar exclusão.';
+  'Cancele os romaneios emitidos desta obra, depois retorne ao cadastro de obras e clique Verificar exclusão.';
 });
 node('manageWorksCancelShipments').addEventListener('click',()=>executarReversaoObra('saidas'));
 node('manageWorksReverseStock').addEventListener('click',()=>executarReversaoObra('estoque'));
@@ -10932,8 +10942,9 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/compras-nota-empresa.js?v=20261124a"></script>
 <script src="/assets/cadastro-locais-estoque.js?v=20261124a"></script>
 <div id="releaseUndoOverlay" class="modaloverlay hidden" role="presentation"><div class="panel modalbox releaseCancelAllDialog" role="dialog" aria-modal="true" aria-labelledby="releaseUndoTitle"><h2 id="releaseUndoTitle">Estornar liberação</h2><p id="releaseUndoStatus" class="hint" role="status"></p><div id="releaseUndoList"></div><div class="modalbuttons"><button id="releaseUndoClose" type="button" class="btn secondary">Fechar</button></div></div></div>
-<style>#releaseUndoList .btn:disabled,#releaseUndoAll:disabled,[data-release-undo]:disabled,#detailWorkReview:disabled,#worksManageButton:disabled{opacity:.48;cursor:not-allowed;transform:none;box-shadow:none}</style>
+<style>#releaseUndoList .btn:disabled,#releaseUndoAll:disabled,[data-release-undo]:disabled,#worksCreateManual:disabled,#manageWorksList .btn:disabled,#manageWorksDelete:disabled{opacity:.48;cursor:not-allowed;transform:none;box-shadow:none}</style>
 <script src="/assets/estorno-liberacao.js?v=20261124a"></script>
+<script src="/assets/cadastro-obras.js?v=20261125a"></script>
 <script defer src="/pwa-install.js?v=25"></script>
 </body>
 </html>
