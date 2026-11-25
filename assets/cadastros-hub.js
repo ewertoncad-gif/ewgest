@@ -3,6 +3,7 @@
  'use strict';
  const $=id=>node(id);
  let fornecedores=[],galpoes=[];
+ const podeEditar=tipo=>temPermissao(tipo==='galpao'?'estoque.gerenciar_locais':'cadastros.editar');
  function informar(msg){
   for(const id of ['cadastrosMessage','cadastroFornecedorMessage','cadastroGalpaoMessage']){
    const target=$(id);if(target)target.textContent=msg;
@@ -12,13 +13,13 @@
   return itens.length?itens.map(x=>
     '<div class="cadastrosListRow" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'+
      '<span>'+escapeHTML(x.nome)+(x.ativo?'':' <small>Inativo</small>')+'</span>'+
-     (isFullAdminUser()?'<button type="button" class="btn secondary" data-cadastro-editar="'+
+     (podeEditar(tipo)?'<button type="button" class="btn secondary" data-cadastro-editar="'+
        escapeHTML(x.id)+'" data-cadastro-tipo="'+tipo+'">Editar / excluir</button>':'')+
     '</div>').join(''):
    '<p class="hint">Nenhum cadastro ainda.</p>';
  }
  async function recarregar(){
-  if(!canAdministrate()||!currentCompany)return;
+  if(!temPermissao('cadastros.consultar')||!currentCompany)return;
   try{
    await ensureSession();
    const emp='eq.'+currentCompany.id;
@@ -34,7 +35,7 @@
   }catch(e){informar('Não foi possível consultar cadastros: '+e.message);}
  }
  function abrir(){
-  if(!canAdministrate()||!currentCompany)return;
+  if(!temPermissao('cadastros.consultar')||!currentCompany)return;
   fecharEdicao();
   informar('');
   setView('cadastros');
@@ -42,8 +43,10 @@
   $('cadastroJumpGruposCompra')?.classList.toggle('hidden',!temPermissao('compras.gerenciar_grupos'));
  }
  async function abrirCategoria(tipo){
-  if(!canAdministrate()||!currentCompany)return;
+  if(!temPermissao('cadastros.consultar')||!currentCompany)return;
   fecharEdicao();
+  $('cadastroFornecedorForm').classList.toggle('hidden',!podeEditar('fornecedor'));
+  $('cadastroGalpaoForm').classList.toggle('hidden',!podeEditar('galpao'));
   const alvo=tipo==='fornecedor'?'fornecedoresPage':'galpoesPage';
   setView(alvo);
   informar('Consultando '+(tipo==='fornecedor'?'fornecedores':'galpões')+'…');
@@ -52,7 +55,7 @@
  async function salvar(event,tipo){
   event.preventDefault();
   if(!currentCompany||
-   (tipo==='fornecedor'?!isFullAdminUser():!canAdministrate())){
+   !podeEditar(tipo)){
    informar('Seu perfil não tem permissão para realizar este cadastro.');return;
   }
   const id=tipo==='fornecedor'?'cadastroFornecedorNome':'cadastroGalpaoNome';
@@ -85,7 +88,7 @@
   $('cadastroEditMessage').textContent='';
  }
  function abrirEdicao(id,tipo){
-  if(!isFullAdminUser())return;
+  if(!podeEditar(tipo))return;
   const atual=tipo==='fornecedor'?fornecedores:galpoes;
   const item=atual.find(x=>x.id===id);if(!item)return;
   editando={tipo,id,nome:item.nome};
@@ -99,7 +102,7 @@
   $('cadastroEditPanel').scrollIntoView({behavior:'smooth',block:'nearest'});
  }
  async function salvarEdicao(acao){
-  if(!editando||!isFullAdminUser()||!currentCompany)return;
+  if(!editando||!podeEditar(editando.tipo)||!currentCompany)return;
   const {tipo,id,nome}=editando;
   const novo=$('cadastroEditNome').value.trim().replace(/\s+/g,' ').toLocaleUpperCase('pt-BR');
   const status=$('cadastroEditMessage');
@@ -136,7 +139,7 @@
  // A gestão de saldos/estornos fica exclusivamente na tela Estoque.
  $('navCadastros').addEventListener('click',abrir);
  $('navAccessories').addEventListener('click',async()=>{
-  if(!canAdministrate())return;
+  if(!temPermissao('cadastros.consultar'))return;
   matSelecionarTipo('acessorio');
   await abrirMateriais();
  });
@@ -147,7 +150,7 @@
   const root=$('cadastroFornecedorGrupos');
   if(!root)return;
   const seq=++fornecedorGrupoEpoch,empresa=currentCompany?.id;
-  if(!empresa||!canAdministrate()||!temPermissao('compras.gerenciar_grupos')){root.classList.add('hidden');root.replaceChildren();return;}
+  if(!empresa||!temPermissao('compras.gerenciar_grupos')){root.classList.add('hidden');root.replaceChildren();return;}
   root.classList.remove('hidden');root.textContent='Consultando grupos de compra…';
   try{
    await ensureSession();
@@ -170,7 +173,7 @@
   }catch(e){if(seq===fornecedorGrupoEpoch)root.textContent='Grupos indisponíveis: '+e.message;}
  }
  async function abrirGrupos(){
-  if(!canAdministrate()||!currentCompany||!temPermissao('compras.gerenciar_grupos'))return;
+  if(!currentCompany||!temPermissao('compras.gerenciar_grupos'))return;
   const root=$('cadastroGruposCompra'),empresa=currentCompany.id;
   root.classList.remove('hidden');root.textContent='Consultando grupos…';
   try{
