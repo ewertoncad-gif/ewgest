@@ -1033,7 +1033,7 @@ assert.ok(restoreFn.includes('if(!session||erroDeSessaoIrrecuperavel(error))')&&
 // Exclusão de obra segura somente antes de qualquer liberação/romaneio/estoque.
 const worksMigration=readFileSync(fileURLToPath(new URL(
  '../supabase/migrations/20261118_exclusao_segura_obras_pre_operacao.sql',import.meta.url)),'utf8');
-for(const id of ['manageWorks','worksManageButton','detailWorkReview','manageWorksList',
+for(const id of ['manageWorks','cadastroJumpObras','worksCreateManual','manageWorksList',
  'manageWorksReview','manageWorksReason','manageWorksDelete',
  'manageWorksRefresh','manageWorksFeedback'])
  assert.ok(source.includes('id="'+id+'"'), 'Gestão de obras incompleta: '+id);
@@ -1329,7 +1329,7 @@ assert.ok(source.includes('Esquadrias e materiais serão cadastrados somente ap�
 assert.ok(!source.includes('id="openManageWorks"')&&
  !source.includes("node('openManageWorks')")&&
  !source.includes('id="navManageWorks"')&&
- source.includes("node('worksManageButton').addEventListener('click',abrirGerenciamentoObras)")&&source.includes('id="releaseUndoAll"')&&source.includes('data-release-undo='),
+ source.includes("node('cadastroJumpObras').addEventListener('click',abrirGerenciamentoObras)")&&source.includes('id="releaseUndoAll"')&&source.includes('data-release-undo='),
  'Gerenciar obras fica apenas na barra lateral, preservando o acesso');
 // v44.4: sem contador/importação global de croquis; upload individual só ao editar a tipologia.
 for(const deleted of ['croquiCatalogCount','croquiPackageButton','croquiPackageInput',
@@ -2227,7 +2227,7 @@ for(const id of ['navUnidades','unidadesPage','unidadeForm','unidadeCodigo','uni
 }
 assert.ok(source.includes('unidades-medida.js?v=20261121a')&&
  source.includes("'insumosPage','unidadesPage'")&&
- source.includes("'insumosPage','unidadesPage','cadastroLocaisEstoque'].includes(ativo)")&&
+ source.includes("'insumosPage','unidadesPage','cadastroLocaisEstoque','manageWorks'].includes(ativo)")&&
  source.includes('Voltar para cadastros')&&
  unidadesJS.includes("byId('navUnidades').addEventListener('click',abrir)")&&
  unidadesJS.includes('window.ewUnidadesMedida={lista,ativa,nome,carregar}')&&
@@ -2950,4 +2950,6 @@ assert.ok(cadastroLocaisScript.includes('b.disabled=!!r.impedimento')&&cadastroL
 const undoReleaseScript=readFileSync(fileURLToPath(new URL('../assets/estorno-liberacao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(undoReleaseScript));
 assert.ok(undoReleaseScript.includes('ew_listar_estornos_liberacao')&&undoReleaseScript.includes('ew_estornar_liberacao_individual')&&undoReleaseScript.includes('btn.disabled=!!r.impedimento'));
-assert.ok(source.includes('id="detailWorkReview"')&&source.includes('id="releaseUndoAll"')&&!source.includes('id="navManageWorks"'));
+assert.ok(source.includes('id="cadastroJumpObras"')&&source.includes('id="releaseUndoAll"')&&!source.includes('id="navManageWorks"'));
+
+assert.ok(source.includes('id="worksManualForm"')&&source.includes('cadastro_manual===true')&&source.includes('id="worksManualName"'));
