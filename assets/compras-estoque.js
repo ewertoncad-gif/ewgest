@@ -305,18 +305,21 @@ function renderQuote(){
  }catch(err){say('comprasMensagem','Erro: '+err.message)}};
  }}
 function renderOrder(){
- const editable=permission('compras.pedir');
+ const editable=permission('compras.pedir')&&permission('compras.aprovar_pedido')&&permission('compras.consultar_valores');
  const pending=quotes.filter(q=>q.status!=='CANCELADA'&&sols.some(s=>s.id===q.solicitacao_id&&s.status==='ABERTA')&&!orders.some(p=>p.solicitacao_id===q.solicitacao_id));
- $('comprasConteudo').innerHTML='<h2>Pedidos de compra</h2><p class="hint">O pedido é formado pela cotação escolhida. O recebimento físico acontece exclusivamente no setor Recebimento.</p>'+
+ $('comprasConteudo').innerHTML='<h2>Pedidos de compra</h2><p class="hint">A aprovação compromete o orçamento da obra imediatamente. O recebimento físico acontece exclusivamente no setor Recebimento.</p>'+
  (editable?'<form id="comprasPedidoForm" class="ewComprasForm"><label>Cotação aprovada<select id="comprasPedidoCotacao" required>'+option('','Escolha')+
  pending.map(q=>{const s=sols.find(x=>x.id===q.solicitacao_id);return option(q.id,(s?titleLocal(s):'Solicitação')+' · '+(suppliersAll.find(f=>f.id===q.fornecedor_id)?.nome||'Fornecedor')+' · '+money(q.total_centavos))}).join('')+
- '</select></label><button class="btn primary" type="submit">Gerar pedido</button></form>':'')+
+ '</select></label><button class="btn primary" type="submit">Aprovar cotação e gerar pedido</button></form>':'')+
  '<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Pedido</th><th>Destino</th><th>Valor</th><th>Recebimento</th><th>Ação</th></tr></thead><tbody>'+
  orders.map(p=>'<tr><td>#'+number(p.numero)+'</td><td>'+esc(titleLocal(p))+'</td><td>'+(permission('compras.consultar_valores')?money(p.total_centavos):'Restrito')+'</td><td>'+esc(orderStatus(p))+cancelDetails(p)+'</td><td>'+(editable&&p.status==='ABERTO'&&!receipts.some(r=>r.pedido_id===p.id)?'<button type="button" class="btn secondary" data-compras-tipo="pedido" data-compras-cancel="'+esc(p.id)+'">Cancelar</button>':'—')+'</td></tr>').join('')+'</tbody></table></div>';bindCancelButtons();
  if(editable)$('comprasPedidoForm').onsubmit=async e=>{e.preventDefault();const id=$('comprasPedidoCotacao').value;
+ const q=pending.find(x=>x.id===id);if(!q||!permission('compras.aprovar_pedido'))return;
+ if(!window.confirm('Aprovar o pedido de '+money(q.total_centavos)+'? O valor será comprometido no orçamento se for compra para obra.'))return;
+ const btn=$('comprasPedidoForm').querySelector('button[type=submit]');if(btn.disabled)return;btn.disabled=true;
  try{await rpc('ew_compras_criar_pedido',{p_cotacao_id:id,p_operacao_id:operationToken('pedir',{id})});
- pendingOps.delete('pedir');await reload();renderOrder();say('comprasMensagem','Pedido criado e disponível para recebimento.');
- }catch(err){say('comprasMensagem','Erro: '+err.message)}};
+ pendingOps.delete('pedir');await reload();renderOrder();say('comprasMensagem','Pedido aprovado, disponível para recebimento.');
+ }catch(err){say('comprasMensagem','Erro: '+err.message)}finally{btn.disabled=false;}};
  if(permission('financeiro.despesas')&&permission('compras.consultar_valores')){
   const box=document.createElement('section');box.id='ewComprasConciliacao';box.className='section panel';
   $('comprasConteudo').appendChild(box);void window.ewComprasNfe?.render(box,contextoConciliacao());
