@@ -14,9 +14,20 @@ const option=(v,t)=>'<option value="'+esc(v)+'">'+esc(t)+'</option>';
 const validQty=(v,un)=>{const q=Number(v);return Number.isFinite(q)&&q>0&&q<=1000000&&
  Math.abs(q*1000-Math.round(q*1000))<1e-7&&
  (!['BARRA','MT','PC','PR','CJ','UN'].includes(un)||Number.isSafeInteger(q))};
-const parseMoney=v=>{const s=String(v||'').replace(/^R\$\s*/,'').replace(/\s/g,'');
- if(!/^\d+(?:[.,]\d{1,2})?$/.test(s))return null;const c=Math.round(Number(s.replace(',','.'))*100);
- return Number.isSafeInteger(c)&&c>=0?c:null;};
+const parseMoney=v=>{let s=String(v??'').trim().replace(/^R\$\s*/,'');
+ if(/^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(s))s=s.replace(/\./g,'');
+ if(!/^\d+(?:[.,]\d{1,2})?$/.test(s))return null;
+ const c=Math.round(Number(s.replace(',','.'))*100);
+ return Number.isSafeInteger(c)&&c>=0&&c<=100000000000?c:null;};
+const formatMoneyInput=c=>(c/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+function bindQuoteMoney(){
+ $('comprasCotacaoItens').querySelectorAll('[data-quote-key] input').forEach(input=>{
+  input.addEventListener('input',()=>input.setCustomValidity(''));
+  input.addEventListener('blur',()=>{const cents=parseMoney(input.value);
+   if(cents!==null)input.value=formatMoneyInput(cents);
+  });
+ });
+}
 // A API pode limitar cada resposta, mesmo com limit superior. Ler páginas
 // pequenas e ordenadas por ID; nunca calcular saldos de uma página isolada.
 async function readAllRows(table,filters){
@@ -331,19 +342,19 @@ function bindQuoteExcel(){
  const sol=$('comprasCotacaoSolic'),supplier=$('comprasCotacaoFornecedor'),file=$('comprasCotacaoArquivo');
  const context=()=>{const s=sols.find(x=>x.id===sol.value),f=eligibleSuppliers(sol.value).find(x=>x.id===supplier.value);if(!s||!f)throw Error('Selecione solicitação e fornecedor.');return {s,f};};
  $('comprasCotacaoExportar').onclick=async()=>{
-  try{if(!permission('compras.cotacao_excel'))return;const {s,f}=context(),core=await import('/assets/compras-cotacao-xlsx.mjs');
-   const blob=core.exportarXlsx(quoteModel(core,s,f.id)),url=URL.createObjectURL(blob),a=document.createElement('a');
+  try{if(!permission('compras.cotacao_excel'))return;const {s,f}=context(),core=await import('/assets/compras-cotacao-xlsx.mjs?v=20261125d');
+   const blob=core.exportarXlsx(quoteModel(core,s,f.id),{empresa:currentCompany?.nome||'EWGEST',obra:titleLocal(s),grupo:linkFor(s.id)?.nome||'Materiais',fornecedor:f.nome}),url=URL.createObjectURL(blob),a=document.createElement('a');
    a.href=url;a.download='cotacao_'+f.nome.replace(/[^a-zA-Z0-9_-]+/g,'_')+'_'+s.id.slice(0,8)+'.xlsx';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
    say('comprasMensagem','Planilha exportada. Peça ao fornecedor para preencher somente o preço unitário.');
   }catch(e){say('comprasMensagem',e.message);}
  };
  file.onchange=async()=>{
-  try{if(!permission('compras.cotacao_excel')||!file.files?.length)return;const {s,f}=context(),company=currentCompany.id,core=await import('/assets/compras-cotacao-xlsx.mjs');
+  try{if(!permission('compras.cotacao_excel')||!file.files?.length)return;const {s,f}=context(),company=currentCompany.id,core=await import('/assets/compras-cotacao-xlsx.mjs?v=20261125d');
    const prices=core.validarRetorno(quoteModel(core,s,f.id),await core.lerXlsx(file.files[0]));
    if(!file.isConnected||company!==currentCompany?.id||sol.value!==s.id||supplier.value!==f.id)throw Error('Seleção mudou; importe novamente.');
    const inputs=new Map([...document.querySelectorAll('[data-quote-key]')].map(row=>[row.dataset.quoteKey,row.querySelector('input')]));
    if(prices.some(p=>!inputs.has(p.chave)))throw Error('Itens da cotação mudaram.');
-   for(const p of prices)inputs.get(p.chave).value=(p.preco_unitario_centavos/100).toFixed(2).replace('.',',');
+   for(const p of prices)inputs.get(p.chave).value=formatMoneyInput(p.preco_unitario_centavos);
    say('comprasMensagem','Planilha validada. Confira os preços e clique em Registrar cotação.');
   }catch(e){say('comprasMensagem','Importação bloqueada: '+e.message);}finally{file.value='';}
  };
@@ -374,7 +385,8 @@ function renderQuote(){
   if(!eligibleSuppliers(s.id).length)preview.textContent='Nenhum fornecedor habilitado. Classifique fornecedores em Cadastros do sistema → Grupos de compra.';
   void renderConvites();
   $('comprasCotacaoItens').innerHTML=s?'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Material</th><th>Quantidade</th><th>Un.</th><th>Preço unitário (R$)</th></tr></thead><tbody>'+
-  (s.itens||[]).map(i=>'<tr data-quote-key="'+esc(i.chave)+'"><td>'+esc(productLabel(variations.find(v=>v.id===i.variacao_id)||{nome:i.variacao_id}))+'</td><td>'+number(i.quantidade)+'</td><td>'+esc(i.unidade)+'</td><td><input type="text" inputmode="decimal" required placeholder="0,00"></td></tr>').join('')+'</tbody></table></div>':'';
+  (s.itens||[]).map(i=>'<tr data-quote-key="'+esc(i.chave)+'"><td>'+esc(productLabel(variations.find(v=>v.id===i.variacao_id)||{nome:i.variacao_id}))+'</td><td>'+number(i.quantidade)+'</td><td>'+esc(i.unidade)+'</td><td><input type="text" inputmode="decimal" required placeholder="0,00" aria-label="Preço unitário em reais" style="text-align:right;font-variant-numeric:tabular-nums"></td></tr>').join('')+'</tbody></table></div>':'';
+  bindQuoteMoney();
  };
  if(quotePreferredSolic&&list.some(s=>s.id===quotePreferredSolic)){$('comprasCotacaoSolic').value=quotePreferredSolic;$('comprasCotacaoSolic').onchange();}quotePreferredSolic='';
  $('comprasCotacaoFornecedor').onchange=()=>{$('comprasCotacaoItens').querySelectorAll('input').forEach(i=>i.value='');};
