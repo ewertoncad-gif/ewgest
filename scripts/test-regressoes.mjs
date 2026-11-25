@@ -127,7 +127,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.23',
+ 'EWGEST • v46.24',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -861,7 +861,7 @@ assert.ok(source.includes("node('stockManualContinue').checked")&&
 
 
 
-assert.ok(source.includes('const obrasComEsquadrias=works.filter(w=>elements.some(e=>e.obra_id===w.id));')&&
+assert.ok(source.includes('const obrasComEsquadrias=works.filter(w=>w.cadastro_manual===true||elements.some(e=>e.obra_id===w.id));')&&
  source.includes('node(\'count\').textContent=obrasComEsquadrias.length;')&&
  source.includes('node(\'works\').innerHTML=obrasComEsquadrias.map('),
  'Tela inicial exibe apenas obras com esquadrias');
@@ -1033,7 +1033,7 @@ assert.ok(restoreFn.includes('if(!session||erroDeSessaoIrrecuperavel(error))')&&
 // Exclusão de obra segura somente antes de qualquer liberação/romaneio/estoque.
 const worksMigration=readFileSync(fileURLToPath(new URL(
  '../supabase/migrations/20261118_exclusao_segura_obras_pre_operacao.sql',import.meta.url)),'utf8');
-for(const id of ['manageWorks','navManageWorks','manageWorksList',
+for(const id of ['manageWorks','cadastroJumpObras','worksCreateManual','manageWorksList',
  'manageWorksReview','manageWorksReason','manageWorksDelete',
  'manageWorksRefresh','manageWorksFeedback'])
  assert.ok(source.includes('id="'+id+'"'), 'Gestão de obras incompleta: '+id);
@@ -1277,7 +1277,7 @@ assert.ok(source.includes('function abrirObrasPelaBarra()')&&
  source.includes("if(detailBackTarget==='worksPage')mostrarListaDeObras()"),
  'Uma única obra deve abrir diretamente; múltiplas obras exigem lista e volta correta');
 assert.ok(source.includes('function obrasComEsquadriasAtivas()')&&
- source.includes('return works.filter(w=>ids.has(w.id))'),
+ source.includes('return works.filter(w=>ids.has(w.id)||w.cadastro_manual===true)'),
  'Obras exclusivamente de estoque não devem poluir navegação de obras técnicas');
 // v44.1: cancelamento visível em cada linha, independente de Verificar exclusão.
 for(const id of ['manageWorksDeleteReasonBox','manageWorksDeleteBlockedMessage',
@@ -1297,7 +1297,12 @@ assert.ok(source.includes('data-work-cancel-releases')&&
 assert.ok(source.includes('async function confirmReleaseCancelAll()')&&
  source.includes("request('/rest/v1/rpc/ew_cancelar_liberacoes_obra'")&&
  source.includes('O estoque NÃO será estornado automaticamente.')&&
- source.includes('await inspecionarExclusaoObra(obraId)')&&
+ source.includes("request('/rest/v1/rpc/ew_inspecionar_reversao_obra'")&&
+ source.includes('if(!check||check.obra_id!==obraId)')&&
+ source.includes('releaseCancelAllInspection=check')&&
+ source.includes('check.obra_id!==obraId||node(\'releaseCancelAllConfirm\').disabled')&&
+ source.includes("if(!window.confirm('Tem certeza que deseja cancelar TODAS as liberações")&&
+ source.includes('Histórico preservado.')&&
  source.includes('CANCELAMENTO BLOQUEADO:')&&
  source.includes("node('releaseCancelAllConfirm').disabled=true")&&
  source.includes('motivo.length<5||motivo.length>400'),
@@ -1328,9 +1333,9 @@ assert.ok(source.includes('Esquadrias e materiais serão cadastrados somente ap�
 // v44.3: evitar duplicidade de navegação Gerenciar obras na Tela inicial.
 assert.ok(!source.includes('id="openManageWorks"')&&
  !source.includes("node('openManageWorks')")&&
- source.includes('id="navManageWorks"')&&
- source.includes("node('navManageWorks').addEventListener('click',abrirGerenciamentoObras)"),
- 'Gerenciar obras fica apenas na barra lateral, preservando o acesso');
+ !source.includes('id="navManageWorks"')&&
+ source.includes("node('cadastroJumpObras').addEventListener('click',abrirGerenciamentoObras)")&&source.includes('id="releaseUndoAll"')&&source.includes('data-release-undo='),
+ 'Gerenciar obras não duplica o menu lateral e mantém acesso por Cadastros e estorno dentro de Obras');
 // v44.4: sem contador/importação global de croquis; upload individual só ao editar a tipologia.
 for(const deleted of ['croquiCatalogCount','croquiPackageButton','croquiPackageInput',
  'croquiImportStatus','importCroquiPackage(file)']){
@@ -1378,15 +1383,20 @@ assert.ok(/EWGEST <strong>· v\d+\.\d+<\/strong>/.test(source)&&
  'Indicador de carregamento acessível e versão presente no rodapé');
 // v44.7: os sete atalhos marcados no cabeçalho devem desaparecer, sem eventos órfãos.
 const obsoleteHeaderButtons=[
- 'manageWorksBack','romaneiosBack','usersBack','materialsBack','stockBack',
+ 'romaneiosBack','usersBack','materialsBack','stockBack',
  'cemBack','backTypologies','openManufacturersFromCatalog'
 ];
 for(const id of obsoleteHeaderButtons){
  assert.ok(!source.includes('id="'+id+'"')&&!source.includes("node('"+id+"')"),
   'Atalho de navegação redundante ou evento órfão: '+id);
 }
+assert.ok(source.includes('id="manageWorksBack"')&&
+ source.includes("node('manageWorksBack').addEventListener('click',()=>setView('cadastros'))")&&
+ source.includes('id="detailWorksBack"')&&
+ source.includes("node('detailWorksBack').addEventListener('click',mostrarListaDeObras)"),
+ 'Preservar retorno a Cadastros e à lista de Obras após remoção do menu Gerenciar obras');
 for(const id of ['navHome','navRomaneios','navTypologies','navManufacturers',
- 'navMaterials','navStock','navCem','navUsers','navManageWorks']){
+ 'navMaterials','navStock','navCem','navUsers']){
  assert.ok(source.includes('id="'+id+'"'),'Preservar acesso no menu lateral: '+id);
 }
 for(const id of ['userAccessHistoryToggle','userOperationsToggle',
@@ -2096,7 +2106,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.23')&&
+assert.ok(source.includes('v46.24')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2108,7 +2118,7 @@ assert.ok(source.includes('v46.23')&&
  source.includes("state.obraId!==selected"),
  'Notas aprovadas/pedidas GN096 não podem aparecer sem seleção explícita da obra');
 assert.ok(source.includes('finReceiveUndo')&&
- source.includes("ew_estornar_recebimento_nfe")&&
+ source.includes("ew_estornar_nfe_com_recebimentos")&&
  source.includes('estornado_em,estorno_motivo,estorno_detalhes')&&
  receiptUndoSQL.includes('ew_estornar_recebimento_nfe')&&
  receiptUndoSQL.includes('estorno_detalhes')&&
@@ -2227,7 +2237,7 @@ for(const id of ['navUnidades','unidadesPage','unidadeForm','unidadeCodigo','uni
 }
 assert.ok(source.includes('unidades-medida.js?v=20261121a')&&
  source.includes("'insumosPage','unidadesPage'")&&
- source.includes("'insumosPage','unidadesPage','cadastroLocaisEstoque'].includes(ativo)")&&
+ source.includes("'insumosPage','unidadesPage','cadastroLocaisEstoque','manageWorks'].includes(ativo)")&&
  source.includes('Voltar para cadastros')&&
  unidadesJS.includes("byId('navUnidades').addEventListener('click',abrir)")&&
  unidadesJS.includes('window.ewUnidadesMedida={lista,ativa,nome,carregar}')&&
@@ -2330,7 +2340,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.23</strong>'),
+ source.includes('EWGEST <strong>· v46.24</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2946,3 +2956,17 @@ console.log('OK: filtro de saldo zero preserva saldos positivos e negativos.');
 assert.ok(source.includes('#cadastroLocaisLista .btn:disabled')&&source.includes('opacity:.48;cursor:not-allowed;transform:none'));
 const cadastroLocaisScript=readFileSync(fileURLToPath(new URL('../assets/cadastro-locais-estoque.js',import.meta.url)),'utf8');
 assert.ok(cadastroLocaisScript.includes('b.disabled=!!r.impedimento')&&cadastroLocaisScript.includes('if(!allowed()||r.impedimento)return;'));
+
+const undoReleaseScript=readFileSync(fileURLToPath(new URL('../assets/estorno-liberacao.js',import.meta.url)),'utf8');
+assert.doesNotThrow(()=>new Function(undoReleaseScript));
+assert.ok(undoReleaseScript.includes('ew_listar_estornos_liberacao')&&undoReleaseScript.includes('ew_estornar_liberacao_individual')&&undoReleaseScript.includes('btn.disabled=!!r.impedimento'));
+assert.ok(source.includes('id="cadastroJumpObras"')&&source.includes('id="releaseUndoAll"')&&!source.includes('id="navManageWorks"'));
+
+assert.ok(source.includes('id="worksManualForm"')&&source.includes('cadastro_manual===true')&&source.includes('id="worksManualName"'));
+
+const areaSource4624=source.slice(source.indexOf('function finAreaDisponivel('),source.indexOf('function finRenderFaturaveis(){'));
+const areaCalc4624=new Function(areaSource4624+'\nreturn {finAreaDisponivel,finPrecoM2Sugerido};')();
+assert.equal(areaCalc4624.finAreaDisponivel(.5,1.38),.69);
+assert.equal(areaCalc4624.finPrecoM2Sugerido({fabricacao_centavos:27600},'fabricacao',1,1.38,.69,0,0),200);
+assert.ok(source.includes('area_m2:qtd,preco_m2:preco')&&source.includes('Área a faturar (m²)')&&source.includes('Preço (R$/m²)'));
+assert.ok(source.includes('ew_estornar_nfe_com_recebimentos')&&source.includes('Todas as '));

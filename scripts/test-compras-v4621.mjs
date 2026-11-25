@@ -171,3 +171,17 @@ const duplicated=new Function('apiGet',paginationSource+'\nreturn readAllRows;')
  Number(params.offset)===0?fixtures.slice(0,500):[fixtures[0]]);
 await assert.rejects(()=>duplicated('receipts',{}),/Consulta mudou/);
 console.log('PASS: paginação de histórico com 1251 registros e rejeição de IDs duplicados.');
+
+const filterStart=js.indexOf('function purchaseOptions(');
+const filterEnd=js.indexOf('function requestOptions(',filterStart);
+const filterPurchases=new Function('productLabel',js.slice(filterStart,filterEnd)+'\nreturn purchaseOptions;')(v=>v.nome);
+const plannedCatalog=[{id:'p',nome:'PERFIL P',tipo:'perfil',comprimento_mm:6000,unidade:'BARRA'},{id:'a',nome:'ACESSÓRIO A',tipo:'acessorio',comprimento_mm:null,unidade:'PC'},{id:'e',nome:'EXTRA',tipo:'perfil',comprimento_mm:6000,unidade:'BARRA'}];
+const plannedNeeds=[{variacao_id:'p',comprimento_mm:6000,unidade:'BARRA',faltante:0},{variacao_id:'p',comprimento_mm:4000,unidade:'BARRA',faltante:2},{variacao_id:'a',comprimento_mm:null,unidade:'PC',faltante:1}];
+const filteredKeys=(kind,extra,category='',search='',needs=plannedNeeds)=>filterPurchases(plannedCatalog,needs,kind,extra,category,search).map(v=>v.key).sort();
+assert.deepEqual(filteredKeys('obra',false),['a|','p|4000']);
+assert.deepEqual(filteredKeys('obra',false,'perfil'),['p|4000']);
+assert.deepEqual(filteredKeys('obra',false,'acessorio'),['a|']);
+assert.deepEqual(filteredKeys('obra',false,'','acessorio'),['a|']);
+assert.deepEqual(filteredKeys('obra',true),['a|','e|6000','p|4000','p|6000']);
+assert.deepEqual(filteredKeys('empresa',false,'','',[]),['a|','e|6000','p|6000']);
+console.log('OK: compras filtram previsão, atendimento, categoria, busca e estoque independente.');

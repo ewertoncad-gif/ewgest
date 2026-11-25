@@ -719,11 +719,11 @@
     <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
     <button id="navFinanceiro" class="workspaceLink hidden" type="button"><span class="navSymbol">◈</span> Financeiro das obras</button>
     <button id="navRelatorios" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Relatórios</button>
-    <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
+
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.23</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.24</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -744,7 +744,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.23</div>
+        <div class="build">EWGEST • v46.24</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -915,7 +915,7 @@
           <div id="finSummary"></div>
           <div class="section panel" id="finBillingPanel">
             <h2>Faturamento por esquadria</h2>
-            <p class="hint">Romaneio confirma a saída, mas NÃO gera faturamento. Marque os itens e informe o preço unitário da esquadria inteira (100%): a quantidade equivalente indicará a fração a faturar. Registre fabricação ou instalação separadamente. É possível faturar esquadrias parcialmente expedidas; a quantidade faturável acompanha marco (50%) e folhas físicas (50% dividido pelo número de folhas).</p>
+            <p class="hint">Romaneio confirma a saída, mas NÃO gera faturamento. Selecione os itens, informe a área em m² e o preço por m². Fabricação e instalação são faturadas separadamente. A área disponível considera a expedição parcial de marco (50%) e folhas (50% dividido pelo número de folhas).</p>
             <form id="finBillingForm">
               <div class="finFormRows">
                 <label>Faturar
@@ -1001,6 +1001,7 @@
       <div class="head"><div>
         <h1>Obras</h1>
         <p class="muted">Selecione a obra para consultar esquadrias, liberações e expedição.</p>
+
       </div></div>
       <div class="section">
         <div id="worksPageList" class="works"></div>
@@ -1008,15 +1009,19 @@
     </section>
     <section id="manageWorks" class="hidden">
       <div class="head"><div>
-        <h1>Gerenciar obras cadastradas</h1>
+        <button id="manageWorksBack" type="button" class="btn secondary">← Voltar para cadastros</button><h1>Cadastro de obras</h1>
         <p class="muted">Encerrar uma obra é DEFINITIVO. Cancele os romaneios e liberações, reverta as movimentações e zere o estoque. Para trabalhar novamente, será necessário importar a obra do início e refazer os processos. Somente os registros de auditoria serão preservados.</p>
       </div></div>
       <div class="section panel">
-        <div class="rowHead"><h2>Obras da empresa</h2>
+        <div class="rowHead"><h2>Obras da empresa</h2><button id="worksCreateManual" type="button" class="btn primary">+ Criar obra</button>
           <button type="button" class="btn secondary" id="manageWorksRefresh">Atualizar lista</button>
         </div>
         <p class="hint">A obra só pode ser retirada após cancelar todas as operações ativas e zerar seu saldo de estoque por material e galpão. Nenhum histórico será apagado.</p>
-        <div id="manageWorksList"></div>
+        <form id="worksManualForm" class="section panel hidden">
+<h3>Nova obra — cadastro manual</h3><p class="hint">O estoque vinculado será criado automaticamente. Nenhuma esquadria ou material será presumido.</p>
+<div class="stockFilters"><label>Nome da obra <input id="worksManualName" required minlength="3" maxlength="180"></label><label>Código (opcional) <input id="worksManualCode" maxlength="80" placeholder="Gerado automaticamente se vazio"></label><label>Cliente / construtora <input id="worksManualClient" maxlength="180"></label><label>Prazo previsto <input id="worksManualDue" type="date" min="2000-01-01"></label></div>
+<div class="topactions"><button type="submit" id="worksManualSave" class="btn primary">Cadastrar obra</button><button type="button" id="worksManualClose" class="btn secondary">Cancelar</button></div><p id="worksManualStatus" class="feedback" role="status"></p></form>
+<label>Buscar obra <input id="manageWorksSearch" type="search" placeholder="Nome, código ou cliente"></label><div id="manageWorksList"></div>
         <p id="manageWorksFeedback" class="feedback" role="status"></p>
       </div>
       <div id="manageWorksReview" class="section panel hidden">
@@ -1111,7 +1116,7 @@
       </div>
     </div>
     <section id="detail" class="hidden">
-      <div class="head"><div><div class="detailnav hidden"><button id="back" class="btn secondary" type="button">← Voltar</button><button id="goHome" class="btn secondary" type="button">⌂ Tela inicial</button><button id="detailFinanceiro" class="btn secondary hidden" type="button">Financeiro da obra</button></div><h1 id="workName"></h1><div id="workMeta" class="muted"></div></div></div>
+      <div class="head"><div><div class="detailnav hidden"><button id="back" class="btn secondary" type="button">← Voltar</button><button id="goHome" class="btn secondary" type="button">⌂ Tela inicial</button><button id="detailFinanceiro" class="btn secondary hidden" type="button">Financeiro da obra</button></div><h1 id="workName"></h1><div class="topactions" style="margin:8px 0"><button id="detailWorksBack" class="btn secondary" type="button">← Obras</button></div><div id="workMeta" class="muted"></div></div></div>
       <div class="stats">
         <div class="stat"><div class="label">Área total</div><div class="number" id="detailTotal">—</div></div>
         <div class="stat"><div class="label">Liberada</div><div class="number" id="detailReleased">—</div></div>
@@ -1126,6 +1131,7 @@
           <button type="button" class="btn primary" id="openRomaneio">+ Emitir romaneio</button>
           <button type="button" class="btn secondary" id="toggleRomaneioHistory">Romaneios emitidos</button>
         </div>
+        <div id="releaseUndoActions" class="topactions"><button id="releaseUndoAll" type="button" class="btn secondary releaseCancellationButton">Estornar todas as liberações</button></div>
         <div id="releaseBatchActions" class="romaneioActions">
           <button type="button" class="btn primary" id="releaseBatchOpen">+ Liberar a partir do arquivo CEM</button>
         </div>
@@ -1362,6 +1368,7 @@
         <button id="navManufacturers" type="button" class="cadastrosTile"><strong>Fabricantes</strong><span>Catálogo de fabricantes</span></button>
         <button id="cadastroJumpFornecedores" type="button" class="cadastrosTile"><strong>Fornecedores</strong><span>Fornecedores das notas fiscais</span></button>
         <button id="cadastroJumpGalpoes" type="button" class="cadastrosTile"><strong>Galpões</strong><span>Imbiribeira, Afogados, Olinda e outros</span></button>
+        <button id="cadastroJumpObras" type="button" class="cadastrosTile"><strong>Obras</strong><span>Cadastrar manualmente, consultar e excluir obras</span></button>
         <button id="cadastroJumpLocaisEstoque" type="button" class="cadastrosTile"><strong>Locais de estoque</strong><span>Obras vinculadas e estoques independentes da empresa</span></button>
         <button id="navVidros" type="button" class="cadastrosTile"><strong>Vidros</strong><span>Catálogo e unidades dos vidros</span></button>
         <button id="navOutrosInsumos" type="button" class="cadastrosTile"><strong>Outros insumos</strong><span>Catálogo de insumos diversos</span></button>
@@ -1482,7 +1489,7 @@
           <button type="button" class="btn secondary" id="stockTransferPickLocal">Transferência entre galpões</button>
           <button type="button" class="btn secondary" id="stockTransferPickWork">Transferência entre obras</button>
           <button type="button" class="btn secondary hidden" id="stockTransferBetweenLocations" title="Transferência entre obra e estoque próprio da empresa, ou entre estoques próprios">Transferência com estoque da empresa</button>
-          <button type="button" class="btn secondary" id="stockManageLocations" title="Consultar saldos e estornar lançamentos; exclusão definitiva da obra em Gerenciar obras">Gerenciar estoques</button>
+          <button type="button" class="btn secondary" id="stockManageLocations" title="Consultar saldos e estornar lançamentos; exclusão definitiva da obra na conferência da obra">Gerenciar estoques</button>
           <button type="button" class="btn secondary hidden" id="stockArchivedReview">Saldos e estornos</button>
           <button type="button" class="btn secondary" id="stockRefresh">Atualizar</button>
         </div></div>
@@ -1747,7 +1754,7 @@
 <div id="stockManageOverlay" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockManageTitle" style="max-width:1100px;width:min(96vw,1100px);max-height:92vh">
     <h2 id="stockManageTitle">Gerenciar estoques — saldos, histórico e estornos</h2>
-    <p class="hint">Esta tela exibe somente os estoques das obras em andamento. Para encerrar uma obra definitivamente, utilize Gerenciar obras após cancelar todas as operações dependentes. Não existe restauração de estoque ou de obra excluída.</p>
+    <p class="hint">Esta tela exibe somente os estoques das obras em andamento. Para encerrar uma obra definitivamente, utilize Cadastros do sistema → Obras após cancelar todas as operações dependentes. Não existe restauração de estoque ou de obra excluída.</p>
     <p id="stockManageStatus" class="hint" role="status"></p>
     <div id="stockManageRecords"></div>
     <div id="stockReversePanel" class="stockReversePanel hidden">
@@ -1770,7 +1777,7 @@
         <textarea id="stockReverseReason" rows="4" minlength="5" maxlength="400" placeholder="Ex.: Ajuste de estoque"></textarea>
       </label>
       <p class="hint" id="stockReverseMessage" role="status" aria-live="polite" aria-atomic="true"></p>
-      <button type="button" class="btn secondary hidden" id="stockReverseOpenWorks">Ir para Gerenciar obras e cancelar liberações</button>
+      <button type="button" class="btn secondary hidden" id="stockReverseOpenWorks">Ir para liberações da obra</button>
       <div class="modalbuttons">
         <button type="button" class="btn secondary" id="stockReverseBack">Voltar à lista</button>
         <button type="button" class="btn primary" id="stockReverseApply" disabled>Estornar todos os lançamentos sem estorno</button>
@@ -2478,7 +2485,7 @@ let currentAccessFlags=Object.create(null),currentAccessLevel=8,accessReady=fals
 function temPermissao(chave){return accessReady&&currentAccessFlags[chave]===true;}
 function podeVerRelatorios(){return temPermissao('relatorios.operacionais')||temPermissao('relatorios.financeiros');}
 function permissaoParaTela(view){
- const requires={worksPage:'obras.consultar',detail:'obras.consultar',manageWorks:'obras.estornar',
+ const requires={worksPage:'obras.consultar',detail:'obras.consultar',manageWorks:'cadastros.consultar',
   romaneiosPage:'romaneios.consultar',recebimento:'estoque.receber',almoxNotas:'estoque.receber',
   cadastros:'cadastros.consultar',typologies:'cadastros.consultar',manufacturers:'cadastros.consultar',
   materials:'cadastros.consultar',stock:'estoque.consultar',financeiro:'financeiro.consultar',
@@ -2548,10 +2555,10 @@ function setView(view){
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
   const ativo=view==='detail'?'worksPage':view;
   for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],['navCompras','compras'],['navRecebimento','recebimento'],['navEnviarNotas','almoxNotas'],['navCadastros','cadastros'],
-      ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navRelatorios','relatorios'],['navCem','cemImport'],['navUsers','users'],['navAccessLevels','accessLevels'],['navManageWorks','manageWorks']]){
+      ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navRelatorios','relatorios'],['navCem','cemImport'],['navUsers','users'],['navAccessLevels','accessLevels']]){
     const button=node(id);
     const selecionado=!button.disabled&&(ativo===target||(id==='navCadastros'&&
-      ['materials','typologies','manufacturers','users','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','cadastroLocaisEstoque'].includes(ativo)));
+      ['materials','typologies','manufacturers','users','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','cadastroLocaisEstoque','manageWorks'].includes(ativo)));
     button.classList.toggle('active',selecionado);
     if(selecionado)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
   }
@@ -2725,7 +2732,7 @@ async function loadPanel(){
     navManufacturers:'cadastros.consultar',navMaterials:'cadastros.consultar',
     navAccessories:'cadastros.consultar',navStock:'estoque.consultar',
     navCem:'obras.importar',navUsers:'usuarios.gerenciar',
-    navManageWorks:'obras.estornar',navFinanceiro:'financeiro.consultar'};
+    navFinanceiro:'financeiro.consultar'};
   for(const [id,flag] of Object.entries(navFlags)){
     if(node(id).classList.contains('workspaceLink'))setNavPermission(id,temPermissao(flag));
     else node(id).classList.toggle('hidden',!temPermissao(flag));
@@ -2740,7 +2747,7 @@ async function loadPanel(){
   node('openManufacturers').classList.toggle('hidden',!temPermissao('cadastros.consultar'));
   node('openUsers').classList.toggle('hidden',!temPermissao('usuarios.gerenciar'));
   const [w,e,tips]=await Promise.all([
-    apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto',empresa_id:'eq.'+currentCompany.id,arquivada_em:'is.null',order:'nome.asc'}),
+    apiGet('obras',{select:'id,empresa_id,codigo,nome,cliente,situacao,prazo_previsto,cadastro_manual',empresa_id:'eq.'+currentCompany.id,arquivada_em:'is.null',order:'nome.asc'}),
     apiGet('esquadrias',{select:'id,empresa_id,obra_id,codigo,descricao,localizacao,largura_mm,altura_mm,quantidade,qtd_liberada,qtd_fabricada,tipologia_id,rotulo_tipologia_relatorio,quantidade_modulos,modulacao_id',empresa_id:'eq.'+currentCompany.id}),
     somenteRomaneios?Promise.resolve([]):
       apiGet('tipologias',{select:'id,codigo,descricao,provisoria,fabricante,tipologia_principal_id,quantidade_modulos',empresa_id:'eq.'+currentCompany.id})
@@ -2884,7 +2891,7 @@ function progressoExpedicao(list){
 }
 function renderList(){
   // Obras utilizadas somente para estoque não entram nos indicadores de produção.
-  const obrasComEsquadrias=works.filter(w=>elements.some(e=>e.obra_id===w.id));
+  const obrasComEsquadrias=works.filter(w=>w.cadastro_manual===true||elements.some(e=>e.obra_id===w.id));
   const t=totals(elements),exp=progressoExpedicao(elements);
   node('count').textContent=obrasComEsquadrias.length;
   node('total').textContent=amount(t.total);
@@ -2926,11 +2933,12 @@ function renderList(){
 }
 function obrasComEsquadriasAtivas(){
  const ids=new Set(elements.map(e=>e.obra_id));
- return works.filter(w=>ids.has(w.id));
+ return works.filter(w=>ids.has(w.id)||w.cadastro_manual===true);
 }
 function mostrarListaDeObras(){
  if(isAlmoxarife()||!currentCompany)return;
  const lista=obrasComEsquadriasAtivas();
+
  const container=node('worksPageList');
  if(!lista.length){
   container.innerHTML='<div class="empty">Nenhuma obra com esquadrias cadastradas. '+
@@ -3990,6 +3998,9 @@ function renderDetail(w){
   node('tabShip').setAttribute('aria-pressed',String(shipping));
   node('shipmentOverview').classList.toggle('hidden',!shipping);
   node('romaneioActions').classList.toggle('hidden',!shipping);
+  node('releaseUndoActions').classList.toggle('hidden',shipping);
+  node('releaseUndoAll').disabled=!temPermissao('liberacoes.cancelar')||!releaseHistory.some(h=>list.some(x=>x.id===h.esquadria_id));
+
   node('releaseBatchActions').classList.add('hidden'); // A liberação permanece por item.
   node('openRomaneio').disabled=!temPermissao('romaneios.emitir')||!dispatchReady||Boolean(romaneioLoadError);
   node('romaneioOverview').classList.toggle('hidden',!shipping);
@@ -4016,9 +4027,10 @@ function renderDetail(w){
       const pending=Math.max(part.saldoCompleto,part.saldoMarco,part.saldoFolhas);
       const latest=releaseHistory.find(r=>r.esquadria_id===x.id);
       return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><div class="hint" style="margin-top:8px">${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Com alguma parte liberada: ${Number(x.qtd_liberada)||0}</span><span>Marcos: ${part.marcos} · Folhas (conj.): ${part.folhas}</span><span>Restam por liberar: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline" style="margin-top:8px"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/'))+
-  (latest.fabrica?' · '+escapeHTML(latest.fabrica):' · fábrica não informada (histórico)'):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button></div>`;
+  (latest.fabrica?' · '+escapeHTML(latest.fabrica):' · fábrica não informada (histórico)'):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button><div class="topactions" style="padding:4px 12px 10px"><button type="button" class="btn secondary releaseCancellationButton" data-release-undo="${escapeHTML(x.id)}" ${!latest||!temPermissao('liberacoes.cancelar')?'disabled':''}>Estornar liberação</button></div></div>`;
     }).join(''):'<div class="empty">Nenhuma esquadria nesta obra.</div>';
     node('items').querySelectorAll('[data-esq]').forEach(b=>b.addEventListener('click',()=>openRelease(b.dataset.esq)));
+    node('items').querySelectorAll('[data-release-undo]').forEach(b=>b.addEventListener('click',()=>window.ewReleaseUndo?.abrir(b.dataset.releaseUndo)));
   }else{
     node('items').innerHTML=exibidos.length?exibidos.map(x=>{
       const s=shipmentStats(x);
@@ -4444,7 +4456,7 @@ async function openReleaseCancelAll(obraId){
     (romaneios?romaneios+' romaneio(s) ativo(s). ':'')+
     (saidas?saidas+' saída(s) de produção ativa(s). ':'')+
     (fabricadas?fabricadas+' unidade(s) fabricada(s). ':'')+
-    'Concilie essas operações em Gerenciar obras antes de cancelar as liberações.';
+    'Concilie essas operações na conferência da obra antes de cancelar as liberações.';
    node('releaseCancelAllStatus').classList.add('releaseCancelAllWarning');
    return;
   }
@@ -4486,14 +4498,10 @@ async function confirmReleaseCancelAll(){
    body:{p_obra_id:obraId,p_motivo:motivo}});
   closeReleaseCancelAll();
   await loadPanel();
-  abrirGerenciamentoObras();
-  if(works.some(w=>w.id===obraId)){
-   await inspecionarExclusaoObra(obraId);
-   node('manageWorksFeedback').textContent=
-    'Cancelamento realizado: '+Number(result?.canceladas||0)+' liberação(ões), '+
-    Number(result?.unidades||0)+' unidade(s) revertida(s). '+
-    'Confira separadamente as movimentações de estoque. O histórico foi preservado.';
-  }
+  const w=works.find(w=>w.id===obraId);
+  if(w){detailMode='release';renderDetail(w);node('detailError').textContent=
+    'Estorno realizado: '+Number(result?.canceladas||0)+' liberação(ões). Histórico preservado.';}
+
  }catch(err){
   if(releaseCancelAllWorkId===obraId){
    status.textContent='Cancelamento não concluído: '+err.message;
@@ -4502,6 +4510,9 @@ async function confirmReleaseCancelAll(){
   }
  }
 }
+node('detailWorksBack').addEventListener('click',mostrarListaDeObras);
+
+node('releaseUndoAll').addEventListener('click',()=>{if(selectedWork)openReleaseCancelAll(selectedWork.id);});
 node('releaseCancelAllClose').addEventListener('click',closeReleaseCancelAll);
 node('releaseCancelAllConfirm').addEventListener('click',confirmReleaseCancelAll);
 function releaseComponentSaldo(partes,tipo){
@@ -5000,7 +5011,9 @@ node('navAccessLevels').addEventListener('click',async()=>{
  setView('accessLevels');
  try{await window.nivelAcessoPreparar();}catch(e){node('userLevelsStatus').textContent='Não foi possível consultar níveis: '+e.message;}
 });
-node('navManageWorks').addEventListener('click',abrirGerenciamentoObras);
+node('cadastroJumpObras').addEventListener('click',abrirGerenciamentoObras);
+node('manageWorksBack').addEventListener('click',()=>setView('cadastros'));
+node('manageWorksSearch').addEventListener('input',renderGerenciamentoObras);
 node('openRomaneioHub').addEventListener('click',abrirAreaRomaneios);
 node('navHome').addEventListener('click',()=>setView('dashboard'));
 node('navWorks').addEventListener('click',abrirObrasPelaBarra);
@@ -8068,7 +8081,7 @@ function finRenderRecebimentos(){
        ' '+escapeHTML(received.unidade)+' · '+escapeHTML(received.local_estoque)+
        (received.comprimento_mm?' · '+received.comprimento_mm+' mm':'')+
        ' · Galpão informado na entrada (o saldo pode ter sido transferido)</p>'+
-       '<button type="button" class="btn secondary finReceiveUndo" data-receipt-id="'+escapeHTML(received.id)+'">Estornar recebimento</button>'+
+       '<button type="button" class="btn secondary finReceiveUndo" data-receipt-id="'+escapeHTML(received.id)+'"'+(temPermissao('estoque.estornar')&&temPermissao('financeiro.cancelar_despesas')?'':' disabled style="opacity:.48;cursor:not-allowed" title="Exige permissão de estorno de estoque e financeiro"')+'>Estornar recebimento e nota</button>'+
        '</div>';
     return '<div class="finReceiveRow" data-receive-item="'+escapeHTML(i.id)+
       '" data-receive-type="'+tipo+'" data-invoice-unit="'+escapeHTML(i.unidade||'')+
@@ -8145,19 +8158,22 @@ function finRenderRecebimentos(){
  });
 }
 async function finEstornarRecebimentoFisico(recebimentoId){
- if(!temPermissao('estoque.estornar')||!finState||!node('recebimentoWork').value)return;
- const motivo=window.prompt('Motivo do estorno da entrada física da NF-e (mínimo 5 caracteres):','');
+ if(!temPermissao('estoque.estornar')||!temPermissao('financeiro.cancelar_despesas')||!finState||!node('recebimentoWork').value)return;
+ const motivo=window.prompt('Motivo do estorno físico e financeiro da NF-e (mínimo 5 caracteres):','');
  if(motivo===null)return;
  if(motivo.trim().length<5||motivo.trim().length>400){
    node('recebimentoMessage').textContent='Informe motivo de 5 a 400 caracteres.';return;
  }
- if(!window.confirm('Estornar somente a ENTRADA FÍSICA do material?\n\nA despesa da NF-e continua aprovada. O sistema procurará o saldo no galpão original e nos demais galpões DA MESMA OBRA; não permitirá estorno de material com baixa para produção.'))return;
+ const rec=finState.stockReceipts.find(r=>r.id===recebimentoId),item=finState.approvedItems.find(i=>i.id===rec?.despesa_item_id),nota=finState.aprovadas.find(d=>d.id===item?.despesa_id);
+ if(!nota)return;
+ const ativos=finState.stockReceipts.filter(r=>!r.estornado_em&&finState.approvedItems.some(i=>i.id===r.despesa_item_id&&i.despesa_id===nota.id)).length;
+ if(!window.confirm('Estornar a NF '+nota.numero_documento+' INTEGRALMENTE?\n\nTodas as '+ativos+' entrada(s) física(s) ativa(s) desta nota serão revertidas e '+finMoney(nota.valor)+' retornará ao saldo de compras. Se houver material consumido ou transferido sem devolução, nada será estornado. Cancelamento interno no EWGEST, não na SEFAZ.'))return;
  const op=crypto.randomUUID(),obra=finState.obraId;
  const b=[...node('finReceivePanel').querySelectorAll('.finReceiveUndo')].find(x=>x.dataset.receiptId===recebimentoId);
  if(b){b.disabled=true;b.textContent='Estornando…';}
  try{
    await ensureSession();
-   const result=await request('/rest/v1/rpc/ew_estornar_recebimento_nfe',{
+   const result=await request('/rest/v1/rpc/ew_estornar_nfe_com_recebimentos',{
      method:'POST',token:session.access_token,timeoutMs:45000,
      body:{p_empresa_id:currentCompany.id,p_recebimento_id:recebimentoId,
        p_motivo:motivo.trim(),p_operacao_id:op}});
@@ -8165,10 +8181,10 @@ async function finEstornarRecebimentoFisico(recebimentoId){
    await carregarRecebimento();
    node('recebimentoMessage').textContent=result?.ja_estornado?
     'Este recebimento já havia sido estornado; nenhum saldo foi alterado.':
-    'Recebimento físico estornado com histórico e galpões registrados. A nota financeira permanece aprovada.';
+    'Recebimento e lançamento financeiro estornados. Saldo de compras recomposto: '+finMoney(result?.valor_restaurado||0)+'. Histórico preservado.';
  }catch(e){
    node('recebimentoMessage').textContent='Estorno não realizado: '+e.message;
- }finally{if(b){b.disabled=false;b.textContent='Estornar recebimento';}}
+ }finally{if(b){b.disabled=false;b.textContent='Estornar recebimento e nota';}}
 }
 async function finConfirmarRecebimento(row){
  if(!finState||!temPermissao('estoque.receber'))return;
@@ -8342,6 +8358,16 @@ function finPrecoSugerido(linha,tipo,unidades,qtdLancamento,qtdFaturada,valorFat
  return Number.isFinite(preco)&&preco>0&&preco<=100000000?preco:null;
 }
 
+function finAreaDisponivel(eq,areaUnit){return Math.floor(eq*areaUnit*1000000+1e-8)/1000000;}
+function finPrecoM2Sugerido(linha,tipo,unidades,areaUnit,areaLancamento,qtdFaturada,valorFaturadoCentavos){
+ if(!linha||!['fabricacao','instalacao'].includes(tipo)||!(areaUnit>0)||!(areaLancamento>0)||!(unidades>0))return null;
+ const cents=Number(linha[tipo+'_centavos']);if(!Number.isSafeInteger(cents)||cents<=0)return null;
+ const areaRestante=(unidades-qtdFaturada)*areaUnit;
+ const saldo=cents-Number(valorFaturadoCentavos||0);
+ const raw=Math.abs(areaLancamento-areaRestante)<=0.000001&&saldo>0?saldo/(100*areaLancamento):cents/(100*unidades*areaUnit);
+ const preco=Math.round(raw*10000)/10000;
+ return Number.isFinite(preco)&&preco>0&&preco<=100000000?preco:null;
+}
 function finRenderFaturaveis(){
  if(!finState)return;
  const tipo=node('finBillingCategory').value,items=elements.filter(e=>e.obra_id===finState.obraId);
@@ -8351,28 +8377,29 @@ function finRenderFaturaveis(){
   const ja=finState.billed[tipo].get(e.id)||0;
   const disponivel=finEquivDisponivel(Math.min(Number(e.quantidade)-ja,enviados-ja));
   const precificacao=finState.precoPorEsquadria.get(e.id)||null;
-  const sugestao=finPrecoSugerido(precificacao,tipo,e.quantidade,disponivel,ja,
+  const areaUnit=area(e,1),areaMax=finAreaDisponivel(disponivel,areaUnit);
+  const sugestao=finPrecoM2Sugerido(precificacao,tipo,e.quantidade,areaUnit,areaMax,ja,
    finState.billedValues[tipo].get(e.id)||0);
-  return {e,enviados,ja,disponivel,precificacao,sugestao};
+  return {e,enviados,ja,disponivel,areaUnit,areaMax,precificacao,sugestao};
  }).filter(r=>r.enviados>0);
  node('finBillingRows').innerHTML=rows.length?'<p class="hint">'+
-  (finState.precificacao?'Os preços integrais sugeridos são da precificação aprovada (revisão '+
+  (finState.precificacao?'Os preços por m² sugeridos são da precificação aprovada (revisão '+
    Number(finState.precificacao.versao)+'). Podem ser editados antes de faturar.':
-   'Obra sem precificação individual: informe os preços das esquadrias manualmente.')+'</p>'+
+   'Obra sem precificação individual: informe os preços por m² manualmente.')+'</p>'+
   '<div class="finTableWrap"><table class="finTable"><thead><tr>'+
-  '<th>Faturar</th><th>Esquadria</th><th>Categoria da obra</th><th>Expedido (equiv.)</th><th>Já faturado ('+
-  (tipo==='fabricacao'?'fab.':'inst.')+')</th><th>Disponível</th><th>Qtd. equivalente</th><th>Preço integral sugerido (R$)</th></tr></thead><tbody>'+
+  '<th>Faturar</th><th>Esquadria</th><th>Categoria da obra</th><th>Expedido (m²)</th><th>Já faturado ('+
+  (tipo==='fabricacao'?'fab.':'inst.')+') (m²)</th><th>Disponível (m²)</th><th>Área a faturar (m²)</th><th>Preço (R$/m²)</th></tr></thead><tbody>'+
  rows.map(r=>'<tr class="finInvoiceRow" data-esq="'+escapeHTML(r.e.id)+
-  '" data-max="'+r.disponivel+'" data-auto-price="'+(r.sugestao!==null?'1':'0')+'">'+
-  '<td class="finRowCheck"><input class="finSelected" type="checkbox"'+(r.disponivel===0?' disabled':'')+'></td>'+
+  '" data-max="'+r.areaMax+'" data-equivalent-max="'+r.disponivel+'" data-area-unit="'+r.areaUnit+'" data-auto-price="'+(r.sugestao!==null?'1':'0')+'">'+
+  '<td class="finRowCheck"><input class="finSelected" type="checkbox"'+(r.areaMax===0?' disabled':'')+'></td>'+
   '<td><strong>'+escapeHTML(r.e.codigo)+'</strong><div class="hint">'+escapeHTML(r.e.descricao||'')+'</div></td>'+
   '<td>'+escapeHTML(r.precificacao?.categoria_nome_snapshot||'—')+'</td>'+
-  '<td>'+finEquivFormat(r.enviados)+'</td><td>'+finEquivFormat(r.ja)+'</td><td>'+finEquivFormat(r.disponivel)+'</td>'+
-  '<td><input class="finQty finSmallInput" type="number" min="0.000001" max="'+r.disponivel+
-  '" step="0.000001" value="'+(r.disponivel||'')+'"'+(r.disponivel===0?' disabled':'')+'></td>'+
-  '<td><input class="finPrice finSmallInput" type="text" inputmode="decimal" autocomplete="off" placeholder="R$ 0,00" aria-label="Preço integral da esquadria em reais" value="'+
+  '<td>'+finEquivFormat(r.enviados*r.areaUnit)+'</td><td>'+finEquivFormat(r.ja*r.areaUnit)+'</td><td>'+finEquivFormat(r.areaMax)+'</td>'+
+  '<td><input class="finQty finSmallInput" type="number" min="0.000001" max="'+r.areaMax+
+  '" step="0.000001" value="'+(r.areaMax||'')+'"'+(r.areaMax===0?' disabled':'')+'></td>'+
+  '<td><input class="finPrice finSmallInput" type="text" inputmode="decimal" autocomplete="off" placeholder="R$ 0,00" aria-label="Preço em reais por metro quadrado" value="'+
   (r.sugestao===null?'':escapeHTML(finPrecoFormatar(r.sugestao)))+'"'+
-  (r.disponivel===0?' disabled':'')+'></td></tr>').join('')+
+  (r.areaMax===0?' disabled':'')+'></td></tr>').join('')+
   '</tbody></table></div>':'<p class="hint">Nenhuma esquadria com saída registrada em romaneio ativo está disponível nesta obra.</p>';
  node('finBillingRows').querySelectorAll('.finInvoiceRow').forEach(row=>{
   const campo=row.querySelector('.finPrice'),quantidade=row.querySelector('.finQty');
@@ -8380,7 +8407,7 @@ function finRenderFaturaveis(){
    if(row.dataset.autoPrice!=='1')return;
    const linha=finState.precoPorEsquadria.get(row.dataset.esq);
    const obraItem=items.find(x=>x.id===row.dataset.esq);
-   const sugestao=finPrecoSugerido(linha,tipo,obraItem?.quantidade,Number(quantidade.value),
+   const sugestao=finPrecoM2Sugerido(linha,tipo,obraItem?.quantidade,Number(row.dataset.areaUnit),Number(quantidade.value),
     finState.billed[tipo].get(row.dataset.esq)||0,
     finState.billedValues[tipo].get(row.dataset.esq)||0);
    if(sugestao!==null)campo.value=finPrecoFormatar(sugestao);
@@ -8556,9 +8583,13 @@ async function finRegistrarFaturamento(event){
   if(!Number.isFinite(qtd)||qtd<=0||qtd>Number(row.dataset.max)+1e-9||
      Math.abs(qtd*1000000-Math.round(qtd*1000000))>0.00001||
      !Number.isFinite(preco)||preco<=0||Math.abs(preco*10000-Math.round(preco*10000))>0.00001){
-   node('finBillingMessage').textContent='Verifique as quantidades equivalentes (até 6 casas) e os preços das esquadrias completas.';return;
+   node('finBillingMessage').textContent='Verifique a área em m² (até 6 casas) e o preço por m².';return;
   }
-  itens.push({esquadria_id:row.dataset.esq,quantidade:qtd,valor_unitario:preco});
+  const a=Number(row.dataset.areaUnit),maxEq=Number(row.dataset.equivalentMax);
+  const equivalente=Math.min(maxEq,Math.round(qtd/a*1000000)/1000000);
+  const precoIntegral=Math.round(preco*a*10000)/10000;
+  if(!(a>0)||!(equivalente>0)||!(precoIntegral>0)){node('finBillingMessage').textContent='Área ou preço insuficiente para faturamento.';return;}
+  itens.push({esquadria_id:row.dataset.esq,quantidade:equivalente,valor_unitario:precoIntegral,area_m2:qtd,preco_m2:preco});
  }
  if(!itens.length||!doc||!date){
   node('finBillingMessage').textContent='Escolha ao menos uma esquadria, informe o documento e a data.';return;
@@ -8567,7 +8598,7 @@ async function finRegistrarFaturamento(event){
  if(tipo==='instalacao'&&!instalado){
   node('finBillingMessage').textContent='Confirme que a instalação dos itens selecionados foi realizada.';return;
  }
- const value=itens.reduce((a,x)=>a+Math.round(x.quantidade*x.valor_unitario*100),0)/100;
+ const value=itens.reduce((a,x)=>a+Math.round(x.area_m2*x.preco_m2*100),0)/100;
  const billed=finState.faturas.filter(f=>f.status==='emitido'&&f.categoria===tipo)
   .reduce((v,f)=>v+Number(f.valor_total),0);
  const teto=finState.precificacao?
@@ -9949,7 +9980,7 @@ function stockManageRender(){
   if(!obra)return '';
   const resumo=stockReversalBalances(loc.obra_id);
   const status='Estoque de obra ativa';
-  // O encerramento é definitivo e ocorre exclusivamente em Gerenciar obras.
+  // O encerramento é definitivo e ocorre exclusivamente na conferência da obra.
   const revisar=resumo.movimentos?
     '<button type="button" class="btn secondary" data-stock-reverse="'+escapeHTML(loc.obra_id)+'">'+
     (resumo.pendentes?'Conferir / estornar':'Consultar histórico')+'</button>':'';
@@ -10180,15 +10211,15 @@ async function stockReverseRevisar(id){
    const ativas=Number(ver?.resumo?.liberacoes||0);
    node('stockReverseMessage').textContent='⚠ ESTORNO BLOQUEADO — '+ 
     (ativas>0?'Esta obra possui '+ativas+' liberação(ões) para corte ativa(s). ':'')+
-    'O botão Estornar todos só será liberado após cancelar as liberações e outras operações vinculadas em Gerenciar obras. '+
+    'O botão Estornar todos só será liberado após cancelar as liberações e outras operações vinculadas na conferência da obra. '+
     impedimentos.join(' ');
    node('stockReverseMessage').classList.add('stockReversalBlock');
    node('stockReverseApply').disabled=true;
    node('stockReverseApply').textContent=ativas>0?
     'Bloqueado: cancele as liberações':'Estorno bloqueado';
    node('stockReverseApply').title=ativas>0?
-    'Cancele primeiro as liberações para corte em Gerenciar obras.':
-    'Cancele as operações vinculadas em Gerenciar obras.';
+    'Cancele primeiro as liberações para corte na conferência da obra.':
+    'Cancele as operações vinculadas na conferência da obra.';
    node('stockReverseApply').setAttribute('aria-describedby','stockReverseMessage');
    node('stockReverseOpenWorks').classList.remove('hidden');
    return;
@@ -10265,7 +10296,7 @@ async function stockReverseExecutar(){
    'Conciliação registrada: '+Number(result.conciliados)+' transferências históricas de '+
    obra.nome+' já estavam compensadas pelo estorno das NF-e. Saldo zero em todos os galpões; '+
    'nenhum movimento novo foi criado. Histórico preservado no relatório de operações. '+
-   'Se quiser retirar a obra de treinamento, use Gerenciar obras.':
+   'Se quiser retirar a obra de treinamento, use Cadastros do sistema → Obras.':
    'Estorno concluído: '+Number(result?.estornados||0)+
    ' movimento(s) revertido(s) em '+obra.nome+
    '. Os saldos devem estar zerados; histórico disponível em Usuários → Relatório de operações.';
@@ -10307,8 +10338,8 @@ node('stockReverseOpenWorks').addEventListener('click',async()=>{
  const id=stockReverseSelectedWorkId;
  node('stockManageOverlay').classList.add('hidden');
  await loadPanel();
- abrirGerenciamentoObras();
- if(id&&works.some(w=>w.id===id))await inspecionarExclusaoObra(id);
+ const w=works.find(w=>w.id===id);
+ if(w){detailMode='release';renderDetail(w);}else mostrarListaDeObras();
 });
 node('stockReverseBack').addEventListener('click',stockReverseFechar);
 node('stockReverseApply').addEventListener('click',stockReverseExecutar);
@@ -10606,13 +10637,15 @@ function renderGerenciamentoObras(){
   out.innerHTML='<div class="empty">Nenhuma obra cadastrada nesta empresa.</div>';
   return;
  }
- out.innerHTML=works.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(w=>{
+ const busca=node('manageWorksSearch').value.trim().toLocaleLowerCase('pt-BR');
+ const lista=works.filter(w=>w.cadastro_manual===true||!/^MAN-[A-F0-9]{10}$/i.test(w.codigo||'')||elements.some(e=>e.obra_id===w.id)).filter(w=>[w.nome,w.codigo,w.cliente].join(' ').toLocaleLowerCase('pt-BR').includes(busca));
+ out.innerHTML=lista.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(w=>{
   const qtd=elements.filter(e=>e.obra_id===w.id).length;
   const ids=new Set(elements.filter(e=>e.obra_id===w.id).map(e=>e.id));
   // releaseHistory já inclui somente cancelado_em IS NULL.
   // A quantidade aparece sempre (inclusive 0) e controla o botão por obra.
   const liberacoesAtivas=releaseHistory.filter(h=>ids.has(h.esquadria_id)).length;
-  const podeCancelarLiberacoes=liberacoesAtivas>0;
+  const podeCancelarLiberacoes=liberacoesAtivas>0&&temPermissao('liberacoes.cancelar');
   return '<div class="manufacturerLine" style="gap:14px">'+
     '<div><strong>'+escapeHTML(w.nome)+'</strong><div class="hint">'+
      escapeHTML(w.codigo||'Sem código')+' · '+qtd+' esquadria(s)'+
@@ -10622,7 +10655,7 @@ function renderGerenciamentoObras(){
       '<button type="button" class="btn secondary releaseCancellationButton" data-work-cancel-releases="'+escapeHTML(w.id)+'"'+
       (podeCancelarLiberacoes?'':' disabled title="Esta obra não possui liberações ativas para cancelar."')+
       '>Cancelar liberações ('+liberacoesAtivas+')</button>'+
-      '<button type="button" class="btn secondary" data-work-review="'+escapeHTML(w.id)+'">Verificar exclusão</button>'+
+      '<button type="button" class="btn secondary" data-work-review="'+escapeHTML(w.id)+'"'+(!canAdministrate()||!temPermissao('obras.estornar')?' disabled':'')+'>Verificar exclusão</button>'+
     '</div></div>';
  }).join('');
  out.querySelectorAll('[data-work-review]').forEach(b=>
@@ -10631,7 +10664,9 @@ function renderGerenciamentoObras(){
   b.addEventListener('click',()=>openReleaseCancelAll(b.dataset.workCancelReleases)));
 }
 function abrirGerenciamentoObras(){
- if(!canAdministrate()||!currentCompany)return;
+ if(!currentCompany||!temPermissao('cadastros.consultar'))return;
+ node('worksCreateManual').disabled=!temPermissao('obras.importar');
+ node('worksManualForm').classList.add('hidden');
  workDeleteInspection=null;workDeleteOperationId=null;
  node('manageWorksReview').classList.add('hidden');
  node('manageWorksFeedback').textContent='';
@@ -10669,7 +10704,7 @@ function atualizarEstadoExclusaoObra(){
   node('manageWorksDeleteBlockedMessage').textContent='';
 }
 async function inspecionarExclusaoObra(id){
- if(!canAdministrate()||!works.some(w=>w.id===id))return;
+ if(!canAdministrate()||!temPermissao('obras.estornar')||!works.some(w=>w.id===id))return;
  const seq=++workDeleteRequestId;
  workDeleteInspection=null;workDeleteOperationId=null;
  node('manageWorksReview').classList.add('hidden');
@@ -10717,7 +10752,7 @@ async function inspecionarExclusaoObra(id){
 }
 node('manageWorksReason').addEventListener('input',atualizarEstadoExclusaoObra);
 node('manageWorksRefresh').addEventListener('click',async()=>{
- if(!canAdministrate())return;
+ if(!temPermissao('cadastros.consultar'))return;
  node('manageWorksFeedback').textContent='Atualizando obras…';
  try{
   await loadPanel();abrirGerenciamentoObras();
@@ -10777,7 +10812,7 @@ node('manageWorksGoRomaneios').addEventListener('click',()=>{
  selectedWork=obra;hubObraId=obra.id;
  abrirAreaRomaneios();
  node('hubRomaneioMessage').textContent=
-  'Cancele os romaneios emitidos desta obra, depois retorne a Gerenciar obras e clique Verificar exclusão.';
+  'Cancele os romaneios emitidos desta obra, depois retorne ao cadastro de obras e clique Verificar exclusão.';
 });
 node('manageWorksCancelShipments').addEventListener('click',()=>executarReversaoObra('saidas'));
 node('manageWorksReverseStock').addEventListener('click',()=>executarReversaoObra('estoque'));
@@ -10919,11 +10954,15 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/relatorios-obras.js?v=20261122c"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>
 <script src="/assets/niveis-acesso.js?v=20261124c"></script>
-<script src="/assets/compras-estoque.js?v=20261125a"></script>
+<script src="/assets/compras-estoque.js?v=20261125b"></script>
 <script src="/assets/compras-comprovante-transferencia.js?v=20261124a"></script>
 <script src="/assets/compras-conciliacao-nfe.js?v=20261124b"></script>
 <script src="/assets/compras-nota-empresa.js?v=20261124a"></script>
 <script src="/assets/cadastro-locais-estoque.js?v=20261124a"></script>
+<div id="releaseUndoOverlay" class="modaloverlay hidden" role="presentation"><div class="panel modalbox releaseCancelAllDialog" role="dialog" aria-modal="true" aria-labelledby="releaseUndoTitle"><h2 id="releaseUndoTitle">Estornar liberação</h2><p id="releaseUndoStatus" class="hint" role="status"></p><div id="releaseUndoList"></div><div class="modalbuttons"><button id="releaseUndoClose" type="button" class="btn secondary">Fechar</button></div></div></div>
+<style>#releaseUndoList .btn:disabled,#releaseUndoAll:disabled,[data-release-undo]:disabled,#worksCreateManual:disabled,#manageWorksList .btn:disabled,#manageWorksDelete:disabled{opacity:.48;cursor:not-allowed;transform:none;box-shadow:none}</style>
+<script src="/assets/estorno-liberacao.js?v=20261124a"></script>
+<script src="/assets/cadastro-obras.js?v=20261125a"></script>
 <script defer src="/pwa-install.js?v=25"></script>
 </body>
 </html>

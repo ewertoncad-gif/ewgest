@@ -44,7 +44,65 @@ function titleLocal(row){const work=works.find(w=>w.id===row.obra_id);
 function destinoOptions(){return works.map(w=>option('obra:'+w.id,'Obra · '+w.nome)).join('')+
  locals.filter(x=>x.ativo).map(x=>option('empresa:'+x.id,'Empresa · '+x.nome)).join('');}
 function productLabel(v){return v.nome||v.id}
-function products(){return variations.map(v=>option(v.id,productLabel(v))).join('')}
+let requestNeeds=[],requestNeedsReady=false,requestNeedsEpoch=0;
+function purchaseOptions(catalog,needs,kind,extras,category,search){
+ const options=[];const key=(id,mm)=>id+'|'+(mm??'');
+ const byId=new Map(catalog.map(v=>[v.id,v]));
+ for(const n of needs){
+  const v=byId.get(n.variacao_id);if(!v)continue;
+  if(!extras&&n.faltante!==null&&Number(n.faltante)<=0)continue;
+  if(!extras&&v.tipo==='perfil'&&n.comprimento_mm==null)continue;
+  options.push({...v,...n,id:v.id,key:key(v.id,n.comprimento_mm),planned:true});
+ }
+ if(extras||kind==='empresa'){
+  for(const v of catalog){
+   if(options.some(n=>n.key===key(v.id,v.comprimento_mm)))continue;
+   options.push({...v,key:key(v.id,v.comprimento_mm),planned:false});
+  }
+ }
+ const norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+ return options.filter(v=>(!category||v.tipo===category)&&norm(productLabel(v)+' '+(v.acabamento||'')).includes(norm(search))).sort((a,b)=>productLabel(a).localeCompare(productLabel(b),'pt-BR')||Number(a.comprimento_mm||0)-Number(b.comprimento_mm||0));
+}
+function requestOptions(all=false){
+ const kind=$('comprasDestino')?.value.split(':')[0];
+ if(!kind||!requestNeedsReady)return [];
+ return purchaseOptions(variations,requestNeeds,kind,$('comprasExtras').checked,all?'':$('comprasCategoria').value,all?'':$('comprasBuscaMaterial').value.trim());
+}
+function optionLabel(v){
+ const base=productLabel(v)+(v.comprimento_mm?' · '+number(v.comprimento_mm)+' mm':'');
+ if(!v.planned)return base+' · Extra / sem previsão';
+ if(v.faltante===null)return base+' · Previsão não informada';
+ return base+' · Falta '+number(v.faltante)+' '+v.unidade+(Number(v.faltante)<=0?' (atendido)':'');
+}
+function updateRequestRows(reset=false){
+ const opts=requestOptions(),eligible=requestOptions(true);
+ for(const row of $('comprasLinhas').children){
+  const select=row.querySelector('[data-buy="variation"]'),old=reset?'':select.value;
+  const previous=eligible.find(v=>v.key===old);
+  const visible=previous&&!opts.some(v=>v.key===old)?[previous,...opts]:opts;
+  select.innerHTML=option('','Selecione')+visible.map(v=>option(v.key,optionLabel(v))).join('');
+  if(previous){select.value=old;row.querySelector('[data-buy="length"]').disabled=previous.unidade!=='BARRA'||(previous.planned&&previous.comprimento_mm!=null&&!$('comprasExtras').checked);}
+  else {select.value='';row.querySelector('[data-buy="info"]').textContent='';}
+  select.disabled=!requestNeedsReady||!visible.length;
+ }
+ $('comprasAddLine').disabled=!requestNeedsReady||!opts.length;
+ $('comprasSolicitarForm').querySelector('[type=submit]').disabled=!requestNeedsReady||!eligible.length;
+}
+async function loadRequestNeeds(){
+ const epoch=++requestNeedsEpoch,form=$('comprasSolicitarForm'),dest=$('comprasDestino').value,company=currentCompany.id;
+ requestNeeds=[];requestNeedsReady=false;updateRequestRows(true);
+ if(!dest){say('comprasMateriaisStatus','Escolha o local de estoque.');return;}
+ const [kind,id]=dest.split(':');
+ say('comprasMateriaisStatus','Consultando materiais da obra…');
+ try{
+  const needs=kind==='obra'?await rpc('ew_compras_necessidades_obra',{p_empresa_id:company,p_obra_id:id}):[];
+  if(epoch!==requestNeedsEpoch||form!==$('comprasSolicitarForm')||company!==currentCompany?.id)return;
+  if(!Array.isArray(needs))throw Error('Resposta inválida de necessidades.');
+  requestNeeds=needs;requestNeedsReady=true;
+  say('comprasMateriaisStatus',kind==='empresa'?'Estoque independente: catálogo completo.':needs.length?'Materiais previstos ainda não atendidos.':'Obra sem previsão importada. Marque a opção de materiais extras para solicitar.');
+  updateRequestRows(true);
+ }catch(e){if(epoch===requestNeedsEpoch&&form===$('comprasSolicitarForm'))say('comprasMateriaisStatus','Não foi possível consultar necessidades: '+e.message);}
+}
 async function reload(){
  if((!permission('compras.consultar')&&!permission('compras.receber'))||!currentCompany)return;
  await ensureSession();
@@ -53,9 +111,9 @@ async function reload(){
   apiGet('ew_compras_locais_empresa',{select:'id,nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'1000'}),
   apiGet('ew_fornecedores',{select:'id,nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'1000'}),
   apiGet('ew_locais_fisicos',{select:'nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'200'}),
-  apiGet('ew_materiais_variacoes',{select:'id,tipo,perfil_id,acessorio_id,cor,acabamento,ativo',empresa_id:empresa,ativo:'eq.true',limit:'10000'}),
-  apiGet('ew_perfis',{select:'id,codigo,descricao,comprimento_comercial_mm',empresa_id:empresa,limit:'5000'}),
-  apiGet('ew_acessorios',{select:'id,codigo,descricao,unidade_item',empresa_id:empresa,limit:'5000'}),
+  readAllRows('ew_materiais_variacoes',{select:'id,tipo,perfil_id,acessorio_id,cor,acabamento,ativo',empresa_id:empresa,ativo:'eq.true'}),
+  readAllRows('ew_perfis',{select:'id,codigo,descricao,comprimento_comercial_mm',empresa_id:empresa}),
+  readAllRows('ew_acessorios',{select:'id,codigo,descricao,unidade_item',empresa_id:empresa}),
   apiGet('ew_compras_solicitacoes',{select:'*',empresa_id:empresa,order:'criado_em.desc',limit:'1000'}),
   apiGet('ew_compras_cotacoes',{select:'*',empresa_id:empresa,order:'criado_em.desc',limit:'1000'}),
   rpc('ew_compras_pedidos_resumo',{p_empresa_id:currentCompany.id}),
@@ -77,23 +135,24 @@ function orderStatus(p){if(p.status==='CANCELADO')return 'Cancelado';const rec=r
  for(const it of p.itens||[]){const n=rec.get(String(it.chave))||0;if(n>0)some=true;if(n+1e-8<Number(it.quantidade))all=false;}
  return all?'Recebido':some?'Parcial':'Pendente';}
 function formRow(index){
- return '<div class="ewComprasLine" data-buy-line="'+index+'"><label>Material<select data-buy="variation" required>'+option('','Selecione')+products()+'</select></label>'+
+ return '<div class="ewComprasLine" data-buy-line="'+index+'"><label>Material<select data-buy="variation" required>'+option('','Selecione')+requestOptions().map(v=>option(v.key,optionLabel(v))).join('')+'</select></label>'+
  '<label>Quantidade<input data-buy="qty" type="number" min="1" step="1" value="1" required></label>'+
  '<label>Unidade<input data-buy="unit" readonly value="BARRA"></label>'+
  '<label>Comprimento (mm)<input data-buy="length" type="number" min="100" max="20000" value="6000"></label>'+
- '<button class="btn secondary" type="button" data-buy-remove>Remover</button></div>';
+ '<button class="btn secondary" type="button" data-buy-remove>Remover</button><p data-buy="info" class="hint" style="grid-column:1/-1;margin:0"></p></div>';
 }
 function makeLine(){const container=$('comprasLinhas');if(!container)return;const div=document.createElement('div');div.innerHTML=formRow(container.children.length);
  const row=div.firstElementChild;container.append(row);
  row.querySelector('[data-buy="variation"]').addEventListener('change',()=>{
-  const v=variations.find(v=>v.id===row.querySelector('[data-buy="variation"]').value);if(!v)return;
+  const v=requestOptions(true).find(v=>v.key===row.querySelector('[data-buy="variation"]').value);if(!v)return;
   row.querySelector('[data-buy="unit"]').value=v.unidade;
   row.querySelector('[data-buy="length"]').value=v.comprimento_mm||'';
-  row.querySelector('[data-buy="length"]').disabled=v.unidade!=='BARRA';
+  row.querySelector('[data-buy="length"]').disabled=v.unidade!=='BARRA'||(v.planned&&v.comprimento_mm!=null&&!$('comprasExtras').checked);
   const qty=row.querySelector('[data-buy="qty"]');
   qty.min=v.unidade==='KG'?'0.001':'1';
   qty.step=v.unidade==='KG'?'0.001':'1';
-  if(Number(qty.value)<Number(qty.min))qty.value=qty.min;
+  if(v.planned&&Number(v.faltante)>0)qty.value=String(v.faltante);else qty.value=qty.min;
+  row.querySelector('[data-buy="info"]').textContent=v.planned&&v.prevista!=null?'Previsto: '+number(v.prevista)+' · Em estoque: '+number(v.fisico)+' · Atendido: '+number(v.atendida)+' · Falta: '+number(v.faltante)+' '+v.unidade:v.planned?'Material previsto sem quantidade importada.':'Material extra ou sem previsão.';
  });
  row.querySelector('[data-buy-remove]').addEventListener('click',()=>{if(container.children.length>1)row.remove()});
 }
@@ -135,19 +194,27 @@ function renderRequest(){
  $('comprasConteudo').innerHTML='<h2>Solicitação de materiais</h2>'+
  (editable?'<form id="comprasSolicitarForm" class="ewComprasForm"><label>Local de estoque de destino<select id="comprasDestino" required>'+option('','Escolha o local')+destinoOptions()+'</select></label>'+
  '<label>Observações<textarea id="comprasObservacoes" rows="2" maxlength="600"></textarea></label>'+
- '<h3>Materiais solicitados</h3><div id="comprasLinhas"></div><div class="ewComprasActions"><button class="btn secondary" id="comprasAddLine" type="button">+ Adicionar material</button><button class="btn primary" type="submit">Criar solicitação</button></div></form>':'')+
+ '<h3>Materiais solicitados</h3><div class="ewComprasActions" style="align-items:end;flex-wrap:wrap"><label>Categoria<select id="comprasCategoria"><option value="">Todos os materiais</option><option value="perfil">Perfis</option><option value="acessorio">Acessórios</option></select></label><label>Buscar material<input id="comprasBuscaMaterial" type="search" placeholder="Código, descrição ou cor"></label><label style="display:flex;align-items:center;gap:8px"><input id="comprasExtras" type="checkbox" style="width:16px;height:16px"> Mostrar materiais extras e já atendidos</label></div><p id="comprasMateriaisStatus" class="hint" role="status"></p><div id="comprasLinhas"></div><div class="ewComprasActions"><button class="btn secondary" id="comprasAddLine" type="button">+ Adicionar material</button><button class="btn primary" type="submit">Criar solicitação</button></div></form>':'')+
  '<h3>Solicitações registradas</h3><div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Data</th><th>Destino</th><th>Itens</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+
  sols.map(s=>'<tr><td>'+esc(String(s.criado_em||'').slice(0,10).split('-').reverse().join('/'))+'</td><td>'+esc(titleLocal(s))+'</td><td>'+number((s.itens||[]).length)+'</td><td>'+esc(s.status)+cancelDetails(s)+'</td><td>'+(editable&&s.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===s.id)?'<button type="button" class="btn secondary" data-compras-tipo="solicitacao" data-compras-cancel="'+esc(s.id)+'">Cancelar</button>':'—')+'</td></tr>').join('')+
- '</tbody></table></div>';bindCancelButtons();if(editable){makeLine();$('comprasAddLine').onclick=makeLine;
+ '</tbody></table></div>';bindCancelButtons();if(editable){requestNeeds=[];requestNeedsReady=false;makeLine();$('comprasAddLine').onclick=makeLine;
+ $('comprasDestino').onchange=loadRequestNeeds;$('comprasCategoria').onchange=()=>updateRequestRows();$('comprasBuscaMaterial').oninput=()=>updateRequestRows();$('comprasExtras').onchange=()=>updateRequestRows();void loadRequestNeeds();
  $('comprasSolicitarForm').onsubmit=async e=>{e.preventDefault();const value=$('comprasDestino').value;
  const lines=[...document.querySelectorAll('#comprasLinhas .ewComprasLine')].map((row,i)=>{
   const get=x=>row.querySelector('[data-buy="'+x+'"]').value;
-  return {chave:String(i+1),variacao_id:get('variation'),quantidade:Number(get('qty')),
+  const v=requestOptions(true).find(v=>v.key===get('variation'));
+  return {chave:String(i+1),variacao_id:v?.id||'',quantidade:Number(get('qty')),
    unidade:get('unit'),comprimento_mm:get('unit')==='BARRA'?Number(get('length')):null};});
  if(!value||lines.some(x=>!x.variacao_id||!validQty(x.quantidade,x.unidade)||
    (x.unidade==='BARRA'&&(!Number.isSafeInteger(x.comprimento_mm)||x.comprimento_mm<100||x.comprimento_mm>20000)))){
   say('comprasMensagem','Preencha destino, material e quantidades válidas.');return;}
- const [kind,id]=value.split(':');const btn=$('comprasSolicitarForm').querySelector('[type="submit"]');btn.disabled=true;
+ if(!requestNeedsReady)return;
+ if(!$('comprasExtras').checked&&value.startsWith('obra:')){
+  const combined=new Map();for(const line of lines){const k=line.variacao_id+'|'+(line.comprimento_mm??'');combined.set(k,(combined.get(k)||0)+line.quantidade);}
+  const eligible=requestOptions(true);
+  for(const [k,q] of combined){const v=eligible.find(v=>v.key===k);if(!v||v.faltante!==null&&q>Number(v.faltante)+1e-8){say('comprasMensagem','Quantidade ou comprimento fora da necessidade. Marque materiais extras e já atendidos para solicitar além da previsão.');return;}}
+ }
+ const [kind,id]=value.split(':');const btn=$('comprasSolicitarForm').querySelector('[type="submit"]');if(btn.disabled)return;btn.disabled=true;
  try{await ensureSession();await rpc('ew_compras_criar_solicitacao',{p_empresa_id:currentCompany.id,
   p_obra_id:kind==='obra'?id:null,p_local_empresa_id:kind==='empresa'?id:null,
   p_itens:lines,p_observacoes:$('comprasObservacoes').value,

@@ -34,7 +34,7 @@ assert.ok(app.includes("apiGet('ew_precificacao_revisoes_categorias',{")&&
 assert.ok(app.includes("billedValues={fabricacao:new Map(),instalacao:new Map()}")&&
  app.includes("Math.round(Number(x.valor_total||0)*100)")&&
  app.includes("row.dataset.autoPrice='0'")&&
- app.includes("finPrecoSugerido(precificacao,tipo,e.quantidade,disponivel,ja"),
+ app.includes("finPrecoM2Sugerido(precificacao,tipo,e.quantidade,areaUnit,areaMax,ja"),
  'Descontar histórico faturado e aceitar edição manual do preço sugerido');
 assert.ok(app.includes("const teto=finState.precificacao?")&&
  app.includes("Number(finState.precificacao[tipo+'_distribuida_centavos'])/100"),
