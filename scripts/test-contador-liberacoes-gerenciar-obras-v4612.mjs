@@ -15,7 +15,7 @@ assert.match(render,/const podeCancelarLiberacoes=liberacoesAtivas>0/);
 assert.match(render,/disabled title="Esta obra não possui liberações ativas para cancelar/);
 
 const root={
- innerHTML:'',
+ innerHTML:'',value:'',
  querySelectorAll:()=>[],
 };
 const context={
@@ -36,6 +36,7 @@ const context={
   {esquadria_id:'ea-duas-b',quantidade:1},
  ],
  node:()=>root,
+ temPermissao:()=>true,canAdministrate:()=>true,
  escapeHTML:x=>String(x),
 };
 vm.createContext(context);
