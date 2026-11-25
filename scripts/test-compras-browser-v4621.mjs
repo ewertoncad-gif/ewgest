@@ -6,6 +6,7 @@ import {chromium} from 'playwright';
 
 const browser=await chromium.launch({headless:true});
 try{
+ {
  const receiving=await browser.newPage();
  const appSource=readFileSync(new URL('../app.html',import.meta.url),'utf8');
  const nav=appSource.slice(appSource.indexOf('<button id="navRecebimento"'),appSource.indexOf('<button id="navEnviarNotas"'));
@@ -44,6 +45,7 @@ try{
  assert.equal(await receiving.locator('#recebimentoWork').inputValue(),'obra');
  await receiving.close();
  console.log('PASS submenu de recebimento, histórico por NF, busca e estorno único');
+ }
  const page=await browser.newPage({viewport:{width:390,height:844}});
  page.on('pageerror',e=>console.error('Browser pageerror:',e.message));
  await page.setContent('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"></head>'+
