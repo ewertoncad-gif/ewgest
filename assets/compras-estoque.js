@@ -511,7 +511,7 @@ async function atualizarRecebimento(obraId,preferredOrder=''){
  try{await reload();if(epoch!==receivingEpoch||$('recebimentoWork').value!==obraId)return;
  const empresaDestino=obraId.startsWith('empresa:');
  const ativos=orders.filter(p=>(empresaDestino?p.local_empresa_id===obraId.slice(8):p.obra_id===obraId)&&p.status!=='CANCELADO');
- box.innerHTML='<h2>Receber por pedido de compra</h2><p class="hint">Receba todo ou parte do pedido; somente o saldo efetivamente confirmado será acrescentado ao estoque físico.</p>'+
+ box.innerHTML='<div class="recebimentoPedidoEntrada"><h2>Receber por pedido de compra</h2><p class="hint">Receba todo ou parte do pedido; somente o saldo efetivamente confirmado será acrescentado ao estoque físico.</p></div><div class="recebimentoPedidoHistorico"><h2>Histórico de recebimentos por pedido</h2><p class="hint">Selecione o pedido para conferir as entradas e estornar um recebimento específico.</p></div>'+
  '<label>Pedido<select id="ewReceberPedido">'+option('','Selecione o pedido')+ativos.map(p=>option(p.id,'#'+p.numero+' · '+orderStatus(p))).join('')+'</select></label>'+
  '<form id="ewReceberForm" class="hidden"><div id="ewReceberItens"></div><label>Galpão de destino<select id="ewReceberGalpao" required>'+
  option('','Selecione')+galpoes.map(g=>option(g,g)).join('')+'</select></label>'+
@@ -541,7 +541,7 @@ async function atualizarRecebimento(obraId,preferredOrder=''){
    button.disabled=true;
    try{await rpc('ew_compras_estornar_recebimento',{p_recebimento_id:id,p_motivo:reason,
      p_operacao_id:operationToken('estornar_recebimento',{id,reason})});
-    pendingOps.delete('estornar_recebimento');await atualizarRecebimento(obraId);
+    pendingOps.delete('estornar_recebimento');await atualizarRecebimento(obraId,p.id);if($('recebimentoWork').value===obraId)say('ewReceberMessage','Recebimento estornado. Histórico atualizado.');
    }catch(err){say('ewReceberMessage','Estorno bloqueado: '+err.message);}
    finally{button.disabled=false;}
   });
