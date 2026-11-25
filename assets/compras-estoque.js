@@ -14,9 +14,20 @@ const option=(v,t)=>'<option value="'+esc(v)+'">'+esc(t)+'</option>';
 const validQty=(v,un)=>{const q=Number(v);return Number.isFinite(q)&&q>0&&q<=1000000&&
  Math.abs(q*1000-Math.round(q*1000))<1e-7&&
  (!['BARRA','MT','PC','PR','CJ','UN'].includes(un)||Number.isSafeInteger(q))};
-const parseMoney=v=>{const s=String(v||'').replace(/^R\$\s*/,'').replace(/\s/g,'');
- if(!/^\d+(?:[.,]\d{1,2})?$/.test(s))return null;const c=Math.round(Number(s.replace(',','.'))*100);
- return Number.isSafeInteger(c)&&c>=0?c:null;};
+const parseMoney=v=>{let s=String(v??'').trim().replace(/^R\$\s*/,'');
+ if(/^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(s))s=s.replace(/\./g,'');
+ if(!/^\d+(?:[.,]\d{1,2})?$/.test(s))return null;
+ const c=Math.round(Number(s.replace(',','.'))*100);
+ return Number.isSafeInteger(c)&&c>=0&&c<=100000000000?c:null;};
+const formatMoneyInput=c=>(c/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+function bindQuoteMoney(){
+ $('comprasCotacaoItens').querySelectorAll('[data-quote-key] input').forEach(input=>{
+  input.addEventListener('input',()=>input.setCustomValidity(''));
+  input.addEventListener('blur',()=>{const cents=parseMoney(input.value);
+   if(cents!==null)input.value=formatMoneyInput(cents);
+  });
+ });
+}
 // A API pode limitar cada resposta, mesmo com limit superior. Ler páginas
 // pequenas e ordenadas por ID; nunca calcular saldos de uma página isolada.
 async function readAllRows(table,filters){
@@ -181,7 +192,7 @@ async function cancelarRegistro(tipo,id){
   const args={p_motivo:reason,p_operacao_id:operationToken('cancel_'+tipo,{tipo,id,reason})};
   args[c.arg]=id;
   await rpc(c.rpc,args);pendingOps.delete('cancel_'+tipo);
-  await reload();render();say('comprasMensagem','Cancelamento realizado. Histórico e estoque preservados.');
+  await reload();groupCatalog=null;groupLinks=[];render();say('comprasMensagem','Cancelamento realizado. Histórico e estoque preservados.');
  }catch(e){say('comprasMensagem','Cancelamento bloqueado: '+e.message)}
  finally{if(button?.isConnected)button.disabled=false;}
 }
@@ -223,9 +234,51 @@ function renderRequest(){
   await reload();renderRequest();say('comprasMensagem','Solicitação registrada.');
  }catch(e){say('comprasMensagem','Erro: '+e.message)}finally{btn.disabled=false;}};
  }}
-let quotePreferredSolic='';
+let quotePreferredSolic='',groupCatalog=null,groupLinks=[],groupEpoch=0;
+const linkFor=id=>groupLinks.find(x=>x.filha_id===id);
+const eligibleSuppliers=id=>{
+ const link=linkFor(id);
+ if(!link)return groupCatalog?.legados?.includes(id)?suppliers:[];
+ const group=groupCatalog?.grupos.find(g=>g.id===link.grupo_id&&g.ativo);
+ return group?suppliers.filter(f=>groupCatalog.fornecedores.find(x=>x.id===f.id)?.grupos.includes(group.id)):[];
+};
+async function loadQuoteGroups(){
+ const company=currentCompany.id,seq=++groupEpoch;
+ const [catalog,links]=await Promise.all([rpc('ew_compras_grupos_catalogo',{p_empresa_id:company}),rpc('ew_compras_grupos_desdobrados',{p_empresa_id:company})]);
+ if(seq!==groupEpoch||currentCompany?.id!==company)throw Error('Consulta de grupos substituída.');
+ if(!Array.isArray(catalog?.grupos)||!Array.isArray(catalog?.fornecedores)||!Array.isArray(links))throw Error('Resposta inválida de grupos de compra.');
+ groupCatalog=catalog;groupLinks=links;
+}
+function quoteLabel(s){const l=linkFor(s.id);return titleLocal(s)+' · '+(l?l.nome+' · ':'')+(s.itens||[]).length+' itens';}
+function quoteGroupCards(parent,links){
+ return '<h3>Grupos da solicitação</h3>'+links.map(l=>{
+  const child=sols.find(x=>x.id===l.filha_id);const status=l.status==='PEDIDO_GERADO'?'Pedido gerado':l.status==='CANCELADA'?'Cancelado':'Aguardando cotação';
+  return '<div class="ewComprasForm"><strong>'+esc(l.nome)+'</strong><span>'+esc(status)+' · '+number(child?.itens?.length||0)+' itens</span>'+(l.status==='ABERTA'?'<button type="button" class="btn secondary" data-escolher-grupo="'+esc(l.filha_id)+'">Cotar este grupo</button>':'')+'</div>';
+ }).join('');
+}
+async function previewQuoteGroups(s,root,form,company){
+ if(!s||!root)return;
+ const links=groupLinks.filter(l=>l.solicitacao_id===s.id);
+ if(links.length){
+  root.innerHTML=quoteGroupCards(s,links);
+  root.querySelectorAll('[data-escolher-grupo]').forEach(b=>b.onclick=()=>{quotePreferredSolic=b.dataset.escolherGrupo;renderQuote();});
+  return;
+ }
+ root.textContent='Separando materiais por grupo…';
+ try{
+  const gs=await rpc('ew_compras_previa_grupos',{p_empresa_id:company,p_solicitacao_id:s.id});
+  if(!root.isConnected||currentCompany?.id!==company||$('comprasCotacaoSolic')?.value!==s.id)return;
+  if(!Array.isArray(gs)||!gs.length)throw Error('Nenhum grupo encontrado.');
+  root.innerHTML='<h3>Grupos encontrados</h3>'+gs.map(g=>'<div class="ewComprasForm"><strong>'+esc(g.nome)+'</strong><div>'+g.itens.map(i=>esc(productLabel(variations.find(v=>v.id===i.variacao_id)||{nome:i.variacao_id}))+' · '+number(i.quantidade)+' '+esc(i.unidade)).join('<br>')+'</div><span class="hint">'+(g.fornecedores.length?esc(g.fornecedores.map(f=>f.nome).join(', ')):'Nenhum fornecedor classificado para este grupo')+'</span></div>').join('')+'<button type="button" id="comprasPrepararGrupos" class="btn primary" '+(gs.some(g=>!g.ativo)?'disabled':'')+'>Preparar cotações por grupo</button><p class="hint">A solicitação original ficará preservada; cada grupo poderá gerar seu próprio pedido.</p>';
+  $('comprasPrepararGrupos').onclick=async()=>{const btn=$('comprasPrepararGrupos');if(btn.disabled)return;btn.disabled=true;
+   try{await ensureSession();await rpc('ew_compras_desdobrar_grupos',{p_empresa_id:company,p_solicitacao_id:s.id,p_operacao_id:operationToken('desdobrar',{id:s.id})});
+    pendingOps.delete('desdobrar');await reload();await loadQuoteGroups();quotePreferredSolic=s.id;renderQuote();say('comprasMensagem','Grupos preparados. Escolha o grupo para cotar.');
+   }catch(e){say('comprasMensagem','Desdobramento bloqueado: '+e.message);if(btn.isConnected)btn.disabled=false;}
+  };
+ }catch(e){if(root.isConnected&&$('comprasCotacaoSolic')?.value===s.id)root.textContent='Grupos indisponíveis: '+e.message;}
+}
 function groupingHtml(list){
- if(!permission('compras.agrupar')||!list.some(s=>s.obra_id))return '';
+ list=list.filter(s=>!linkFor(s.id));if(!permission('compras.agrupar')||!list.some(s=>s.obra_id))return '';
  const ids=[...new Set(list.filter(s=>s.obra_id).map(s=>s.obra_id))];
  return '<details class="ewComprasForm" id="comprasAgruparBox"><summary><strong>Juntar solicitações da mesma obra</strong></summary>'+
  '<label>Obra<select id="comprasAgruparObra">'+option('','Escolha a obra')+ids.map(id=>option(id,works.find(w=>w.id===id)?.nome||id)).join('')+'</select></label>'+
@@ -237,7 +290,7 @@ function bindGrouping(list){
  const box=$('comprasAgruparLista'),btn=$('comprasAgruparConfirmar');
  const checked=()=>[...box.querySelectorAll('input:checked')].map(x=>x.value).sort();
  select.onchange=()=>{
-  box.innerHTML=list.filter(s=>s.obra_id===select.value&&!quotes.some(q=>q.solicitacao_id===s.id&&q.status!=='CANCELADA'))
+  box.innerHTML=list.filter(s=>!linkFor(s.id)&&s.obra_id===select.value&&!quotes.some(q=>q.solicitacao_id===s.id&&q.status!=='CANCELADA'))
    .map(s=>'<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" value="'+esc(s.id)+'" style="width:16px;height:16px"> '+esc(String(s.criado_em).slice(0,10))+' · '+number((s.itens||[]).length)+' itens · '+esc(s.observacoes||s.id.slice(0,8))+'</label>').join('');
   btn.disabled=true;box.onchange=()=>{btn.disabled=checked().length<2;};
  };
@@ -269,7 +322,7 @@ function bindReplicarFornecedores(){
    root.innerHTML='<h3>Fornecedores desta cotação</h3>'+
     (convites.length?'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Fornecedor</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+
     convites.map(c=>'<tr><td>'+esc(c.fornecedor)+'</td><td>'+esc(c.status==='RESPONDIDA'?'Respondida':c.status==='ENCERRADA'?'Encerrada':'Aguardando retorno')+'</td><td>'+(c.ativo&&c.status!=='ENCERRADA'?'<button type="button" class="btn secondary" data-convite="'+esc(c.fornecedor_id)+'">Selecionar</button>':'—')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="hint">Nenhum fornecedor selecionado em lote.</p>')+
-    (permission('compras.replicar_cotacao')?'<details><summary>Replicar lista para vários fornecedores</summary><div style="max-height:240px;overflow:auto">'+suppliers.filter(f=>!exist.has(f.id)).map(f=>'<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" data-fornecedor="'+esc(f.id)+'" style="width:16px;height:16px"> '+esc(f.nome)+'</label>').join('')+'</div><button type="button" class="btn secondary" id="comprasReplicarLote">Criar cotações para selecionados</button></details>':'');
+    (permission('compras.replicar_cotacao')?'<details><summary>Replicar lista para vários fornecedores</summary><div style="max-height:240px;overflow:auto">'+eligibleSuppliers(id).filter(f=>!exist.has(f.id)).map(f=>'<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" data-fornecedor="'+esc(f.id)+'" style="width:16px;height:16px"> '+esc(f.nome)+'</label>').join('')+'</div><button type="button" class="btn secondary" id="comprasReplicarLote">Criar cotações para selecionados</button></details>':'');
    root.querySelectorAll('[data-convite]').forEach(b=>b.onclick=()=>{supplier.value=b.dataset.convite;supplier.onchange?.();supplier.focus();});
    const btn=$('comprasReplicarLote');
    if(btn)btn.onclick=async()=>{
@@ -287,21 +340,21 @@ function bindReplicarFornecedores(){
 function bindQuoteExcel(){
  if(!$('comprasCotacaoExportar'))return;
  const sol=$('comprasCotacaoSolic'),supplier=$('comprasCotacaoFornecedor'),file=$('comprasCotacaoArquivo');
- const context=()=>{const s=sols.find(x=>x.id===sol.value),f=suppliers.find(x=>x.id===supplier.value);if(!s||!f)throw Error('Selecione solicitação e fornecedor.');return {s,f};};
+ const context=()=>{const s=sols.find(x=>x.id===sol.value),f=eligibleSuppliers(sol.value).find(x=>x.id===supplier.value);if(!s||!f)throw Error('Selecione solicitação e fornecedor.');return {s,f};};
  $('comprasCotacaoExportar').onclick=async()=>{
-  try{if(!permission('compras.cotacao_excel'))return;const {s,f}=context(),core=await import('/assets/compras-cotacao-xlsx.mjs');
-   const blob=core.exportarXlsx(quoteModel(core,s,f.id)),url=URL.createObjectURL(blob),a=document.createElement('a');
+  try{if(!permission('compras.cotacao_excel'))return;const {s,f}=context(),core=await import('/assets/compras-cotacao-xlsx.mjs?v=20261125d');
+   const blob=core.exportarXlsx(quoteModel(core,s,f.id),{empresa:currentCompany?.nome||'EWGEST',obra:titleLocal(s),grupo:linkFor(s.id)?.nome||'Materiais',fornecedor:f.nome}),url=URL.createObjectURL(blob),a=document.createElement('a');
    a.href=url;a.download='cotacao_'+f.nome.replace(/[^a-zA-Z0-9_-]+/g,'_')+'_'+s.id.slice(0,8)+'.xlsx';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
    say('comprasMensagem','Planilha exportada. Peça ao fornecedor para preencher somente o preço unitário.');
   }catch(e){say('comprasMensagem',e.message);}
  };
  file.onchange=async()=>{
-  try{if(!permission('compras.cotacao_excel')||!file.files?.length)return;const {s,f}=context(),company=currentCompany.id,core=await import('/assets/compras-cotacao-xlsx.mjs');
+  try{if(!permission('compras.cotacao_excel')||!file.files?.length)return;const {s,f}=context(),company=currentCompany.id,core=await import('/assets/compras-cotacao-xlsx.mjs?v=20261125d');
    const prices=core.validarRetorno(quoteModel(core,s,f.id),await core.lerXlsx(file.files[0]));
    if(!file.isConnected||company!==currentCompany?.id||sol.value!==s.id||supplier.value!==f.id)throw Error('Seleção mudou; importe novamente.');
    const inputs=new Map([...document.querySelectorAll('[data-quote-key]')].map(row=>[row.dataset.quoteKey,row.querySelector('input')]));
    if(prices.some(p=>!inputs.has(p.chave)))throw Error('Itens da cotação mudaram.');
-   for(const p of prices)inputs.get(p.chave).value=(p.preco_unitario_centavos/100).toFixed(2).replace('.',',');
+   for(const p of prices)inputs.get(p.chave).value=formatMoneyInput(p.preco_unitario_centavos);
    say('comprasMensagem','Planilha validada. Confira os preços e clique em Registrar cotação.');
   }catch(e){say('comprasMensagem','Importação bloqueada: '+e.message);}finally{file.value='';}
  };
@@ -310,27 +363,36 @@ function renderQuote(){
  if(!permission('compras.consultar_valores')){
   $('comprasConteudo').innerHTML='<h2>Cotações</h2><p class="hint">Os valores dos fornecedores são restritos aos níveis com permissão para consultar preços.</p>';return;
  }
- const list=sols.filter(s=>s.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===s.id)),editable=permission('compras.cotar');
+ const root=$('comprasConteudo');
+ if(!groupCatalog){root.innerHTML='<p class="hint">Consultando grupos de compra…</p>';void loadQuoteGroups().then(()=>{if(tab==='cotacao')renderQuote();}).catch(e=>{if(tab==='cotacao')root.textContent='Grupos indisponíveis: '+e.message;});return;}
+ const list=sols.filter(s=>(s.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===s.id))||s.status==='DESDOBRADA'),editable=permission('compras.cotar');
  $('comprasConteudo').innerHTML='<h2>Cotação</h2><p class="hint">Cotação por fornecedor. Várias cotações podem ser comparadas para uma solicitação; apenas a escolhida vira pedido.</p>'+
- (editable?groupingHtml(list)+'<form id="comprasCotarForm" class="ewComprasForm"><label>Solicitação<select id="comprasCotacaoSolic" required>'+option('','Escolha')+list.map(s=>option(s.id,titleLocal(s)+' · '+(s.itens||[]).length+' itens')).join('')+'</select></label>'+
- '<label>Fornecedor<select id="comprasCotacaoFornecedor" required>'+option('','Escolha')+suppliers.map(x=>option(x.id,x.nome)).join('')+'</select></label><div id="comprasCotacaoItens"></div><div id="comprasConvites"></div>'+
+ (editable?groupingHtml(list.filter(s=>s.status==='ABERTA'))+'<form id="comprasCotarForm" class="ewComprasForm"><label>Solicitação<select id="comprasCotacaoSolic" required>'+option('','Escolha')+list.map(s=>option(s.id,quoteLabel(s)+(s.status==='DESDOBRADA'?' · Grupos preparados':''))).join('')+'</select></label>'+
+ '<div id="comprasGruposPrevia"></div><div id="comprasGrupoEditor" hidden><label>Fornecedor<select id="comprasCotacaoFornecedor" required>'+option('','Escolha')+'</select></label><div id="comprasCotacaoItens"></div><div id="comprasConvites"></div>'+
  (permission('compras.cotacao_excel')?'<div class="ewComprasActions" style="flex-wrap:wrap"><button type="button" class="btn secondary" id="comprasCotacaoExportar">Exportar Excel para fornecedor</button><label>Importar Excel preenchido<input id="comprasCotacaoArquivo" type="file" accept=".xlsx"></label></div>':'')+
- '<button class="btn primary" type="submit">Registrar cotação</button></form>':'')+
+ '<button class="btn primary" type="submit">Registrar cotação</button></div></form>':'')+
  '<h3>Cotações registradas</h3><div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Fornecedor</th><th>Destino</th><th>Total</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+
  quotes.map(q=>{const s=sols.find(x=>x.id===q.solicitacao_id);return '<tr><td>'+esc(suppliers.find(x=>x.id===q.fornecedor_id)?.nome||'Fornecedor')+'</td><td>'+esc(s?titleLocal(s):'-')+'</td><td>'+money(q.total_centavos)+'</td><td>'+esc(q.status==='CANCELADA'?'Cancelada':orders.some(p=>p.cotacao_id===q.id)?'Pedido gerado':'Em avaliação')+cancelDetails(q)+'</td><td>'+(editable&&q.status!=='CANCELADA'&&s?.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===q.solicitacao_id)?'<button type="button" class="btn secondary" data-compras-tipo="cotacao" data-compras-cancel="'+esc(q.id)+'">Cancelar</button>':'—')+(editable&&permission('compras.replicar_cotacao')&&s?.status==='ABERTA'&&q.status!=='CANCELADA'?'<button class="btn secondary" type="button" data-cotacao-replicar="'+esc(q.solicitacao_id)+'">Replicar lista</button>':'')+'</td></tr>'}).join('')+'</tbody></table></div>';bindCancelButtons();
- bindGrouping(list);bindQuoteExcel();const renderConvites=bindReplicarFornecedores();
+ bindGrouping(list.filter(s=>s.status==='ABERTA'));bindQuoteExcel();const renderConvites=bindReplicarFornecedores();
  $('comprasConteudo').querySelectorAll('[data-cotacao-replicar]').forEach(b=>b.onclick=()=>{quotePreferredSolic=b.dataset.cotacaoReplicar;renderQuote();$('comprasCotacaoFornecedor').focus();say('comprasMensagem','Lista replicada. Selecione outro fornecedor e exporte o Excel; preços anteriores não foram copiados.');});
  if(editable){$('comprasCotacaoSolic').onchange=()=>{
+  const s=sols.find(x=>x.id===$('comprasCotacaoSolic').value),editor=$('comprasGrupoEditor'),supplier=$('comprasCotacaoFornecedor'),preview=$('comprasGruposPrevia');
+  const isGroup=s&&(linkFor(s.id)||groupCatalog.legados?.includes(s.id));
+  editor.hidden=!isGroup;supplier.disabled=!isGroup;preview.replaceChildren();
+  supplier.innerHTML=option('','Escolha')+(isGroup?eligibleSuppliers(s.id).map(x=>option(x.id,x.nome)).join(''):'');
+  $('comprasCotarForm').querySelector('[type=submit]').disabled=!isGroup||!eligibleSuppliers(s.id).length;
+  if(!isGroup){$('comprasCotacaoItens').replaceChildren();$('comprasConvites').replaceChildren();if(s)void previewQuoteGroups(s,preview,$('comprasCotarForm'),currentCompany.id);return;}
+  if(!eligibleSuppliers(s.id).length)preview.textContent='Nenhum fornecedor habilitado. Classifique fornecedores em Cadastros do sistema → Grupos de compra.';
   void renderConvites();
-  const s=sols.find(x=>x.id===$('comprasCotacaoSolic').value);
   $('comprasCotacaoItens').innerHTML=s?'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Material</th><th>Quantidade</th><th>Un.</th><th>Preço unitário (R$)</th></tr></thead><tbody>'+
-  (s.itens||[]).map(i=>'<tr data-quote-key="'+esc(i.chave)+'"><td>'+esc(productLabel(variations.find(v=>v.id===i.variacao_id)||{nome:i.variacao_id}))+'</td><td>'+number(i.quantidade)+'</td><td>'+esc(i.unidade)+'</td><td><input type="text" inputmode="decimal" required placeholder="0,00"></td></tr>').join('')+'</tbody></table></div>':'';
+  (s.itens||[]).map(i=>'<tr data-quote-key="'+esc(i.chave)+'"><td>'+esc(productLabel(variations.find(v=>v.id===i.variacao_id)||{nome:i.variacao_id}))+'</td><td>'+number(i.quantidade)+'</td><td>'+esc(i.unidade)+'</td><td><input type="text" inputmode="decimal" required placeholder="0,00" aria-label="Preço unitário em reais" style="text-align:right;font-variant-numeric:tabular-nums"></td></tr>').join('')+'</tbody></table></div>':'';
+  bindQuoteMoney();
  };
  if(quotePreferredSolic&&list.some(s=>s.id===quotePreferredSolic)){$('comprasCotacaoSolic').value=quotePreferredSolic;$('comprasCotacaoSolic').onchange();}quotePreferredSolic='';
  $('comprasCotacaoFornecedor').onchange=()=>{$('comprasCotacaoItens').querySelectorAll('input').forEach(i=>i.value='');};
  $('comprasCotarForm').onsubmit=async e=>{e.preventDefault();const s=sols.find(x=>x.id===$('comprasCotacaoSolic').value);
  const precos=[...document.querySelectorAll('[data-quote-key]')].map(row=>({chave:row.dataset.quoteKey,preco_unitario_centavos:parseMoney(row.querySelector('input').value)}));
- if(!s||precos.some(x=>x.preco_unitario_centavos===null)){say('comprasMensagem','Valores inválidos.');return;}
+ if(!s||!eligibleSuppliers(s.id).some(f=>f.id===$('comprasCotacaoFornecedor').value)||precos.some(x=>x.preco_unitario_centavos===null)){say('comprasMensagem','Valores inválidos.');return;}
  try{await rpc('ew_compras_criar_cotacao',{p_solicitacao_id:s.id,p_fornecedor_id:$('comprasCotacaoFornecedor').value,
  p_precos:precos,p_operacao_id:operationToken('cotar',{id:s.id,fornecedor:$('comprasCotacaoFornecedor').value,precos})});
  pendingOps.delete('cotar');await reload();renderQuote();say('comprasMensagem','Cotação registrada.');
@@ -363,7 +425,7 @@ function render(){for(const [k,id] of [['solicitacao','comprasTabSolicitacao'],[
 }
 async function abrir(){
  if(!permission('compras.consultar'))return;setView('compras');
- say('comprasMensagem','Carregando compras…');try{await reload();render();say('comprasMensagem','')}
+ say('comprasMensagem','Carregando compras…');try{await reload();groupCatalog=null;groupLinks=[];render();say('comprasMensagem','')}
  catch(e){say('comprasMensagem','Compras ainda indisponíveis: '+e.message);}
 }
 // Os controles antigos movem estoque apenas entre obras existentes.
@@ -376,7 +438,7 @@ for(const id of ['stockTransferPickLocal','stockTransferPickWork','stockManageLo
  },true);
 }
 for(const [tabValue,id] of [['solicitacao','comprasTabSolicitacao'],['cotacao','comprasTabCotacao'],['pedido','comprasTabPedido']])
- $(id).addEventListener('click',()=>{tab=tabValue;if(loaded)render();});
+ $(id).addEventListener('click',()=>{tab=tabValue;if(tabValue==='cotacao'){groupCatalog=null;groupLinks=[];}if(loaded)render();});
 async function carregarLocaisRecebimento(select){
  if(!permission('compras.receber')||!currentCompany)return;
  try{

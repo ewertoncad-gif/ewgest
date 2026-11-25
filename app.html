@@ -723,7 +723,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.28</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -744,7 +744,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.28</div>
+        <div class="build">EWGEST • v46.29</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -1369,6 +1369,7 @@
         <button id="navAccessories" type="button" class="cadastrosTile"><strong>Acessórios</strong><span>Códigos, unidades e variações</span></button>
         <button id="navTypologies" type="button" class="cadastrosTile"><strong>Tipologias</strong><span>Esquadrias e abreviações</span></button>
         <button id="navManufacturers" type="button" class="cadastrosTile"><strong>Fabricantes</strong><span>Catálogo de fabricantes</span></button>
+        <button id="cadastroJumpGruposCompra" type="button" class="cadastrosTile hidden"><strong>Grupos de compra</strong><span>Classificação e fornecedores compatíveis</span></button>
         <button id="cadastroJumpFornecedores" type="button" class="cadastrosTile"><strong>Fornecedores</strong><span>Fornecedores das notas fiscais</span></button>
         <button id="cadastroJumpGalpoes" type="button" class="cadastrosTile"><strong>Galpões</strong><span>Imbiribeira, Afogados, Olinda e outros</span></button>
         <button id="cadastroJumpObras" type="button" class="cadastrosTile"><strong>Obras</strong><span>Cadastrar manualmente, consultar e excluir obras</span></button>
@@ -1378,6 +1379,7 @@
         <button id="navUnidades" type="button" class="cadastrosTile"><strong>Unidades de medida</strong><span>Litros, metros, peças e outras unidades</span></button>
         <button id="navUsers" type="button" class="cadastrosTile"><strong>Usuários</strong><span>Cadastro e gestão de contas</span></button>
       </div>
+      <div id="cadastroGruposCompra" class="section panel hidden"></div>
       <p id="cadastrosMessage" class="feedback" role="status"></p>
     </section>
 
@@ -11263,7 +11265,7 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/precificacao-core.js?v=20261122a"></script>
 <script src="/assets/precificacao-importacao.js?v=20261122a"></script>
 <script src="/assets/recebimento-manual.js?v=20261121l"></script>
-<script src="/assets/cadastros-hub.js?v=20261121c"></script>
+<script src="/assets/cadastros-hub.js?v=20261125d"></script>
 <script src="/assets/insumos-fisicos.js?v=20261125a"></script>
 <script src="/assets/entregas-producao.js?v=20261121a"></script>
 <script src="/assets/romaneios-transferencia.js?v=20261125a"></script>
@@ -11271,7 +11273,7 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/relatorios-obras.js?v=20261125c"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>
 <script src="/assets/niveis-acesso.js?v=20261124c"></script>
-<script src="/assets/compras-estoque.js?v=20261125c"></script>
+<script src="/assets/compras-estoque.js?v=20261125d"></script>
 <script src="/assets/compras-comprovante-transferencia.js?v=20261124a"></script>
 <script src="/assets/compras-conciliacao-nfe.js?v=20261124b"></script>
 <script src="/assets/compras-nota-empresa.js?v=20261124a"></script>

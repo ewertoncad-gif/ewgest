@@ -127,7 +127,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.28',
+ 'EWGEST • v46.29',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2034,12 +2034,13 @@ for(const id of ['navCadastros','cadastros','navAccessories','cadastroFornecedor
  'navTypologies','navManufacturers','navUsers']){
  assert.ok(source.includes('id="'+id+'"'),'Cadastro central faltando '+id);
 }
-assert.ok(source.includes('cadastros-hub.js?v=20261121c')&&
+assert.ok(/cadastros-hub\.js\?v=\d{8}[a-z]/.test(source)&&
  source.includes("['navCadastros','cadastros']")&&
  cadastroHubJS.includes("apiGet('ew_fornecedores'")&&
  cadastroHubJS.includes("apiGet('ew_locais_fisicos'")&&
  cadastroHubJS.includes('cadastrarGalpaoEmpresa(nome)'),
  'Um único menu de cadastros reutiliza fornecedores e galpões já cadastrados');
+assert.ok(source.includes('id="cadastroJumpGruposCompra"')&&source.includes('id="cadastroGruposCompra"')&&cadastroHubJS.includes('ew_compras_salvar_grupos_fornecedor'),'Cadastro central inclui os grupos de compra e vínculos por fornecedor');
 assert.ok(source.includes('id="stockTransferPickWork"')&&
  source.includes("stockObraTransferOpen(candidate.item.v.id")&&
  source.includes('id="stockObraTransferOverlay"')&&
@@ -2106,7 +2107,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.28')&&
+assert.ok(source.includes('v46.29')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2340,7 +2341,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.28</strong>'),
+ source.includes('EWGEST <strong>· v46.29</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
