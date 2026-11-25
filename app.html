@@ -723,7 +723,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.23</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.24</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -744,7 +744,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.23</div>
+        <div class="build">EWGEST • v46.24</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -1749,7 +1749,7 @@
 <div id="stockManageOverlay" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox matDialog" role="dialog" aria-modal="true" aria-labelledby="stockManageTitle" style="max-width:1100px;width:min(96vw,1100px);max-height:92vh">
     <h2 id="stockManageTitle">Gerenciar estoques — saldos, histórico e estornos</h2>
-    <p class="hint">Esta tela exibe somente os estoques das obras em andamento. Para encerrar uma obra definitivamente, utilize Gerenciar obras após cancelar todas as operações dependentes. Não existe restauração de estoque ou de obra excluída.</p>
+    <p class="hint">Esta tela exibe somente os estoques das obras em andamento. Para encerrar uma obra definitivamente, utilize Obras → Conferir / excluir obra após cancelar todas as operações dependentes. Não existe restauração de estoque ou de obra excluída.</p>
     <p id="stockManageStatus" class="hint" role="status"></p>
     <div id="stockManageRecords"></div>
     <div id="stockReversePanel" class="stockReversePanel hidden">
@@ -10272,7 +10272,7 @@ async function stockReverseExecutar(){
    'Conciliação registrada: '+Number(result.conciliados)+' transferências históricas de '+
    obra.nome+' já estavam compensadas pelo estorno das NF-e. Saldo zero em todos os galpões; '+
    'nenhum movimento novo foi criado. Histórico preservado no relatório de operações. '+
-   'Se quiser retirar a obra de treinamento, use Gerenciar obras.':
+   'Se quiser retirar a obra de treinamento, use Obras → Conferir / excluir obra.':
    'Estorno concluído: '+Number(result?.estornados||0)+
    ' movimento(s) revertido(s) em '+obra.nome+
    '. Os saldos devem estar zerados; histórico disponível em Usuários → Relatório de operações.';
@@ -10638,7 +10638,7 @@ function renderGerenciamentoObras(){
   b.addEventListener('click',()=>openReleaseCancelAll(b.dataset.workCancelReleases)));
 }
 function abrirGerenciamentoObras(){
- if(!canAdministrate()||!currentCompany)return;
+ if(!canAdministrate()||!currentCompany||!temPermissao('obras.estornar'))return;
  workDeleteInspection=null;workDeleteOperationId=null;
  node('manageWorksReview').classList.add('hidden');
  node('manageWorksFeedback').textContent='';
