@@ -2041,6 +2041,9 @@ assert.ok(/cadastros-hub\.js\?v=\d{8}[a-z]/.test(source)&&
  cadastroHubJS.includes('cadastrarGalpaoEmpresa(nome)'),
  'Um único menu de cadastros reutiliza fornecedores e galpões já cadastrados');
 assert.ok(source.includes('id="cadastroJumpGruposCompra"')&&source.includes('id="cadastroGruposCompra"')&&cadastroHubJS.includes('ew_compras_salvar_grupos_fornecedor'),'Cadastro central inclui os grupos de compra e vínculos por fornecedor');
+const fornecedorPage=source.slice(source.indexOf('<section id="fornecedoresPage"'),source.indexOf('<section id="galpoesPage"'));
+const gruposEditor=cadastroHubJS.slice(cadastroHubJS.indexOf(' async function abrirGrupos(){'));
+assert.ok(fornecedorPage.includes('id="cadastroFornecedorGrupos"')&&cadastroHubJS.includes("async function abrirGruposFornecedor(")&&!gruposEditor.includes('cadastroGrupoSalvarFornecedor'),'Vínculos comerciais ficam exclusivamente no cadastro de fornecedores');
 assert.ok(source.includes('id="stockTransferPickWork"')&&
  source.includes("stockObraTransferOpen(candidate.item.v.id")&&
  source.includes('id="stockObraTransferOverlay"')&&
