@@ -15,7 +15,7 @@
   {codigo:'PR',nome:'Par',ativo:true,padrao:true}
  ];
  let unidades=defaults.slice(),empresaId=null,carregada=false,emCurso=null,editCodigo=null,bloqueado=false;
- const isAdmin=()=>typeof isFullAdminUser==='function'&&isFullAdminUser();
+ const isAdmin=()=>temPermissao('cadastros.editar');
  function informar(s){const label=byId('unidadeMessage');if(label)label.textContent=s;}
  function lista(){return unidades.filter(u=>u.ativo).map(x=>({...x}));}
  function ativa(codigo){return unidades.some(u=>u.ativo&&u.codigo===codigo);}
@@ -52,7 +52,7 @@
   return request('/rest/v1/rpc/'+fn,{method:'POST',token:session.access_token,body:payload,timeoutMs:30000});
  }
  async function carregar(force=false){
-  if(!currentCompany||!canAdministrate()&&!isAlmoxarife())return;
+  if(!currentCompany||!['cadastros.consultar','estoque.consultar','estoque.receber','financeiro.despesas'].some(temPermissao))return;
   if(empresaId===currentCompany.id&&carregada&&!force)return;
   if(emCurso)return emCurso;
   emCurso=(async()=>{
@@ -72,7 +72,7 @@
   return emCurso;
  }
  async function abrir(){
-  if(!canAdministrate())return;
+  if(!temPermissao('cadastros.consultar'))return;
   byId('unidadeCodigo').value='';
   byId('unidadeNome').value='';
   cancelarEdicao();
