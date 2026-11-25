@@ -127,7 +127,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.27',
+ 'EWGEST • v46.28',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2106,7 +2106,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.27')&&
+assert.ok(source.includes('v46.28')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2340,7 +2340,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.27</strong>'),
+ source.includes('EWGEST <strong>· v46.28</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2971,9 +2971,9 @@ assert.equal(areaCalc4624.finPrecoM2Sugerido({fabricacao_centavos:27600},'fabric
 assert.ok(source.includes('area_m2:qtd,preco_m2:preco')&&source.includes('Área a faturar (m²)')&&source.includes('Preço (R$/m²)'));
 assert.ok(source.includes('ew_estornar_nfe_com_recebimentos')&&source.includes('Todas as '));
 
-// v46.27: sequência de romaneios específica por obra.
+// v46.28: sequência de romaneios específica por obra.
 const romNum4627=readFileSync(fileURLToPath(new URL('../database/proposals/20261125_numeracao_romaneios_por_obra_v4627.sql',import.meta.url)),'utf8');
 for(const x of ['pg_try_advisory_xact_lock','romaneios_obra_numero_key',"WHERE status<>'AGRUPADO'",'NUMERO_REUTILIZADO','itens_originais','romaneios.juntar','romaneios.adiantar_numeracao','romaneios.historico_numeracao'])assert.ok(romNum4627.includes(x),x);
 assert.ok(source.includes('p_empresa_id:empresaId,p_obra_id:obraId')&&source.includes('historico_romaneios'));
 assert.ok(transferDocsJS.includes('x.obra_id!==sel[0].obra_id')&&transferDocsJS.includes('result.proximo_codigo'));
-console.log('OK v46.27: numeração por obra, flags e histórico de junções.');
+console.log('OK v46.28: numeração por obra, flags e histórico de junções.');

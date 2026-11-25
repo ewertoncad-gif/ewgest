@@ -38,6 +38,8 @@ jobs:
 
       - name: Verificar composição configurável de expedição
         run: node scripts/test-composicao-expedicao.mjs
+      - name: Validar modelo de cotação Excel
+        run: node scripts/test-compras-cotacao-xlsx.mjs
 
   navegador-compras:
     if: github.event_name == 'pull_request'
@@ -59,6 +61,8 @@ jobs:
         run: node scripts/test-compras-browser-v4621.mjs
       - name: Validar editor e componentes de expedição no Chromium
         run: node scripts/test-composicao-browser.mjs
+      - name: Validar exportação e importação XLSX no Chromium
+        run: node scripts/test-compras-cotacao-xlsx-browser.mjs
 
   concorrencia-compras:
     if: github.event_name == 'pull_request'

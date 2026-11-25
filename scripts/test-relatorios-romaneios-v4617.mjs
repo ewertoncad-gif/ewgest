@@ -13,7 +13,7 @@ for(const token of ['value="liberacoes"','value="expedicao"','value="aluminio"',
  'data-report-stock="recebimento"','data-report-stock="producao"',
  'data-report-stock="galpoes"','data-report-stock="obras"',
  'data-report-stock="direto"','data-report-stock="outros"',
- 'relatorios-obras.js?v=20261125a','relatorios-obras.css?v=20261122b']){
+ 'relatorios-obras.js?v=20261125c','relatorios-obras.css?v=20261122b']){
  assert.ok(html.includes(token),'Falta componente no relatório: '+token);
 }
 assert.ok(js.includes("async function liberacoes(ctx)")&&
@@ -45,7 +45,7 @@ assert.ok(sql.includes("estorno_movimento_id")&&
  sql.includes("Devolução física confirmada"),
  'Cancelamento deve registrar devolução');
 assert.ok(protect.includes("Cancele o romaneio e confirme a devolução física"));
-const readOnlyReports=js.replace(/request\('\/rest\/v1\/rpc\/ew_historico_numeracao_romaneios',\{method:'POST',token:session\.access_token,body:\{[\s\S]*?\}\}\)/g,'READ_ONLY_RPC');
+const readOnlyReports=js.replace(/request\('\/rest\/v1\/rpc\/(?:ew_historico_numeracao_romaneios|ew_compras_historico_precos)',\{method:'POST',token:session\.access_token,body:\{[\s\S]*?\}\}\)/g,'READ_ONLY_RPC');
 assert.doesNotMatch(readOnlyReports,/\/rest\/v1\/rpc\/|method\s*:\s*'POST'/,
  'Relatórios continuam somente leitura');
 console.log('OK v46.20: período total, filtros combináveis, relatórios e saídas diretas com vínculo auditável.');

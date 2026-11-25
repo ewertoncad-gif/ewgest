@@ -14,7 +14,7 @@ for(const key of [
  'id="navRelatorios"','id="relatorios"','id="reportType"',
  'id="reportWork"','id="reportStart"','id="reportEnd"',
  'id="reportCsv"','id="reportPrint"',
- 'relatorios-obras.js?v=20261125a','romaneios-transferencia.js?v=20261125a']){
+ 'relatorios-obras.js?v=20261125c','romaneios-transferencia.js?v=20261125a']){
  assert.ok(app.includes(key),'Componente ausente: '+key);
 }
 assert.ok(app.includes("setNavPermission('navRelatorios',podeVerRelatorios())")&&
@@ -34,7 +34,7 @@ assert.match(reports,/m\.estorno_de_id/,
  'Estornos devem aparecer vinculados ao original');
 assert.match(reports,/function csv\(\)/,
  'Relatórios exportáveis para planilha');
-const readOnlyReports=reports.replace(/request\('\/rest\/v1\/rpc\/ew_historico_numeracao_romaneios',\{method:'POST',token:session\.access_token,body:\{[\s\S]*?\}\}\)/g,'READ_ONLY_RPC');
+const readOnlyReports=reports.replace(/request\('\/rest\/v1\/rpc\/(?:ew_historico_numeracao_romaneios|ew_compras_historico_precos)',\{method:'POST',token:session\.access_token,body:\{[\s\S]*?\}\}\)/g,'READ_ONLY_RPC');
 assert.doesNotMatch(readOnlyReports,/\/rest\/v1\/rpc\/|method\s*:\s*'POST'|\.update\(|\.delete\(/,
  'Relatórios nunca devem chamar RPC de escrita nem modificar estoque');
 

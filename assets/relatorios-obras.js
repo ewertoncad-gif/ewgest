@@ -73,7 +73,7 @@ function contexto(){
   obraIds=new Set([...el('reportWorkChecks').querySelectorAll('input:checked')].map(x=>x.value));
   if(!obraIds.size)throw new Error('Marque pelo menos uma obra para consolidar o faturamento.');
  }
- return {empresa:'eq.'+currentCompany.id,obraId:['faturamento','custos_empresa'].includes(modo)?'':el('reportWork').value,obraIds,ativas:obraAtivaIds};
+ return {empresa:'eq.'+currentCompany.id,obraId:['faturamento','custos_empresa','precos_fornecedores'].includes(modo)?'':el('reportWork').value,obraIds,ativas:obraAtivaIds};
 }
 function tabela(cabecalhos,linhas){
  if(!linhas.length)return '<p class="reportsEmpty">Nenhum registro encontrado nos filtros selecionados.</p>';
@@ -385,6 +385,37 @@ async function aluminio(ctx){
  el('reportTable').innerHTML=tabela(headers,rows);
  return {contagem:rows.length};
 }
+async function carregarFornecedoresPrecos(){
+ const company=currentCompany?.id;
+ if(!company||!temPermissao('compras.historico_precos')||!temPermissao('compras.consultar_valores'))return;
+ await ensureSession();
+ const suppliers=await listarTudo('ew_fornecedores',{select:'id,nome',empresa_id:'eq.'+company,order:'nome.asc,id.asc'});
+ if(currentCompany?.id!==company||el('reportType').value!=='precos_fornecedores')return;
+ const sel=el('reportCompanySupplier'),old=sel.value;
+ sel.replaceChildren(new Option('Todos os fornecedores',''));
+ for(const f of suppliers)sel.add(new Option(f.nome,f.id));
+ sel.value=suppliers.some(f=>f.id===old)?old:'';
+}
+async function precos_fornecedores(ctx){
+ const dados=[],supplierId=el('reportCompanySupplier').value,latestOnly=el('reportPriceLatest').checked;
+ for(let offset=0;offset<=100000;offset+=500){
+  const page=await request('/rest/v1/rpc/ew_compras_historico_precos',{method:'POST',token:session.access_token,body:{p_empresa_id:currentCompany.id,p_fornecedor_id:supplierId||null,p_variacao_id:null,p_offset:offset}});
+  if(!Array.isArray(page))throw Error('Histórico indisponível.');
+  dados.push(...page);if(page.length<500)break;
+  if(offset===100000)throw Error('Histórico acima do limite de consulta.');
+ }
+ const seen=new Set();const filtered=dados.filter(x=>dentro(x.criado_em));
+ headers=['Fornecedor','Código','Descrição','Cor','Acabamento','Comprimento mm','Unidade','Preço unitário','Quantidade cotada','Data da cotação','Situação','Pedido aprovado','Referência'];
+ rows=filtered.flatMap(x=>{
+  const key=[x.fornecedor_id,x.variacao_id,x.unidade,x.comprimento_mm].join('|');
+  const latest=!seen.has(key)&&x.status!=='CANCELADA';if(latest)seen.add(key);
+  if(latestOnly&&!latest)return [];
+  return [[x.fornecedor,x.codigo||'',x.descricao||'',x.cor||'',x.acabamento||'',x.comprimento_mm??'',x.unidade,brl(Number(x.preco_unitario_centavos)/100),qtd(x.quantidade),stamp(x.criado_em),x.status==='CANCELADA'?'Cancelada':latest?'Última válida no período':'Histórica',x.pedido_aprovado?'Sim':'Não',x.cotacao_id]];
+ });
+ reportTitle='Histórico de preços por fornecedor';
+ el('reportSummary').innerHTML='<p class="hint">Preços das cotações, inclusive histórico cancelado identificado. Não alteram orçamento ou preço-base das esquadrias. Descrições seguem o catálogo atual; a variação e o preço são os da cotação.</p>';
+ el('reportTable').innerHTML=tabela(headers,rows);return {contagem:rows.length};
+}
 async function historico_romaneios(ctx){
  const dados=[];
  for(let offset=0;offset<=100000;offset+=500){
@@ -422,6 +453,7 @@ async function gerar(){
  el('reportTable').replaceChildren();el('reportSummary').replaceChildren();
  const tipo=el('reportType').value;
  if(tipo==='historico_romaneios'&&!(temPermissao('relatorios.operacionais')&&temPermissao('romaneios.historico_numeracao'))){el('reportStatus').textContent='Sem permissão para histórico de romaneios.';return;}
+ if(tipo==='precos_fornecedores'&&!(temPermissao('compras.historico_precos')&&temPermissao('compras.consultar_valores'))){el('reportStatus').textContent='Sem permissão para consultar preços de fornecedores.';return;}
  if((tipo==='faturamento'&&!temPermissao('relatorios.financeiros'))||
    (tipo==='custos_empresa'&&!(temPermissao('relatorios.financeiros')&&temPermissao('compras.consultar_valores')&&temPermissao('financeiro.consultar')))){
   el('reportStatus').textContent='Seu nível não permite consultar relatórios financeiros.';return;
@@ -452,7 +484,7 @@ async function gerar(){
    el('reportStatus').textContent='Relatório concluído: '+res.notesCount+' nota(s) encontrada(s), '+res.shown+
     ' apresentada(s). Valores ativos sem notas canceladas; consulta sem movimentações.';
   }else{
-   const geradores={faturamento,estoque,liberacoes,expedicao,aluminio,historico_romaneios};
+   const geradores={faturamento,estoque,liberacoes,expedicao,aluminio,precos_fornecedores,historico_romaneios};
    if(!geradores[tipo])throw new Error('Relatório inexistente.');
    const res=await geradores[tipo](ctx);
    el('reportStatus').textContent='Relatório concluído: '+res.contagem+' registro(s) consultado(s). '+
@@ -515,6 +547,10 @@ function exibirFiltros(){
  const histOption=el('reportType').querySelector('[value="historico_romaneios"]');
  if(histOption){histOption.disabled=!histPermit;histOption.hidden=!histPermit;}
  if(!histPermit&&el('reportType').value==='historico_romaneios')el('reportType').value='estoque';
+ const pricesAllowed=temPermissao('compras.historico_precos')&&temPermissao('compras.consultar_valores');
+ const priceOption=el('reportType').querySelector('[value="precos_fornecedores"]');
+ if(priceOption){priceOption.disabled=!pricesAllowed;priceOption.hidden=!pricesAllowed;}
+ if(!pricesAllowed&&el('reportType').value==='precos_fornecedores')el('reportType').value='estoque';
  const option=el('reportType').querySelector('[value="faturamento"]');
  if(option){option.disabled=!finance;option.hidden=!finance;}
  const corpAllowed=finance&&temPermissao('financeiro.consultar')&&temPermissao('compras.consultar_valores');
@@ -525,9 +561,10 @@ function exibirFiltros(){
  const tipo=el('reportType').value,isBilling=tipo==='faturamento',stock=tipo==='estoque';
  const company=tipo==='custos_empresa';
  el('reportMultiple').classList.toggle('hidden',!isBilling);
- el('reportWork').closest('label').classList.toggle('hidden',isBilling||company);
+ el('reportWork').closest('label').classList.toggle('hidden',isBilling||company||tipo==='precos_fornecedores');
  el('reportCompanyLocalWrap').classList.toggle('hidden',!company);
- el('reportCompanySupplierWrap').classList.toggle('hidden',!company);
+ el('reportCompanySupplierWrap').classList.toggle('hidden',!company&&tipo!=='precos_fornecedores');
+ el('reportPriceLatestWrap').classList.toggle('hidden',tipo!=='precos_fornecedores');
  el('reportStockOptions').classList.toggle('hidden',!stock);
  el('reportCancelledWrap').classList.toggle('hidden',!['faturamento','liberacoes','expedicao','custos_empresa'].includes(tipo));
  el('reportWorkChecks').classList.toggle('hidden',el('reportWorkScope').value!=='selected'||!isBilling);
@@ -542,6 +579,7 @@ el('reportType').addEventListener('change',()=>{
  exibirFiltros();
  el('reportSummary').replaceChildren();el('reportTable').replaceChildren();
  el('reportCsv').disabled=true;el('reportPrint').disabled=true;rows=[];
+ if(el('reportType').value==='precos_fornecedores')void carregarFornecedoresPrecos().catch(e=>{el('reportStatus').textContent='Falha ao carregar fornecedores: '+e.message;});
  if(el('reportType').value==='custos_empresa'&&window.ewCustosEmpresa&&currentCompany?.id)
   void window.ewCustosEmpresa.carregarFiltros(currentCompany.id)
    .catch(e=>{el('reportStatus').textContent='Falha ao carregar locais/fornecedores: '+e.message;});
