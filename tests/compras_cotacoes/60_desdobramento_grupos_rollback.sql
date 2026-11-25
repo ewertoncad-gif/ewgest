@@ -7,8 +7,10 @@ BEGIN
  PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',u,'role','authenticated')::text,true);
  INSERT INTO public.usuarios_login(usuario_id,empresa_id,perfil,nivel_acesso,nome,ativo) VALUES(u,e,'administrador',1,'Teste sintético',true);
  INSERT INTO public.ew_niveis_permissoes(empresa_id,nivel,chave,permitido)
- SELECT e,1,k,true FROM unnest(ARRAY['compras.solicitar','compras.consultar','compras.cotar','compras.consultar_valores','compras.gerenciar_grupos','compras.pedir','compras.aprovar_pedido','compras.replicar_cotacao']) k ON CONFLICT(empresa_id,nivel,chave) DO UPDATE SET permitido=true;
+ SELECT e,1,k,true FROM unnest(ARRAY['compras.solicitar','compras.consultar','compras.cotar','compras.consultar_valores','compras.gerenciar_grupos','compras.pedir','compras.aprovar_pedido','compras.replicar_cotacao','compras.receber','financeiro.consultar']) k ON CONFLICT(empresa_id,nivel,chave) DO UPDATE SET permitido=true;
  INSERT INTO public.obras(empresa_id,nome,codigo) VALUES(e,'TESTE 90','TESTE-90-GRUPOS') RETURNING id INTO o;
+ INSERT INTO public.ew_estoques_locais(empresa_id,obra_id,criado_por) VALUES(e,o,u);
+ INSERT INTO public.ew_locais_fisicos(empresa_id,nome) VALUES(e,'AFOGADOS') ON CONFLICT DO NOTHING;
  INSERT INTO public.ew_perfis(empresa_id,codigo,descricao,fabricante) VALUES(e,'TESTE-90-P','Perfil','Teste') RETURNING id INTO p;
  INSERT INTO public.ew_acessorios(empresa_id,codigo,descricao,fabricante) VALUES(e,'TESTE-90-A','Acessório','Teste') RETURNING id INTO a;
  INSERT INTO public.ew_materiais_variacoes(empresa_id,tipo,perfil_id,cor,acabamento) VALUES(e,'perfil',p,'NATURAL','NATURAL') RETURNING id INTO v;
@@ -21,7 +23,7 @@ BEGIN
  PERFORM public.ew_compras_salvar_grupos_fornecedor(e,fp,ARRAY[gp]);
  PERFORM public.ew_compras_salvar_grupos_fornecedor(e,fa,ARRAY[ga]);
  PERFORM public.ew_compras_salvar_grupos_fornecedor(e,fb,ARRAY[gp,ga]);
- it:=jsonb_build_array(jsonb_build_object('chave','1','variacao_id',v,'quantidade',1,'unidade','BARRA','comprimento_mm',6000),jsonb_build_object('chave','2','variacao_id',va,'quantidade',1,'unidade','PC','comprimento_mm',null));
+ it:=jsonb_build_array(jsonb_build_object('chave','1','variacao_id',v,'quantidade',4,'unidade','BARRA','comprimento_mm',6000),jsonb_build_object('chave','2','variacao_id',va,'quantidade',1,'unidade','PC','comprimento_mm',null));
  r:=public.ew_compras_criar_solicitacao(e,o,null,it,'Teste',gen_random_uuid());s:=(r->>'id')::uuid;
  r:=public.ew_compras_previa_grupos(e,s);
  IF jsonb_array_length(r)<>2 OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r) x WHERE x->>'grupo_id'=gp::text AND jsonb_array_length(x->'itens')=1 AND x->'itens'->0->>'chave'='1' AND x->'fornecedores' @> jsonb_build_array(jsonb_build_object('id',fp),jsonb_build_object('id',fb)) AND NOT x->'fornecedores' @> jsonb_build_array(jsonb_build_object('id',fa))) THEN RAISE EXCEPTION 'Perfis não isolados %',r; END IF;
@@ -52,6 +54,17 @@ BEGIN
  IF (SELECT status FROM public.ew_compras_solicitacoes WHERE id=sa)<>'ABERTA' THEN RAISE EXCEPTION 'Pedido de perfil encerrou acessório';END IF;
  r:=public.ew_compras_criar_cotacao(sa,fa,'[{"chave":"2","preco_unitario_centavos":2000}]',gen_random_uuid());qa:=(r->>'id')::uuid;
  r:=public.ew_compras_criar_pedido(qa,gen_random_uuid());pa:=(r->>'id')::uuid;
- IF (SELECT sum(total_centavos) FROM public.ew_compras_pedidos WHERE id IN (pp,pa))<>12000 THEN RAISE EXCEPTION 'Total incorreto';END IF;
+ IF (SELECT sum(total_centavos) FROM public.ew_compras_pedidos WHERE id IN (pp,pa))<>42000 THEN RAISE EXCEPTION 'Total incorreto';END IF;
+
+ r:=public.ew_compras_compromissos_obra(e,o);
+ IF (SELECT sum((x->>'consumido_centavos')::numeric) FROM jsonb_array_elements(r) x) IS DISTINCT FROM 42000::numeric THEN RAISE EXCEPTION 'Compromisso dos grupos incorreto %',r;END IF;
+ PERFORM public.ew_compras_receber_pedido(pp,'AFOGADOS','[{"chave":"1","quantidade":2}]',gen_random_uuid());
+ IF (SELECT status FROM public.ew_compras_pedidos WHERE id=pp)<>'PARCIAL' OR (SELECT status FROM public.ew_compras_pedidos WHERE id=pa)<>'ABERTO' THEN RAISE EXCEPTION 'Recebimento não isolado por grupo';END IF;
+ blocked:=false;BEGIN PERFORM public.ew_compras_cancelar_pedido(pp,'Teste cancelamento com recebimento',gen_random_uuid());EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE 'Pedido já iniciou%' THEN RAISE;END IF;blocked:=true;END;
+ IF NOT blocked THEN RAISE EXCEPTION 'Cancelamento indevido de pedido recebido';END IF;
+ PERFORM public.ew_compras_cancelar_pedido(pa,'Teste cancelamento sem recebimento',gen_random_uuid());
+ IF (SELECT status FROM public.ew_compras_pedidos WHERE id=pa)<>'CANCELADO' OR (SELECT status FROM public.ew_compras_pedidos WHERE id=pp)<>'PARCIAL' THEN RAISE EXCEPTION 'Cancelamento atingiu outro grupo';END IF;
+ r:=public.ew_compras_compromissos_obra(e,o);
+ IF (SELECT sum((x->>'consumido_centavos')::numeric) FROM jsonb_array_elements(r) x) IS DISTINCT FROM 40000::numeric THEN RAISE EXCEPTION 'Cancelamento não recompôs o compromisso %',r;END IF;
 END;$t$;
-SELECT 'PASS: desdobramento, bloqueio de fornecedores incompatíveis, dois pedidos independentes e total preservado' AS resultado;
+SELECT 'PASS: desdobramento, bloqueio de fornecedores incompatíveis, dois pedidos independentes, recebimento parcial e cancelamento isolados, compromisso recomposto' AS resultado;
