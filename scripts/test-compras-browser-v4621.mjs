@@ -329,6 +329,10 @@ try{
  await quoting.locator('[data-quote-key="1"] input').fill('125,00');
  await quoting.locator('[data-convite="f2"]').click();
  assert.equal(await quoting.locator('[data-quote-key="1"] input').inputValue(),'','Não copiar preço entre fornecedores');
+ await quoting.locator('[data-quote-key="1"] input').fill('125,001');
+ await quoting.locator('#comprasCotarForm button[type="submit"]').click();
+ assert.equal(await quoting.locator('#comprasMensagem').innerText(),'Valores inválidos.');
+ assert.equal(await quoting.evaluate(()=>window._q.calls.length),2);
  await quoting.locator('[data-quote-key="1"] input').fill('125,00');
  await quoting.locator('#comprasCotarForm button[type="submit"]').click();
  await quoting.waitForFunction(()=>document.querySelector('#comprasMensagem').textContent==='Cotação registrada.');
