@@ -259,7 +259,7 @@ async function liberacoes(ctx){
 function areaLinha(item,folhasConfig){
  if(item.natureza!=='esquadria')return null;
  const salvo=Number(item.area_m2);
- if(item.area_m2!==null&&item.area_m2!==undefined&&Number.isFinite(salvo)&&salvo>0)return salvo;
+ if(!item.composicao_revisao_id&&item.area_m2!==null&&item.area_m2!==undefined&&Number.isFinite(salvo)&&salvo>0)return salvo;
  const raw=String(item.medida||'').trim();
  const match=raw.match(/^(\\d[\\d.,]*)\\s*[x×]\\s*(\\d[\\d.,]*)\\s*mm$/i);
  if(!match)return null;
@@ -271,6 +271,7 @@ function areaLinha(item,folhasConfig){
  };
  const largura=valor(match[1]),altura=valor(match[2]),q=Number(item.quantidade);
  if(!(largura>0&&altura>0&&Number.isInteger(q)&&q>0))return null;
+ if(item.composicao_revisao_id){const eq=Number(item.equivalente_expedido);return Number.isFinite(eq)&&eq>0?largura*altura*eq/1000000:null;}
  let fracao=1;
  if(item.tipo_saida==='marco')fracao=.5;
  else if(item.tipo_saida==='folha'){
@@ -284,7 +285,7 @@ async function expedicao(ctx){
  const [docs,itens,composicoes]=await Promise.all([
   listarTudo('romaneios',{empresa_id:ctx.empresa,
    select:'id,obra_id,numero,data_saida,motorista,placa,status,cancelado_em,criado_por,observacoes',order:'data_saida.asc'}),
-  listarTudo('romaneios_itens',{select:'id,romaneio_id,natureza,esquadria_id,codigo,descricao,tipo_saida,quantidade,unidade,area_m2,fabrica,medida,localizacao',order:'sequencia.asc'}),
+  listarTudo('romaneios_itens',{select:'id,romaneio_id,natureza,esquadria_id,codigo,descricao,tipo_saida,quantidade,unidade,area_m2,fabrica,medida,localizacao,componente_nome,composicao_revisao_id,equivalente_expedido',order:'sequencia.asc'}),
   listarTudo('esquadrias_saida_config',{select:'esquadria_id,folhas_por_unidade'})
  ]);
  const porDoc=new Map(docs.map(x=>[x.id,x]));
@@ -302,7 +303,7 @@ async function expedicao(ctx){
  rows=filtrados.map(({doc,i})=>[obra(doc.obra_id),String(doc.data_saida),doc.numero,
   doc.cancelado_em||String(doc.status).toLowerCase()==='cancelado'?'CANCELADO':doc.status,
   i.natureza==='esquadria'?'Esquadria':'Material',i.codigo,i.descricao,
-  i.tipo_saida||i.natureza,i.medida||'',qtd(i.quantidade),i.unidade,
+  i.componente_nome||i.tipo_saida||i.natureza,i.medida||'',qtd(i.quantidade),i.unidade,
   areaLinha(i,partes)===null?'':qtd(areaLinha(i,partes)),i.fabrica||'',doc.motorista,doc.placa,
   usuario(doc.criado_por),i.id]);
  reportTitle='Romaneios de expedição fábrica → obra';
@@ -319,7 +320,7 @@ async function expedicao(ctx){
 async function aluminio(ctx){
  const [docs,itens,movs,vars,perfis,composicoes]=await Promise.all([
   listarTudo('romaneios',{empresa_id:ctx.empresa,select:'id,obra_id,data_saida,status,cancelado_em'}),
-  listarTudo('romaneios_itens',{select:'romaneio_id,natureza,area_m2,esquadria_id,tipo_saida,medida,quantidade'}),
+  listarTudo('romaneios_itens',{select:'romaneio_id,natureza,area_m2,esquadria_id,tipo_saida,medida,quantidade,composicao_revisao_id,equivalente_expedido'}),
   listarTudo('ew_estoque_obras_movimentos',{empresa_id:ctx.empresa,
     select:'id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,origem,criado_em,estorno_de_id'}),
   listarTudo('ew_materiais_variacoes',{empresa_id:ctx.empresa,select:'id,perfil_id,tipo'}),

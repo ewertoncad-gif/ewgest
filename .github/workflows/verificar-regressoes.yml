@@ -36,6 +36,9 @@ jobs:
       - name: Verificar custos empresariais e isolamento financeiro
         run: node scripts/test-relatorios-custos-empresa-v4621.mjs
 
+      - name: Verificar composição configurável de expedição
+        run: node scripts/test-composicao-expedicao.mjs
+
   navegador-compras:
     if: github.event_name == 'pull_request'
     # Playwright 1.56.1 é suportado no Ubuntu 24.04; latest migrou para 26.04.
@@ -54,6 +57,8 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Validar Compras, conciliação e notas corporativas no Chromium
         run: node scripts/test-compras-browser-v4621.mjs
+      - name: Validar editor e componentes de expedição no Chromium
+        run: node scripts/test-composicao-browser.mjs
 
   concorrencia-compras:
     if: github.event_name == 'pull_request'

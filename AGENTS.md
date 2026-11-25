@@ -63,6 +63,12 @@ Ao alterar qualquer um dos itens a seguir, identificar e testar os impactos indi
 
 Não há garantia de testes automatizados: verificar quais existem. Onde não existirem, documentar testes manuais reproduzíveis e propor automação progressiva. Não declarar uma regressão aprovada sem executá-la.
 
+## 6.1. Níveis de acesso — toda funcionalidade nova
+- Em cada entrega, identificar a permissão existente ou criar flags específicas no catálogo (consulta, alteração, emissão, cancelamento/estorno, conforme o risco).
+- Incluir novas flags no editor dinâmico dos níveis 01–08 e provisionar valores iniciais para todas as empresas, sem redefinir escolhas anteriores. Nível 01 protegido; nível 08 desmarcado por padrão. Não ampliar permissões administrativas dos demais níveis sem justificativa.
+- Aplicar as mesmas verificações na interface e no servidor; ocultar botão não substitui autorização. Testar acesso permitido, negado e isolamento por empresa antes da publicação.
+- Documentar grupo, chave, efeito e distribuição inicial de cada flag na issue/PR.
+
 ## 7. Padrão de comunicação entre as IAs
 
 Cada colaborador deve deixar no GitHub, preferencialmente na issue/PR relacionada, o seguinte resumo:

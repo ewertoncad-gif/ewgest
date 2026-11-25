@@ -723,7 +723,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.24</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.26</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -744,7 +744,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.24</div>
+        <div class="build">EWGEST • v46.26</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -2349,6 +2349,10 @@
       </div>
       <p id="croquiUploadStatus" class="hint" role="status" aria-live="polite"></p>
     </div>
+    <div id="expCompEntry" class="identityAction hidden">
+      <button type="button" id="expCompOpen" class="btn secondary">Composição de expedição</button>
+      <p class="hint">Defina as partes físicas e o percentual de área de cada uma.</p>
+    </div>
     <form id="typologyEditForm">
       <div id="typologyEditFields">
         <label for="typologyEditCode">Código da tipologia</label>
@@ -2395,6 +2399,37 @@
     <div id="identityAction" class="identityAction">
       <button type="button" id="identityOpen" class="btn secondary">Corrigir identificação técnica</button>
       <p id="identityActionHint" class="hint">Associar um cadastro existente à tipologia correta sem apagar o código original ou o croqui.</p>
+    </div>
+  </div>
+</div>
+<div id="expCompPicker" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="expCompPickerTitle">
+    <h2 id="expCompPickerTitle">Composição de expedição · Tipologias</h2>
+    <label>Buscar tipologia<input id="expCompPickerSearch" type="search" placeholder="Código ou descrição"></label>
+    <label>Tipologia<select id="expCompPickerSelect"></select></label>
+    <p id="expCompPickerMessage" class="feedback" role="status"></p>
+    <div class="modalbuttons"><button id="expCompPickerClose" type="button" class="btn secondary">Fechar</button><button id="expCompPickerOpen" type="button" class="btn primary">Abrir composição</button></div>
+  </div>
+</div>
+<div id="expCompOverlay" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="expCompTitle" style="max-width:850px;width:min(850px,94vw)">
+    <h2 id="expCompTitle">Composição de expedição</h2>
+    <p id="expCompSource" class="hint"></p>
+    <p class="hint">Cada componente tem uma quantidade física por esquadria e um percentual para todo o conjunto desse componente. Ex.: duas folhas com peso de 50% correspondem a 25% por folha.</p>
+    <div id="expCompRows"></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0">
+      <button id="expCompAdd" type="button" class="btn secondary">+ Adicionar componente</button>
+      <strong id="expCompTotal" aria-live="polite">Total: 0%</strong>
+    </div>
+    <details id="expCompSimilarBox">
+      <summary>Aplicar a outras tipologias</summary>
+      <p class="hint">As sugestões consideram a estrutura, não apenas linha ou fabricante. Confira cada uma; nenhuma é marcada automaticamente.</p>
+      <div id="expCompSimilar"></div>
+    </details>
+    <p id="expCompMessage" class="feedback" role="status" aria-live="polite"></p>
+    <div class="modalbuttons">
+      <button id="expCompClose" type="button" class="btn secondary">Voltar</button>
+      <button id="expCompSave" type="button" class="btn primary" disabled>Salvar composição</button>
     </div>
   </div>
 </div>
@@ -2498,6 +2533,7 @@ function permissaoParaTela(view){
 }
 let detailBackTarget='dashboard';
 let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='',detailMode='release',currentShipmentRequestId=null;
+let expedicaoAtivaMap=new Map(),romaneioComposicoes=new Map(),romaneioComposicaoSeq=0;
 let romaneios=[],romaneioItens=[],romaneioLoadError='',romaneioRows=[],romaneioOperationId=null,romaneioOperationSignature='';
 let romaneioMotoristas=[],romaneioVeiculos=[],romaneioTransportError='';
 let typologyAbbreviations=[],typologyAbbreviationError='';
@@ -2551,6 +2587,7 @@ function setView(view){
   node('logout').classList.toggle('hidden',view==='login');
   node('myPasswordHeader').classList.toggle('hidden',view==='login');
   const autenticado=view!=='login';
+  if(!autenticado){expCompSeq++;expCompCtx=null;romaneioComposicaoSeq++;romaneioComposicoes=new Map();expedicaoAtivaMap=new Map();node('expCompOverlay').classList.add('hidden');node('expCompPicker').classList.add('hidden');node('expCompRows').replaceChildren();node('expCompSimilar').replaceChildren();node('romaneioModal').classList.add('hidden');node('typologyEditOverlay').classList.add('hidden');}
   node('workspaceNav').classList.toggle('hidden',!autenticado);
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
   const ativo=view==='detail'?'worksPage':view;
@@ -2795,17 +2832,21 @@ async function loadPanel(){
   }
   releaseHistory=await apiGet('liberacoes_corte',{select:'esquadria_id,quantidade,data_liberacao,fabrica,tipo_componente',cancelado_em:'is.null',order:'data_liberacao.desc'});
   try{
-    const [config,history]=await Promise.all([
+    const podeComposicao=temPermissao('obras.consultar')||temPermissao('romaneios.consultar')||temPermissao('romaneios.emitir')||temPermissao('financeiro.consultar');
+    const [config,history,estados]=await Promise.all([
       apiGet('esquadrias_saida_config',{select:'esquadria_id,folhas_por_unidade'}),
-      apiGet('saidas_producao',{select:'id,esquadria_id,tipo,quantidade,data_saida',cancelado_em:'is.null',order:'data_saida.desc',limit:'1000'})
+      apiGet('saidas_producao',{select:'id,esquadria_id,tipo,quantidade,data_saida,composicao_revisao_id,componente_id,componente_nome,equivalente_expedido',cancelado_em:'is.null',order:'data_saida.desc',limit:'1000'}),
+      podeComposicao?request('/rest/v1/rpc/ew_composicoes_obra',{method:'POST',token:session.access_token,body:{p_empresa_id:currentCompany.id,p_obra_id:null}}):[]
     ]);
+    if(!Array.isArray(estados))throw Error('Composições de expedição indisponíveis.');
+    expedicaoAtivaMap=new Map(estados.map(x=>[x.esquadria_id,x]));
     dispatchConfig=config||[];shipmentHistory=history||[];dispatchReady=true;dispatchLoadError='';
-  }catch(err){dispatchConfig=[];shipmentHistory=[];dispatchReady=false;dispatchLoadError=err.message;}
+  }catch(err){dispatchConfig=[];shipmentHistory=[];expedicaoAtivaMap=new Map();dispatchReady=false;dispatchLoadError=err.message;}
   try{
     const [headers,lines]=await Promise.all([
       apiGet('romaneios',{select:'id,obra_id,numero,data_saida,motorista,placa,observacoes,criado_em,status,cancelado_em,motivo_cancelamento',
         empresa_id:'eq.'+currentCompany.id,order:'data_saida.desc',limit:'1000'}),
-      apiGet('romaneios_itens',{select:'id,romaneio_id,sequencia,natureza,esquadria_id,saida_producao_id,codigo,localizacao,descricao,descricao_impressao_definida,medida,quantidade,unidade,area_m2,fabrica,prazo_liberacao_saida_dias,tipo_saida',order:'sequencia.asc',limit:'3000'})
+      apiGet('romaneios_itens',{select:'id,romaneio_id,sequencia,natureza,esquadria_id,saida_producao_id,codigo,localizacao,descricao,descricao_impressao_definida,medida,quantidade,unidade,area_m2,fabrica,prazo_liberacao_saida_dias,tipo_saida,composicao_revisao_id,componente_id,componente_nome,equivalente_expedido',order:'sequencia.asc',limit:'3000'})
     ]);
     romaneios=headers||[];romaneioItens=lines||[];romaneioLoadError='';
   }catch(err){romaneios=[];romaneioItens=[];romaneioLoadError=err.message;}
@@ -2876,6 +2917,8 @@ function progressoExpedicao(list){
   for(const item of list){
     const q=Math.max(0,Number(item.quantidade)||0);
     unidadesTotais+=q;
+    const custom=typeof expedicaoAtivaMap==='undefined'?null:expedicaoAtivaMap.get(item.id);
+    if(custom){unidadesEnviadas+=Math.min(q,Number(custom.completas_enviadas));areaEnviada+=area(item,Math.min(q,Number(custom.equivalente_expedido)));continue;}
     const m=movements.get(item.id)||{completo:0,marco:0,folha:0};
     const per=configs.get(item.id);
     const recombinadas=Number.isInteger(per)&&per>0?
@@ -3261,8 +3304,22 @@ async function carregarMateriaisDisponiveisRomaneio(){
    'Não foi possível consultar o saldo físico dos materiais: '+e.message;
  }finally{romaneioStockLoading=false;}
 }
-function abrirEmissaoRomaneio(){
+async function consultarComposicoesRomaneio(obraId){
+  await ensureSession();
+  const data=await request('/rest/v1/rpc/ew_composicoes_obra',{method:'POST',token:session.access_token,body:{p_empresa_id:currentCompany.id,p_obra_id:obraId}});
+  if(!Array.isArray(data))throw Error('Não foi possível conferir as composições da obra.');
+  return new Map(data.map(x=>[x.esquadria_id,x]));
+}
+async function abrirEmissaoRomaneio(preselectId){
   if(!selectedWork||!dispatchReady||romaneioLoadError||!podeEmitirRomaneio())return;
+  const seq=++romaneioComposicaoSeq,obraId=selectedWork.id,company=currentCompany.id,user=currentUser?.id;
+  let estados;
+  node('romaneioError').textContent='';node('detailError').textContent='Conferindo composição das esquadrias…';
+  node('hubRomaneioMessage').textContent='Conferindo composição das esquadrias…';
+  try{estados=await consultarComposicoesRomaneio(obraId);}
+  catch(err){if(seq===romaneioComposicaoSeq){node('detailError').textContent=err.message;node('hubRomaneioMessage').textContent=err.message;}return;}
+  if(seq!==romaneioComposicaoSeq||!session||currentCompany?.id!==company||currentUser?.id!==user||selectedWork?.id!==obraId)return;
+  romaneioComposicoes=estados;node('detailError').textContent='';node('hubRomaneioMessage').textContent='';
   node('romaneioWorkInfo').textContent='Cliente: '+(selectedWork.cliente||'Não informado')+
     ' · Obra: '+selectedWork.nome;
   node('romaneioForm').reset();
@@ -3280,10 +3337,16 @@ function abrirEmissaoRomaneio(){
   // Mesmo sem saldo, mostrar o seletor e explicar qual liberação está pendente.
   if(elements.some(x=>x.obra_id===selectedWork.id))
     adicionarLinhaRomaneio('esquadria');
+  if(typeof preselectId==='string'){
+    const row=node('romaneioRows').querySelector('.romaneioRow');
+    const estado=romaneioComposicoes.get(preselectId);
+    if(row&&estado){row.querySelector('[data-rom-field="tipo_saida"]').value='componente';buscarEsquadriasRomaneio(row);row.querySelector('[data-rom-field="esquadria_id"]').value=preselectId;atualizarLinhaRomaneio(row);}
+  }
   node('romaneioDriver').focus();
   void carregarMateriaisDisponiveisRomaneio();
 }
 function fecharEmissaoRomaneio(){
+  romaneioComposicaoSeq++;
   node('romaneioModal').classList.add('hidden');
 }
 
@@ -3379,11 +3442,11 @@ function buscarEsquadriasRomaneio(row){
       .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleUpperCase('pt-BR');
     return v.includes(termo);
   });
-  const disponiveis=candidatos.filter(x=>
-    Number(x.qtd_liberada)>0 &&
-    (tipo==='completo'||!ehMaximArRomaneio(x)) &&
-    romaneioSaldoPorTipo(x,tipo,1)>0
-  ).sort((x,y)=>x.codigo.localeCompare(y.codigo,'pt-BR',{numeric:true}));
+  const disponiveis=candidatos.filter(x=>{
+    const estado=romaneioComposicoes.get(x.id);
+    if(estado)return tipo==='completo'?Number(estado.completas_disponiveis)>0:tipo==='componente'&&estado.partes.some(p=>Number(p.saldo)>0);
+    return tipo!=='componente'&&Number(x.qtd_liberada)>0&&(tipo==='completo'||!ehMaximArRomaneio(x))&&romaneioSaldoPorTipo(x,tipo,1)>0;
+  }).sort((x,y)=>x.codigo.localeCompare(y.codigo,'pt-BR',{numeric:true}));
   row.dataset.mensagemSemSaldo=disponiveis.length?'':mensagemSemSaldoRomaneio(tipo,candidatos);
   combo.replaceChildren();
   const placeholder=document.createElement('option');placeholder.value='';
@@ -3407,9 +3470,42 @@ function atualizarLinhaRomaneio(el){
   const leaves=el.querySelector('[data-rom-field="folhas_por_unidade"]');
   const kinds=el.querySelector('[data-rom-field="tipo_saida"]');
   const campoDescricao=el.querySelector('[data-rom-field="descricao_romaneio"]');
+  const estado=item?romaneioComposicoes.get(item.id):null;
+  const comp=el.querySelector('[data-rom-field="componente_id"]');
+  if(estado){
+    kinds.disabled=false;
+    for(const opt of kinds.options)opt.disabled=!['completo','componente'].includes(opt.value);
+    const modo=kinds.value==='completo'?'completo':'componente';kinds.value=modo;
+    leaves.closest('label').classList.add('hidden');leaves.required=false;leaves.disabled=true;
+    el.querySelector('[data-rom-maxim-note]').classList.add('hidden');el.querySelector('[data-rom-hint-folhas]').classList.add('hidden');
+    comp.closest('label').classList.toggle('hidden',modo!=='componente');comp.required=modo==='componente';comp.disabled=modo!=='componente';
+    const anterior=el.dataset.expCompItem===item.id?comp.value:'';
+    el.dataset.expCompItem=item.id;comp.replaceChildren();
+    const vazio=document.createElement('option');vazio.value='';vazio.textContent='Selecione o componente';comp.append(vazio);
+    for(const p of estado.partes.filter(p=>Number(p.saldo)>0)){
+      const opt=document.createElement('option');opt.value=p.id;
+      opt.textContent=p.nome+' · '+p.saldo+' disponíveis · '+(p.peso/100/p.quantidade).toLocaleString('pt-BR',{maximumFractionDigits:4})+'% por peça';comp.append(opt);
+    }
+    comp.value=[...comp.options].some(x=>x.value===anterior)?anterior:'';
+    const parte=estado.partes.find(x=>x.id===comp.value);
+    const saldo=modo==='completo'?Number(estado.completas_disponiveis):Number(parte?.saldo||0);
+    const nome=modo==='completo'?'Esquadria completa':parte?.nome||'Selecione o componente';
+    const chave=item.id+'|'+modo+'|'+(parte?.id||'');
+    if(el.dataset.romaneioDescricaoChave!==chave){
+      campoDescricao.value=descricaoPadraoRomaneio(item,'completo').replace(/\\s*\\(COMPLETA\\)\\s*$/i,'')+' ('+nome+')';
+      el.dataset.romaneioDescricaoChave=chave;
+    }
+    qty.max=String(saldo);
+    if(!Number.isSafeInteger(Number(qty.value))||Number(qty.value)<1||Number(qty.value)>saldo)qty.value=saldo>0?'1':'';
+    const eq=modo==='completo'?1:parte?Number(parte.peso)/(10000*Number(parte.quantidade)):0;
+    const areaP=area(item,eq);
+    summary.textContent=item.codigo+' · '+nome+' · '+saldo+' disponíveis · '+amount(areaP)+' m² por peça · Revisão '+estado.revisao;
+    return;
+  }
+  comp.closest('label').classList.add('hidden');comp.required=false;comp.disabled=true;comp.replaceChildren();el.dataset.expCompItem='';
   const max=Boolean(item&&ehMaximArRomaneio(item));
   kinds.disabled=max;
-  for(const opt of kinds.options)if(opt.value!=='completo')opt.disabled=max;
+  for(const opt of kinds.options)if(opt.value!=='completo')opt.disabled=max||(!!item&&opt.value==='componente');
   if(max&&kinds.value!=='completo')kinds.value='completo';
   const modo=kinds.value;
   const stats=item?shipmentStats(item):null;
@@ -3462,11 +3558,13 @@ function adicionarLinhaRomaneio(natureza){
       '<select class="romaneioKind" data-rom-field="tipo_saida">'+
       '<option value="completo">Esquadria completa</option>'+
       '<option value="marco">Somente o marco</option>'+
-      '<option value="folha">Folhas físicas (pode enviar uma de cada vez)</option></select>'+
+      '<option value="folha">Folhas físicas (pode enviar uma de cada vez)</option>'+
+      '<option value="componente">Componente cadastrado na tipologia</option></select>'+
       '<p class="hint hidden" data-rom-maxim-note>MAXIM-AR é expedido somente completo.</p>'+
       '<label>Buscar esquadria pelo código ou descrição</label>'+
       '<input class="romaneioSearch" type="search" data-rom-field="esquadria_search" placeholder="Ex.: EA14, JCR, veneziana">'+
       '<select data-rom-field="esquadria_id" required><option value="">Selecione uma esquadria</option></select>'+
+      '<label class="hidden">Componente físico<select data-rom-field="componente_id" disabled></select></label>'+
       '<div class="romaneioRowSummary">Selecione uma esquadria com saldo.</div>'+
       '<label>Descrição no romaneio (editável)</label>'+
       '<textarea data-rom-field="descricao_romaneio" rows="2" maxlength="350" '+
@@ -3480,6 +3578,7 @@ function adicionarLinhaRomaneio(natureza){
     row.querySelector('[data-rom-field="esquadria_search"]').addEventListener('input',()=>buscarEsquadriasRomaneio(row));
     row.querySelector('[data-rom-field="esquadria_id"]').addEventListener('change',()=>atualizarLinhaRomaneio(row));
     row.querySelector('[data-rom-field="folhas_por_unidade"]').addEventListener('input',()=>atualizarLinhaRomaneio(row));
+    row.querySelector('[data-rom-field="componente_id"]').addEventListener('change',()=>atualizarLinhaRomaneio(row));
   }else{
     if(!(isFullAdminUser()||isAlmoxarife())||!romaneioStockRows.length){
       node('romaneioError').textContent='Materiais diretos exigem permissão de ADM ou almoxarife e saldo físico disponível.';
@@ -3523,6 +3622,18 @@ function coletarItensRomaneio(){
       const tipo=campo('tipo_saida');
       const item=elements.find(x=>x.id===id&&x.obra_id===selectedWork.id);
       if(!item)throw new Error('Selecione uma esquadria válida no item '+(index+1)+'.');
+      const estado=romaneioComposicoes.get(id);
+      if(estado){
+        if(!['completo','componente'].includes(tipo))throw Error('Selecione a saída completa ou um componente de '+item.codigo+'.');
+        const compId=tipo==='componente'?campo('componente_id'):null;
+        const parte=estado.partes.find(p=>p.id===compId);
+        const saldo=tipo==='completo'?Number(estado.completas_disponiveis):Number(parte?.saldo||0);
+        if(quantidade>saldo)throw Error(item.codigo+': saldo disponível '+saldo+'.');
+        const chave=id+'|'+tipo+'|'+(compId||'');
+        if(usados.has(chave))throw Error('Agrupe quantidades do mesmo componente de '+item.codigo+'.');usados.add(chave);
+        const descricao=campo('descricao_romaneio');if(descricao.length<2||descricao.length>350)throw Error('Descrição inválida em '+item.codigo+'.');
+        return {natureza:'esquadria',esquadria_id:id,tipo_saida:tipo,quantidade,composicao_revisao_id:estado.revisao_id,componente_id:compId,descricao_romaneio:descricao};
+      }
       if(!['completo','marco','folha'].includes(tipo))
         throw new Error('Escolha completa, marco ou folhas para '+item.codigo+'.');
       if(tipo!=='completo'&&ehMaximArRomaneio(item))
@@ -3643,7 +3754,7 @@ function construirHTMLRomaneio(header,linhas){
     throw new Error('Romaneio sem obra ou itens para imprimir.');
   const itens=linhas.slice().sort((a,b)=>Number(a.sequencia)-Number(b.sequencia));
   // Estima a altura das linhas para não cortar textos longos no A4.
-  const descricaoImpressa=i=>i.natureza==='esquadria'&&!i.descricao_impressao_definida?
+  const descricaoImpressa=i=>i.natureza==='esquadria'&&!i.composicao_revisao_id&&!i.descricao_impressao_definida?
     descricaoCurtaRomaneio(i.descricao,i.tipo_saida||'completo'):
     String(i.descricao||'');
   // Considerar quebras explícitas e palavras longas para a paginação de duas vias.
@@ -4033,6 +4144,11 @@ function renderDetail(w){
     node('items').querySelectorAll('[data-release-undo]').forEach(b=>b.addEventListener('click',()=>window.ewReleaseUndo?.abrir(b.dataset.releaseUndo)));
   }else{
     node('items').innerHTML=exibidos.length?exibidos.map(x=>{
+      const custom=expedicaoAtivaMap.get(x.id);
+      if(custom){
+        const pode=dispatchReady&&temPermissao('romaneios.emitir')&&custom.partes.some(p=>Number(p.saldo)>0);
+        return '<div class="item"><button type="button" class="itemclick" data-ship="'+escapeHTML(x.id)+'" '+(!pode?'disabled':'')+'><div class="itemline"><strong>'+escapeHTML(x.codigo)+'</strong><span class="muted itemlocation hidden">'+escapeHTML(x.localizacao||'')+'</span></div><p class="muted itemdescription hidden">'+escapeHTML(x.descricao||'')+'</p><div class="itemline"><span>Composição · revisão '+Number(custom.revisao)+'</span><span>'+escapeHTML(custom.partes.map(p=>p.nome+': '+p.enviado+'/'+p.total).join(' · '))+'</span><strong>'+amount(area(x,Number(custom.equivalente_expedido)))+' m² expedidos</strong></div><span class="hint">'+(pode?'Emitir componentes pelo romaneio':'Sem saldo disponível')+'</span></button></div>';
+      }
       const s=shipmentStats(x);
       const pendingFrames=Math.max(0,s.marcosLiberados-s.frames);
       const pendingLeaves=s.maxLeaves===null?null:Math.max(0,s.maxLeaves-s.leaves);
@@ -4147,14 +4263,20 @@ function renderShipmentHistory(id){
   const arr=shipmentHistory.filter(h=>h.esquadria_id===id);
   const labels={marco:'Marco',folha:'Folha',completo:'Completo'};
   node('shipmentHistory').innerHTML=arr.length
-    ?'<strong>Histórico de saídas</strong>'+arr.slice(0,25).map(h=>'<p>'+escapeHTML(String(h.data_saida).split('-').reverse().join('/'))+' · '+escapeHTML(labels[h.tipo]||h.tipo)+' · '+Number(h.quantidade)+' '+(h.tipo==='folha'?'folha(s)':'unidade(s)')+'</p>').join('')
+    ?'<strong>Histórico de saídas</strong>'+arr.slice(0,25).map(h=>'<p>'+escapeHTML(String(h.data_saida).split('-').reverse().join('/'))+' · '+escapeHTML(h.componente_nome||labels[h.tipo]||h.tipo)+' · '+Number(h.quantidade)+' '+(h.tipo==='folha'?'folha(s)':'unidade(s)')+'</p>').join('')
     :'<p>Ainda não existem saídas registradas para este código.</p>';
 }
 
-function openShipment(id){
+async function openShipment(id){
   if(!dispatchReady||!['administrador','gerenciador','supervisor'].includes(String(membership?.perfil||'').toLowerCase()))return;
   selectedItem=elements.find(e=>e.id===id);
   if(!selectedItem||Number(selectedItem.qtd_liberada)<=0)return;
+  const obraId=selectedItem.obra_id,company=currentCompany?.id;
+  try{
+    const estados=await consultarComposicoesRomaneio(obraId);
+    if(!session||currentCompany?.id!==company||selectedItem?.id!==id||selectedWork?.id!==obraId)return;
+    if(estados.has(id)){selectedItem=null;await abrirEmissaoRomaneio(id);return;}
+  }catch(err){node('detailError').textContent=err.message;return;}
   const s=shipmentStats(selectedItem);
   node('shipmentItem').textContent=selectedItem.codigo+' · '+labeledDescription(selectedItem)+' · '+(selectedItem.localizacao||'');
   node('shipmentKind').value='completo';
@@ -6026,6 +6148,7 @@ function openTypologyEdit(id) {
   if(!typology)return;
   editingTypology=typology;
   editingPendingItem=null;
+  node('expCompEntry').classList.toggle('hidden',!expCompPodeConsultar()||typology.provisoria===true);
   node('typologyEditDelete').classList.toggle('hidden',!isFullAdminUser());
   const origins=typologyOrigins.filter(x=>x.tipologia_id===id);
   const originalCodes=[...new Set(origins.map(x=>x.codigo_origem))];
@@ -6072,6 +6195,7 @@ function openTypologyEdit(id) {
 
 function openPendingTypologyClassification(id) {
   if(!canAdministrate())return;
+  node('expCompEntry').classList.add('hidden');
   if(!typologyOriginReady){
     node('typologyAdminMessage').textContent='Os vínculos de origem ainda não foram carregados. Atualize o painel antes de classificar.';
     return;
@@ -6406,6 +6530,151 @@ node('croquiZoomClose').addEventListener('click',()=>{
 node('typologyEditCancel').addEventListener('click',closeTypologyEdit);
 node('typologyEditPrevious').addEventListener('click',()=>showTypologyEditStep(1));
 node('typologyEditForm').addEventListener('submit',saveTypologyEdit);
+// Editor independente, para não misturar alterações de identificação e composição.
+let expCompSeq=0,expCompCtx=null;
+function expCompPodeConsultar(){return temPermissao('cadastros.consultar')&&temPermissao('cadastros.composicao_consultar');}
+function expCompPodeEditar(){return expCompPodeConsultar()&&temPermissao('cadastros.editar')&&temPermissao('cadastros.composicao_editar');}
+function expCompPickerRender(){
+ const input=node('expCompPickerSearch'),sel=node('expCompPickerSelect'),old=sel.value,term=input.value.trim().toLocaleUpperCase('pt-BR');
+ sel.replaceChildren();
+ const empty=document.createElement('option');empty.value='';empty.textContent='Selecione a tipologia';sel.append(empty);
+ for(const t of typologyCatalog.filter(t=>!t.provisoria&&String(t.codigo+' '+t.descricao).toLocaleUpperCase('pt-BR').includes(term)).sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR',{numeric:true}))){
+  const opt=document.createElement('option');opt.value=t.id;opt.textContent=t.codigo+' · '+t.descricao;sel.append(opt);
+ }
+ sel.value=[...sel.options].some(o=>o.value===old)?old:'';
+}
+function expCompPickerOpen(){
+ if(!expCompPodeConsultar())return;
+ node('expCompPickerSearch').value='';node('expCompPickerMessage').textContent='';
+ expCompPickerRender();node('expCompPicker').classList.remove('hidden');
+}
+function expCompPct(p){return (p/100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%';}
+function expCompRead(){
+ return [...node('expCompRows').children].map(r=>({
+  id:r.dataset.partId,nome:r.querySelector('[data-exp-name]').value.trim(),
+  quantidade:Number(r.querySelector('[data-exp-qty]').value),
+  peso:Math.round(Number(r.querySelector('[data-exp-pct]').value)*100)
+ }));
+}
+function expCompUpdate(){
+ const parts=expCompRead(),total=parts.reduce((n,p)=>n+(Number.isFinite(p.peso)?p.peso:0),0);
+ node('expCompTotal').textContent='Total: '+expCompPct(total);
+ node('expCompTotal').style.color=total===10000?'#16834a':'#b23a32';
+ let valid=false;
+ try{
+  if([...node('expCompRows').querySelectorAll('input')].some(i=>!i.checkValidity()))throw Error('Campo inválido');
+  expCompCtx?.core.validarComposicao(parts);valid=!!expCompCtx;
+ }catch{}
+ node('expCompSave').disabled=!valid||!!expCompCtx?.busy||!expCompPodeEditar();
+}
+function expCompAddRow(p={}){
+ const host=node('expCompRows');
+ if(host.children.length>=30)return;
+ const row=document.createElement('div');row.dataset.partId=p.id||crypto.randomUUID();
+ row.style.cssText='display:grid;grid-template-columns:minmax(115px,2fr) minmax(76px,1fr) minmax(78px,1fr) auto;gap:6px;align-items:end;margin:8px 0';
+ row.innerHTML='<label>Componente<input data-exp-name type="text" maxlength="100" required></label>'+
+ '<label>Qtd./un.<input data-exp-qty type="number" min="1" max="100" step="1" required></label>'+
+ '<label>% do conjunto<input data-exp-pct type="number" min="0.01" max="100" step="0.01" required></label>'+
+ '<button type="button" class="btn secondary" aria-label="Remover componente">×</button>';
+ row.querySelector('[data-exp-name]').value=p.nome||'';
+ row.querySelector('[data-exp-qty]').value=String(p.quantidade||1);
+ row.querySelector('[data-exp-pct]').value=p.peso?String(p.peso/100):'';
+ row.querySelectorAll('input').forEach(el=>el.addEventListener('input',expCompUpdate));
+ row.querySelector('button').addEventListener('click',()=>{row.remove();expCompUpdate();});
+ host.append(row);expCompUpdate();
+}
+function expCompClose(){
+ if(expCompCtx?.busy)return;
+ const ctx=expCompCtx;expCompSeq++;expCompCtx=null;
+ node('expCompOverlay').classList.add('hidden');
+ if(session&&ctx?.company===currentCompany?.id&&ctx.user===currentUser?.id){if(ctx.fromPicker)node('expCompPicker').classList.remove('hidden');else if(editingTypology?.id===ctx.source.id)node('typologyEditOverlay').classList.remove('hidden');}
+}
+async function expCompOpen(sourceId){
+ const fromPicker=typeof sourceId==='string';
+ const source=fromPicker?typologyCatalog.find(t=>t.id===sourceId):editingTypology,company=currentCompany?.id,user=currentUser?.id;
+ if(!source||!company||source.provisoria||!expCompPodeConsultar())return;
+ const seq=++expCompSeq,button=fromPicker?node('expCompPickerOpen'):node('expCompEntry').querySelector('button'),msg=fromPicker?node('expCompPickerMessage'):node('typologyEditError');
+ button.disabled=true;msg.textContent='Carregando composição…';
+ try{
+  await ensureSession();
+  const core=await import('/assets/composicao-expedicao-core.mjs');
+  const catalog=typologyCatalog.filter(t=>!t.provisoria).map(t=>({...t,empresa_id:company}));
+  const base={...source,empresa_id:company};
+  const suggestions=core.sugerirSimilares(base,catalog);
+  // A API usa lotes pequenos para manter respostas controladas.
+  const ids=[source.id,...suggestions.map(t=>t.id)],revisions=new Map();
+  for(let i=0;i<ids.length;i+=200){
+   const data=await request('/rest/v1/rpc/ew_listar_composicoes_expedicao',{method:'POST',token:session.access_token,
+    body:{p_empresa_id:company,p_tipologias:ids.slice(i,i+200)}});
+   if(!Array.isArray(data))throw Error('Resposta inválida do cadastro.');
+   data.forEach(r=>revisions.set(r.tipologia_id,r));
+  }
+  if(seq!==expCompSeq||!session||currentCompany?.id!==company||currentUser?.id!==user||(!fromPicker&&editingTypology?.id!==source.id)||(fromPicker&&node('expCompPicker').classList.contains('hidden')))return;
+  expCompCtx={company,user,source,fromPicker,core,revisions,suggestions,busy:false,op:null,signature:null};
+  node('expCompSource').textContent=source.codigo+' · '+source.descricao+(revisions.has(source.id)?' · Revisão '+revisions.get(source.id).revisao:' · Sem composição cadastrada');
+  node('expCompRows').replaceChildren();node('expCompSimilar').replaceChildren();
+  node('expCompSimilarBox').open=false;
+  const n=suggestedLeaves(source);
+  const initial=revisions.get(source.id)?.partes||(n&&!ehMaximArRomaneio(source)?
+   [{id:crypto.randomUUID(),nome:'Marco',quantidade:1,peso:5000},{id:crypto.randomUUID(),nome:'Folhas',quantidade:n,peso:5000}]:
+   [{id:crypto.randomUUID(),nome:'Esquadria completa',quantidade:1,peso:10000}]);
+  initial.forEach(expCompAddRow);
+  for(const t of suggestions){
+   const label=document.createElement('label');label.className='originChoice';
+   const cb=document.createElement('input');cb.type='checkbox';cb.value=t.id;
+   const desc=document.createElement('span');const previous=revisions.get(t.id);
+   desc.textContent=t.codigo+' · '+t.descricao+(t.fabricante?' · '+t.fabricante:'')+
+    (previous?' · Revisão '+previous.revisao+': '+previous.partes.map(p=>p.nome+' '+expCompPct(p.peso)).join(' / '):' · Sem composição');
+   label.append(cb,desc);node('expCompSimilar').append(label);
+  }
+  if(!suggestions.length)node('expCompSimilar').textContent='Nenhuma tipologia com a mesma estrutura foi identificada.';
+  const editable=expCompPodeEditar();
+  node('expCompAdd').disabled=!editable;
+  node('expCompRows').querySelectorAll('input,button').forEach(x=>x.disabled=!editable);
+  node('expCompSimilar').querySelectorAll('input').forEach(x=>x.disabled=!editable);
+  node('expCompMessage').textContent=editable?'':'Somente consulta. Sem composição cadastrada, os componentes exibidos são apenas uma sugestão.';
+  msg.textContent='';
+  node('typologyEditOverlay').classList.add('hidden');node('expCompPicker').classList.add('hidden');node('expCompOverlay').classList.remove('hidden');expCompUpdate();
+ }catch(e){if(seq===expCompSeq)msg.textContent='Não foi possível consultar a composição: '+e.message;}
+ finally{button.disabled=false;}
+}
+async function expCompSave(){
+ const ctx=expCompCtx;
+ if(!ctx||ctx.busy||!session||ctx.company!==currentCompany?.id||ctx.user!==currentUser?.id||!expCompPodeEditar())return;
+ let parts;
+ try{parts=ctx.core.validarComposicao(expCompRead());}catch(e){node('expCompMessage').textContent=e.message;return;}
+ const ids=[ctx.source.id,...[...node('expCompSimilar').querySelectorAll('input:checked')].map(x=>x.value)];
+ if(ids.length>200){node('expCompMessage').textContent='Selecione até 199 tipologias adicionais.';return;}
+ const targets=ids.map(id=>({tipologia_id:id,revisao_id:ctx.revisions.get(id)?.revisao_id||null}));
+ if(!window.confirm('Salvar nova revisão para '+ids.length+' tipologia(s)? Somente as selecionadas serão alteradas. O histórico será preservado.'))return;
+ const signature=JSON.stringify([targets,parts]);
+ if(signature!==ctx.signature){ctx.signature=signature;ctx.op=crypto.randomUUID();}
+ ctx.busy=true;node('expCompClose').disabled=true;node('expCompAdd').disabled=true;
+ node('expCompRows').querySelectorAll('input,button').forEach(x=>x.disabled=true);
+ node('expCompSimilar').querySelectorAll('input').forEach(x=>x.disabled=true);
+ expCompUpdate();
+ try{
+  await ensureSession();
+  const data=await request('/rest/v1/rpc/ew_salvar_composicoes_expedicao',{method:'POST',token:session.access_token,
+   body:{p_empresa_id:ctx.company,p_alvos:targets,p_partes:parts,p_operacao_id:ctx.op}});
+  if(expCompCtx!==ctx||currentCompany?.id!==ctx.company||currentUser?.id!==ctx.user)return;
+  if(!Array.isArray(data)||data.length!==ids.length)throw Error('Confirme o resultado do salvamento antes de repetir.');
+  data.forEach(r=>ctx.revisions.set(r.tipologia_id,{...r,partes:parts}));ctx.signature=null;ctx.op=null;
+  ctx.busy=false;expCompClose();node(ctx.fromPicker?'expCompPickerMessage':'typologyEditError').textContent='Composição salva em '+data.length+' tipologia(s).';
+ }catch(e){if(expCompCtx===ctx)node('expCompMessage').textContent='Não foi possível salvar: '+e.message;}
+ finally{
+  ctx.busy=false;node('expCompClose').disabled=false;node('expCompAdd').disabled=false;
+  node('expCompRows').querySelectorAll('input,button').forEach(x=>x.disabled=false);
+  node('expCompSimilar').querySelectorAll('input').forEach(x=>x.disabled=false);expCompUpdate();
+ }
+}
+node('expCompOpen').addEventListener('click',expCompOpen);
+node('expCompClose').addEventListener('click',expCompClose);
+node('expCompPickerSearch').addEventListener('input',expCompPickerRender);
+node('expCompPickerClose').addEventListener('click',()=>{expCompSeq++;node('expCompPicker').classList.add('hidden');});
+node('expCompPickerOpen').addEventListener('click',()=>{const id=node('expCompPickerSelect').value;if(id)expCompOpen(id);});
+node('expCompAdd').addEventListener('click',()=>{if(expCompPodeEditar())expCompAddRow();});
+node('expCompSave').addEventListener('click',expCompSave);
 
 
 function adminCanManageManufacturers() {
@@ -6582,7 +6851,7 @@ node('identityDifferent').addEventListener('change',validarCorrecaoIdentificacao
 node('identityCancel').addEventListener('click',()=>fecharCorrecaoIdentificacao(true));
 node('identitySave').addEventListener('click',salvarCorrecaoIdentificacao);
 node('openTypologies').addEventListener('click',()=>{
-  if(!canAdministrate())return;
+  if(!canAdministrate()){expCompPickerOpen();return;}
   node('typologySearch').value='';
   renderTypologiesAdmin();
   setView('typologies');
@@ -7840,8 +8109,8 @@ async function finLoad(){
   const aprovadas=(c||[]).filter(x=>x.status==='aprovada'&&['aluminio','acessorios'].includes(x.categoria));
   const approvedIds=aprovadas.map(x=>x.id);
   const [linhas,romLinhas,pendentesItens,approvedItems,stockReceipts,precoLinhas,precoCategorias]=await Promise.all([
-   invoiceIds.length?apiGet('ew_obra_faturamentos_itens',{select:'faturamento_id,esquadria_id,quantidade,valor_total',empresa_id:empresa,faturamento_id:'in.('+invoiceIds.join(',')+')',limit:'5000'}):[],
-   romaneioIds.length?apiGet('romaneios_itens',{select:'romaneio_id,esquadria_id,quantidade,natureza,tipo_saida',romaneio_id:'in.('+romaneioIds.join(',')+')',limit:'10000'}):[],
+   invoiceIds.length?apiGet('ew_obra_faturamentos_itens',{select:'faturamento_id,esquadria_id,quantidade,valor_total,area_m2',empresa_id:empresa,faturamento_id:'in.('+invoiceIds.join(',')+')',limit:'5000'}):[],
+   romaneioIds.length?apiGet('romaneios_itens',{select:'romaneio_id,esquadria_id,quantidade,natureza,tipo_saida,composicao_revisao_id,equivalente_expedido',romaneio_id:'in.('+romaneioIds.join(',')+')',limit:'10000'}):[],
    pendingIds.length?apiGet('ew_obra_despesas_itens',{
      select:'id,despesa_id,codigo_fornecedor,descricao,unidade,quantidade,valor_unitario,valor_total,perfil_id,acessorio_id',
      empresa_id:empresa,despesa_id:'in.('+pendingIds.join(',')+')',limit:'10000'}):[],
@@ -7861,6 +8130,8 @@ async function finLoad(){
   const shipped=finEquivalentesExpedidos(romLinhas,composicoes);
   const billed={fabricacao:new Map(),instalacao:new Map()};
   const billedValues={fabricacao:new Map(),instalacao:new Map()};
+  const billedAreas={fabricacao:new Map(),instalacao:new Map()};
+  const areaPorId=new Map(elements.filter(e=>e.obra_id===obraId).map(e=>[e.id,area(e,1)]));
   const precoPorEsquadria=new Map((precoLinhas||[]).map(x=>[x.esquadria_id,x]));
   if(precificacoes?.[0]){
    const obraItens=elements.filter(e=>e.obra_id===obraId);
@@ -7882,11 +8153,13 @@ async function finLoad(){
    const tipo=header.get(x.faturamento_id)?.categoria;
    if(tipo&&billed[tipo]){
     billed[tipo].set(x.esquadria_id,(billed[tipo].get(x.esquadria_id)||0)+Number(x.quantidade||0));
+    const areaF=x.area_m2==null?Number(x.quantidade||0)*(areaPorId.get(x.esquadria_id)||0):Number(x.area_m2);
+    billedAreas[tipo].set(x.esquadria_id,(billedAreas[tipo].get(x.esquadria_id)||0)+areaF);
     billedValues[tipo].set(x.esquadria_id,(billedValues[tipo].get(x.esquadria_id)||0)+Math.round(Number(x.valor_total||0)*100));
    }
   }
   finState={obraId,orcamento:b[0],despesas:c||[],faturas:fat||[],linhas:linhas||[],perfis:perfis||[],
-   acessorios:aces||[],shipped,billed,billedValues,
+   acessorios:aces||[],shipped,billed,billedValues,billedAreas,
    precificacao:precificacoes?.[0]||null,precoPorEsquadria,
    precificacaoCategorias:precoCategorias||[],
    pendentes,pendentesItens:pendentesItens||[],
@@ -8301,7 +8574,8 @@ function finEquivalentesExpedidos(linhas,composicoes){
   const q=Number(x.quantidade);
   if(!Number.isSafeInteger(q)||q<1)throw new Error('Quantidade de expedição inválida no histórico do faturamento.');
   let equiv;
-  if(x.tipo_saida==='completo')equiv=q;
+  if(x.composicao_revisao_id){equiv=Number(x.equivalente_expedido);if(!Number.isFinite(equiv)||equiv<=0)throw Error('Área equivalente da composição indisponível.');}
+  else if(x.tipo_saida==='completo')equiv=q;
   else if(x.tipo_saida==='marco')equiv=q/2;
   else if(x.tipo_saida==='folha'){
    const per=folhasPorItem.get(x.esquadria_id);
@@ -8377,10 +8651,12 @@ function finRenderFaturaveis(){
   const ja=finState.billed[tipo].get(e.id)||0;
   const disponivel=finEquivDisponivel(Math.min(Number(e.quantidade)-ja,enviados-ja));
   const precificacao=finState.precoPorEsquadria.get(e.id)||null;
-  const areaUnit=area(e,1),areaMax=finAreaDisponivel(disponivel,areaUnit);
-  const sugestao=finPrecoM2Sugerido(precificacao,tipo,e.quantidade,areaUnit,areaMax,ja,
+  const areaUnit=area(e,1),jaArea=finState.billedAreas[tipo].get(e.id)||0;
+  const areaMax=Math.max(0,Math.round((Math.round(enviados*areaUnit*1000000)/1000000-jaArea)*1000000)/1000000);
+  const jaEquiv=areaUnit>0?jaArea/areaUnit:0;
+  const sugestao=finPrecoM2Sugerido(precificacao,tipo,e.quantidade,areaUnit,areaMax,jaEquiv,
    finState.billedValues[tipo].get(e.id)||0);
-  return {e,enviados,ja,disponivel,areaUnit,areaMax,precificacao,sugestao};
+  return {e,enviados,ja,jaArea,disponivel,areaUnit,areaMax,precificacao,sugestao};
  }).filter(r=>r.enviados>0);
  node('finBillingRows').innerHTML=rows.length?'<p class="hint">'+
   (finState.precificacao?'Os preços por m² sugeridos são da precificação aprovada (revisão '+
@@ -8394,7 +8670,7 @@ function finRenderFaturaveis(){
   '<td class="finRowCheck"><input class="finSelected" type="checkbox"'+(r.areaMax===0?' disabled':'')+'></td>'+
   '<td><strong>'+escapeHTML(r.e.codigo)+'</strong><div class="hint">'+escapeHTML(r.e.descricao||'')+'</div></td>'+
   '<td>'+escapeHTML(r.precificacao?.categoria_nome_snapshot||'—')+'</td>'+
-  '<td>'+finEquivFormat(r.enviados*r.areaUnit)+'</td><td>'+finEquivFormat(r.ja*r.areaUnit)+'</td><td>'+finEquivFormat(r.areaMax)+'</td>'+
+  '<td>'+finEquivFormat(r.enviados*r.areaUnit)+'</td><td>'+finEquivFormat(r.jaArea)+'</td><td>'+finEquivFormat(r.areaMax)+'</td>'+
   '<td><input class="finQty finSmallInput" type="number" min="0.000001" max="'+r.areaMax+
   '" step="0.000001" value="'+(r.areaMax||'')+'"'+(r.areaMax===0?' disabled':'')+'></td>'+
   '<td><input class="finPrice finSmallInput" type="text" inputmode="decimal" autocomplete="off" placeholder="R$ 0,00" aria-label="Preço em reais por metro quadrado" value="'+
@@ -8408,7 +8684,7 @@ function finRenderFaturaveis(){
    const linha=finState.precoPorEsquadria.get(row.dataset.esq);
    const obraItem=items.find(x=>x.id===row.dataset.esq);
    const sugestao=finPrecoM2Sugerido(linha,tipo,obraItem?.quantidade,Number(row.dataset.areaUnit),Number(quantidade.value),
-    finState.billed[tipo].get(row.dataset.esq)||0,
+    (finState.billedAreas[tipo].get(row.dataset.esq)||0)/Number(row.dataset.areaUnit),
     finState.billedValues[tipo].get(row.dataset.esq)||0);
    if(sugestao!==null)campo.value=finPrecoFormatar(sugestao);
   };
@@ -8585,8 +8861,8 @@ async function finRegistrarFaturamento(event){
      !Number.isFinite(preco)||preco<=0||Math.abs(preco*10000-Math.round(preco*10000))>0.00001){
    node('finBillingMessage').textContent='Verifique a área em m² (até 6 casas) e o preço por m².';return;
   }
-  const a=Number(row.dataset.areaUnit),maxEq=Number(row.dataset.equivalentMax);
-  const equivalente=Math.min(maxEq,Math.round(qtd/a*1000000)/1000000);
+  const a=Number(row.dataset.areaUnit);
+  const equivalente=Math.round(qtd/a*1000000)/1000000;
   const precoIntegral=Math.round(preco*a*10000)/10000;
   if(!(a>0)||!(equivalente>0)||!(precoIntegral>0)){node('finBillingMessage').textContent='Área ou preço insuficiente para faturamento.';return;}
   itens.push({esquadria_id:row.dataset.esq,quantidade:equivalente,valor_unitario:precoIntegral,area_m2:qtd,preco_m2:preco});
