@@ -121,7 +121,7 @@
   }
   const busca=byId('stockSearch').value.trim().toLocaleUpperCase('pt-BR');
   const local=byId('stockFactoryFilter').value;
-  const rows=saldos.filter(x=>(!filtrar||x.categoria===tipo)&&
+  const rows=saldos.filter(x=>(!byId('stockHideZero').checked||Math.abs(Number(x.saldo))>1e-9)&&(!filtrar||x.categoria===tipo)&&
     (!local||x.galpao===local)&&
     (x.descricao.toLocaleUpperCase('pt-BR').includes(busca)||
      String(x.unidade).includes(busca)));
@@ -246,6 +246,7 @@
  byId('stockFactoryFilter').addEventListener('change',renderEstoqueInsumos);
  byId('stockType').addEventListener('change',renderEstoqueInsumos);
  byId('stockSearch').addEventListener('input',renderEstoqueInsumos);
+ byId('stockHideZero').addEventListener('change',renderEstoqueInsumos);
  byId('insumosStockRefresh').addEventListener('click',carregarSaldos);
  byId('insumosTransferOpen').addEventListener('click',abrirTransferencia);
  byId('insumosTransferCancel').addEventListener('click',fecharTransferencia);
