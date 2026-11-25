@@ -1387,7 +1387,7 @@
       <div class="head"><div>
         <button type="button" class="btn secondary cadastrosBack">← Voltar para cadastros</button>
         <h1>Cadastro de fornecedores</h1>
-        <p class="muted">Consulte e gerencie fornecedores utilizados no recebimento de notas fiscais.</p>
+        <p class="muted">Consulte e gerencie fornecedores, grupos de compra atendidos e recebimento de notas fiscais.</p>
       </div></div>
       <div class="section panel" id="cadastroFornecedores">
         <h2>Fornecedores cadastrados</h2>
@@ -1398,6 +1398,7 @@
         <div id="cadastroFornecedorList" class="cadastrosList"></div>
         <p id="cadastroFornecedorMessage" class="feedback" role="status"></p>
       </div>
+      <div id="cadastroFornecedorGrupos" class="section panel hidden"></div>
       <div id="cadastroEditPanel" class="section panel hidden" role="region" aria-labelledby="cadastroEditTitle">
         <h2 id="cadastroEditTitle">Editar cadastro</h2>
         <p class="hint" id="cadastroEditHint">Registros vinculados a notas ou estoque não podem ser editados ou excluídos.</p>
@@ -11265,7 +11266,7 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/precificacao-core.js?v=20261122a"></script>
 <script src="/assets/precificacao-importacao.js?v=20261122a"></script>
 <script src="/assets/recebimento-manual.js?v=20261121l"></script>
-<script src="/assets/cadastros-hub.js?v=20261125d"></script>
+<script src="/assets/cadastros-hub.js?v=20261125f"></script>
 <script src="/assets/insumos-fisicos.js?v=20261125a"></script>
 <script src="/assets/entregas-producao.js?v=20261121a"></script>
 <script src="/assets/romaneios-transferencia.js?v=20261125a"></script>
