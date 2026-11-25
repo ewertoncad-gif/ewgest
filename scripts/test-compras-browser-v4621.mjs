@@ -277,7 +277,7 @@ try{
   if(typeof crypto.randomUUID!=='function')Object.defineProperty(crypto,'randomUUID',{value:()=> '00000000-0000-4000-8000-000000000987'});
   const item={chave:'1',variacao_id:'v',unidade:'BARRA',quantidade:2,comprimento_mm:6000};
   const acc={chave:'2',variacao_id:'va',unidade:'PC',quantidade:1,comprimento_mm:null};
-  window._q={calls:[],invites:[],links:[],sols:['s1','s2','s3'].map((id,i)=>({id,obra_id:i===2?'b':'a',status:'ABERTA',itens:i===1?[item,acc]:[item],criado_em:'2026-11-25',observacoes:id})),quotes:[]};
+  window._q={calls:[],invites:[],links:[],moved:false,sols:['s1','s2','s3'].map((id,i)=>({id,obra_id:i===2?'b':'a',status:'ABERTA',itens:i===1?[item,acc]:[item],criado_em:'2026-11-25',observacoes:id})),quotes:[]};
   window.apiGet=async table=>{
    if(table==='ew_compras_solicitacoes')return structuredClone(window._q.sols);
    if(table==='ew_compras_cotacoes')return structuredClone(window._q.quotes);
@@ -287,12 +287,15 @@ try{
    if(table==='ew_perfis')return [{id:'pf',codigo:'P01',descricao:'Perfil teste',comprimento_comercial_mm:6000}];
    return [];
   };
+  const assertClassificar=b=>{if(b.p_empresa_id!=='empresa-teste'||b.p_variacao_id!=='va'||!['gp','ga'].includes(b.p_grupo_id))throw Error('Classificação inválida');};
   window.request=async(path,opts)=>{
    const fn=path.split('/').pop(),body=opts.body,m=window._q;
    if(fn==='ew_compras_pedidos_resumo')return [];
    if(fn==='ew_compras_grupos_catalogo')return {grupos:[{id:'gp',nome:'Perfis',ativo:true},{id:'ga',nome:'Acessórios',ativo:true}],fornecedores:[{id:'f1',grupos:['gp']},{id:'f2',grupos:['gp']},{id:'f3',grupos:['ga']}],legados:[]};
    if(fn==='ew_compras_grupos_desdobrados')return structuredClone(m.links);
-   if(fn==='ew_compras_previa_grupos')return [{grupo_id:'gp',nome:'Perfis',ativo:true,itens:[{...item,quantidade:4}],fornecedores:[{id:'f1',nome:'Fornecedor 1'},{id:'f2',nome:'Fornecedor 2'}]},{grupo_id:'ga',nome:'Acessórios',ativo:true,itens:[acc],fornecedores:[{id:'f3',nome:'Fornecedor de acessórios'}]}];
+   if(fn==='ew_compras_previa_grupos')return [{grupo_id:'gp',nome:'Perfis',ativo:true,itens:[{...item,quantidade:4},...(m.moved?[acc]:[])],fornecedores:[{id:'f1',nome:'Fornecedor 1'},{id:'f2',nome:'Fornecedor 2'}]},...(!m.moved?[{grupo_id:'ga',nome:'Acessórios',ativo:true,itens:[acc],fornecedores:[{id:'f3',nome:'Fornecedor de acessórios'}]}]:[])];
+   if(fn==='ew_compras_classificar_material'){assertClassificar(body);m.moved=body.p_grupo_id==='gp';return null;}
+
    if(fn==='ew_compras_convites_cotacao')return structuredClone(m.invites);
    m.calls.push({fn,body});
    if(fn==='ew_compras_agrupar_solicitacoes'){
@@ -321,7 +324,9 @@ try{
  await quoting.addScriptTag({content:readFileSync(new URL('../assets/compras-estoque.js',import.meta.url),'utf8')});
  await quoting.locator('#comprasTabCotacao').click();
  await quoting.evaluate(()=>window.ewCompras.abrir());
- await quoting.locator('#comprasAgruparBox summary').click();
+ assert.ok(await quoting.locator('#comprasAgruparPainel').isHidden());
+ await quoting.locator('#comprasAgruparAbrir').click();
+ assert.ok(await quoting.locator('#comprasAgruparPainel').isVisible());
  await quoting.locator('#comprasAgruparObra').selectOption('a');
  assert.equal(await quoting.locator('#comprasAgruparLista input').count(),2);
  await quoting.locator('#comprasAgruparLista input[value="s1"]').check();
@@ -331,6 +336,15 @@ try{
  await quoting.waitForFunction(()=>document.querySelector('#comprasCotacaoSolic')?.value==='grupo');
  assert.equal(await quoting.locator('#comprasCotacaoSolic option[value="s1"]').count(),0);
  assert.equal(await quoting.locator('#comprasCotacaoSolic option[value="s3"]').count(),1);
+ const changeGroup=quoting.locator('[data-alterar-grupo="va"]');
+ await changeGroup.click();
+ await quoting.locator('.ewComprasGrupoEdicao select').selectOption('gp');
+ await quoting.locator('[data-salvar-grupo]').click();
+ await quoting.waitForFunction(()=>document.querySelector('[data-alterar-grupo="va"]')?.dataset.grupoAtual==='gp');
+ await changeGroup.click();
+ await quoting.locator('.ewComprasGrupoEdicao select').selectOption('ga');
+ await quoting.locator('[data-salvar-grupo]').click();
+ await quoting.waitForFunction(()=>document.querySelector('[data-alterar-grupo="va"]')?.dataset.grupoAtual==='ga');
  await quoting.locator('#comprasPrepararGrupos').click();
  await quoting.locator('[data-escolher-grupo="grupo-acessorios"]').click();
  assert.equal(await quoting.locator('#comprasCotacaoFornecedor option[value="f3"]').count(),1);

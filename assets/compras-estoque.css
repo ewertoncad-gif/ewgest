@@ -34,3 +34,15 @@
 @media(max-width:650px){.ewTransferGrid{grid-template-columns:1fr}}
 @media(max-width:850px){.ewComprasLine{grid-template-columns:repeat(2,minmax(0,1fr))}.ewComprasLine label:first-child{grid-column:1/-1}.ewComprasLine [data-buy-remove]{justify-self:end}}
 @media(max-width:550px){.ewComprasLine{grid-template-columns:1fr}.ewComprasLine label:first-child{grid-column:auto}.ewComprasLine [data-buy-remove]{justify-self:stretch}}
+
+/* Classificação comercial na prévia de cotação. */
+.ewComprasGrupoItem{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:9px 0;border-bottom:1px solid #e1e8f1}
+.ewComprasGrupoItem>span{flex:1;min-width:200px;overflow-wrap:anywhere;font-size:13px}
+.ewComprasGrupoItem>button{flex:none}
+.ewComprasGrupoEdicao{display:flex;align-items:end;gap:8px;flex-wrap:wrap;width:100%;padding:10px;background:#edf3f9;border-radius:8px}
+.ewComprasGrupoEdicao>label{display:grid;gap:4px;flex:1;min-width:180px;font-size:12px;font-weight:650}
+.ewComprasGrupoEdicao>.hint{width:100%;margin:0}
+#comprasAgruparBox>.ewComprasActions{margin:0}
+#comprasAgruparPainel:not([hidden]){display:grid;gap:12px}
+#comprasAgruparPainel>label{display:grid;gap:5px}
+#comprasAgruparLista{display:grid;gap:8px}

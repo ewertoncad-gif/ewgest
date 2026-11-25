@@ -127,7 +127,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29',
+ 'EWGEST • v46.29.1',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -1378,7 +1378,7 @@ assert.ok(restored.includes("const raw=sessionStorage.getItem('ewgest_session_v3
  restored.includes("setView('login');")&&
  source.includes("restaurarSessaoSalva().catch(e=>{\\n  // Não manter".replaceAll('\\n','\n')),
  'Sessão ausente ou inválida mostra login; sessão válida abre painel sem flash, erros não travam o carregamento');
-assert.ok(/EWGEST <strong>· v\d+\.\d+<\/strong>/.test(source)&&
+assert.ok(/EWGEST <strong>· v\d+\.\d+(?:\.\d+)?<\/strong>/.test(source)&&
  source.includes('@media(prefers-reduced-motion:reduce){.startupSpinner'),
  'Indicador de carregamento acessível e versão presente no rodapé');
 // v44.7: os sete atalhos marcados no cabeçalho devem desaparecer, sem eventos órfãos.
@@ -2107,7 +2107,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29')&&
+assert.ok(source.includes('v46.29.1')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2341,7 +2341,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.29</strong>'),
+ source.includes('EWGEST <strong>· v46.29.1</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
