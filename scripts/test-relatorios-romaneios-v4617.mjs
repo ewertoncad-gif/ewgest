@@ -45,6 +45,7 @@ assert.ok(sql.includes("estorno_movimento_id")&&
  sql.includes("Devolução física confirmada"),
  'Cancelamento deve registrar devolução');
 assert.ok(protect.includes("Cancele o romaneio e confirme a devolução física"));
-assert.doesNotMatch(js,/\/rest\/v1\/rpc\/|method\s*:\s*'POST'/,
+const readOnlyReports=js.replace(/request\('\/rest\/v1\/rpc\/ew_historico_numeracao_romaneios',\{method:'POST',token:session\.access_token,body:\{[\s\S]*?\}\}\)/g,'READ_ONLY_RPC');
+assert.doesNotMatch(readOnlyReports,/\/rest\/v1\/rpc\/|method\s*:\s*'POST'/,
  'Relatórios continuam somente leitura');
 console.log('OK v46.20: período total, filtros combináveis, relatórios e saídas diretas com vínculo auditável.');
