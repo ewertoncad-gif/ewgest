@@ -22,6 +22,11 @@ BEGIN
  IF v_doc.status='cancelada' THEN RETURN jsonb_build_object('ja_estornado',true,'despesa_id',v_doc.id); END IF;
  IF v_doc.status<>'aprovada' THEN RAISE EXCEPTION 'A nota não está aprovada.'; END IF;
  IF EXISTS(SELECT 1 FROM public.ew_compras_nfe_conciliacoes WHERE despesa_id=v_despesa AND desvinculado_em IS NULL) THEN RAISE EXCEPTION 'Desvincule a conciliação com o pedido antes do estorno.'; END IF;
+ -- Travar todos os recebimentos antes da primeira rotina física, que trava a obra.
+ FOR v_rec IN SELECT r.id FROM public.ew_nfe_recebimentos r JOIN public.ew_obra_despesas_itens i ON i.id=r.despesa_item_id
+ WHERE i.despesa_id=v_despesa AND r.empresa_id=p_empresa_id AND r.estornado_em IS NULL ORDER BY r.id LOOP
+  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_rec.id::text,912425));
+ END LOOP;
  -- Cada entrada passa pelas mesmas verificações físicas já existentes.
  -- Qualquer erro desfaz TODOS os estornos desta transação.
  FOR v_rec IN SELECT r.id FROM public.ew_nfe_recebimentos r JOIN public.ew_obra_despesas_itens i ON i.id=r.despesa_item_id
