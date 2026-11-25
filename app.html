@@ -684,6 +684,7 @@
   .cadastrosNovoForm label{flex:1;min-width:180px}.cadastrosNovoForm input{width:100%}
   .cadastrosList{max-height:300px;overflow:auto}
   .cadastrosListRow{padding:9px 5px;border-bottom:1px solid #e2eaf3;display:flex;justify-content:space-between}
+  #cadastroLocaisLista .btn:disabled,#cadastroLocaisLista .btn:disabled:hover,#cadastroLocaisLista .btn:disabled:focus{opacity:.48;cursor:not-allowed;transform:none;box-shadow:none;background:#f4f7fa;color:#536781;border-color:#dce4ed}
   </style>
   <link rel="stylesheet" href="/assets/orcamento-niveis.css?v=20261120c">
   <link rel="stylesheet" href="/assets/precificacao-importacao.css?v=20261122a">
@@ -722,7 +723,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.22</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.23</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -743,7 +744,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.22</div>
+        <div class="build">EWGEST • v46.23</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
