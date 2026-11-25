@@ -127,7 +127,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.22',
+ 'EWGEST • v46.23',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2096,7 +2096,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.22')&&
+assert.ok(source.includes('v46.23')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2330,7 +2330,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.22</strong>'),
+ source.includes('EWGEST <strong>· v46.23</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2942,3 +2942,7 @@ assert.ok(insumosClient.includes("byId('stockHideZero').checked"));
 const companyStockUI=readFileSync(fileURLToPath(new URL('../assets/compras-estoque.js',import.meta.url)),'utf8');
 assert.ok(companyStockUI.includes("!$('stockHideZero').checked||Math.abs(x.quantidade)>1e-9"));
 console.log('OK: filtro de saldo zero preserva saldos positivos e negativos.');
+
+assert.ok(source.includes('#cadastroLocaisLista .btn:disabled')&&source.includes('opacity:.48;cursor:not-allowed;transform:none'));
+const cadastroLocaisScript=readFileSync(fileURLToPath(new URL('../assets/cadastro-locais-estoque.js',import.meta.url)),'utf8');
+assert.ok(cadastroLocaisScript.includes('b.disabled=!!r.impedimento')&&cadastroLocaisScript.includes('if(!allowed()||r.impedimento)return;'));
