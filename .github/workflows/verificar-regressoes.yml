@@ -97,3 +97,5 @@ jobs:
         run: command -v psql || (sudo apt-get update && sudo apt-get install -y postgresql-client)
       - name: Validar recebimento concorrente com duas conexões reais
         run: python3 scripts/test-compras-concorrencia-v4621.py
+      - name: Validar concorrência de numeração por obra
+        run: python3 scripts/test-romaneios-concorrencia-v4627.py

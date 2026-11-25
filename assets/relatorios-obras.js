@@ -416,11 +416,43 @@ async function precos_fornecedores(ctx){
  el('reportSummary').innerHTML='<p class="hint">Preços das cotações, inclusive histórico cancelado identificado. Não alteram orçamento ou preço-base das esquadrias. Descrições seguem o catálogo atual; a variação e o preço são os da cotação.</p>';
  el('reportTable').innerHTML=tabela(headers,rows);return {contagem:rows.length};
 }
+async function historico_romaneios(ctx){
+ const dados=[];
+ for(let offset=0;offset<=100000;offset+=500){
+  const page=await request('/rest/v1/rpc/ew_historico_numeracao_romaneios',{method:'POST',token:session.access_token,body:{
+   p_empresa_id:currentCompany.id,p_obra_id:ctx.obraId||null,
+   p_inicio:el('reportFullPeriod').checked?null:el('reportStart').value||null,
+   p_fim:el('reportFullPeriod').checked?null:el('reportEnd').value||null,p_offset:offset}});
+  if(!Array.isArray(page))throw new Error('Histórico indisponível.');
+  dados.push(...page);if(page.length<500)break;
+  if(offset===100000)throw new Error('Reduza o período do relatório para não omitir registros.');
+ }
+ headers=['Obra','Data / hora','Tipo','Evento','Código','Documento (ID)','Usuário','Detalhes'];
+ const nomes={NUMERO_ATRIBUIDO:'Número atribuído',NUMERO_REUTILIZADO:'Número reutilizado',JUNCAO:'Junção',AGRUPADO:'Rascunho agrupado',ADIANTAMENTO:'Adiantamento manual',GERADO_POR_TRANSFERENCIA:'Gerado por transferência',EMITIDO:'Emitido',CANCELADO:'Cancelado'};
+ rows=dados.map(x=>{
+  const d=x.detalhes||{},det=[];
+  if(d.numero)det.push('Original: '+d.numero);
+  if(d.numero_principal)det.push('Principal: '+d.numero_principal);
+  if(d.documento_origem)det.push('ID de origem: '+d.documento_origem);
+  if(d.proximo_antes!=null)det.push('Próximo antes: RM'+String(d.proximo_antes).padStart(3,'0'));
+  if(d.proximo_depois!=null)det.push('Próximo depois: RM'+String(d.proximo_depois).padStart(3,'0'));
+  if(d.justificativa||d.motivo)det.push(d.justificativa||d.motivo);
+  if(d.itens_originais)det.push(d.itens_originais.map(i=>[i.codigo,i.descricao,i.quantidade,i.unidade].filter(x=>x!=null).join(' ')).join(' | '));
+  if(d.origem&&d.destino)det.push(d.origem+' → '+d.destino);
+  if(d.tipo)det.push(d.tipo==='romaneios'?'Expedição':'Transferência');
+  return [x.obra+(x.obra_codigo?' · '+x.obra_codigo:''),stamp(x.data),x.tipo,nomes[x.evento]||x.evento,x.numero||'',x.documento_id||'',usuario(x.usuario_id),det.join(' · ')];
+ });
+ reportTitle='Histórico de numeração e junções de romaneios';
+ el('reportSummary').innerHTML='<p class="hint">Histórico documental, inclusive de obras arquivadas quando consultadas todas as obras. Números iguais em obras distintas ou rascunhos agrupados são diferenciados pelo ID. Não representa movimentação de estoque.</p>';
+ el('reportTable').innerHTML=tabela(headers,rows);
+ return {contagem:rows.length};
+}
 async function gerar(){
  if(running||!podeVerRelatorios()||!currentCompany)return;
  rows=[];headers=[];summaryCsv=[];summaryHeaders=[];el('reportCsv').disabled=true;el('reportPrint').disabled=true;
  el('reportTable').replaceChildren();el('reportSummary').replaceChildren();
  const tipo=el('reportType').value;
+ if(tipo==='historico_romaneios'&&!(temPermissao('relatorios.operacionais')&&temPermissao('romaneios.historico_numeracao'))){el('reportStatus').textContent='Sem permissão para histórico de romaneios.';return;}
  if(tipo==='precos_fornecedores'&&!(temPermissao('compras.historico_precos')&&temPermissao('compras.consultar_valores'))){el('reportStatus').textContent='Sem permissão para consultar preços de fornecedores.';return;}
  if((tipo==='faturamento'&&!temPermissao('relatorios.financeiros'))||
    (tipo==='custos_empresa'&&!(temPermissao('relatorios.financeiros')&&temPermissao('compras.consultar_valores')&&temPermissao('financeiro.consultar')))){
@@ -452,7 +484,7 @@ async function gerar(){
    el('reportStatus').textContent='Relatório concluído: '+res.notesCount+' nota(s) encontrada(s), '+res.shown+
     ' apresentada(s). Valores ativos sem notas canceladas; consulta sem movimentações.';
   }else{
-   const geradores={faturamento,estoque,liberacoes,expedicao,aluminio,precos_fornecedores};
+   const geradores={faturamento,estoque,liberacoes,expedicao,aluminio,precos_fornecedores,historico_romaneios};
    if(!geradores[tipo])throw new Error('Relatório inexistente.');
    const res=await geradores[tipo](ctx);
    el('reportStatus').textContent='Relatório concluído: '+res.contagem+' registro(s) consultado(s). '+
@@ -511,6 +543,10 @@ el('navRelatorios').addEventListener('click',async()=>{
 });
 function exibirFiltros(){
  const finance=temPermissao('relatorios.financeiros');
+ const histPermit=temPermissao('relatorios.operacionais')&&temPermissao('romaneios.historico_numeracao');
+ const histOption=el('reportType').querySelector('[value="historico_romaneios"]');
+ if(histOption){histOption.disabled=!histPermit;histOption.hidden=!histPermit;}
+ if(!histPermit&&el('reportType').value==='historico_romaneios')el('reportType').value='estoque';
  const pricesAllowed=temPermissao('compras.historico_precos')&&temPermissao('compras.consultar_valores');
  const priceOption=el('reportType').querySelector('[value="precos_fornecedores"]');
  if(priceOption){priceOption.disabled=!pricesAllowed;priceOption.hidden=!pricesAllowed;}
