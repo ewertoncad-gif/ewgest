@@ -14,7 +14,7 @@ for(const key of [
  'id="navRelatorios"','id="relatorios"','id="reportType"',
  'id="reportWork"','id="reportStart"','id="reportEnd"',
  'id="reportCsv"','id="reportPrint"',
- 'relatorios-obras.js?v=20261122c','romaneios-transferencia.js?v=20261122b']){
+ 'relatorios-obras.js?v=20261125b','romaneios-transferencia.js?v=20261122b']){
  assert.ok(app.includes(key),'Componente ausente: '+key);
 }
 assert.ok(app.includes("setNavPermission('navRelatorios',podeVerRelatorios())")&&
