@@ -34,7 +34,8 @@ assert.match(reports,/m\.estorno_de_id/,
  'Estornos devem aparecer vinculados ao original');
 assert.match(reports,/function csv\(\)/,
  'Relatórios exportáveis para planilha');
-assert.doesNotMatch(reports,/\/rest\/v1\/rpc\/|method\s*:\s*'POST'|\.update\(|\.delete\(/,
+const readOnlyReports=reports.replace(/request\('\/rest\/v1\/rpc\/ew_compras_historico_precos',\{method:'POST',token:session\.access_token,body:\{[\s\S]*?\}\}\)/g,'READ_ONLY_RPC');
+assert.doesNotMatch(readOnlyReports,/\/rest\/v1\/rpc\/|method\s*:\s*'POST'|\.update\(|\.delete\(/,
  'Relatórios nunca devem chamar RPC de escrita nem modificar estoque');
 
 const fixtures=[
