@@ -253,6 +253,37 @@ function bindGrouping(list){
 function quoteModel(core,s,f){
  return core.modelo(s.id,f,(s.itens||[]).map(i=>({...i,material:productLabel(variations.find(v=>v.id===i.variacao_id)||{nome:i.variacao_id})})));
 }
+function bindReplicarFornecedores(){
+ const root=$('comprasConvites'),sol=$('comprasCotacaoSolic'),supplier=$('comprasCotacaoFornecedor');
+ if(!root||!sol||!supplier)return ()=>{};
+ let epoch=0;
+ async function render(){
+  const id=sol.value,company=currentCompany.id,seq=++epoch;
+  root.replaceChildren();if(!id)return;
+  const s=sols.find(x=>x.id===id);if(!s)return;
+  try{
+   const convites=await rpc('ew_compras_convites_cotacao',{p_empresa_id:company,p_solicitacao_id:id});
+   if(!root.isConnected||seq!==epoch||sol.value!==id||currentCompany?.id!==company)return;
+   if(!Array.isArray(convites))throw Error('Resposta inválida.');
+   const exist=new Set(convites.map(x=>x.fornecedor_id));
+   root.innerHTML='<h3>Fornecedores desta cotação</h3>'+
+    (convites.length?'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Fornecedor</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+
+    convites.map(c=>'<tr><td>'+esc(c.fornecedor)+'</td><td>'+esc(c.status==='RESPONDIDA'?'Respondida':c.status==='ENCERRADA'?'Encerrada':'Aguardando retorno')+'</td><td>'+(c.ativo&&c.status!=='ENCERRADA'?'<button type="button" class="btn secondary" data-convite="'+esc(c.fornecedor_id)+'">Selecionar</button>':'—')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="hint">Nenhum fornecedor selecionado em lote.</p>')+
+    (permission('compras.replicar_cotacao')?'<details><summary>Replicar lista para vários fornecedores</summary><div style="max-height:240px;overflow:auto">'+suppliers.filter(f=>!exist.has(f.id)).map(f=>'<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" data-fornecedor="'+esc(f.id)+'" style="width:16px;height:16px"> '+esc(f.nome)+'</label>').join('')+'</div><button type="button" class="btn secondary" id="comprasReplicarLote">Criar cotações para selecionados</button></details>':'');
+   root.querySelectorAll('[data-convite]').forEach(b=>b.onclick=()=>{supplier.value=b.dataset.convite;supplier.onchange?.();supplier.focus();});
+   const btn=$('comprasReplicarLote');
+   if(btn)btn.onclick=async()=>{
+    const ids=[...root.querySelectorAll('[data-fornecedor]:checked')].map(x=>x.dataset.fornecedor);
+    if(!ids.length||!permission('compras.replicar_cotacao'))return;
+    btn.disabled=true;
+    try{await ensureSession();await rpc('ew_compras_replicar_cotacao',{p_empresa_id:company,p_solicitacao_id:id,p_fornecedores:ids});
+      if(root.isConnected&&sol.value===id&&currentCompany?.id===company){say('comprasMensagem','Fornecedores registrados. Selecione cada um para exportar ou importar seu Excel.');await render();}
+    }catch(e){say('comprasMensagem','Não foi possível replicar: '+e.message);}finally{btn.disabled=false;}
+   };
+  }catch(e){if(root.isConnected&&seq===epoch)root.textContent='Convites indisponíveis: '+e.message;}
+ }
+ return render;
+}
 function bindQuoteExcel(){
  if(!$('comprasCotacaoExportar'))return;
  const sol=$('comprasCotacaoSolic'),supplier=$('comprasCotacaoFornecedor'),file=$('comprasCotacaoArquivo');
@@ -282,14 +313,15 @@ function renderQuote(){
  const list=sols.filter(s=>s.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===s.id)),editable=permission('compras.cotar');
  $('comprasConteudo').innerHTML='<h2>Cotação</h2><p class="hint">Cotação por fornecedor. Várias cotações podem ser comparadas para uma solicitação; apenas a escolhida vira pedido.</p>'+
  (editable?groupingHtml(list)+'<form id="comprasCotarForm" class="ewComprasForm"><label>Solicitação<select id="comprasCotacaoSolic" required>'+option('','Escolha')+list.map(s=>option(s.id,titleLocal(s)+' · '+(s.itens||[]).length+' itens')).join('')+'</select></label>'+
- '<label>Fornecedor<select id="comprasCotacaoFornecedor" required>'+option('','Escolha')+suppliers.map(x=>option(x.id,x.nome)).join('')+'</select></label><div id="comprasCotacaoItens"></div>'+
+ '<label>Fornecedor<select id="comprasCotacaoFornecedor" required>'+option('','Escolha')+suppliers.map(x=>option(x.id,x.nome)).join('')+'</select></label><div id="comprasCotacaoItens"></div><div id="comprasConvites"></div>'+
  (permission('compras.cotacao_excel')?'<div class="ewComprasActions" style="flex-wrap:wrap"><button type="button" class="btn secondary" id="comprasCotacaoExportar">Exportar Excel para fornecedor</button><label>Importar Excel preenchido<input id="comprasCotacaoArquivo" type="file" accept=".xlsx"></label></div>':'')+
  '<button class="btn primary" type="submit">Registrar cotação</button></form>':'')+
  '<h3>Cotações registradas</h3><div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Fornecedor</th><th>Destino</th><th>Total</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+
  quotes.map(q=>{const s=sols.find(x=>x.id===q.solicitacao_id);return '<tr><td>'+esc(suppliers.find(x=>x.id===q.fornecedor_id)?.nome||'Fornecedor')+'</td><td>'+esc(s?titleLocal(s):'-')+'</td><td>'+money(q.total_centavos)+'</td><td>'+esc(q.status==='CANCELADA'?'Cancelada':orders.some(p=>p.cotacao_id===q.id)?'Pedido gerado':'Em avaliação')+cancelDetails(q)+'</td><td>'+(editable&&q.status!=='CANCELADA'&&s?.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===q.solicitacao_id)?'<button type="button" class="btn secondary" data-compras-tipo="cotacao" data-compras-cancel="'+esc(q.id)+'">Cancelar</button>':'—')+(editable&&permission('compras.replicar_cotacao')&&s?.status==='ABERTA'&&q.status!=='CANCELADA'?'<button class="btn secondary" type="button" data-cotacao-replicar="'+esc(q.solicitacao_id)+'">Replicar lista</button>':'')+'</td></tr>'}).join('')+'</tbody></table></div>';bindCancelButtons();
- bindGrouping(list);bindQuoteExcel();
+ bindGrouping(list);bindQuoteExcel();const renderConvites=bindReplicarFornecedores();
  $('comprasConteudo').querySelectorAll('[data-cotacao-replicar]').forEach(b=>b.onclick=()=>{quotePreferredSolic=b.dataset.cotacaoReplicar;renderQuote();$('comprasCotacaoFornecedor').focus();say('comprasMensagem','Lista replicada. Selecione outro fornecedor e exporte o Excel; preços anteriores não foram copiados.');});
  if(editable){$('comprasCotacaoSolic').onchange=()=>{
+  void renderConvites();
   const s=sols.find(x=>x.id===$('comprasCotacaoSolic').value);
   $('comprasCotacaoItens').innerHTML=s?'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Material</th><th>Quantidade</th><th>Un.</th><th>Preço unitário (R$)</th></tr></thead><tbody>'+
   (s.itens||[]).map(i=>'<tr data-quote-key="'+esc(i.chave)+'"><td>'+esc(productLabel(variations.find(v=>v.id===i.variacao_id)||{nome:i.variacao_id}))+'</td><td>'+number(i.quantidade)+'</td><td>'+esc(i.unidade)+'</td><td><input type="text" inputmode="decimal" required placeholder="0,00"></td></tr>').join('')+'</tbody></table></div>':'';
