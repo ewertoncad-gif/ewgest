@@ -127,7 +127,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.24',
+ 'EWGEST • v46.25',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2106,7 +2106,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.24')&&
+assert.ok(source.includes('v46.25')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2340,7 +2340,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.24</strong>'),
+ source.includes('EWGEST <strong>· v46.25</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2970,3 +2970,23 @@ assert.equal(areaCalc4624.finAreaDisponivel(.5,1.38),.69);
 assert.equal(areaCalc4624.finPrecoM2Sugerido({fabricacao_centavos:27600},'fabricacao',1,1.38,.69,0,0),200);
 assert.ok(source.includes('area_m2:qtd,preco_m2:preco')&&source.includes('Área a faturar (m²)')&&source.includes('Preço (R$/m²)'));
 assert.ok(source.includes('ew_estornar_nfe_com_recebimentos')&&source.includes('Todas as '));
+
+// v46.25: duas unidades completas liberadas, 2 folhas por unidade, composição antiga 1.
+const lib4625=[{esquadria_id:'multi',quantidade:2,tipo_componente:'completo'}];
+const exp4625=[];
+const cfg4625=[{esquadria_id:'multi',folhas_por_unidade:1}];
+const item4625={id:'multi',codigo:'EA2',descricao:'JANELA DE CORRER - 2 FOLHAS',quantidade:5,qtd_liberada:2,largura_mm:1200,altura_mm:1150};
+const saldo4625=new Function('releaseHistory','shipmentHistory','dispatchConfig',parteFonte+statsFonte+folhasFonte+saldoFonte+'\nreturn romaneioSaldoPorTipo;')(lib4625,exp4625,cfg4625);
+assert.equal(saldo4625(item4625,'folha',null),4,'Duas esquadrias 2F: 4 folhas após reconfirmação sem saídas ativas');
+cfg4625[0].folhas_por_unidade=2;
+exp4625.push({esquadria_id:'multi',tipo:'folha',quantidade:3});
+assert.equal(saldo4625(item4625,'folha',null),1,'Três folhas expedidas: resta uma física');
+for(let qtd=1;qtd<=4;qtd++){
+ const equiv=finCalc467.finEquivalentesExpedidos([{natureza:'esquadria',esquadria_id:'multi',tipo_saida:'folha',quantidade:qtd}],cfg4625).get('multi');
+ assert.ok(Math.abs(equiv*1.38-qtd*0.345)<1e-9,'Área proporcional exata para '+qtd+' folhas');
+}
+cfg4625[0].folhas_por_unidade=1;
+assert.equal(saldo4625(item4625,'folha',null),0,'Não reinterpretar uma composição enquanto existirem saídas ativas');
+const sql4625=readFileSync(fileURLToPath(new URL('../database/proposals/20261125_composicao_folhas_v4625.sql',import.meta.url)),'utf8');
+assert.ok(sql4625.includes('CORRIGIR_COMPOSICAO_SAIDA')&&sql4625.includes('AND s.cancelado_em IS NULL')&&sql4625.includes("h.status='emitido'")&&sql4625.includes('FOR UPDATE')&&sql4625.includes('v_folhas:=p_folhas_por_unidade'));
+console.log('OK v46.25: 4 folhas em 2 janelas, saída de 3, saldo 1, áreas 0.345/0.690/1.035/1.380, composição protegida.');
