@@ -269,7 +269,35 @@ async function previewQuoteGroups(s,root,form,company){
   const gs=await rpc('ew_compras_previa_grupos',{p_empresa_id:company,p_solicitacao_id:s.id});
   if(!root.isConnected||currentCompany?.id!==company||$('comprasCotacaoSolic')?.value!==s.id)return;
   if(!Array.isArray(gs)||!gs.length)throw Error('Nenhum grupo encontrado.');
-  root.innerHTML='<h3>Grupos encontrados</h3>'+gs.map(g=>'<div class="ewComprasForm"><strong>'+esc(g.nome)+'</strong><div>'+g.itens.map(i=>esc(productLabel(variations.find(v=>v.id===i.variacao_id)||{nome:i.variacao_id}))+' · '+number(i.quantidade)+' '+esc(i.unidade)).join('<br>')+'</div><span class="hint">'+(g.fornecedores.length?esc(g.fornecedores.map(f=>f.nome).join(', ')):'Nenhum fornecedor classificado para este grupo')+'</span></div>').join('')+'<button type="button" id="comprasPrepararGrupos" class="btn primary" '+(gs.some(g=>!g.ativo)?'disabled':'')+'>Preparar cotações por grupo</button><p class="hint">A solicitação original ficará preservada; cada grupo poderá gerar seu próprio pedido.</p>';
+  root.innerHTML='<h3>Grupos encontrados</h3>'+gs.map(g=>'<div class="ewComprasForm"><strong>'+esc(g.nome)+'</strong><div>'+g.itens.map(i=>'<div class="ewComprasGrupoItem"><span>'+esc(productLabel(variations.find(v=>v.id===i.variacao_id)||{nome:i.variacao_id}))+' · '+number(i.quantidade)+' '+esc(i.unidade)+'</span>'+(permission('compras.gerenciar_grupos')?'<button type="button" class="btn secondary" data-alterar-grupo="'+esc(i.variacao_id)+'" data-grupo-atual="'+esc(g.grupo_id||'')+'">Alterar grupo</button>':'')+'</div>').join('')+'</div><span class="hint">'+(g.fornecedores.length?esc(g.fornecedores.map(f=>f.nome).join(', ')):'Nenhum fornecedor classificado para este grupo')+'</span></div>').join('')+'<button type="button" id="comprasPrepararGrupos" class="btn primary" '+(gs.some(g=>!g.ativo)?'disabled':'')+'>Preparar cotações por grupo</button><p class="hint">A solicitação original ficará preservada; cada grupo poderá gerar seu próprio pedido.</p>';
+  root.querySelectorAll('[data-alterar-grupo]').forEach(button=>button.onclick=()=>{
+   if(!permission('compras.gerenciar_grupos')||currentCompany?.id!==company)return;
+   const item=button.dataset.alterarGrupo,actual=button.dataset.grupoAtual;
+   const row=button.closest('.ewComprasGrupoItem');
+   if(row.querySelector('select'))return;
+   const controls=document.createElement('div');controls.className='ewComprasGrupoEdicao';
+   controls.innerHTML='<label>Novo grupo de compra<select aria-label="Novo grupo de compra">'+option('','Escolha o grupo')+groupCatalog.grupos.filter(g=>g.ativo).map(g=>option(g.id,g.nome)).join('')+'</select></label><button type="button" class="btn primary" data-salvar-grupo>Salvar grupo</button><button type="button" class="btn secondary" data-cancelar-grupo>Cancelar</button><p class="hint">Atualiza o grupo comercial desta variação também nas próximas cotações, sem alterar seu cadastro técnico ou estoque.</p>';
+   row.append(controls);button.hidden=true;
+   const select=controls.querySelector('select'),save=controls.querySelector('[data-salvar-grupo]'),cancel=controls.querySelector('[data-cancelar-grupo]');
+   select.value=actual;save.disabled=!select.value||select.value===actual;
+   select.onchange=()=>{save.disabled=!select.value||select.value===actual;};
+   cancel.onclick=()=>{controls.remove();button.hidden=false;};
+   save.onclick=async()=>{
+    const target=select.value;if(!target||target===actual||save.disabled)return;
+    const group=groupCatalog.grupos.find(g=>g.id===target&&g.ativo);if(!group)return;
+    if(!confirm('Alterar o grupo deste material para '+group.nome+'? A classificação valerá para as próximas cotações.'))return;
+    const prepare=$('comprasPrepararGrupos');save.disabled=true;cancel.disabled=true;select.disabled=true;if(prepare)prepare.disabled=true;
+    root.querySelectorAll('[data-alterar-grupo]').forEach(b=>b.disabled=true);
+    try{
+     await ensureSession();
+     if(currentCompany?.id!==company||!root.isConnected||$('comprasCotacaoSolic')?.value!==s.id)throw Error('Seleção alterada.');
+     await rpc('ew_compras_classificar_material',{p_empresa_id:company,p_variacao_id:item,p_grupo_id:target});
+     if(root.isConnected&&currentCompany?.id===company&&$('comprasCotacaoSolic')?.value===s.id){
+      await previewQuoteGroups(s,root,form,company);say('comprasMensagem','Grupo do material atualizado. Confira a nova separação.');
+     }
+    }catch(e){if(root.isConnected){say('comprasMensagem','Não foi possível alterar o grupo: '+e.message);save.disabled=false;cancel.disabled=false;select.disabled=false;if(prepare)prepare.disabled=gs.some(g=>!g.ativo);root.querySelectorAll('[data-alterar-grupo]').forEach(b=>b.disabled=false);}}
+   };
+  });
   $('comprasPrepararGrupos').onclick=async()=>{const btn=$('comprasPrepararGrupos');if(btn.disabled)return;btn.disabled=true;
    try{await ensureSession();await rpc('ew_compras_desdobrar_grupos',{p_empresa_id:company,p_solicitacao_id:s.id,p_operacao_id:operationToken('desdobrar',{id:s.id})});
     pendingOps.delete('desdobrar');await reload();await loadQuoteGroups();quotePreferredSolic=s.id;renderQuote();say('comprasMensagem','Grupos preparados. Escolha o grupo para cotar.');
@@ -280,14 +308,17 @@ async function previewQuoteGroups(s,root,form,company){
 function groupingHtml(list){
  list=list.filter(s=>!linkFor(s.id));if(!permission('compras.agrupar')||!list.some(s=>s.obra_id))return '';
  const ids=[...new Set(list.filter(s=>s.obra_id).map(s=>s.obra_id))];
- return '<details class="ewComprasForm" id="comprasAgruparBox"><summary><strong>Juntar solicitações da mesma obra</strong></summary>'+
+ return '<div class="ewComprasForm" id="comprasAgruparBox"><div class="ewComprasActions"><button class="btn primary" type="button" id="comprasAgruparAbrir" aria-expanded="false" aria-controls="comprasAgruparPainel">+ Juntar solicitações da mesma obra</button><span class="hint">Selecione duas ou mais solicitações abertas.</span></div><div id="comprasAgruparPainel" hidden>'+
  '<label>Obra<select id="comprasAgruparObra">'+option('','Escolha a obra')+ids.map(id=>option(id,works.find(w=>w.id===id)?.nome||id)).join('')+'</select></label>'+
  '<div id="comprasAgruparLista"></div><button class="btn secondary" id="comprasAgruparConfirmar" type="button" disabled>Juntar solicitações marcadas</button>'+
- '<p class="hint">Itens iguais serão somados por variação, unidade e comprimento. As originais permanecem no histórico.</p></details>';
+ '<p class="hint">Itens iguais serão somados por variação, unidade e comprimento. As originais permanecem no histórico.</p></div></div>';
 }
 function bindGrouping(list){
  const select=$('comprasAgruparObra');if(!select)return;
  const box=$('comprasAgruparLista'),btn=$('comprasAgruparConfirmar');
+ const open=$('comprasAgruparAbrir'),panel=$('comprasAgruparPainel');
+ open.onclick=()=>{panel.hidden=!panel.hidden;open.setAttribute('aria-expanded',String(!panel.hidden));open.textContent=panel.hidden?'+ Juntar solicitações da mesma obra':'− Fechar agrupamento';if(!panel.hidden)select.focus();};
+
  const checked=()=>[...box.querySelectorAll('input:checked')].map(x=>x.value).sort();
  select.onchange=()=>{
   box.innerHTML=list.filter(s=>!linkFor(s.id)&&s.obra_id===select.value&&!quotes.some(q=>q.solicitacao_id===s.id&&q.status!=='CANCELADA'))
