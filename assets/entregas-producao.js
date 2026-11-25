@@ -24,7 +24,7 @@
   byId('entregasProducaoStatus').textContent='';
  }
  async function buscar(obraId){
-  if(!(isAlmoxarife()||isFullAdminUser())||!currentCompany||!obraId||!temPermissao('estoque.consultar')||!temPermissao('estoque.receber')){
+  if(!currentCompany||!obraId||!temPermissao('estoque.consultar')||!temPermissao('estoque.baixar')){
    limpar();return;
   }
   const thisSeq=++seq;
@@ -78,13 +78,13 @@
  }
  async function confirmar(card){
   const index=Number(card.dataset.entregaIndex),registro=pending[index];
-  if(!registro||!currentCompany||!temPermissao('estoque.consultar')||!temPermissao('estoque.receber'))return;
+  if(!registro||!currentCompany||!temPermissao('estoque.consultar')||!temPermissao('estoque.baixar'))return;
   const obra=byId('stockProducaoWork').value;
   if(!obra||!card.querySelector('.entregaRelatorioCheck').checked)return;
   const unitCount=(registro.materiais||[]).reduce((n,x)=>n+Number(x.quantidade||0),0);
   if(!window.confirm('Confirma a ENTREGA FÍSICA à produção do relatório '+(registro.codigo||registro.arquivo||'')+
     '?\n\nSerão baixadas '+registro.materiais.length+' linha(s) de material ('+fmt(unitCount)+
-    ' unidades das respectivas medidas e tipos) dos galpões informados.\\n\\nA liberação técnica por si só não movimenta o estoque.'))return;
+    ' unidades das respectivas medidas e tipos) dos galpões informados.\n\nA liberação técnica por si só não movimenta o estoque.'))return;
   const btn=card.querySelector('.entregaRelatorioConfirmar');
   const msg=card.querySelector('.entregaRelatorioErro');
   btn.disabled=true;msg.textContent='Registrando entrega física no estoque…';
