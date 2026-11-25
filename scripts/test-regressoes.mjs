@@ -1297,7 +1297,12 @@ assert.ok(source.includes('data-work-cancel-releases')&&
 assert.ok(source.includes('async function confirmReleaseCancelAll()')&&
  source.includes("request('/rest/v1/rpc/ew_cancelar_liberacoes_obra'")&&
  source.includes('O estoque NÃO será estornado automaticamente.')&&
- source.includes('await inspecionarExclusaoObra(obraId)')&&
+ source.includes("request('/rest/v1/rpc/ew_inspecionar_reversao_obra'")&&
+ source.includes('if(!check||check.obra_id!==obraId)')&&
+ source.includes('releaseCancelAllInspection=check')&&
+ source.includes('check.obra_id!==obraId||node(\'releaseCancelAllConfirm\').disabled')&&
+ source.includes("if(!window.confirm('Tem certeza que deseja cancelar TODAS as liberações")&&
+ source.includes('Histórico preservado.')&&
  source.includes('CANCELAMENTO BLOQUEADO:')&&
  source.includes("node('releaseCancelAllConfirm').disabled=true")&&
  source.includes('motivo.length<5||motivo.length>400'),
@@ -1330,7 +1335,7 @@ assert.ok(!source.includes('id="openManageWorks"')&&
  !source.includes("node('openManageWorks')")&&
  !source.includes('id="navManageWorks"')&&
  source.includes("node('cadastroJumpObras').addEventListener('click',abrirGerenciamentoObras)")&&source.includes('id="releaseUndoAll"')&&source.includes('data-release-undo='),
- 'Gerenciar obras fica apenas na barra lateral, preservando o acesso');
+ 'Gerenciar obras não duplica o menu lateral e mantém acesso por Cadastros e estorno dentro de Obras');
 // v44.4: sem contador/importação global de croquis; upload individual só ao editar a tipologia.
 for(const deleted of ['croquiCatalogCount','croquiPackageButton','croquiPackageInput',
  'croquiImportStatus','importCroquiPackage(file)']){
