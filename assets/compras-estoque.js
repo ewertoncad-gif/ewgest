@@ -19,7 +19,8 @@ const parseMoney=v=>{let s=String(v??'').trim().replace(/^R\$\s*/,'');
  if(!/^\d+(?:[.,]\d{1,2})?$/.test(s))return null;
  const c=Math.round(Number(s.replace(',','.'))*100);
  return Number.isSafeInteger(c)&&c>=0&&c<=100000000000?c:null;};
-const formatMoneyInput=c=>(c/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+// Mesmo padrão monetário BRL usado nos totais de Compras e Recebimento.
+const formatMoneyInput=c=>money(c);
 function bindQuoteMoney(){
  $('comprasCotacaoItens').querySelectorAll('[data-quote-key] input').forEach(input=>{
   input.addEventListener('input',()=>input.setCustomValidity(''));
@@ -416,7 +417,7 @@ function renderQuote(){
   if(!eligibleSuppliers(s.id).length)preview.textContent='Nenhum fornecedor habilitado. Classifique fornecedores em Cadastros do sistema → Grupos de compra.';
   void renderConvites();
   $('comprasCotacaoItens').innerHTML=s?'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Material</th><th>Quantidade</th><th>Un.</th><th>Preço unitário (R$)</th></tr></thead><tbody>'+
-  (s.itens||[]).map(i=>'<tr data-quote-key="'+esc(i.chave)+'"><td>'+esc(productLabel(variations.find(v=>v.id===i.variacao_id)||{nome:i.variacao_id}))+'</td><td>'+number(i.quantidade)+'</td><td>'+esc(i.unidade)+'</td><td><input type="text" inputmode="decimal" required placeholder="0,00" aria-label="Preço unitário em reais" style="text-align:right;font-variant-numeric:tabular-nums"></td></tr>').join('')+'</tbody></table></div>':'';
+  (s.itens||[]).map(i=>'<tr data-quote-key="'+esc(i.chave)+'"><td>'+esc(productLabel(variations.find(v=>v.id===i.variacao_id)||{nome:i.variacao_id}))+'</td><td>'+number(i.quantidade)+'</td><td>'+esc(i.unidade)+'</td><td><input type="text" inputmode="decimal" required placeholder="R$ 0,00" aria-label="Preço unitário em reais" style="text-align:right;font-variant-numeric:tabular-nums"></td></tr>').join('')+'</tbody></table></div>':'';
   bindQuoteMoney();
  };
  if(quotePreferredSolic&&list.some(s=>s.id===quotePreferredSolic)){$('comprasCotacaoSolic').value=quotePreferredSolic;$('comprasCotacaoSolic').onchange();}quotePreferredSolic='';
