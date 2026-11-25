@@ -127,7 +127,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.5',
+ 'EWGEST • v46.29.6',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2044,6 +2044,9 @@ assert.ok(source.includes('id="cadastroJumpGruposCompra"')&&source.includes('id=
 const comprasNav=source.slice(source.indexOf('id="navCompras"'),source.indexOf('id="navRecebimento"'));
 const comprasPanel=source.slice(source.indexOf('<section id="compras"'),source.indexOf('<section id="recebimento"'));
 assert.ok(comprasNav.includes('id="navComprasSubmenu"')&&comprasNav.includes('id="comprasTabSolicitacao"')&&comprasNav.includes('id="comprasTabCotacao"')&&comprasNav.includes('id="comprasTabPedido"')&&comprasNav.includes('>Compra</button>')&&!comprasPanel.includes('comprasTabSolicitacao')&&!comprasPanel.includes('comprasTabCotacao')&&!comprasPanel.includes('comprasTabPedido'),'Compras possui as três etapas no menu lateral, sem abas duplicadas no painel');
+const recebimentoPanel=source.slice(source.indexOf('<section id="recebimento"'),source.indexOf('<section id="financeiro"'));
+assert.ok(['manual','pedido','historico','producao'].every(m=>recebimentoPanel.includes('data-recebimento-modo="'+m+'"'))&&recebimentoPanel.includes('id="recebimentoHistoricoNotas"'),'Recebimento separa entrada, pedido, histórico e entrega');
+assert.ok(source.includes('function recebimentoRenderHistoricoNotas()')&&source.includes('Estornar nota e recebimentos ativos')&&source.includes('recebimentoHistoricoBusca')&&source.includes('ew_estornar_nfe_com_recebimentos'),'Histórico de notas tem busca e estorno integral usando RPC existente');
 const fornecedorPage=source.slice(source.indexOf('<section id="fornecedoresPage"'),source.indexOf('<section id="galpoesPage"'));
 const gruposEditor=cadastroHubJS.slice(cadastroHubJS.indexOf(' async function abrirGrupos(){'));
 assert.ok(fornecedorPage.includes('id="cadastroFornecedorGrupos"')&&cadastroHubJS.includes("async function abrirGruposFornecedor(")&&!gruposEditor.includes('cadastroGrupoSalvarFornecedor'),'Vínculos comerciais ficam exclusivamente no cadastro de fornecedores');
@@ -2113,7 +2116,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.5')&&
+assert.ok(source.includes('v46.29.6')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261121a')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2347,7 +2350,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261121l')&&
- source.includes('EWGEST <strong>· v46.29.5</strong>'),
+ source.includes('EWGEST <strong>· v46.29.6</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
