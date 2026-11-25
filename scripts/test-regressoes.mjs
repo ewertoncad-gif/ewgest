@@ -2124,7 +2124,9 @@ assert.ok(source.includes('v46.29.6')&&
  source.includes('entregas-producao.css?v=20261121a')&&
  source.includes("const anterior=prefer||sel.value||'';")&&
  source.includes("if(!obraId){msg.textContent='Selecione um local de estoque para iniciar o recebimento.';return;}")&&
- source.includes("if(obraId.startsWith('empresa:')){msg.textContent='Estoque da empresa: recebimento físico exclusivamente por pedido de compra.';return;}")&&
+ source.includes("if(obraId.startsWith('empresa:')){if(!['pedido','historico'].includes(node('recebimento').dataset.modo))recebimentoSelecionarModo('pedido');msg.textContent='Estoque da empresa: recebimento físico exclusivamente por pedido de compra.';return;}")&&
+ source.includes("for(const id of ['finPendingPanel','finReceivePanel','recebimentoHistoricoNotas'])")&&
+ source.includes("x.obraId!==node('recebimentoWork').value")&&
  source.includes("el.classList.add('hidden');el.replaceChildren();return;")&&
  source.includes("x.obraId!==selected")&&
  source.includes("state.obraId!==selected"),
