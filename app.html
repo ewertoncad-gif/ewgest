@@ -915,7 +915,7 @@
           <div id="finSummary"></div>
           <div class="section panel" id="finBillingPanel">
             <h2>Faturamento por esquadria</h2>
-            <p class="hint">Romaneio confirma a saída, mas NÃO gera faturamento. Marque os itens e informe o preço unitário da esquadria inteira (100%): a quantidade equivalente indicará a fração a faturar. Registre fabricação ou instalação separadamente. É possível faturar esquadrias parcialmente expedidas; a quantidade faturável acompanha marco (50%) e folhas físicas (50% dividido pelo número de folhas).</p>
+            <p class="hint">Romaneio confirma a saída, mas NÃO gera faturamento. Selecione os itens, informe a área em m² e o preço por m². Fabricação e instalação são faturadas separadamente. A área disponível considera a expedição parcial de marco (50%) e folhas (50% dividido pelo número de folhas).</p>
             <form id="finBillingForm">
               <div class="finFormRows">
                 <label>Faturar
@@ -8358,6 +8358,16 @@ function finPrecoSugerido(linha,tipo,unidades,qtdLancamento,qtdFaturada,valorFat
  return Number.isFinite(preco)&&preco>0&&preco<=100000000?preco:null;
 }
 
+function finAreaDisponivel(eq,areaUnit){return Math.floor(eq*areaUnit*1000000+1e-8)/1000000;}
+function finPrecoM2Sugerido(linha,tipo,unidades,areaUnit,areaLancamento,qtdFaturada,valorFaturadoCentavos){
+ if(!linha||!['fabricacao','instalacao'].includes(tipo)||!(areaUnit>0)||!(areaLancamento>0)||!(unidades>0))return null;
+ const cents=Number(linha[tipo+'_centavos']);if(!Number.isSafeInteger(cents)||cents<=0)return null;
+ const areaRestante=(unidades-qtdFaturada)*areaUnit;
+ const saldo=cents-Number(valorFaturadoCentavos||0);
+ const raw=Math.abs(areaLancamento-areaRestante)<=0.000001&&saldo>0?saldo/(100*areaLancamento):cents/(100*unidades*areaUnit);
+ const preco=Math.round(raw*10000)/10000;
+ return Number.isFinite(preco)&&preco>0&&preco<=100000000?preco:null;
+}
 function finRenderFaturaveis(){
  if(!finState)return;
  const tipo=node('finBillingCategory').value,items=elements.filter(e=>e.obra_id===finState.obraId);
@@ -8367,28 +8377,29 @@ function finRenderFaturaveis(){
   const ja=finState.billed[tipo].get(e.id)||0;
   const disponivel=finEquivDisponivel(Math.min(Number(e.quantidade)-ja,enviados-ja));
   const precificacao=finState.precoPorEsquadria.get(e.id)||null;
-  const sugestao=finPrecoSugerido(precificacao,tipo,e.quantidade,disponivel,ja,
+  const areaUnit=area(e,1),areaMax=finAreaDisponivel(disponivel,areaUnit);
+  const sugestao=finPrecoM2Sugerido(precificacao,tipo,e.quantidade,areaUnit,areaMax,ja,
    finState.billedValues[tipo].get(e.id)||0);
-  return {e,enviados,ja,disponivel,precificacao,sugestao};
+  return {e,enviados,ja,disponivel,areaUnit,areaMax,precificacao,sugestao};
  }).filter(r=>r.enviados>0);
  node('finBillingRows').innerHTML=rows.length?'<p class="hint">'+
-  (finState.precificacao?'Os preços integrais sugeridos são da precificação aprovada (revisão '+
+  (finState.precificacao?'Os preços por m² sugeridos são da precificação aprovada (revisão '+
    Number(finState.precificacao.versao)+'). Podem ser editados antes de faturar.':
-   'Obra sem precificação individual: informe os preços das esquadrias manualmente.')+'</p>'+
+   'Obra sem precificação individual: informe os preços por m² manualmente.')+'</p>'+
   '<div class="finTableWrap"><table class="finTable"><thead><tr>'+
-  '<th>Faturar</th><th>Esquadria</th><th>Categoria da obra</th><th>Expedido (equiv.)</th><th>Já faturado ('+
-  (tipo==='fabricacao'?'fab.':'inst.')+')</th><th>Disponível</th><th>Qtd. equivalente</th><th>Preço integral sugerido (R$)</th></tr></thead><tbody>'+
+  '<th>Faturar</th><th>Esquadria</th><th>Categoria da obra</th><th>Expedido (m²)</th><th>Já faturado ('+
+  (tipo==='fabricacao'?'fab.':'inst.')+') (m²)</th><th>Disponível (m²)</th><th>Área a faturar (m²)</th><th>Preço (R$/m²)</th></tr></thead><tbody>'+
  rows.map(r=>'<tr class="finInvoiceRow" data-esq="'+escapeHTML(r.e.id)+
-  '" data-max="'+r.disponivel+'" data-auto-price="'+(r.sugestao!==null?'1':'0')+'">'+
-  '<td class="finRowCheck"><input class="finSelected" type="checkbox"'+(r.disponivel===0?' disabled':'')+'></td>'+
+  '" data-max="'+r.areaMax+'" data-equivalent-max="'+r.disponivel+'" data-area-unit="'+r.areaUnit+'" data-auto-price="'+(r.sugestao!==null?'1':'0')+'">'+
+  '<td class="finRowCheck"><input class="finSelected" type="checkbox"'+(r.areaMax===0?' disabled':'')+'></td>'+
   '<td><strong>'+escapeHTML(r.e.codigo)+'</strong><div class="hint">'+escapeHTML(r.e.descricao||'')+'</div></td>'+
   '<td>'+escapeHTML(r.precificacao?.categoria_nome_snapshot||'—')+'</td>'+
-  '<td>'+finEquivFormat(r.enviados)+'</td><td>'+finEquivFormat(r.ja)+'</td><td>'+finEquivFormat(r.disponivel)+'</td>'+
-  '<td><input class="finQty finSmallInput" type="number" min="0.000001" max="'+r.disponivel+
-  '" step="0.000001" value="'+(r.disponivel||'')+'"'+(r.disponivel===0?' disabled':'')+'></td>'+
-  '<td><input class="finPrice finSmallInput" type="text" inputmode="decimal" autocomplete="off" placeholder="R$ 0,00" aria-label="Preço integral da esquadria em reais" value="'+
+  '<td>'+finEquivFormat(r.enviados*r.areaUnit)+'</td><td>'+finEquivFormat(r.ja*r.areaUnit)+'</td><td>'+finEquivFormat(r.areaMax)+'</td>'+
+  '<td><input class="finQty finSmallInput" type="number" min="0.000001" max="'+r.areaMax+
+  '" step="0.000001" value="'+(r.areaMax||'')+'"'+(r.areaMax===0?' disabled':'')+'></td>'+
+  '<td><input class="finPrice finSmallInput" type="text" inputmode="decimal" autocomplete="off" placeholder="R$ 0,00" aria-label="Preço em reais por metro quadrado" value="'+
   (r.sugestao===null?'':escapeHTML(finPrecoFormatar(r.sugestao)))+'"'+
-  (r.disponivel===0?' disabled':'')+'></td></tr>').join('')+
+  (r.areaMax===0?' disabled':'')+'></td></tr>').join('')+
   '</tbody></table></div>':'<p class="hint">Nenhuma esquadria com saída registrada em romaneio ativo está disponível nesta obra.</p>';
  node('finBillingRows').querySelectorAll('.finInvoiceRow').forEach(row=>{
   const campo=row.querySelector('.finPrice'),quantidade=row.querySelector('.finQty');
@@ -8396,7 +8407,7 @@ function finRenderFaturaveis(){
    if(row.dataset.autoPrice!=='1')return;
    const linha=finState.precoPorEsquadria.get(row.dataset.esq);
    const obraItem=items.find(x=>x.id===row.dataset.esq);
-   const sugestao=finPrecoSugerido(linha,tipo,obraItem?.quantidade,Number(quantidade.value),
+   const sugestao=finPrecoM2Sugerido(linha,tipo,obraItem?.quantidade,Number(row.dataset.areaUnit),Number(quantidade.value),
     finState.billed[tipo].get(row.dataset.esq)||0,
     finState.billedValues[tipo].get(row.dataset.esq)||0);
    if(sugestao!==null)campo.value=finPrecoFormatar(sugestao);
@@ -8572,9 +8583,13 @@ async function finRegistrarFaturamento(event){
   if(!Number.isFinite(qtd)||qtd<=0||qtd>Number(row.dataset.max)+1e-9||
      Math.abs(qtd*1000000-Math.round(qtd*1000000))>0.00001||
      !Number.isFinite(preco)||preco<=0||Math.abs(preco*10000-Math.round(preco*10000))>0.00001){
-   node('finBillingMessage').textContent='Verifique as quantidades equivalentes (até 6 casas) e os preços das esquadrias completas.';return;
+   node('finBillingMessage').textContent='Verifique a área em m² (até 6 casas) e o preço por m².';return;
   }
-  itens.push({esquadria_id:row.dataset.esq,quantidade:qtd,valor_unitario:preco});
+  const a=Number(row.dataset.areaUnit),maxEq=Number(row.dataset.equivalentMax);
+  const equivalente=Math.min(maxEq,Math.round(qtd/a*1000000)/1000000);
+  const precoIntegral=Math.round(preco*a*10000)/10000;
+  if(!(a>0)||!(equivalente>0)||!(precoIntegral>0)){node('finBillingMessage').textContent='Área ou preço insuficiente para faturamento.';return;}
+  itens.push({esquadria_id:row.dataset.esq,quantidade:equivalente,valor_unitario:precoIntegral,area_m2:qtd,preco_m2:preco});
  }
  if(!itens.length||!doc||!date){
   node('finBillingMessage').textContent='Escolha ao menos uma esquadria, informe o documento e a data.';return;
@@ -8583,7 +8598,7 @@ async function finRegistrarFaturamento(event){
  if(tipo==='instalacao'&&!instalado){
   node('finBillingMessage').textContent='Confirme que a instalação dos itens selecionados foi realizada.';return;
  }
- const value=itens.reduce((a,x)=>a+Math.round(x.quantidade*x.valor_unitario*100),0)/100;
+ const value=itens.reduce((a,x)=>a+Math.round(x.area_m2*x.preco_m2*100),0)/100;
  const billed=finState.faturas.filter(f=>f.status==='emitido'&&f.categoria===tipo)
   .reduce((v,f)=>v+Number(f.valor_total),0);
  const teto=finState.precificacao?
