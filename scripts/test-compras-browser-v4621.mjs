@@ -6,6 +6,44 @@ import {chromium} from 'playwright';
 
 const browser=await chromium.launch({headless:true});
 try{
+ const receiving=await browser.newPage();
+ const appSource=readFileSync(new URL('../app.html',import.meta.url),'utf8');
+ const nav=appSource.slice(appSource.indexOf('<button id="navRecebimento"'),appSource.indexOf('<button id="navEnviarNotas"'));
+ const section=appSource.slice(appSource.indexOf('<section id="recebimento"'),appSource.indexOf('<section id="financeiro"'));
+ await receiving.setContent('<html><body>'+nav+section+'</body></html>');
+ const css=appSource.slice(appSource.indexOf('    #recebimento[data-modo]'),appSource.indexOf('    .workspaceSubnav{'));
+ await receiving.addStyleTag({content:'.hidden{display:none!important}'+css});
+ await receiving.evaluate(()=>{
+  window.node=id=>document.getElementById(id);
+  window.temPermissao=()=>true;
+  window.escapeHTML=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  window.finMoney=v=>Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  window.finEstornarRecebimentoFisico=id=>{window._undo=id;};
+  window.finState={obraId:'obra',despesas:[{id:'nf',numero_documento:'555',fornecedor:'Fornecedor teste',valor:100,status:'aprovada'}],historicalReceiptItems:[{id:'i1',despesa_id:'nf',codigo_fornecedor:'GN096',descricao:'Perfil'},{id:'i2',despesa_id:'nf',codigo_fornecedor:'CT007',descricao:'Perfil'}],stockReceipts:[{id:'r1',despesa_item_id:'i1',quantidade:1,unidade:'BARRA',local_estoque:'IMBIRIBEIRA'},{id:'r2',despesa_item_id:'i2',quantidade:2,unidade:'BARRA',local_estoque:'IMBIRIBEIRA',estornado_em:'2026-11-25'}]};
+  node('recebimento').classList.remove('hidden');node('navRecebimentoSubmenu').classList.remove('hidden');
+  node('recebimentoWork').append(new Option('Obra teste','obra'));node('recebimentoWork').value='obra';
+ });
+ const fn=(a,b)=>appSource.slice(appSource.indexOf(a),appSource.indexOf(b,appSource.indexOf(a)));
+ await receiving.addScriptTag({content:fn('function recebimentoSelecionarModo(modo){','async function abrirRecebimento(')+fn('function recebimentoRenderHistoricoNotas(){','function finRenderRecebimentos(){')});
+ await receiving.evaluate(()=>{document.querySelectorAll('[data-recebimento-modo]').forEach(b=>b.onclick=()=>recebimentoSelecionarModo(b.dataset.recebimentoModo));recebimentoRenderHistoricoNotas();});
+ await receiving.locator('[data-recebimento-modo="historico"]').click();
+ assert.equal(await receiving.locator('#recebimentoPaginaTitulo').innerText(),'Histórico e estornos');
+ assert.equal(await receiving.locator('#recebimentoWork').inputValue(),'obra');
+ assert.ok(await receiving.locator('#finExpensePanel').isHidden());
+ assert.equal(await receiving.locator('.recebimentoNotaCard').count(),1);
+ assert.equal(await receiving.locator('.recebimentoNotaCard tbody tr').count(),2);
+ assert.equal(await receiving.locator('#recebimentoHistoricoNotas .finReceiveUndo').count(),1);
+ await receiving.locator('#recebimentoHistoricoBusca').fill('sem correspondência');
+ assert.ok(await receiving.locator('.recebimentoNotaCard').isHidden());
+ await receiving.locator('#recebimentoHistoricoBusca').fill('GN096');
+ await receiving.locator('#recebimentoHistoricoNotas .finReceiveUndo').click();
+ assert.equal(await receiving.evaluate(()=>window._undo),'r1');
+ await receiving.locator('[data-recebimento-modo="manual"]').click();
+ assert.ok(await receiving.locator('#recebimentoHistoricoNotas').isHidden());
+ assert.ok(await receiving.locator('#finExpensePanel').isVisible());
+ assert.equal(await receiving.locator('#recebimentoWork').inputValue(),'obra');
+ await receiving.close();
+ console.log('PASS submenu de recebimento, histórico por NF, busca e estorno único');
  const page=await browser.newPage({viewport:{width:390,height:844}});
  page.on('pageerror',e=>console.error('Browser pageerror:',e.message));
  await page.setContent('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"></head>'+
