@@ -1,5 +1,20 @@
 BEGIN;
 -- Proposta de catálogo versionado; não ativa a nova expedição automaticamente.
+-- Permissões novas, sem alterar flags existentes.
+INSERT INTO public.ew_permissoes_catalogo(chave,grupo,descricao,ordem) VALUES
+ ('cadastros.composicao_consultar','Cadastros','Consultar composição de expedição',36),
+ ('cadastros.composicao_editar','Cadastros','Cadastrar/alterar composição de expedição e aplicar a similares',37)
+ON CONFLICT(chave) DO NOTHING;
+INSERT INTO public.ew_niveis_permissoes(empresa_id,nivel,chave,permitido)
+SELECT n.empresa_id,n.nivel,c.chave,
+ CASE WHEN n.nivel=1 THEN true WHEN n.nivel=8 THEN false
+ WHEN c.chave='cadastros.composicao_consultar' THEN coalesce(pc.permitido,false)
+ ELSE coalesce(pc.permitido,false) AND coalesce(pe.permitido,false) AND n.nivel IN (2,3) END
+FROM public.ew_niveis_acesso n
+CROSS JOIN (VALUES ('cadastros.composicao_consultar'),('cadastros.composicao_editar')) c(chave)
+LEFT JOIN public.ew_niveis_permissoes pc ON pc.empresa_id=n.empresa_id AND pc.nivel=n.nivel AND pc.chave='cadastros.consultar'
+LEFT JOIN public.ew_niveis_permissoes pe ON pe.empresa_id=n.empresa_id AND pe.nivel=n.nivel AND pe.chave='cadastros.editar'
+ON CONFLICT(empresa_id,nivel,chave) DO NOTHING;
 CREATE SCHEMA IF NOT EXISTS ew_expedicao_interna;
 REVOKE ALL ON SCHEMA ew_expedicao_interna FROM PUBLIC,anon,authenticated;
 CREATE TABLE ew_expedicao_interna.revisoes (
@@ -21,7 +36,7 @@ CREATE OR REPLACE FUNCTION public.ew_listar_composicoes_expedicao(p_empresa_id u
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $f$
 BEGIN
  PERFORM public.ew_exigir_sessao_atual();
- IF auth.uid() IS NULL OR NOT public.ew_pode(p_empresa_id,'cadastros.consultar') THEN RAISE EXCEPTION 'Sem permissão de cadastro.'; END IF;
+ IF auth.uid() IS NULL OR NOT public.ew_pode(p_empresa_id,'cadastros.consultar') OR NOT public.ew_pode(p_empresa_id,'cadastros.composicao_consultar') THEN RAISE EXCEPTION 'Sem permissão de cadastro.'; END IF;
  IF p_tipologias IS NULL OR cardinality(p_tipologias) NOT BETWEEN 1 AND 200 THEN RAISE EXCEPTION 'Consulte de 1 a 200 tipologias.'; END IF;
  RETURN (SELECT coalesce(jsonb_agg(to_jsonb(r)),'[]'::jsonb) FROM (
   SELECT DISTINCT ON (v.tipologia_id) v.tipologia_id,v.id AS revisao_id,v.revisao,v.partes
@@ -39,7 +54,7 @@ DECLARE u uuid:=auth.uid(); x jsonb; p jsonb; alvo uuid; anterior uuid; atual uu
  existente ew_expedicao_interna.revisoes%rowtype; repeticoes integer;
 BEGIN
  PERFORM public.ew_exigir_sessao_atual();
- IF u IS NULL OR NOT public.ew_pode(p_empresa_id,'cadastros.editar') OR NOT public.ew_pode(p_empresa_id,'cadastros.consultar') THEN RAISE EXCEPTION 'Sem permissão para editar composições.'; END IF;
+ IF u IS NULL OR NOT public.ew_pode(p_empresa_id,'cadastros.editar') OR NOT public.ew_pode(p_empresa_id,'cadastros.consultar') OR NOT public.ew_pode(p_empresa_id,'cadastros.composicao_consultar') OR NOT public.ew_pode(p_empresa_id,'cadastros.composicao_editar') THEN RAISE EXCEPTION 'Sem permissão para editar composições.'; END IF;
  IF p_operacao_id IS NULL OR jsonb_typeof(p_partes) IS DISTINCT FROM 'array' OR jsonb_array_length(p_partes) NOT BETWEEN 1 AND 30
  OR jsonb_typeof(p_alvos) IS DISTINCT FROM 'array' OR jsonb_array_length(p_alvos) NOT BETWEEN 1 AND 200 THEN RAISE EXCEPTION 'Informe componentes e tipologias válidos.'; END IF;
  FOR p IN SELECT value FROM jsonb_array_elements(p_partes) LOOP

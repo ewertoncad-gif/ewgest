@@ -2402,6 +2402,15 @@
     </div>
   </div>
 </div>
+<div id="expCompPicker" class="modaloverlay hidden" role="presentation">
+  <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="expCompPickerTitle">
+    <h2 id="expCompPickerTitle">Composição de expedição · Tipologias</h2>
+    <label>Buscar tipologia<input id="expCompPickerSearch" type="search" placeholder="Código ou descrição"></label>
+    <label>Tipologia<select id="expCompPickerSelect"></select></label>
+    <p id="expCompPickerMessage" class="feedback" role="status"></p>
+    <div class="modalbuttons"><button id="expCompPickerClose" type="button" class="btn secondary">Fechar</button><button id="expCompPickerOpen" type="button" class="btn primary">Abrir composição</button></div>
+  </div>
+</div>
 <div id="expCompOverlay" class="modaloverlay hidden" role="presentation">
   <div class="panel modalbox" role="dialog" aria-modal="true" aria-labelledby="expCompTitle" style="max-width:850px;width:min(850px,94vw)">
     <h2 id="expCompTitle">Composição de expedição</h2>
@@ -2578,7 +2587,7 @@ function setView(view){
   node('logout').classList.toggle('hidden',view==='login');
   node('myPasswordHeader').classList.toggle('hidden',view==='login');
   const autenticado=view!=='login';
-  if(!autenticado){expCompSeq++;expCompCtx=null;romaneioComposicaoSeq++;romaneioComposicoes=new Map();expedicaoAtivaMap=new Map();node('expCompOverlay').classList.add('hidden');node('expCompRows').replaceChildren();node('expCompSimilar').replaceChildren();node('romaneioModal').classList.add('hidden');node('typologyEditOverlay').classList.add('hidden');}
+  if(!autenticado){expCompSeq++;expCompCtx=null;romaneioComposicaoSeq++;romaneioComposicoes=new Map();expedicaoAtivaMap=new Map();node('expCompOverlay').classList.add('hidden');node('expCompPicker').classList.add('hidden');node('expCompRows').replaceChildren();node('expCompSimilar').replaceChildren();node('romaneioModal').classList.add('hidden');node('typologyEditOverlay').classList.add('hidden');}
   node('workspaceNav').classList.toggle('hidden',!autenticado);
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
   const ativo=view==='detail'?'worksPage':view;
@@ -6139,7 +6148,7 @@ function openTypologyEdit(id) {
   if(!typology)return;
   editingTypology=typology;
   editingPendingItem=null;
-  node('expCompEntry').classList.toggle('hidden',!temPermissao('cadastros.editar')||typology.provisoria===true);
+  node('expCompEntry').classList.toggle('hidden',!expCompPodeConsultar()||typology.provisoria===true);
   node('typologyEditDelete').classList.toggle('hidden',!isFullAdminUser());
   const origins=typologyOrigins.filter(x=>x.tipologia_id===id);
   const originalCodes=[...new Set(origins.map(x=>x.codigo_origem))];
@@ -6523,6 +6532,22 @@ node('typologyEditPrevious').addEventListener('click',()=>showTypologyEditStep(1
 node('typologyEditForm').addEventListener('submit',saveTypologyEdit);
 // Editor independente, para não misturar alterações de identificação e composição.
 let expCompSeq=0,expCompCtx=null;
+function expCompPodeConsultar(){return temPermissao('cadastros.consultar')&&temPermissao('cadastros.composicao_consultar');}
+function expCompPodeEditar(){return expCompPodeConsultar()&&temPermissao('cadastros.editar')&&temPermissao('cadastros.composicao_editar');}
+function expCompPickerRender(){
+ const input=node('expCompPickerSearch'),sel=node('expCompPickerSelect'),old=sel.value,term=input.value.trim().toLocaleUpperCase('pt-BR');
+ sel.replaceChildren();
+ const empty=document.createElement('option');empty.value='';empty.textContent='Selecione a tipologia';sel.append(empty);
+ for(const t of typologyCatalog.filter(t=>!t.provisoria&&String(t.codigo+' '+t.descricao).toLocaleUpperCase('pt-BR').includes(term)).sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR',{numeric:true}))){
+  const opt=document.createElement('option');opt.value=t.id;opt.textContent=t.codigo+' · '+t.descricao;sel.append(opt);
+ }
+ sel.value=[...sel.options].some(o=>o.value===old)?old:'';
+}
+function expCompPickerOpen(){
+ if(!expCompPodeConsultar())return;
+ node('expCompPickerSearch').value='';node('expCompPickerMessage').textContent='';
+ expCompPickerRender();node('expCompPicker').classList.remove('hidden');
+}
 function expCompPct(p){return (p/100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%';}
 function expCompRead(){
  return [...node('expCompRows').children].map(r=>({
@@ -6540,7 +6565,7 @@ function expCompUpdate(){
   if([...node('expCompRows').querySelectorAll('input')].some(i=>!i.checkValidity()))throw Error('Campo inválido');
   expCompCtx?.core.validarComposicao(parts);valid=!!expCompCtx;
  }catch{}
- node('expCompSave').disabled=!valid||!!expCompCtx?.busy;
+ node('expCompSave').disabled=!valid||!!expCompCtx?.busy||!expCompPodeEditar();
 }
 function expCompAddRow(p={}){
  const host=node('expCompRows');
@@ -6562,14 +6587,14 @@ function expCompClose(){
  if(expCompCtx?.busy)return;
  const ctx=expCompCtx;expCompSeq++;expCompCtx=null;
  node('expCompOverlay').classList.add('hidden');
- if(session&&ctx?.company===currentCompany?.id&&editingTypology?.id===ctx?.source.id)node('typologyEditOverlay').classList.remove('hidden');
+ if(session&&ctx?.company===currentCompany?.id&&ctx.user===currentUser?.id){if(ctx.fromPicker)node('expCompPicker').classList.remove('hidden');else if(editingTypology?.id===ctx.source.id)node('typologyEditOverlay').classList.remove('hidden');}
 }
-async function expCompOpen(){
- const source=editingTypology,company=currentCompany?.id,user=currentUser?.id;
- if(!source||!company||source.provisoria||!temPermissao('cadastros.editar'))return;
- const seq=++expCompSeq;
- node('expCompEntry').querySelector('button').disabled=true;
- node('typologyEditError').textContent='Carregando composição…';
+async function expCompOpen(sourceId){
+ const fromPicker=typeof sourceId==='string';
+ const source=fromPicker?typologyCatalog.find(t=>t.id===sourceId):editingTypology,company=currentCompany?.id,user=currentUser?.id;
+ if(!source||!company||source.provisoria||!expCompPodeConsultar())return;
+ const seq=++expCompSeq,button=fromPicker?node('expCompPickerOpen'):node('expCompEntry').querySelector('button'),msg=fromPicker?node('expCompPickerMessage'):node('typologyEditError');
+ button.disabled=true;msg.textContent='Carregando composição…';
  try{
   await ensureSession();
   const core=await import('/assets/composicao-expedicao-core.mjs');
@@ -6584,8 +6609,8 @@ async function expCompOpen(){
    if(!Array.isArray(data))throw Error('Resposta inválida do cadastro.');
    data.forEach(r=>revisions.set(r.tipologia_id,r));
   }
-  if(seq!==expCompSeq||!session||currentCompany?.id!==company||currentUser?.id!==user||editingTypology?.id!==source.id)return;
-  expCompCtx={company,user,source,core,revisions,suggestions,busy:false,op:null,signature:null};
+  if(seq!==expCompSeq||!session||currentCompany?.id!==company||currentUser?.id!==user||(!fromPicker&&editingTypology?.id!==source.id)||(fromPicker&&node('expCompPicker').classList.contains('hidden')))return;
+  expCompCtx={company,user,source,fromPicker,core,revisions,suggestions,busy:false,op:null,signature:null};
   node('expCompSource').textContent=source.codigo+' · '+source.descricao+(revisions.has(source.id)?' · Revisão '+revisions.get(source.id).revisao:' · Sem composição cadastrada');
   node('expCompRows').replaceChildren();node('expCompSimilar').replaceChildren();
   node('expCompSimilarBox').open=false;
@@ -6603,15 +6628,19 @@ async function expCompOpen(){
    label.append(cb,desc);node('expCompSimilar').append(label);
   }
   if(!suggestions.length)node('expCompSimilar').textContent='Nenhuma tipologia com a mesma estrutura foi identificada.';
-  node('expCompMessage').textContent='';
-  node('typologyEditError').textContent='';
-  node('typologyEditOverlay').classList.add('hidden');node('expCompOverlay').classList.remove('hidden');expCompUpdate();
- }catch(e){if(seq===expCompSeq)node('typologyEditError').textContent='Não foi possível consultar a composição: '+e.message;}
- finally{node('expCompEntry').querySelector('button').disabled=false;}
+  const editable=expCompPodeEditar();
+  node('expCompAdd').disabled=!editable;
+  node('expCompRows').querySelectorAll('input,button').forEach(x=>x.disabled=!editable);
+  node('expCompSimilar').querySelectorAll('input').forEach(x=>x.disabled=!editable);
+  node('expCompMessage').textContent=editable?'':'Somente consulta. Sem composição cadastrada, os componentes exibidos são apenas uma sugestão.';
+  msg.textContent='';
+  node('typologyEditOverlay').classList.add('hidden');node('expCompPicker').classList.add('hidden');node('expCompOverlay').classList.remove('hidden');expCompUpdate();
+ }catch(e){if(seq===expCompSeq)msg.textContent='Não foi possível consultar a composição: '+e.message;}
+ finally{button.disabled=false;}
 }
 async function expCompSave(){
  const ctx=expCompCtx;
- if(!ctx||ctx.busy||!session||ctx.company!==currentCompany?.id||ctx.user!==currentUser?.id||!temPermissao('cadastros.editar'))return;
+ if(!ctx||ctx.busy||!session||ctx.company!==currentCompany?.id||ctx.user!==currentUser?.id||!expCompPodeEditar())return;
  let parts;
  try{parts=ctx.core.validarComposicao(expCompRead());}catch(e){node('expCompMessage').textContent=e.message;return;}
  const ids=[ctx.source.id,...[...node('expCompSimilar').querySelectorAll('input:checked')].map(x=>x.value)];
@@ -6631,7 +6660,7 @@ async function expCompSave(){
   if(expCompCtx!==ctx||currentCompany?.id!==ctx.company||currentUser?.id!==ctx.user)return;
   if(!Array.isArray(data)||data.length!==ids.length)throw Error('Confirme o resultado do salvamento antes de repetir.');
   data.forEach(r=>ctx.revisions.set(r.tipologia_id,{...r,partes:parts}));ctx.signature=null;ctx.op=null;
-  ctx.busy=false;expCompClose();node('typologyEditError').textContent='Composição salva em '+data.length+' tipologia(s).';
+  ctx.busy=false;expCompClose();node(ctx.fromPicker?'expCompPickerMessage':'typologyEditError').textContent='Composição salva em '+data.length+' tipologia(s).';
  }catch(e){if(expCompCtx===ctx)node('expCompMessage').textContent='Não foi possível salvar: '+e.message;}
  finally{
   ctx.busy=false;node('expCompClose').disabled=false;node('expCompAdd').disabled=false;
@@ -6641,7 +6670,10 @@ async function expCompSave(){
 }
 node('expCompOpen').addEventListener('click',expCompOpen);
 node('expCompClose').addEventListener('click',expCompClose);
-node('expCompAdd').addEventListener('click',()=>expCompAddRow());
+node('expCompPickerSearch').addEventListener('input',expCompPickerRender);
+node('expCompPickerClose').addEventListener('click',()=>{expCompSeq++;node('expCompPicker').classList.add('hidden');});
+node('expCompPickerOpen').addEventListener('click',()=>{const id=node('expCompPickerSelect').value;if(id)expCompOpen(id);});
+node('expCompAdd').addEventListener('click',()=>{if(expCompPodeEditar())expCompAddRow();});
 node('expCompSave').addEventListener('click',expCompSave);
 
 
@@ -6819,7 +6851,7 @@ node('identityDifferent').addEventListener('change',validarCorrecaoIdentificacao
 node('identityCancel').addEventListener('click',()=>fecharCorrecaoIdentificacao(true));
 node('identitySave').addEventListener('click',salvarCorrecaoIdentificacao);
 node('openTypologies').addEventListener('click',()=>{
-  if(!canAdministrate())return;
+  if(!canAdministrate()){expCompPickerOpen();return;}
   node('typologySearch').value='';
   renderTypologiesAdmin();
   setView('typologies');
