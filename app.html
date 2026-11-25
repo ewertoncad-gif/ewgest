@@ -723,7 +723,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.1</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.2</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -744,7 +744,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.1</div>
+        <div class="build">EWGEST • v46.29.2</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -1387,7 +1387,7 @@
       <div class="head"><div>
         <button type="button" class="btn secondary cadastrosBack">← Voltar para cadastros</button>
         <h1>Cadastro de fornecedores</h1>
-        <p class="muted">Consulte e gerencie fornecedores utilizados no recebimento de notas fiscais.</p>
+        <p class="muted">Consulte e gerencie fornecedores, grupos de compra atendidos e recebimento de notas fiscais.</p>
       </div></div>
       <div class="section panel" id="cadastroFornecedores">
         <h2>Fornecedores cadastrados</h2>
@@ -1398,6 +1398,7 @@
         <div id="cadastroFornecedorList" class="cadastrosList"></div>
         <p id="cadastroFornecedorMessage" class="feedback" role="status"></p>
       </div>
+      <div id="cadastroFornecedorGrupos" class="section panel hidden"></div>
       <div id="cadastroEditPanel" class="section panel hidden" role="region" aria-labelledby="cadastroEditTitle">
         <h2 id="cadastroEditTitle">Editar cadastro</h2>
         <p class="hint" id="cadastroEditHint">Registros vinculados a notas ou estoque não podem ser editados ou excluídos.</p>
@@ -11265,7 +11266,7 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/precificacao-core.js?v=20261122a"></script>
 <script src="/assets/precificacao-importacao.js?v=20261122a"></script>
 <script src="/assets/recebimento-manual.js?v=20261121l"></script>
-<script src="/assets/cadastros-hub.js?v=20261125d"></script>
+<script src="/assets/cadastros-hub.js?v=20261125f"></script>
 <script src="/assets/insumos-fisicos.js?v=20261125a"></script>
 <script src="/assets/entregas-producao.js?v=20261121a"></script>
 <script src="/assets/romaneios-transferencia.js?v=20261125a"></script>
@@ -11273,7 +11274,7 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/relatorios-obras.js?v=20261125c"></script>
 <script src="/assets/unidades-medida.js?v=20261121a"></script>
 <script src="/assets/niveis-acesso.js?v=20261124c"></script>
-<script src="/assets/compras-estoque.js?v=20261125e"></script>
+<script src="/assets/compras-estoque.js?v=20261125f"></script>
 <script src="/assets/compras-comprovante-transferencia.js?v=20261124a"></script>
 <script src="/assets/compras-conciliacao-nfe.js?v=20261124b"></script>
 <script src="/assets/compras-nota-empresa.js?v=20261124a"></script>

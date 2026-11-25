@@ -30,6 +30,7 @@
    $('cadastroFornecedorList').innerHTML=listaHTML(fornecedores,'fornecedor');
    $('cadastroGalpaoList').innerHTML=listaHTML(galpoes,'galpao');
    informar('');
+   if(!$('fornecedoresPage').classList.contains('hidden'))await abrirGruposFornecedor($('cadastroGrupoFornecedor')?.value||'');
   }catch(e){informar('Não foi possível consultar cadastros: '+e.message);}
  }
  function abrir(){
@@ -141,6 +142,33 @@
  });
 
  const gruposRpc=(fn,body)=>request('/rest/v1/rpc/'+fn,{method:'POST',token:session.access_token,body});
+ let fornecedorGrupoEpoch=0;
+ async function abrirGruposFornecedor(prefer=''){
+  const root=$('cadastroFornecedorGrupos');
+  if(!root)return;
+  const seq=++fornecedorGrupoEpoch,empresa=currentCompany?.id;
+  if(!empresa||!canAdministrate()||!temPermissao('compras.gerenciar_grupos')){root.classList.add('hidden');root.replaceChildren();return;}
+  root.classList.remove('hidden');root.textContent='Consultando grupos de compra…';
+  try{
+   await ensureSession();
+   const cat=await gruposRpc('ew_compras_grupos_catalogo',{p_empresa_id:empresa});
+   if(seq!==fornecedorGrupoEpoch||currentCompany?.id!==empresa)return;
+   const esc=escapeHTML,groups=cat.grupos||[],suppliers=cat.fornecedores||[];
+   root.innerHTML='<h2>Grupos atendidos por fornecedor</h2><p class="hint">Marque os grupos de compra que cada fornecedor atende. Somente fornecedores habilitados no grupo aparecem nas novas cotações.</p>'+
+    '<label>Fornecedor<select id="cadastroGrupoFornecedor"><option value="">Selecione o fornecedor</option>'+suppliers.map(f=>'<option value="'+esc(f.id)+'">'+esc(f.nome)+(f.ativo?'':' · Inativo')+'</option>').join('')+'</select></label><div id="cadastroGrupoFlags" class="topactions" style="margin:14px 0"></div>'+
+    '<button id="cadastroGrupoSalvarFornecedor" type="button" class="btn primary" disabled>Salvar grupos do fornecedor</button><p id="cadastroGrupoFornecedorStatus" class="feedback" role="status"></p>';
+   const supplier=$('cadastroGrupoFornecedor'),flags=$('cadastroGrupoFlags'),save=$('cadastroGrupoSalvarFornecedor'),status=$('cadastroGrupoFornecedorStatus');
+   supplier.onchange=()=>{const f=suppliers.find(x=>x.id===supplier.value);flags.innerHTML=f?groups.filter(g=>g.ativo).map(g=>'<label style="display:flex;gap:8px;align-items:center;min-width:140px"><input type="checkbox" data-grupo="'+esc(g.id)+'" style="width:16px;height:16px" '+(f.grupos.includes(g.id)?'checked':'')+'> '+esc(g.nome)+'</label>').join(''):'';save.disabled=!f;status.textContent='';};
+   supplier.value=prefer;supplier.onchange();
+   save.onclick=async()=>{const id=supplier.value;if(!id||save.disabled)return;const ids=[...flags.querySelectorAll('input:checked')].map(x=>x.dataset.grupo);
+    save.disabled=true;supplier.disabled=true;flags.querySelectorAll('input').forEach(x=>x.disabled=true);
+    try{await ensureSession();if(currentCompany?.id!==empresa||seq!==fornecedorGrupoEpoch)throw Error('Seleção alterada.');
+     await gruposRpc('ew_compras_salvar_grupos_fornecedor',{p_empresa_id:empresa,p_fornecedor_id:id,p_grupos:ids});
+     if(seq===fornecedorGrupoEpoch&&currentCompany?.id===empresa){await abrirGruposFornecedor(id);const result=$('cadastroGrupoFornecedorStatus');if(result)result.textContent='Grupos do fornecedor salvos.';}
+    }catch(err){if(seq===fornecedorGrupoEpoch)status.textContent=err.message;}finally{if(save.isConnected){save.disabled=false;supplier.disabled=false;flags.querySelectorAll('input').forEach(x=>x.disabled=false);}}
+   };
+  }catch(e){if(seq===fornecedorGrupoEpoch)root.textContent='Grupos indisponíveis: '+e.message;}
+ }
  async function abrirGrupos(){
   if(!canAdministrate()||!currentCompany||!temPermissao('compras.gerenciar_grupos'))return;
   const root=$('cadastroGruposCompra'),empresa=currentCompany.id;
@@ -148,25 +176,21 @@
   try{
    await ensureSession();const [cat,insumos]=await Promise.all([gruposRpc('ew_compras_grupos_catalogo',{p_empresa_id:empresa}),gruposRpc('ew_compras_insumos_grupos_listar',{p_empresa_id:empresa})]);
    if(currentCompany?.id!==empresa)return;
-   const esc=escapeHTML,groups=cat.grupos||[],suppliers=cat.fornecedores||[];
-   root.innerHTML='<h2>Grupos de compra</h2><p class="hint">Cadastre os grupos e marque quais materiais cada fornecedor atende. Fornecedores sem grupo não serão oferecidos nas novas cotações.</p>'+
+   const esc=escapeHTML,groups=cat.grupos||[];
+   root.innerHTML='<h2>Grupos de compra</h2><p class="hint">Cadastre e organize os grupos de compra. Os vínculos com fornecedores ficam em Cadastro de fornecedores.</p>'+
     '<form id="cadastroGrupoForm" class="cadastrosNovoForm"><label>Código<input id="cadastroGrupoCodigo" maxlength="40" required placeholder="FERRAMENTAS"></label><label>Nome<input id="cadastroGrupoNome" maxlength="100" required></label><label><input type="checkbox" id="cadastroGrupoAtivo" checked> Ativo</label><button class="btn primary" type="submit">Salvar grupo</button></form>'+
     '<div class="cadastrosList">'+groups.map(g=>'<div class="cadastrosListRow"><span>'+esc(g.nome)+(g.ativo?'':' · Inativo')+'</span> <button class="btn secondary" type="button" data-editar-grupo="'+esc(g.id)+'">Editar</button></div>').join('')+'</div>'+
-    '<h3>Grupos atendidos por fornecedor</h3><label>Fornecedor<select id="cadastroGrupoFornecedor"><option value="">Escolha</option>'+suppliers.map(f=>'<option value="'+esc(f.id)+'">'+esc(f.nome)+(f.ativo?'':' · Inativo')+'</option>').join('')+'</select></label><div id="cadastroGrupoFlags"></div>'+
-    '<button id="cadastroGrupoSalvarFornecedor" type="button" class="btn primary" disabled>Salvar grupos do fornecedor</button>'+
     '<h3>Classificação de vidros e outros insumos</h3><p class="hint">Use o catálogo de Vidros e Outros insumos para cadastrar os materiais. A classificação comercial não altera seu estoque nem categoria financeira.</p>'+
     '<label>Material<select id="cadastroGrupoInsumo"><option value="">Escolha</option>'+insumos.map(i=>'<option value="'+esc(i.id)+'">'+esc(i.descricao)+' · '+esc(i.unidade)+'</option>').join('')+'</select></label>'+
     '<label>Grupo de compra<select id="cadastroGrupoInsumoDestino"><option value="">Padrão da categoria</option>'+groups.filter(g=>g.ativo&&!['PERFIS','ACESSORIOS'].includes(g.codigo)).map(g=>'<option value="'+esc(g.id)+'">'+esc(g.nome)+'</option>').join('')+'</select></label>'+
     '<button id="cadastroGrupoSalvarInsumo" type="button" class="btn primary" disabled>Salvar classificação do material</button><p id="cadastroGrupoStatus" class="feedback" role="status"></p>';
-   const status=$('cadastroGrupoStatus'),code=$('cadastroGrupoCodigo'),name=$('cadastroGrupoNome'),active=$('cadastroGrupoAtivo'),supplier=$('cadastroGrupoFornecedor'),flags=$('cadastroGrupoFlags'),save=$('cadastroGrupoSalvarFornecedor');
+   const status=$('cadastroGrupoStatus'),code=$('cadastroGrupoCodigo'),name=$('cadastroGrupoNome'),active=$('cadastroGrupoAtivo');
    root.querySelectorAll('[data-editar-grupo]').forEach(b=>b.onclick=()=>{const g=groups.find(x=>x.id===b.dataset.editarGrupo);code.value=g.codigo;name.value=g.nome;active.checked=g.ativo;code.readOnly=true;name.focus();});
    const reset=document.createElement('button');reset.type='button';reset.className='btn secondary';reset.textContent='Novo grupo';reset.onclick=()=>{code.readOnly=false;code.value='';name.value='';active.checked=true;code.focus();};$('cadastroGrupoForm').append(reset);
    $('cadastroGrupoForm').onsubmit=async e=>{e.preventDefault();const btn=e.currentTarget.querySelector('[type=submit]');btn.disabled=true;try{await ensureSession();if(currentCompany?.id!==empresa)throw Error('Empresa alterada.');await gruposRpc('ew_compras_salvar_grupo',{p_empresa_id:empresa,p_codigo:code.value.trim().toUpperCase(),p_nome:name.value.trim(),p_ativo:active.checked});await abrirGrupos();$('cadastroGrupoStatus').textContent='Grupo salvo.';}catch(err){status.textContent=err.message;}finally{btn.disabled=false;}};
    const insumo=$('cadastroGrupoInsumo'),destino=$('cadastroGrupoInsumoDestino'),salvarInsumo=$('cadastroGrupoSalvarInsumo');
    insumo.onchange=()=>{const i=insumos.find(x=>x.id===insumo.value);destino.value=i?.grupo_id||'';salvarInsumo.disabled=!i;};
    salvarInsumo.onclick=async()=>{const id=insumo.value;if(!id)return;salvarInsumo.disabled=true;try{await ensureSession();if(currentCompany?.id!==empresa)throw Error('Empresa alterada.');await gruposRpc('ew_compras_insumo_classificar_grupo',{p_empresa_id:empresa,p_insumo_id:id,p_grupo_id:destino.value||null});await abrirGrupos();$('cadastroGrupoInsumo').value=id;$('cadastroGrupoInsumo').onchange();$('cadastroGrupoStatus').textContent='Classificação do material salva.';}catch(err){status.textContent=err.message;}finally{if(salvarInsumo.isConnected)salvarInsumo.disabled=false;}};
-   supplier.onchange=()=>{const f=suppliers.find(x=>x.id===supplier.value);flags.innerHTML=f?groups.filter(g=>g.ativo).map(g=>'<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-grupo="'+esc(g.id)+'" style="width:16px;height:16px" '+(f.grupos.includes(g.id)?'checked':'')+'> '+esc(g.nome)+'</label>').join(''):'';save.disabled=!f;};
-   save.onclick=async()=>{const id=supplier.value;if(!id)return;save.disabled=true;try{await ensureSession();if(currentCompany?.id!==empresa)throw Error('Empresa alterada.');await gruposRpc('ew_compras_salvar_grupos_fornecedor',{p_empresa_id:empresa,p_fornecedor_id:id,p_grupos:[...flags.querySelectorAll('input:checked')].map(x=>x.dataset.grupo)});await abrirGrupos();$('cadastroGrupoFornecedor').value=id;$('cadastroGrupoFornecedor').onchange();$('cadastroGrupoStatus').textContent='Grupos do fornecedor salvos.';}catch(err){status.textContent=err.message;}finally{if(save.isConnected)save.disabled=false;}};
   }catch(e){root.textContent='Grupos indisponíveis: '+e.message;}
  }
  $('cadastroJumpGruposCompra')?.addEventListener('click',abrirGrupos);
