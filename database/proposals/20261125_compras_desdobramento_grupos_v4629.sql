@@ -101,4 +101,14 @@ CREATE TRIGGER ew_compras_proteger_convite_grupo BEFORE INSERT ON ew_compras_int
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA ew_compras_interna FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION public.ew_compras_desdobrar_grupos(uuid,uuid,uuid),public.ew_compras_grupos_desdobrados(uuid) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.ew_compras_desdobrar_grupos(uuid,uuid,uuid),public.ew_compras_grupos_desdobrados(uuid) TO authenticated;
+CREATE OR REPLACE FUNCTION public.ew_compras_grupos_catalogo(p_empresa_id uuid)
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $f$
+BEGIN
+ PERFORM public.ew_exigir_sessao_atual();
+ IF auth.uid() IS NULL OR NOT(public.ew_pode(p_empresa_id,'compras.consultar') OR public.ew_pode(p_empresa_id,'compras.gerenciar_grupos')) THEN RAISE EXCEPTION 'Sem acesso aos grupos de compra.';END IF;
+ RETURN jsonb_build_object(
+ 'legados',(SELECT coalesce(jsonb_agg(s.id),'[]'::jsonb) FROM ew_compras_interna.legado_sem_grupo l JOIN public.ew_compras_solicitacoes s ON s.id=l.solicitacao_id WHERE s.empresa_id=p_empresa_id),
+ 'grupos',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',g.id,'codigo',g.codigo,'nome',g.nome,'ativo',g.ativo) ORDER BY g.nome),'[]'::jsonb) FROM ew_compras_interna.grupos_compra g WHERE g.empresa_id=p_empresa_id),
+ 'fornecedores',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',f.id,'nome',f.nome,'ativo',f.ativo,'grupos',(SELECT coalesce(jsonb_agg(x.grupo_id ORDER BY x.grupo_id),'[]'::jsonb) FROM ew_compras_interna.fornecedores_grupos x WHERE x.empresa_id=p_empresa_id AND x.fornecedor_id=f.id)) ORDER BY f.nome),'[]'::jsonb) FROM public.ew_fornecedores f WHERE f.empresa_id=p_empresa_id));
+END;$f$;
 COMMIT;
