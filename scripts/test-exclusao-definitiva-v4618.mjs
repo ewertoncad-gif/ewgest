@@ -8,7 +8,7 @@ const app=read('../app.html'),rel=read('../assets/relatorios-obras.js'),
 const sql=read('../database/proposals/20261122_exclusao_definitiva_obras_v4618.sql');
 assert.doesNotThrow(()=>new Function(rel),'Relatórios devem compilar');
 assert.doesNotThrow(()=>new Function(transfer),'Romaneios devem compilar');
-assert.match(app,/EWGEST <strong>· v46\.21<\/strong>/);
+assert.match(app,/EWGEST <strong>· v46\.22<\/strong>/);
 assert.match(app,/Exclusão definitiva e sem restauração/);
 assert.match(app,/Excluir obra definitivamente/);
 assert.match(app,/ATENÇÃO: PROCESSO IRREVERSÍVEL\. TEM CERTEZA QUE DESEJA ESTORNAR\?/);
