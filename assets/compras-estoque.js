@@ -181,6 +181,8 @@ async function cancelarRegistro(tipo,id){
  };
  const c=cfg[tipo];
  if(!c||!permission(c.flag))return;
+ if(tipo==='pedido'&&(!permission('compras.aprovar_pedido')||!permission('compras.consultar_valores')))return;
+ if(tipo==='cotacao'&&!permission('compras.consultar_valores'))return;
  const value=window.prompt('Motivo para cancelar a '+c.text+' (5 a 400 caracteres):');
  if(value===null)return;
  const reason=value.trim();
@@ -446,7 +448,7 @@ function renderOrder(){
  '<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Pedido</th><th>Destino</th><th>Valor</th><th>Recebimento</th><th>Ação</th></tr></thead><tbody>'+
  orders.map(p=>'<tr><td>#'+number(p.numero)+'</td><td>'+esc(titleLocal(p))+'</td><td>'+(permission('compras.consultar_valores')?money(p.total_centavos):'Restrito')+'</td><td>'+esc(orderStatus(p))+cancelDetails(p)+'</td><td>'+(editable&&p.status==='ABERTO'&&!receipts.some(r=>r.pedido_id===p.id&&!r.estornado_em)?'<button type="button" class="btn secondary" data-compras-tipo="pedido" data-compras-cancel="'+esc(p.id)+'">Cancelar</button>':'—')+'</td></tr>').join('')+'</tbody></table></div>';bindCancelButtons();
  if(editable)$('comprasPedidoForm').onsubmit=async e=>{e.preventDefault();const id=$('comprasPedidoCotacao').value;
- const q=pending.find(x=>x.id===id);if(!q||!permission('compras.aprovar_pedido'))return;
+ const q=pending.find(x=>x.id===id);if(!q||!permission('compras.pedir')||!permission('compras.aprovar_pedido')||!permission('compras.consultar_valores'))return;
  if(!window.confirm('Aprovar o pedido de '+money(q.total_centavos)+'? O valor será comprometido no orçamento se for compra para obra.'))return;
  const btn=$('comprasPedidoForm').querySelector('button[type=submit]');if(btn.disabled)return;btn.disabled=true;
  try{await rpc('ew_compras_criar_pedido',{p_cotacao_id:id,p_operacao_id:operationToken('pedir',{id})});
