@@ -1,4 +1,4 @@
-# Backup operacional pré-migração v45.3: Recebimento NF e entrega do almoxarife.
+# Backup operacional pré-migração v46.28: cotações, preços e compromissos de compras.
 name: EWGEST - Backup criptografado
 
 on:
