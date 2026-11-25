@@ -20,9 +20,9 @@ BEGIN
  PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',u,'role','authenticated')::text,true);
  INSERT INTO public.usuarios_login(usuario_id,empresa_id,perfil,nivel_acesso,nome,ativo) VALUES(u,e,'administrador',1,'Teste',true);
  INSERT INTO public.ew_permissoes_catalogo(chave,grupo,descricao,ordem)
- SELECT k,'Teste',k,1 FROM unnest(ARRAY['cadastros.consultar','cadastros.editar','romaneios.emitir','romaneios.cancelar','obras.consultar','financeiro.faturar']) k ON CONFLICT(chave) DO NOTHING;
+ SELECT k,'Teste',k,1 FROM unnest(ARRAY['cadastros.consultar','cadastros.editar','cadastros.composicao_consultar','cadastros.composicao_editar','romaneios.emitir','romaneios.cancelar','obras.consultar','financeiro.faturar']) k ON CONFLICT(chave) DO NOTHING;
  INSERT INTO public.ew_niveis_permissoes(empresa_id,nivel,chave,permitido)
- SELECT e,1,k,true FROM unnest(ARRAY['cadastros.consultar','cadastros.editar','romaneios.emitir','romaneios.cancelar','obras.consultar','financeiro.faturar']) k ON CONFLICT(empresa_id,nivel,chave) DO UPDATE SET permitido=true;
+ SELECT e,1,k,true FROM unnest(ARRAY['cadastros.consultar','cadastros.editar','cadastros.composicao_consultar','cadastros.composicao_editar','romaneios.emitir','romaneios.cancelar','obras.consultar','financeiro.faturar']) k ON CONFLICT(empresa_id,nivel,chave) DO UPDATE SET permitido=true;
  INSERT INTO public.tipologias(empresa_id,codigo,descricao,provisoria) VALUES(e,'TESTE-EXP-2F','JANELA 2 FOLHAS',false) RETURNING id INTO t;
  INSERT INTO public.obras(empresa_id,nome,codigo) VALUES(e,'TESTE EXPEDICAO','TESTE-EXP-84') RETURNING id INTO o;
  INSERT INTO public.esquadrias(empresa_id,obra_id,tipologia_id,codigo,descricao,largura_mm,altura_mm,quantidade,qtd_liberada) VALUES(e,o,t,'EA2','JANELA 2 FOLHAS',1200,1150,2,2) RETURNING id INTO a;

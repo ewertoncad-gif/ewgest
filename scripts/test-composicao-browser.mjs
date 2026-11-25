@@ -24,7 +24,7 @@ try{
   window.area=(e,q)=>Number(e.largura_mm)*Number(e.altura_mm)*q/1000000;
   window.selectedWork={id:'obra'};
   window.currentCompany={id:'empresa'};window.currentUser={id:'user'};window.session={access_token:'SINTETICO'};
-  window.temPermissao=()=>true;window.ensureSession=async()=>{};window.isFullAdminUser=()=>true;window.isAlmoxarife=()=>false;
+  window._denyFlags=[];window.temPermissao=k=>!window._denyFlags.includes(k);window.ensureSession=async()=>{};window.isFullAdminUser=()=>true;window.isAlmoxarife=()=>false;
   window.typologyAbbreviations=[];window.romaneioStockRows=[];
   window.elements=[{id:'ea2',obra_id:'obra',codigo:'EA2',descricao:'JANELA DE CORRER - 2 FOLHAS',quantidade:2,qtd_liberada:2,largura_mm:1200,altura_mm:1150}];
   window.shipmentStats=()=>({per:2,frames:0,leaves:0,marcosLiberados:2,folhasLiberadas:2,completas:0});
@@ -75,6 +75,17 @@ try{
  await page.addScriptTag({content:slice('function finEquivalentesExpedidos(linhas,composicoes){','function finXMLValor(parent,tag){')});
  const financial=await page.evaluate(()=>finEquivalentesExpedidos([{natureza:'esquadria',esquadria_id:'ea2',tipo_saida:'componente',quantidade:3,composicao_revisao_id:'rev1',equivalente_expedido:.75}],[]).get('ea2')*1.38);
  assert.ok(Math.abs(financial-1.035)<1e-9);
+ await page.evaluate(()=>{window._denyFlags=['cadastros.composicao_editar'];expCompPickerOpen();});
+ await page.locator('#expCompPickerSelect').selectOption('t1');
+ await page.locator('#expCompPickerOpen').click();
+ await page.locator('#expCompOverlay').waitFor({state:'visible'});
+ assert.equal(await page.locator('#expCompSave').isDisabled(),true);
+ assert.equal(await page.locator('#expCompAdd').isDisabled(),true);
+ assert.equal(await page.locator('#expCompRows input').first().isDisabled(),true);
+ await page.locator('#expCompClose').click();
+ await page.locator('#expCompPickerClose').click();
+ await page.evaluate(()=>{window._denyFlags=['cadastros.composicao_consultar'];expCompPickerOpen();});
+ assert.equal(await page.locator('#expCompPicker').isVisible(),false);
  assert.deepEqual(errors,[]);
  console.log('PASS Chromium composição: 4 folhas, expedir 3, bloquear 5, editar 50/40/10, selecionar similar e faturamento 1,035 m².');
 }finally{await browser.close();}
