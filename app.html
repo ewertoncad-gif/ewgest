@@ -258,7 +258,6 @@
     .workspaceLink.active{background:#eaf3ff;border-color:#dceaff;color:#1864bc}
     .navSymbol{display:inline-flex;justify-content:center;align-items:center;flex:none;width:27px;height:27px;border-radius:8px;background:#f0f5fa;color:#3d708f;font-size:17px}
     .workspaceLink.active .navSymbol{background:#d7eaff;color:#216bc2}
-    .recebimentoEtapas{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 8px;padding-top:14px;border-top:1px solid #e4ebf2}
     #recebimento[data-modo]:not([data-modo="manual"]) #finExpensePanel,
     #recebimento[data-modo]:not([data-modo="manual"]) #finPendingPanel,
     #recebimento[data-modo]:not([data-modo="manual"]) #finReceivePanel,
@@ -276,7 +275,7 @@
     .workspaceSubnav{display:grid;gap:3px;margin:0 0 5px 24px;padding-left:9px;border-left:2px solid #e0e8f2;flex:none}
     .workspaceSublink{min-height:34px;padding:8px 10px;font-size:12px}
     .comprasNavChevron{margin-left:auto;color:#6384a7;transition:transform .15s}
-    #navCompras[aria-expanded="true"] .comprasNavChevron{transform:rotate(180deg)}
+    #navCompras[aria-expanded="true"] .comprasNavChevron,#navRecebimento[aria-expanded="true"] .comprasNavChevron{transform:rotate(180deg)}
     @media(max-width:760px){.workspaceSubnav{display:flex;align-items:center;margin:0;padding:0 3px;border-left:0;gap:4px}.workspaceSublink{width:auto;white-space:nowrap}}
     .workspaceNavFooter{margin-top:30px;border-top:1px solid #ecf0f6;padding:15px 13px 0;color:#74869d;font-size:12px;font-weight:650}
     .workspaceNavFooter strong{color:#2074c9}
@@ -738,7 +737,13 @@
       <button id="comprasTabCotacao" type="button" class="workspaceLink workspaceSublink">Cotação</button>
       <button id="comprasTabPedido" type="button" class="workspaceLink workspaceSublink">Compra</button>
     </div>
-    <button id="navRecebimento" class="workspaceLink hidden" type="button"><span class="navSymbol">▧</span> Recebimento</button>
+    <button id="navRecebimento" class="workspaceLink hidden" type="button" aria-expanded="false" aria-controls="navRecebimentoSubmenu"><span class="navSymbol">▧</span> Recebimento <span class="comprasNavChevron" aria-hidden="true">▾</span></button>
+    <div id="navRecebimentoSubmenu" class="workspaceSubnav hidden" role="group" aria-label="Operações de recebimento">
+      <button type="button" class="workspaceLink workspaceSublink" data-recebimento-modo="manual">Entrada manual</button>
+      <button type="button" class="workspaceLink workspaceSublink" data-recebimento-modo="pedido">Por pedido</button>
+      <button type="button" class="workspaceLink workspaceSublink" data-recebimento-modo="historico">Histórico e estornos</button>
+      <button type="button" class="workspaceLink workspaceSublink" data-recebimento-modo="producao">Entrega à produção</button>
+    </div>
     <button id="navEnviarNotas" class="workspaceLink hidden" type="button"><span class="navSymbol">▧</span> Enviar notas fiscais</button>
     <div class="workspaceNavCaption workspaceNavCaptionSecond">ADMINISTRAÇÃO</div>
     <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
@@ -818,8 +823,8 @@
     </section>
     <section id="recebimento" class="hidden" data-modo="manual">
       <div class="head"><div>
-        <h1>Recebimento</h1>
-        <p class="muted">Conferência de materiais que chegaram à empresa. Informe os itens, suas quantidades e os valores da nota; o EWGEST registra os custos no Financeiro automaticamente.</p>
+        <h1 id="recebimentoPaginaTitulo">Entrada manual</h1>
+        <p class="muted" id="recebimentoPaginaDescricao">Registre a nota e os materiais que chegaram fisicamente.</p>
       </div></div>
       <div class="section panel">
         <label for="recebimentoWork">Selecione a obra</label>
@@ -827,12 +832,6 @@
           <select id="recebimentoWork" style="min-width:250px;max-width:470px"><option value="">Escolha a obra</option></select>
           <button class="btn secondary" type="button" id="recebimentoRefresh">Atualizar materiais</button>
           <button class="btn secondary hidden" type="button" id="recebimentoXmlLegacy" title="O envio XML legado não registra entrada física automaticamente.">Enviar XML (sem estoque automático)</button>
-        </div>
-        <div class="recebimentoEtapas" role="group" aria-label="Operações de recebimento">
-          <button type="button" class="btn primary" data-recebimento-modo="manual" aria-pressed="true">Entrada manual</button>
-          <button type="button" class="btn secondary" data-recebimento-modo="pedido" aria-pressed="false">Por pedido</button>
-          <button type="button" class="btn secondary" data-recebimento-modo="historico" aria-pressed="false">Histórico e estornos</button>
-          <button type="button" class="btn secondary" data-recebimento-modo="producao" aria-pressed="false">Entrega à produção</button>
         </div>
         <p id="recebimentoModoHint" class="hint">Registre a nota e os materiais que chegaram fisicamente.</p>
         <p class="feedback" id="recebimentoMessage" role="status"></p>
@@ -2629,6 +2628,11 @@ function setView(view){
     node('navCompras').setAttribute('aria-expanded','false');
     for(const id of ['comprasTabSolicitacao','comprasTabCotacao','comprasTabPedido']){node(id).classList.remove('active');node(id).removeAttribute('aria-current');}
   }
+  if(view!=='recebimento'){
+    node('navRecebimentoSubmenu').classList.add('hidden');
+    node('navRecebimento').setAttribute('aria-expanded','false');
+    node('navRecebimentoSubmenu').querySelectorAll('[data-recebimento-modo]').forEach(b=>{b.classList.remove('active');b.removeAttribute('aria-current');});
+  }
   const ativo=view==='detail'?'worksPage':view;
   for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],['navCompras','compras'],['navRecebimento','recebimento'],['navEnviarNotas','almoxNotas'],['navCadastros','cadastros'],
       ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navRelatorios','relatorios'],['navCem','cemImport'],['navUsers','users'],['navAccessLevels','accessLevels']]){
@@ -2799,6 +2803,7 @@ async function loadPanel(){
   setNavPermission('navRomaneios',temPermissao('romaneios.consultar'));
   node('navEnviarNotas').classList.add('hidden'); // Fluxo antigo preservado internamente; nova entrada no Recebimento.
   setNavPermission('navRecebimento',temPermissao('estoque.receber'));
+  if(!temPermissao('estoque.receber')){node('navRecebimentoSubmenu').classList.add('hidden');node('navRecebimento').setAttribute('aria-expanded','false');}
    setNavPermission('navCompras',temPermissao('compras.consultar'));
    if(!temPermissao('compras.consultar')){node('navComprasSubmenu').classList.add('hidden');node('navCompras').setAttribute('aria-expanded','false');}
    node('stockCreateCompanyLocal').classList.toggle('hidden',!temPermissao('estoque.gerenciar_locais'));
@@ -8048,11 +8053,15 @@ const finMoney=n=>Number(n||0).toLocaleString('pt-BR',{style:'currency',currency
 function recebimentoSelecionarModo(modo){
  const hints={manual:'Registre a nota e os materiais que chegaram fisicamente.',pedido:'Escolha um pedido de compra para dar entrada total ou parcial.',historico:'Consulte os recebimentos e estorne somente o documento ou a entrada desejada.',producao:'Confirme a entrega física dos materiais já liberados para a fábrica.'};
  if(!Object.hasOwn(hints,modo))return;
+ if(!temPermissao('estoque.receber'))return;
+ const titles={manual:'Entrada manual',pedido:'Recebimento por pedido',historico:'Histórico e estornos',producao:'Entrega à produção'};
  node('recebimento').dataset.modo=modo;
- node('recebimentoModoHint').textContent=hints[modo];
- node('recebimento').querySelectorAll('[data-recebimento-modo]').forEach(b=>{const ativo=b.dataset.recebimentoModo===modo;b.classList.toggle('primary',ativo);b.classList.toggle('secondary',!ativo);b.setAttribute('aria-pressed',String(ativo));});
+ node('recebimentoPaginaTitulo').textContent=titles[modo];
+ node('recebimentoPaginaDescricao').textContent=hints[modo];
+ node('recebimentoModoHint').textContent=modo==='historico'?'Estornos exigem motivo e confirmação.':'';
+ node('navRecebimentoSubmenu').querySelectorAll('[data-recebimento-modo]').forEach(b=>{const ativo=b.dataset.recebimentoModo===modo;b.classList.toggle('active',ativo);if(ativo)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
 }
-async function abrirRecebimento(prefer=null){
+async function abrirRecebimento(prefer=null,modo=node('recebimento').dataset.modo||'manual'){
  if(!temPermissao('estoque.receber')||!currentCompany)return;
  const sel=node('recebimentoWork');
  const anterior=prefer||sel.value||'';
@@ -8061,6 +8070,8 @@ async function abrirRecebimento(prefer=null){
  if(window.ewCompras)await window.ewCompras.carregarLocaisRecebimento(sel);
  if([...sel.options].some(x=>x.value===anterior))sel.value=anterior;
  setView('recebimento');
+ node('navRecebimentoSubmenu').classList.remove('hidden');node('navRecebimento').setAttribute('aria-expanded','true');
+ recebimentoSelecionarModo(modo);
  await carregarRecebimento();
 }
 async function carregarRecebimento(){
@@ -9084,7 +9095,11 @@ node('almoxNotaArquivo').addEventListener('change',almoxNotaLer);
 node('almoxNotaForm').addEventListener('submit',almoxNotaEnviar);
 
 node('navFinanceiro').addEventListener('click',()=>abrirFinanceiro());
-node('navRecebimento').addEventListener('click',()=>abrirRecebimento());
+node('navRecebimento').addEventListener('click',()=>{
+ if(!temPermissao('estoque.receber'))return;
+ const submenu=node('navRecebimentoSubmenu'),expanded=submenu.classList.contains('hidden');
+ submenu.classList.toggle('hidden',!expanded);node('navRecebimento').setAttribute('aria-expanded',String(expanded));
+});
  node('navCompras').addEventListener('click',()=>{
    if(!temPermissao('compras.consultar'))return;
    const submenu=node('navComprasSubmenu'),expanded=submenu.classList.contains('hidden');
@@ -9095,7 +9110,12 @@ node('navRecebimento').addEventListener('click',()=>abrirRecebimento());
  node('stockTransferBetweenLocations').addEventListener('click',()=>window.ewCompras?.abrirTransferLocal());
 node('recebimentoWork').addEventListener('change',()=>carregarRecebimento());
 node('recebimentoRefresh').addEventListener('click',()=>carregarRecebimento());
-node('recebimento').querySelectorAll('[data-recebimento-modo]').forEach(b=>b.addEventListener('click',()=>recebimentoSelecionarModo(b.dataset.recebimentoModo)));
+node('navRecebimentoSubmenu').querySelectorAll('[data-recebimento-modo]').forEach(b=>b.addEventListener('click',()=>{
+ if(!temPermissao('estoque.receber'))return;
+ const modo=b.dataset.recebimentoModo;
+ if(node('recebimento').classList.contains('hidden'))void abrirRecebimento(null,modo);
+ else recebimentoSelecionarModo(modo);
+}));
 node('recebimentoXmlLegacy').addEventListener('click',abrirAlmoxNotas);
 node('finWork').addEventListener('change',()=>{finCostOpId=null;finBillingOpId=null;finLoad();});
 node('finRefresh').addEventListener('click',finLoad);
