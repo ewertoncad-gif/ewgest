@@ -12,7 +12,7 @@ const rls=read('../database/proposals/20261122_niveis_rls_v4620.sql');
 const reports=read('../assets/relatorios-obras.js');
 assert.doesNotThrow(()=>new Function(ui),'Editor de flags deve compilar');
 assert.doesNotThrow(()=>new Function(reports),'Relatórios devem compilar');
-assert.match(app,/EWGEST <strong>· v46\.21<\/strong>/);
+assert.match(app,/EWGEST <strong>· v46\.22<\/strong>/);
 assert.match(app,/niveis-acesso\.js\?v=20261124c/);
 assert.match(app,/niveis-acesso\.css\?v=20261124c/);
 for(const token of ['id="createUserLevel"','id="userEditLevel"','id="userLevelsPanel"',
