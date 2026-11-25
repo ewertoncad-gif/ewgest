@@ -719,7 +719,7 @@
     <button id="navStock" class="workspaceLink hidden" type="button"><span class="navSymbol">▣</span> Estoque</button>
     <button id="navFinanceiro" class="workspaceLink hidden" type="button"><span class="navSymbol">◈</span> Financeiro das obras</button>
     <button id="navRelatorios" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Relatórios</button>
-    <button id="navManageWorks" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Gerenciar obras</button>
+
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
@@ -1001,6 +1001,7 @@
       <div class="head"><div>
         <h1>Obras</h1>
         <p class="muted">Selecione a obra para consultar esquadrias, liberações e expedição.</p>
+        <button id="worksManageButton" type="button" class="btn secondary">Conferir / excluir obras</button>
       </div></div>
       <div class="section">
         <div id="worksPageList" class="works"></div>
@@ -1008,7 +1009,7 @@
     </section>
     <section id="manageWorks" class="hidden">
       <div class="head"><div>
-        <h1>Gerenciar obras cadastradas</h1>
+        <button id="manageWorksBack" type="button" class="btn secondary">← Voltar para obras</button><h1>Conferência e exclusão de obras</h1>
         <p class="muted">Encerrar uma obra é DEFINITIVO. Cancele os romaneios e liberações, reverta as movimentações e zere o estoque. Para trabalhar novamente, será necessário importar a obra do início e refazer os processos. Somente os registros de auditoria serão preservados.</p>
       </div></div>
       <div class="section panel">
@@ -1111,7 +1112,7 @@
       </div>
     </div>
     <section id="detail" class="hidden">
-      <div class="head"><div><div class="detailnav hidden"><button id="back" class="btn secondary" type="button">← Voltar</button><button id="goHome" class="btn secondary" type="button">⌂ Tela inicial</button><button id="detailFinanceiro" class="btn secondary hidden" type="button">Financeiro da obra</button></div><h1 id="workName"></h1><div id="workMeta" class="muted"></div></div></div>
+      <div class="head"><div><div class="detailnav hidden"><button id="back" class="btn secondary" type="button">← Voltar</button><button id="goHome" class="btn secondary" type="button">⌂ Tela inicial</button><button id="detailFinanceiro" class="btn secondary hidden" type="button">Financeiro da obra</button></div><h1 id="workName"></h1><div class="topactions" style="margin:8px 0"><button id="detailWorksBack" class="btn secondary" type="button">← Obras</button><button id="detailWorkReview" class="btn secondary" type="button">Conferir / excluir obra</button></div><div id="workMeta" class="muted"></div></div></div>
       <div class="stats">
         <div class="stat"><div class="label">Área total</div><div class="number" id="detailTotal">—</div></div>
         <div class="stat"><div class="label">Liberada</div><div class="number" id="detailReleased">—</div></div>
@@ -1126,6 +1127,7 @@
           <button type="button" class="btn primary" id="openRomaneio">+ Emitir romaneio</button>
           <button type="button" class="btn secondary" id="toggleRomaneioHistory">Romaneios emitidos</button>
         </div>
+        <div id="releaseUndoActions" class="topactions"><button id="releaseUndoAll" type="button" class="btn secondary releaseCancellationButton">Estornar todas as liberações</button></div>
         <div id="releaseBatchActions" class="romaneioActions">
           <button type="button" class="btn primary" id="releaseBatchOpen">+ Liberar a partir do arquivo CEM</button>
         </div>
@@ -1482,7 +1484,7 @@
           <button type="button" class="btn secondary" id="stockTransferPickLocal">Transferência entre galpões</button>
           <button type="button" class="btn secondary" id="stockTransferPickWork">Transferência entre obras</button>
           <button type="button" class="btn secondary hidden" id="stockTransferBetweenLocations" title="Transferência entre obra e estoque próprio da empresa, ou entre estoques próprios">Transferência com estoque da empresa</button>
-          <button type="button" class="btn secondary" id="stockManageLocations" title="Consultar saldos e estornar lançamentos; exclusão definitiva da obra em Gerenciar obras">Gerenciar estoques</button>
+          <button type="button" class="btn secondary" id="stockManageLocations" title="Consultar saldos e estornar lançamentos; exclusão definitiva da obra na conferência da obra">Gerenciar estoques</button>
           <button type="button" class="btn secondary hidden" id="stockArchivedReview">Saldos e estornos</button>
           <button type="button" class="btn secondary" id="stockRefresh">Atualizar</button>
         </div></div>
@@ -1770,7 +1772,7 @@
         <textarea id="stockReverseReason" rows="4" minlength="5" maxlength="400" placeholder="Ex.: Ajuste de estoque"></textarea>
       </label>
       <p class="hint" id="stockReverseMessage" role="status" aria-live="polite" aria-atomic="true"></p>
-      <button type="button" class="btn secondary hidden" id="stockReverseOpenWorks">Ir para Gerenciar obras e cancelar liberações</button>
+      <button type="button" class="btn secondary hidden" id="stockReverseOpenWorks">Ir para liberações da obra</button>
       <div class="modalbuttons">
         <button type="button" class="btn secondary" id="stockReverseBack">Voltar à lista</button>
         <button type="button" class="btn primary" id="stockReverseApply" disabled>Estornar todos os lançamentos sem estorno</button>
@@ -2548,7 +2550,7 @@ function setView(view){
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
   const ativo=view==='detail'?'worksPage':view;
   for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],['navCompras','compras'],['navRecebimento','recebimento'],['navEnviarNotas','almoxNotas'],['navCadastros','cadastros'],
-      ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navRelatorios','relatorios'],['navCem','cemImport'],['navUsers','users'],['navAccessLevels','accessLevels'],['navManageWorks','manageWorks']]){
+      ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navRelatorios','relatorios'],['navCem','cemImport'],['navUsers','users'],['navAccessLevels','accessLevels']]){
     const button=node(id);
     const selecionado=!button.disabled&&(ativo===target||(id==='navCadastros'&&
       ['materials','typologies','manufacturers','users','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','cadastroLocaisEstoque'].includes(ativo)));
@@ -2725,7 +2727,7 @@ async function loadPanel(){
     navManufacturers:'cadastros.consultar',navMaterials:'cadastros.consultar',
     navAccessories:'cadastros.consultar',navStock:'estoque.consultar',
     navCem:'obras.importar',navUsers:'usuarios.gerenciar',
-    navManageWorks:'obras.estornar',navFinanceiro:'financeiro.consultar'};
+    navFinanceiro:'financeiro.consultar'};
   for(const [id,flag] of Object.entries(navFlags)){
     if(node(id).classList.contains('workspaceLink'))setNavPermission(id,temPermissao(flag));
     else node(id).classList.toggle('hidden',!temPermissao(flag));
@@ -2931,6 +2933,7 @@ function obrasComEsquadriasAtivas(){
 function mostrarListaDeObras(){
  if(isAlmoxarife()||!currentCompany)return;
  const lista=obrasComEsquadriasAtivas();
+ node('worksManageButton').disabled=!canAdministrate()||!temPermissao('obras.estornar');
  const container=node('worksPageList');
  if(!lista.length){
   container.innerHTML='<div class="empty">Nenhuma obra com esquadrias cadastradas. '+
@@ -3990,6 +3993,9 @@ function renderDetail(w){
   node('tabShip').setAttribute('aria-pressed',String(shipping));
   node('shipmentOverview').classList.toggle('hidden',!shipping);
   node('romaneioActions').classList.toggle('hidden',!shipping);
+  node('releaseUndoActions').classList.toggle('hidden',shipping);
+  node('releaseUndoAll').disabled=!temPermissao('liberacoes.cancelar')||!releaseHistory.some(h=>list.some(x=>x.id===h.esquadria_id));
+  node('detailWorkReview').disabled=!canAdministrate()||!temPermissao('obras.estornar');
   node('releaseBatchActions').classList.add('hidden'); // A liberação permanece por item.
   node('openRomaneio').disabled=!temPermissao('romaneios.emitir')||!dispatchReady||Boolean(romaneioLoadError);
   node('romaneioOverview').classList.toggle('hidden',!shipping);
@@ -4016,9 +4022,10 @@ function renderDetail(w){
       const pending=Math.max(part.saldoCompleto,part.saldoMarco,part.saldoFolhas);
       const latest=releaseHistory.find(r=>r.esquadria_id===x.id);
       return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><div class="hint" style="margin-top:8px">${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Com alguma parte liberada: ${Number(x.qtd_liberada)||0}</span><span>Marcos: ${part.marcos} · Folhas (conj.): ${part.folhas}</span><span>Restam por liberar: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline" style="margin-top:8px"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/'))+
-  (latest.fabrica?' · '+escapeHTML(latest.fabrica):' · fábrica não informada (histórico)'):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button></div>`;
+  (latest.fabrica?' · '+escapeHTML(latest.fabrica):' · fábrica não informada (histórico)'):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button><div class="topactions" style="padding:4px 12px 10px"><button type="button" class="btn secondary releaseCancellationButton" data-release-undo="${escapeHTML(x.id)}" ${!latest||!temPermissao('liberacoes.cancelar')?'disabled':''}>Estornar liberação</button></div></div>`;
     }).join(''):'<div class="empty">Nenhuma esquadria nesta obra.</div>';
     node('items').querySelectorAll('[data-esq]').forEach(b=>b.addEventListener('click',()=>openRelease(b.dataset.esq)));
+    node('items').querySelectorAll('[data-release-undo]').forEach(b=>b.addEventListener('click',()=>window.ewReleaseUndo?.abrir(b.dataset.releaseUndo)));
   }else{
     node('items').innerHTML=exibidos.length?exibidos.map(x=>{
       const s=shipmentStats(x);
@@ -4444,7 +4451,7 @@ async function openReleaseCancelAll(obraId){
     (romaneios?romaneios+' romaneio(s) ativo(s). ':'')+
     (saidas?saidas+' saída(s) de produção ativa(s). ':'')+
     (fabricadas?fabricadas+' unidade(s) fabricada(s). ':'')+
-    'Concilie essas operações em Gerenciar obras antes de cancelar as liberações.';
+    'Concilie essas operações na conferência da obra antes de cancelar as liberações.';
    node('releaseCancelAllStatus').classList.add('releaseCancelAllWarning');
    return;
   }
@@ -4486,14 +4493,10 @@ async function confirmReleaseCancelAll(){
    body:{p_obra_id:obraId,p_motivo:motivo}});
   closeReleaseCancelAll();
   await loadPanel();
-  abrirGerenciamentoObras();
-  if(works.some(w=>w.id===obraId)){
-   await inspecionarExclusaoObra(obraId);
-   node('manageWorksFeedback').textContent=
-    'Cancelamento realizado: '+Number(result?.canceladas||0)+' liberação(ões), '+
-    Number(result?.unidades||0)+' unidade(s) revertida(s). '+
-    'Confira separadamente as movimentações de estoque. O histórico foi preservado.';
-  }
+  const w=works.find(w=>w.id===obraId);
+  if(w){detailMode='release';renderDetail(w);node('detailError').textContent=
+    'Estorno realizado: '+Number(result?.canceladas||0)+' liberação(ões). Histórico preservado.';}
+
  }catch(err){
   if(releaseCancelAllWorkId===obraId){
    status.textContent='Cancelamento não concluído: '+err.message;
@@ -4502,6 +4505,9 @@ async function confirmReleaseCancelAll(){
   }
  }
 }
+node('detailWorksBack').addEventListener('click',mostrarListaDeObras);
+node('detailWorkReview').addEventListener('click',()=>{if(!selectedWork||!canAdministrate()||!temPermissao('obras.estornar'))return;const id=selectedWork.id;abrirGerenciamentoObras();inspecionarExclusaoObra(id);});
+node('releaseUndoAll').addEventListener('click',()=>{if(selectedWork)openReleaseCancelAll(selectedWork.id);});
 node('releaseCancelAllClose').addEventListener('click',closeReleaseCancelAll);
 node('releaseCancelAllConfirm').addEventListener('click',confirmReleaseCancelAll);
 function releaseComponentSaldo(partes,tipo){
@@ -5000,7 +5006,8 @@ node('navAccessLevels').addEventListener('click',async()=>{
  setView('accessLevels');
  try{await window.nivelAcessoPreparar();}catch(e){node('userLevelsStatus').textContent='Não foi possível consultar níveis: '+e.message;}
 });
-node('navManageWorks').addEventListener('click',abrirGerenciamentoObras);
+node('worksManageButton').addEventListener('click',abrirGerenciamentoObras);
+node('manageWorksBack').addEventListener('click',mostrarListaDeObras);
 node('openRomaneioHub').addEventListener('click',abrirAreaRomaneios);
 node('navHome').addEventListener('click',()=>setView('dashboard'));
 node('navWorks').addEventListener('click',abrirObrasPelaBarra);
@@ -9949,7 +9956,7 @@ function stockManageRender(){
   if(!obra)return '';
   const resumo=stockReversalBalances(loc.obra_id);
   const status='Estoque de obra ativa';
-  // O encerramento é definitivo e ocorre exclusivamente em Gerenciar obras.
+  // O encerramento é definitivo e ocorre exclusivamente na conferência da obra.
   const revisar=resumo.movimentos?
     '<button type="button" class="btn secondary" data-stock-reverse="'+escapeHTML(loc.obra_id)+'">'+
     (resumo.pendentes?'Conferir / estornar':'Consultar histórico')+'</button>':'';
@@ -10180,15 +10187,15 @@ async function stockReverseRevisar(id){
    const ativas=Number(ver?.resumo?.liberacoes||0);
    node('stockReverseMessage').textContent='⚠ ESTORNO BLOQUEADO — '+ 
     (ativas>0?'Esta obra possui '+ativas+' liberação(ões) para corte ativa(s). ':'')+
-    'O botão Estornar todos só será liberado após cancelar as liberações e outras operações vinculadas em Gerenciar obras. '+
+    'O botão Estornar todos só será liberado após cancelar as liberações e outras operações vinculadas na conferência da obra. '+
     impedimentos.join(' ');
    node('stockReverseMessage').classList.add('stockReversalBlock');
    node('stockReverseApply').disabled=true;
    node('stockReverseApply').textContent=ativas>0?
     'Bloqueado: cancele as liberações':'Estorno bloqueado';
    node('stockReverseApply').title=ativas>0?
-    'Cancele primeiro as liberações para corte em Gerenciar obras.':
-    'Cancele as operações vinculadas em Gerenciar obras.';
+    'Cancele primeiro as liberações para corte na conferência da obra.':
+    'Cancele as operações vinculadas na conferência da obra.';
    node('stockReverseApply').setAttribute('aria-describedby','stockReverseMessage');
    node('stockReverseOpenWorks').classList.remove('hidden');
    return;
@@ -10307,8 +10314,8 @@ node('stockReverseOpenWorks').addEventListener('click',async()=>{
  const id=stockReverseSelectedWorkId;
  node('stockManageOverlay').classList.add('hidden');
  await loadPanel();
- abrirGerenciamentoObras();
- if(id&&works.some(w=>w.id===id))await inspecionarExclusaoObra(id);
+ const w=works.find(w=>w.id===id);
+ if(w){detailMode='release';renderDetail(w);}else mostrarListaDeObras();
 });
 node('stockReverseBack').addEventListener('click',stockReverseFechar);
 node('stockReverseApply').addEventListener('click',stockReverseExecutar);
@@ -10777,7 +10784,7 @@ node('manageWorksGoRomaneios').addEventListener('click',()=>{
  selectedWork=obra;hubObraId=obra.id;
  abrirAreaRomaneios();
  node('hubRomaneioMessage').textContent=
-  'Cancele os romaneios emitidos desta obra, depois retorne a Gerenciar obras e clique Verificar exclusão.';
+  'Cancele os romaneios emitidos desta obra, depois retorne à obra e clique Verificar exclusão.';
 });
 node('manageWorksCancelShipments').addEventListener('click',()=>executarReversaoObra('saidas'));
 node('manageWorksReverseStock').addEventListener('click',()=>executarReversaoObra('estoque'));
@@ -10924,6 +10931,9 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/compras-conciliacao-nfe.js?v=20261124b"></script>
 <script src="/assets/compras-nota-empresa.js?v=20261124a"></script>
 <script src="/assets/cadastro-locais-estoque.js?v=20261124a"></script>
+<div id="releaseUndoOverlay" class="modaloverlay hidden" role="presentation"><div class="panel modalbox releaseCancelAllDialog" role="dialog" aria-modal="true" aria-labelledby="releaseUndoTitle"><h2 id="releaseUndoTitle">Estornar liberação</h2><p id="releaseUndoStatus" class="hint" role="status"></p><div id="releaseUndoList"></div><div class="modalbuttons"><button id="releaseUndoClose" type="button" class="btn secondary">Fechar</button></div></div></div>
+<style>#releaseUndoList .btn:disabled,#releaseUndoAll:disabled,[data-release-undo]:disabled,#detailWorkReview:disabled,#worksManageButton:disabled{opacity:.48;cursor:not-allowed;transform:none;box-shadow:none}</style>
+<script src="/assets/estorno-liberacao.js?v=20261124a"></script>
 <script defer src="/pwa-install.js?v=25"></script>
 </body>
 </html>
