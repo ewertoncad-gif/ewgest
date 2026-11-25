@@ -8178,10 +8178,10 @@ async function finLoad(){
 }
 function finRenderResumo(){
  const x=finState,o=x.orcamento;
- const gastos=new Map(),faturado=new Map(),comprometido=new Map();
- for(const d of x.compromissos||[]){gastos.set(d.categoria,Number(d.realizado_centavos)/100);comprometido.set(d.categoria,Number(d.comprometido_pendente_centavos)/100);}
+ const gastos=new Map(),faturado=new Map(),comprometido=new Map(),pendencias=new Map();
+ for(const d of x.compromissos||[]){gastos.set(d.categoria,Number(d.realizado_centavos)/100);comprometido.set(d.categoria,Number(d.comprometido_pendente_centavos)/100);pendencias.set(d.categoria,Number(d.pendencia_centavos||0)/100);}
  for(const f of x.faturas)if(f.status==='emitido')faturado.set(f.categoria,(faturado.get(f.categoria)||0)+Number(f.valor_total));
- const compromissoTotal=[...comprometido.values()].reduce((a,b)=>a+b,0);
+ const compromissoTotal=[...comprometido.values()].reduce((a,b)=>a+b,0),pendenciaTotal=[...pendencias.values()].reduce((a,b)=>a+b,0);
  const gastoTotal=[...gastos.values()].reduce((a,b)=>a+b,0),recebTotal=[...faturado.values()].reduce((a,b)=>a+b,0);
  const totalReceita=x.precificacao?
   (Number(x.precificacao.fabricacao_distribuida_centavos)+
@@ -8193,7 +8193,8 @@ function finRenderResumo(){
   '<span><strong>Faturado: '+finMoney(recebTotal)+'</strong></span>'+
   '<span><strong>A faturar (fabricação/instalação): '+finMoney(totalReceita-recebTotal)+'</strong></span>'+
   '<span><strong>Gastos realizados: '+finMoney(gastoTotal)+'</strong></span>'+
-  '<span><strong>Pedidos comprometidos (a conciliar): '+finMoney(compromissoTotal)+'</strong></span>';
+  '<span><strong>Pedidos comprometidos (a conciliar): '+finMoney(compromissoTotal)+'</strong></span>'+
+  (pendenciaTotal?'<span><strong>Notas em conferência: '+finMoney(pendenciaTotal)+'</strong></span>':'');
  const resumoNiveis=x.orcamentoNiveis.length?
   '<h3>Níveis e empresas do orçamento</h3>'+
   '<div class="finTableWrap"><table class="finTable"><thead><tr>'+
@@ -8228,20 +8229,47 @@ function finRenderResumo(){
   }).join('')+'</tbody></table></div>'+
   '<p class="hint">Os preços-base/m² representam pesos comerciais. Os valores em centavos por esquadria, aprovados na importação, são a referência exata para faturamento; o R$/m² exibido é informativo.</p>':'';
  node('finSummary').innerHTML=resumoNiveis+resumoPreco+'<div class="finTableWrap"><table class="finTable"><thead><tr>'+
-   '<th>Categoria</th><th>Controle</th><th align="right">Previsto / teto</th><th align="right">Realizado</th><th align="right">Comprometido a conciliar</th><th align="right">Restante disponível</th></tr></thead><tbody>'+
+   '<th>Categoria</th><th>Controle</th><th align="right">Previsto / teto</th><th align="right">Realizado</th><th align="right">Comprometido a conciliar</th><th align="right">Notas em conferência</th><th align="right">Restante disponível</th></tr></thead><tbody>'+
  finCategories.map(([k,label,tipo])=>{
    const total=x.precificacao&&['fabricacao','instalacao'].includes(k)?
      Number(x.precificacao[k+'_distribuida_centavos'])/100:Number(o[k]);
    const real=tipo==='custo'?(gastos.get(k)||0):(faturado.get(k)||0);
    const comprometidoCategoria=tipo==='custo'?(comprometido.get(k)||0):0;
+   const pendente=tipo==='custo'?(pendencias.get(k)||0):0;
    const resto=Math.round((total-real-comprometidoCategoria)*100)/100;
    return '<tr><td>'+label+'</td><td>'+(tipo==='custo'?'Gasto':'Faturamento')+
    '</td><td align="right">'+finMoney(total)+'</td><td align="right">'+finMoney(real)+
-   '</td><td align="right">'+(tipo==='custo'?finMoney(comprometidoCategoria):'—')+'</td><td align="right"'+(resto<0?' class="finNegative"':'')+'>'+finMoney(resto)+'</td></tr>';
+   '</td><td align="right">'+(tipo==='custo'?finMoney(comprometidoCategoria):'—')+'</td><td align="right">'+(tipo==='custo'?finMoney(pendente):'—')+'</td><td align="right"'+(!pendente&&resto<0?' class="finNegative"':'')+'>'+(pendente?'Em conferência':finMoney(resto))+'</td></tr>';
  }).join('')+'</tbody></table></div>'+
- '<p class="hint">O valor de fabricação e instalação representa receita prevista, não lucro. Pedidos aprovados comprometem o saldo antes da entrega física. Na conciliação fiscal o compromisso correspondente é substituído pelo realizado. Notas ainda não conciliadas exigem conferência para não duplicar a apropriação. Romaneios não contabilizam faturamento.</p>';
+ '<p class="hint">O valor de fabricação e instalação representa receita prevista, não lucro. Pedidos aprovados comprometem o saldo antes da entrega física. Na conciliação fiscal o compromisso correspondente é substituído pelo realizado. Notas em conferência não entram no saldo definitivo. Concilie em Compras ou confirme que o saldo da nota é independente dos pedidos. Romaneios não contabilizam faturamento.</p>';
+ finRenderClassificacaoFiscal(x);
 }
 
+function finRenderClassificacaoFiscal(state){
+ const notas=(state.compromissos||[]).flatMap(x=>x.notas_pendentes||[]);
+ if(!notas.length)return;
+ const pode=temPermissao('financeiro.despesas')&&temPermissao('compras.consultar_valores')&&temPermissao('compras.classificar_nota_avulsa');
+ const section=document.createElement('section');
+ section.className='section panel';
+ section.innerHTML='<h3>Notas em conferência com pedidos</h3><p class="hint">Há pedidos ainda não conciliados que podem corresponder a estas notas. O saldo definitivo da categoria fica indisponível até a conferência. Se houver compra avulsa, confirme com justificativa somente quando o saldo não pertencer a nenhum pedido.</p>'+
+ '<div class="finTableWrap"><table class="finTable"><thead><tr><th>Fornecedor</th><th>Nota</th><th>Valor</th><th>Ação</th></tr></thead><tbody>'+
+ notas.map(n=>'<tr><td>'+escapeHTML(n.fornecedor||'Não informado')+'</td><td>'+escapeHTML(n.numero_documento||n.id.slice(0,8))+'</td><td>'+finMoney(n.valor_centavos/100)+'</td><td>'+
+ (pode?'<button type="button" class="btn secondary" data-avulsa="'+escapeHTML(n.id)+'">Confirmar saldo avulso</button>':'Aguardando financeiro')+'</td></tr>').join('')+'</tbody></table></div>';
+ node('finSummary').append(section);
+ section.querySelectorAll('[data-avulsa]').forEach(btn=>btn.onclick=async()=>{
+  if(finState!==state||!pode||!temPermissao('compras.classificar_nota_avulsa'))return;
+  const n=notas.find(x=>x.id===btn.dataset.avulsa);if(!n)return;
+  const motivo=window.prompt('Justifique por que o saldo ainda não conciliado da nota não pertence a pedidos aprovados (8 a 400 caracteres):');
+  if(motivo===null)return;
+  if(motivo.trim().length<8||motivo.trim().length>400){node('finMessage').textContent='Informe uma justificativa válida.';return;}
+  if(!window.confirm('Confirmar saldo avulso? A parte independente será contabilizada como gasto, sem alterar o estoque.'))return;
+  btn.disabled=true;
+  try{await ensureSession();if(finState!==state)return;
+   await request('/rest/v1/rpc/ew_compras_classificar_nota_avulsa',{method:'POST',token:session.access_token,body:{p_empresa_id:currentCompany.id,p_obra_id:state.obraId,p_despesa_id:n.id,p_assinatura:n.assinatura,p_motivo:motivo.trim()}});
+   if(finState===state){await finLoad();node('finMessage').textContent='Classificação registrada no histórico.';}
+  }catch(e){node('finMessage').textContent='Classificação bloqueada: '+e.message;}finally{btn.disabled=false;}
+ });
+}
 function finRenderPendentes(){
  const box=node('finPendingPanel'),state=finState;
  const selected=node('recebimentoWork').value;
@@ -8289,12 +8317,12 @@ async function finRevisarNota(id,acao){
   justificativa=window.prompt('Informe o motivo da rejeição desta NF-e:','')||'';
   if(justificativa.trim().length<5)return;
  }else{
-  const custoAtual=finState.despesas.filter(x=>x.status==='aprovada'&&x.categoria===d.categoria)
-    .reduce((sum,x)=>sum+Number(x.valor),0);
+  const custo=finState.compromissos.find(x=>x.categoria===d.categoria);
+  const custoAtual=Number(custo?.realizado_centavos||0)/100+Number(custo?.comprometido_pendente_centavos||0)/100;
   const sobra=Number(finState.orcamento[d.categoria])-custoAtual-Number(d.valor);
   if(!window.confirm('Aprovar a nota '+d.numero_documento+' no valor de '+finMoney(d.valor)+
     ' para esta obra?'+(sobra<0?'\nAtenção: ultrapassará o teto em '+finMoney(-sobra)+'.':'')+
-    '\n\nOs preços dos itens vinculados serão registrados no histórico real dos materiais.'))return;
+    '\n\nSe a nota puder pertencer a um pedido, o saldo ficará em conferência até a conciliação. Os preços dos itens vinculados serão registrados no histórico real dos materiais.'))return;
  }
  const btn=panel.querySelector('[data-fin-'+(acao==='aprovar'?'approve':'reject')+']');
  btn.disabled=true;
@@ -8828,11 +8856,10 @@ async function finRegistrarCusto(event){
    (cat==='aluminio'?{perfil_id:select.value}:{acessorio_id:select.value}):{};
   return {...row,...extra};
  }):[];
- const diff=Number(finState.orcamento[cat])-
-  finState.despesas.filter(d=>d.status==='aprovada'&&d.categoria===cat)
-    .reduce((a,d)=>a+Number(d.valor),0)-val;
+ const custo=finState.compromissos.find(x=>x.categoria===cat);
+ const diff=Number(finState.orcamento[cat])-Number(custo?.realizado_centavos||0)/100-Number(custo?.comprometido_pendente_centavos||0)/100-val;
  if(diff<0&&!window.confirm('Esta despesa ultrapassará o teto previsto de '+finMoney(finState.orcamento[cat])+
-  '. O saldo ficará negativo. Deseja registrar mesmo assim?'))return;
+  '. A nota será conferida com os pedidos e, se avulsa, poderá deixar o saldo negativo. Deseja registrar mesmo assim?'))return;
  if(!window.confirm('Registrar '+finMoney(val)+' de gastos em '+finCategories.find(x=>x[0]===cat)?.[1]+
    ' para esta obra? O saldo físico do estoque não será alterado.'))return;
  finCostOpId ||= crypto.randomUUID();btn.disabled=true;
