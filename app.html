@@ -723,7 +723,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.24</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.25</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -3333,15 +3333,23 @@ function ehMaximArRomaneio(item){
   return /\bMAXIM[\s-]*AR\b/.test(String(item?.descricao||'')
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase());
 }
+// O cadastro confirmado prevalece quando existem saídas ativas. Sem saídas,
+// uma divergência com a descrição técnica pode ser corrigida na próxima emissão.
 function romaneioSaldoPorTipo(item,tipo,folhas){
   const a=shipmentStats(item);
-  const per=a.per||Number(folhas)||suggestedLeaves(item)||null;
+  const per=romaneioComposicao(item,a,folhas);
   const marcos=Math.max(0,a.marcosLiberados-a.frames);
   const folhasRestantes=per?Math.max(0,a.folhasLiberadas*per-a.leaves):null;
   if(tipo==='marco')return marcos;
   if(tipo==='folha')return folhasRestantes;
   if(!per)return Math.max(0,Math.min(marcos,a.folhasLiberadas-a.completas)); // Composição pendente.
   return Math.max(0,Math.min(marcos,Math.floor(folhasRestantes/per)));
+}
+function romaneioComposicao(item,stats,folhas){
+  const sugerida=suggestedLeaves(item);
+  const corrigir=stats.per!==null&&sugerida!==null&&stats.per!==sugerida&&stats.events===0;
+  if(corrigir)return sugerida;
+  return stats.per||sugerida||Number(folhas)||null;
 }
 function mensagemSemSaldoRomaneio(tipo,candidatos){
   if(!candidatos.length)return 'Nenhuma esquadria corresponde à busca nesta obra.';
@@ -3382,7 +3390,7 @@ function buscarEsquadriasRomaneio(row){
   const disponiveis=candidatos.filter(x=>
     Number(x.qtd_liberada)>0 &&
     (tipo==='completo'||!ehMaximArRomaneio(x)) &&
-    romaneioSaldoPorTipo(x,tipo,1)>0
+    (romaneioSaldoPorTipo(x,tipo,null)===null||romaneioSaldoPorTipo(x,tipo,null)>0)
   ).sort((x,y)=>x.codigo.localeCompare(y.codigo,'pt-BR',{numeric:true}));
   row.dataset.mensagemSemSaldo=disponiveis.length?'':mensagemSemSaldoRomaneio(tipo,candidatos);
   combo.replaceChildren();
@@ -3414,7 +3422,9 @@ function atualizarLinhaRomaneio(el){
   const modo=kinds.value;
   const stats=item?shipmentStats(item):null;
   // A composição de folhas não é exigida nem registrada quando a saída é completa.
-  const perguntaFolhas=Boolean(item&&modo!=='completo'&&stats?.per===null);
+  const sugestao=item?suggestedLeaves(item):null;
+  const corrigir=Boolean(item&&stats.per!==null&&sugestao!==null&&stats.per!==sugestao&&stats.events===0);
+  const perguntaFolhas=Boolean(item&&modo!=='completo'&&(stats?.per===null||corrigir));
   leaves.closest('label').classList.toggle('hidden',!perguntaFolhas);
   leaves.required=perguntaFolhas;
   leaves.disabled=!perguntaFolhas;
@@ -3433,21 +3443,26 @@ function atualizarLinhaRomaneio(el){
     campoDescricao.value=descricaoPadraoRomaneio(item,modo);
     el.dataset.romaneioDescricaoChave=chaveDescricao;
   }
-  if(stats.per!==null){leaves.value=stats.per;leaves.readOnly=true;}
+  const novaComposicao=el.dataset.composicaoItem!==item.id;
+  el.dataset.composicaoItem=item.id;
+  if(corrigir&&modo!=='completo'){leaves.value=sugestao;leaves.readOnly=true;}
+  else if(stats.per!==null){leaves.value=stats.per;leaves.readOnly=true;}
   else if(modo!=='completo'){
-    leaves.readOnly=false;
-    if(!leaves.value)leaves.value=suggestedLeaves(item)||'';
+    leaves.readOnly=sugestao!==null;
+    if(sugestao!==null)leaves.value=sugestao;
+    else if(novaComposicao)leaves.value='';
   }else{leaves.value='';}
   const saldo=romaneioSaldoPorTipo(item,modo,leaves.value);
-  qty.max=saldo?String(saldo):'';
+  qty.max=saldo!==null?String(saldo):'';
   if(!Number.isSafeInteger(Number(qty.value))||Number(qty.value)<1||
       (saldo!==null&&Number(qty.value)>saldo)){
     qty.value=saldo>0?'1':'';
   }
   const tipoTxt=modo==='marco'?'marco(s)':modo==='folha'?'folha(s) físicas':'esquadria(s) completas';
   summary.textContent=item.codigo+' · '+(item.localizacao||'Sem localização')+
-    ' · '+saldo+' '+tipoTxt+' disponíveis · '+amount(item.largura_mm)+' × '+
-    amount(item.altura_mm)+' mm · '+(item.descricao||'');
+    ' · '+(saldo===null?'Confirme a composição para calcular o saldo':saldo+' '+tipoTxt+' disponíveis')+' · '+amount(item.largura_mm)+' × '+
+    amount(item.altura_mm)+' mm · '+(item.descricao||'')+
+    (corrigir&&modo!=='completo'?' · Composição anterior: '+stats.per+'; correção para '+sugestao+' folhas por esquadria na emissão, se não houver saídas ou faturamentos ativos.':'');
 }
 function adicionarLinhaRomaneio(natureza){
   if(node('romaneioRows').children.length>=60){
@@ -3475,11 +3490,12 @@ function adicionarLinhaRomaneio(natureza){
       '<div class="romaneioRowFields">'+
       '<label>Quantidade<input data-rom-field="quantidade" type="number" min="1" step="1" required></label>'+
       '<label class="hidden">Folhas por esquadria<input data-rom-field="folhas_por_unidade" type="number" min="1" max="12" step="1" placeholder="Confirmar"></label>'+
-      '</div><p class="hint hidden" data-rom-hint-folhas>Informe a quantidade de folhas físicas expedidas. Não precisa enviar todas juntas: para janela 2F, cada folha equivale a 25% da área da esquadria. Marco e folhas podem constar em linhas separadas deste mesmo romaneio.</p>';
+      '</div><p class="hint hidden" data-rom-hint-folhas>Informe a quantidade total de folhas físicas expedidas, de 1 até o saldo de todas as esquadrias liberadas. Cada folha equivale a 50% da área de uma esquadria dividido pelo número de folhas por unidade. Marco e folhas podem constar em linhas separadas.</p>';
     row.querySelector('[data-rom-field="tipo_saida"]').addEventListener('change',()=>buscarEsquadriasRomaneio(row));
     row.querySelector('[data-rom-field="esquadria_search"]').addEventListener('input',()=>buscarEsquadriasRomaneio(row));
     row.querySelector('[data-rom-field="esquadria_id"]').addEventListener('change',()=>atualizarLinhaRomaneio(row));
     row.querySelector('[data-rom-field="folhas_por_unidade"]').addEventListener('input',()=>atualizarLinhaRomaneio(row));
+    row.querySelector('[data-rom-field="quantidade"]').addEventListener('change',()=>atualizarLinhaRomaneio(row));
   }else{
     if(!(isFullAdminUser()||isAlmoxarife())||!romaneioStockRows.length){
       node('romaneioError').textContent='Materiais diretos exigem permissão de ADM ou almoxarife e saldo físico disponível.';
@@ -3532,8 +3548,7 @@ function coletarItensRomaneio(){
       usados.add(chave);
       const config=dispatchConfig.find(x=>x.esquadria_id===id);
       // Completo usa a composição cadastrada se já existir; caso contrário não cria estimativa.
-      const folhas=tipo==='completo'?null:
-        (config?Number(config.folhas_por_unidade):Number(campo('folhas_por_unidade')));
+      const folhas=tipo==='completo'?null:romaneioComposicao(item,shipmentStats(item),campo('folhas_por_unidade'));
       if(tipo!=='completo'&&(!Number.isInteger(folhas)||folhas<1||folhas>12))
         throw new Error('Confirme as folhas por esquadria de '+item.codigo+' (1 a 12) para desmembrar.');
       const disponivel=romaneioSaldoPorTipo(item,tipo,folhas);
