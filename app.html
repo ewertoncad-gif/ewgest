@@ -8153,7 +8153,7 @@ async function carregarRecebimento(){
   }
   if(node('recebimentoWork').value!==obraId)return;
   node('finSupplierAdd').classList.toggle('hidden',!temPermissao('cadastros.editar'));
-  node('finWarehouseAdd').classList.toggle('hidden',!temPermissao('cadastros.editar'));
+  node('finWarehouseAdd').classList.toggle('hidden',!temPermissao('estoque.gerenciar_locais'));
   node('finExpensePanel').classList.remove('hidden');
   msg.textContent='Local selecionado. Escolha a operação desejada.';
   if(!temPermissao('financeiro.consultar')){const h=node('recebimentoHistoricoNotas');h.classList.remove('hidden');h.textContent='Histórico de notas fiscais restrito aos níveis com acesso financeiro.';}
@@ -10679,7 +10679,9 @@ async function stockReverseRevisar(id){
  node('stockReverseMessage').textContent='Conferindo pendências operacionais no servidor…';
  node('stockReversePanel').scrollIntoView({block:'nearest',behavior:'smooth'});
  node('stockReverseApply').classList.toggle('hidden',!temPermissao('estoque.estornar'));
- if(!temPermissao('estoque.estornar')){node('stockReverseHistoryFilter').value='todos';stockReverseHistoryRender(id);node('stockReverseMessage').textContent='Somente consulta: seu nível não permite estornar estoque.';return;}
+ node('stockReverseReason').closest('label').classList.toggle('hidden',!temPermissao('estoque.estornar'));
+ node('stockReverseNotice').classList.toggle('hidden',!temPermissao('estoque.estornar'));
+ if(!temPermissao('estoque.estornar')){node('stockReverseHistoryFilter').value='todas';stockReverseHistoryRender(id);node('stockReverseMessage').textContent='Somente consulta: seu nível não permite estornar estoque.';return;}
  if(!resumo.pendentes){
   node('stockReverseMessage').textContent='Não há lançamentos sem estorno.';
   return;
