@@ -1,4 +1,4 @@
--- Após propostas base compras, cancelamento e agrupamento, dentro da mesma transação na restauração.
+-- Na restauração: BEGIN; proposta base compras; trecho de cancelamentos até antes de ew_compras_cancelar_cotacao; proposta agrupamento; este teste; ROLLBACK. Retirar BEGIN/COMMIT internos.
 DO $test$
 DECLARE e uuid;u uuid;o uuid;o2 uuid;p uuid;v uuid;s1 uuid;s2 uuid;s3 uuid;g uuid;op uuid:=gen_random_uuid();r jsonb;blocked boolean;itens jsonb;
 BEGIN
@@ -19,7 +19,7 @@ BEGIN
  blocked:=false;BEGIN PERFORM public.ew_compras_agrupar_solicitacoes(e,o,ARRAY[s1,s3],gen_random_uuid());EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE 'Somente solicitações%' THEN RAISE;END IF;blocked:=true;END;
  IF NOT blocked THEN RAISE EXCEPTION 'agrupou obras distintas';END IF;
  r:=public.ew_compras_agrupar_solicitacoes(e,o,ARRAY[s1,s2],op);g:=(r->>'id')::uuid;
- IF (SELECT (itens->0->>'quantidade')::numeric FROM public.ew_compras_solicitacoes WHERE id=g)<>4 THEN RAISE EXCEPTION 'soma errada';END IF;
+ IF (SELECT (s.itens->0->>'quantidade')::numeric FROM public.ew_compras_solicitacoes s WHERE id=g)<>4 THEN RAISE EXCEPTION 'soma errada';END IF;
  IF (SELECT count(*) FROM public.ew_compras_solicitacoes WHERE agrupada_em=g AND status='AGRUPADA')<>2 THEN RAISE EXCEPTION 'origens não preservadas';END IF;
  r:=public.ew_compras_agrupar_solicitacoes(e,o,ARRAY[s2,s1],op);IF NOT (r->>'repetida')::boolean THEN RAISE EXCEPTION 'retry errado';END IF;
  blocked:=false;BEGIN PERFORM public.ew_compras_agrupar_solicitacoes(e,o,ARRAY[s1,s2],gen_random_uuid());EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE 'Somente solicitações%' THEN RAISE;END IF;blocked:=true;END;
