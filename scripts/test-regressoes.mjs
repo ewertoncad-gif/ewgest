@@ -1378,7 +1378,7 @@ assert.ok(restored.includes("const raw=sessionStorage.getItem('ewgest_session_v3
  restored.includes("setView('login');")&&
  source.includes("restaurarSessaoSalva().catch(e=>{\\n  // Não manter".replaceAll('\\n','\n')),
  'Sessão ausente ou inválida mostra login; sessão válida abre painel sem flash, erros não travam o carregamento');
-assert.ok(/EWGEST <strong>· v\d+\.\d+<\/strong>/.test(source)&&
+assert.ok(/EWGEST <strong>· v\d+\.\d+(?:\.\d+)?<\/strong>/.test(source)&&
  source.includes('@media(prefers-reduced-motion:reduce){.startupSpinner'),
  'Indicador de carregamento acessível e versão presente no rodapé');
 // v44.7: os sete atalhos marcados no cabeçalho devem desaparecer, sem eventos órfãos.
