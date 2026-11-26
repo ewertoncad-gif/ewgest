@@ -6063,7 +6063,7 @@ async function carregarRegrasCem(){
     box.innerHTML=regras.map(r=>{
       const m=modulationCatalog.find(x=>x.id===r.modulacao_id),t=typologyCatalog.find(x=>x.id===m?.tipologia_principal_id);
       const code=m&&t?codigoVariacaoTecnica(t,m):'Destino histórico';
-      return '<div class="reviewPendingRow"><div><strong>'+escapeHTML(code)+' · '+(r.ativo?'Autorizada':'Desativada')+'</strong><p class="muted">'+escapeHTML(r.descricao_origem)+'</p></div>'+
+      return '<div class="reviewPendingRow"><div><strong>'+escapeHTML(code)+' · '+(r.ativo?(r.aplicavel?'Autorizada':'Autorizada, mas bloqueada por conflito ou alteração do cadastro'):'Desativada')+'</strong><p class="muted">'+escapeHTML(r.descricao_origem)+'</p></div>'+
       (r.ativo?'<button type="button" class="btn secondary" data-cem-rule-disable="'+escapeHTML(r.id)+'">Desativar</button>':'')+'</div>';
     }).join('')||'<p class="hint">Nenhuma regra autorizada.</p>';
     box.querySelectorAll('[data-cem-rule-disable]').forEach(b=>b.addEventListener('click',async()=>{
