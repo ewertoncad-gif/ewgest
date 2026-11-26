@@ -10,6 +10,8 @@ DECLARE
  e3 constant uuid:='40000000-0000-0000-0000-000000000003';
  e4 constant uuid:='40000000-0000-0000-0000-000000000004';
  e5 constant uuid:='40000000-0000-0000-0000-000000000005';
+ e6 constant uuid:='40000000-0000-0000-0000-000000000006';
+ m2 uuid;
  obra constant uuid:='50000000-0000-0000-0000-000000000001';
  antiga constant text:='GRADIL 6 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO';
  mestre constant text:='GUARDA CORPO - 8 MÓDULO(S) - COM VIDRO - UNIVERSAL - HYDRO';
@@ -48,5 +50,14 @@ BEGIN
   RAISE EXCEPTION 'FALHOU: outra empresa';
  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'FALHOU:%' THEN RAISE; END IF; END;
  IF (SELECT modulacao_id FROM public.esquadrias WHERE id=e5) IS NOT NULL THEN RAISE EXCEPTION 'isolamento falhou'; END IF;
+ -- O reconhecimento futuro pode falhar após uma tentativa de padronização.
+ INSERT INTO public.tipologias_modulacoes(empresa_id,tipologia_principal_id,descricao,quantidade_modulos) VALUES(emp,t,'GRADIL 2 MODULO(S)',2) RETURNING id INTO m2;
+ INSERT INTO public.esquadrias(id,empresa_id,obra_id,descricao,quantidade_modulos) VALUES(e6,emp,obra,'GRADIL 2 MODULO(S)',2);
+ INSERT INTO public.classificacoes_tipologias_auditoria VALUES(emp,m,'GRADIL 2 MODULO(S)');
+ BEGIN
+  PERFORM public.ew_resolver_modulacao_padronizada(e6,t,m2,replace(mestre,'8 MÓDULO','2 MÓDULO'),2,true,true);
+  RAISE EXCEPTION 'FALHOU: aceitou conflito histórico';
+ EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'FALHOU:%' THEN RAISE; END IF; END;
+ IF (SELECT descricao FROM public.tipologias_modulacoes WHERE id=m2)<>'GRADIL 2 MODULO(S)' OR (SELECT modulacao_id FROM public.esquadrias WHERE id=e6) IS NOT NULL OR EXISTS(SELECT 1 FROM ew_tipologias_interna.padronizacoes_modulacoes WHERE modulacao_id=m2) THEN RAISE EXCEPTION 'rollback transacional após conflito histórico falhou'; END IF;
  RAISE NOTICE 'Padronização, reconhecimento futuro, auditoria, histórico, duplicidade e isolamento aprovados.';
 END $$;
