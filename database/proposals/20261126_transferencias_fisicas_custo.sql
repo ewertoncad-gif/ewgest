@@ -26,11 +26,11 @@ WITH movimentos AS (
  SELECT p.empresa_id,p.fluxo,p.transferencia_id,a.id origem_movimento_id,b.id destino_movimento_id,
  a.tipo origem_tipo,a.local_id origem_id,a.galpao origem_galpao,b.tipo destino_tipo,b.local_id destino_id,b.galpao destino_galpao,
  a.tipo_material,a.material_id,a.comprimento_mm,a.unidade,-a.quantidade_delta quantidade,a.criado_em,
- a.quantidade_delta+coalesce((SELECT sum(z.quantidade_delta) FROM movimentos z WHERE z.empresa_id=a.empresa_id AND z.tipo=a.tipo AND z.tipo_material=a.tipo_material AND z.origem='ESTORNO'
+ a.quantidade_delta+coalesce((SELECT sum(z.quantidade_delta) FROM movimentos z WHERE z.empresa_id=a.empresa_id AND z.tipo=a.tipo AND z.tipo_material=a.tipo_material AND (z.origem='ESTORNO' OR (z.tipo='EMPRESA' AND z.origem='ESTORNO_TRANSFERENCIA'))
  AND (z.estorno_de_id=a.id OR (a.tipo='OBRA' AND a.tipo_material='TECNICO' AND EXISTS(
  SELECT 1 FROM public.ew_estornos_parcelas ep WHERE ep.empresa_id=a.empresa_id AND ep.obra_id=a.local_id AND ep.movimento_original_id=a.id AND ep.movimento_estorno_id=z.id
  AND ep.quantidade=abs(z.quantidade_delta) AND ep.local_estoque=z.galpao)))),0) saldo_origem,
- b.quantidade_delta+coalesce((SELECT sum(z.quantidade_delta) FROM movimentos z WHERE z.empresa_id=b.empresa_id AND z.tipo=b.tipo AND z.tipo_material=b.tipo_material AND z.origem='ESTORNO'
+ b.quantidade_delta+coalesce((SELECT sum(z.quantidade_delta) FROM movimentos z WHERE z.empresa_id=b.empresa_id AND z.tipo=b.tipo AND z.tipo_material=b.tipo_material AND (z.origem='ESTORNO' OR (z.tipo='EMPRESA' AND z.origem='ESTORNO_TRANSFERENCIA'))
  AND (z.estorno_de_id=b.id OR (b.tipo='OBRA' AND b.tipo_material='TECNICO' AND EXISTS(
  SELECT 1 FROM public.ew_estornos_parcelas ep WHERE ep.empresa_id=b.empresa_id AND ep.obra_id=b.local_id AND ep.movimento_original_id=b.id AND ep.movimento_estorno_id=z.id
  AND ep.quantidade=abs(z.quantidade_delta) AND ep.local_estoque=z.galpao)))),0) saldo_destino,
