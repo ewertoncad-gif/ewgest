@@ -822,7 +822,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.31</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.32</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -843,7 +843,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.31</div>
+        <div class="build">EWGEST • v46.29.32</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -2240,12 +2240,8 @@
         <option value="IMBIRIBEIRA">IMBIRIBEIRA</option>
       </select>
       <p class="hint">A fábrica será registrada nesta liberação para apurar o prazo até a saída da produção.</p>
-      <label for="releaseComponent">4. Tipo de liberação</label>
-      <select id="releaseComponent" required>
-        <option value="completo">Esquadria completa (100%)</option>
-      </select>
       <p id="releaseComponentBalance" class="hint" role="status"></p>
-      <p class="hint"><strong>Ao liberar a esquadria completa, marco e folhas ficam liberados juntos.</strong> Na expedição, o almoxarife poderá enviar o marco e cada folha física separadamente, em qualquer ordem. Liberações parciais antigas permanecem no histórico.</p>
+      <p id="releaseScopeNotice" class="hint"><strong>Liberação sempre completa (100%).</strong> A divisão por componentes é feita somente na saída para a obra.</p>
       <p class="hint"><strong>Liberação somente técnica.</strong> Não movimenta nem baixa materiais. O almoxarife registra a saída física ao entregar à produção.</p>
       <div class="releaseMirrorIntro hidden">
         <h3>4. Como deseja registrar a relação de materiais?</h3>
@@ -4913,17 +4909,16 @@ function releaseComponentSaldo(partes,tipo){
 function releaseComponentAtualizar(){
  if(!selectedItem)return;
  const parts=releaseParts(selectedItem);
- const tipo=node('releaseComponent').value;
- const pending=releaseComponentSaldo(parts,tipo);
+ const pending=releaseComponentSaldo(parts,'completo');
  const qty=node('releaseQty');
  qty.max=String(pending);
- if(!tipo||pending<=0)qty.value='';
+ if(pending<=0)qty.value='';
  else if(!Number.isSafeInteger(Number(qty.value))||Number(qty.value)<1||Number(qty.value)>pending)
   qty.value='1';
  node('releaseComponentBalance').textContent=
   'Marcos liberados: '+parts.marcos+'/'+selectedItem.quantidade+
   ' · Conjuntos das folhas liberados: '+parts.folhas+'/'+selectedItem.quantidade+
-  (tipo?' · Disponíveis nesta opção: '+pending:' · Selecione a parte a liberar.')+
+  ' · Disponíveis para liberação completa: '+pending+
   (parts.marcos>parts.folhas?' · Há '+(parts.marcos-parts.folhas)+' marco(s) liberado(s) sem o conjunto de folhas.':'')+
   (parts.folhas>parts.marcos?' · Há '+(parts.folhas-parts.marcos)+' conjunto(s) de folhas liberado(s) sem marco.':'');
 }
@@ -4936,9 +4931,6 @@ function openRelease(id){
  node('releaseItem').textContent=selectedItem.codigo+' · '+labeledDescription(selectedItem)+' · '+(selectedItem.localizacao||'');
  node('releaseBalance').textContent='Esquadrias: '+selectedItem.quantidade+
   ' · Marcos liberados: '+parts.marcos+' · Conjuntos de folhas liberados: '+parts.folhas+'.';
- const select=node('releaseComponent');
- select.value='completo';
- select.options[0].disabled=parts.saldoCompleto<=0;
 
  node('releaseQty').value='';
  node('releaseDate').value=todayLocal();
@@ -4949,7 +4941,7 @@ function openRelease(id){
  node('releaseMirrorPanel').classList.add('hidden');
  node('releaseModal').classList.remove('hidden');
  releaseComponentAtualizar();
- (select.value?node('releaseQty'):select).focus();
+ node('releaseQty').focus();
 }
 function closeRelease(){node('releaseModal').classList.add('hidden');selectedItem=null;}
 function expCompTipologiaLiberacao(item){
@@ -4961,16 +4953,14 @@ node('releaseExpCompOpen').addEventListener('click',()=>{
  if(source&&!node('releaseSave').disabled&&!node('releaseModal').classList.contains('hidden'))void expCompOpen(source.id,true);
 });
 node('releaseCancel').addEventListener('click',closeRelease);
-node('releaseComponent').addEventListener('change',releaseComponentAtualizar);
 // O formulário manual de materiais permanece indisponível neste fluxo.
 // A liberação técnica não baixa estoque; o almoxarife confirma a entrega em Estoque.
 node('releaseForm').addEventListener('submit',async event=>{
  event.preventDefault();if(!selectedItem||!temPermissao('liberacoes.criar'))return;
  const qty=Number(node('releaseQty').value),date=node('releaseDate').value;
- const fabrica=node('releaseFactory').value,componente=node('releaseComponent').value;
+ const fabrica=node('releaseFactory').value,componente='completo';
  const pending=releaseComponentSaldo(releaseParts(selectedItem),componente);
- if(componente!=='completo'||
-    node('releaseComponent').selectedOptions[0]?.disabled){
+ if(pending<=0){
   node('releaseError').textContent='A liberação deve ser da esquadria completa.';return;
  }
  if(!Number.isSafeInteger(qty)||qty<=0||qty>pending){
