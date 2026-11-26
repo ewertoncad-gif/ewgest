@@ -780,7 +780,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.15</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.16</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -801,7 +801,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.15</div>
+        <div class="build">EWGEST • v46.29.16</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -8283,10 +8283,11 @@ async function finLoad(){
 }
 function finRenderResumo(){
  const x=finState,o=x.orcamento;
- const gastos=new Map(),faturado=new Map(),comprometido=new Map(),pendencias=new Map();
- for(const d of x.compromissos||[]){gastos.set(d.categoria,Number(d.realizado_centavos)/100);comprometido.set(d.categoria,Number(d.comprometido_pendente_centavos)/100);pendencias.set(d.categoria,Number(d.pendencia_centavos||0)/100);}
+ const gastos=new Map(),faturado=new Map(),comprometido=new Map(),pendencias=new Map(),transferenciasPendentes=new Map();
+ for(const d of x.compromissos||[]){gastos.set(d.categoria,Number(d.realizado_centavos)/100);comprometido.set(d.categoria,Number(d.comprometido_pendente_centavos)/100);pendencias.set(d.categoria,Number(d.pendencia_centavos||0)/100);transferenciasPendentes.set(d.categoria,Number(d.transferencias_custo_pendentes||0));}
  for(const f of x.faturas)if(f.status==='emitido')faturado.set(f.categoria,(faturado.get(f.categoria)||0)+Number(f.valor_total));
  const compromissoTotal=[...comprometido.values()].reduce((a,b)=>a+b,0),pendenciaTotal=[...pendencias.values()].reduce((a,b)=>a+b,0);
+ const totalTransferenciasPendentes=[...transferenciasPendentes.values()].reduce((a,b)=>a+b,0);
  const gastoTotal=[...gastos.values()].reduce((a,b)=>a+b,0),recebTotal=[...faturado.values()].reduce((a,b)=>a+b,0);
  const totalReceita=x.precificacao?
   (Number(x.precificacao.fabricacao_distribuida_centavos)+
@@ -8297,9 +8298,10 @@ function finRenderResumo(){
  node('finTotals').innerHTML='<span><strong>Valor da obra: '+finMoney(o.valor_total)+'</strong></span>'+
   '<span><strong>Faturado: '+finMoney(recebTotal)+'</strong></span>'+
   '<span><strong>A faturar (fabricação/instalação): '+finMoney(totalReceita-recebTotal)+'</strong></span>'+
-  '<span><strong>Gastos realizados: '+finMoney(gastoTotal)+'</strong></span>'+
+  '<span><strong>Gastos realizados'+(totalTransferenciasPendentes?' (sem apropriação das transferências)':'')+': '+finMoney(gastoTotal)+'</strong></span>'+
   '<span><strong>Pedidos comprometidos (a conciliar): '+finMoney(compromissoTotal)+'</strong></span>'+
-  (pendenciaTotal?'<span><strong>Notas em conferência: '+finMoney(pendenciaTotal)+'</strong></span>':'');
+  (pendenciaTotal?'<span><strong>Notas em conferência: '+finMoney(pendenciaTotal)+'</strong></span>':'')+
+  (totalTransferenciasPendentes?'<span><strong>Transferências com custo pendente: '+totalTransferenciasPendentes+'</strong></span>':'');
  const resumoNiveis=x.orcamentoNiveis.length?
   '<h3>Níveis e empresas do orçamento</h3>'+
   '<div class="finTableWrap"><table class="finTable"><thead><tr>'+
@@ -8341,12 +8343,14 @@ function finRenderResumo(){
    const real=tipo==='custo'?(gastos.get(k)||0):(faturado.get(k)||0);
    const comprometidoCategoria=tipo==='custo'?(comprometido.get(k)||0):0;
    const pendente=tipo==='custo'?(pendencias.get(k)||0):0;
+   const custoPendente=tipo==='custo'&&(transferenciasPendentes.get(k)||0)>0;
    const resto=Math.round((total-real-comprometidoCategoria)*100)/100;
    return '<tr><td>'+label+'</td><td>'+(tipo==='custo'?'Gasto':'Faturamento')+
    '</td><td align="right">'+finMoney(total)+'</td><td align="right">'+finMoney(real)+
-   '</td><td align="right">'+(tipo==='custo'?finMoney(comprometidoCategoria):'—')+'</td><td align="right">'+(tipo==='custo'?finMoney(pendente):'—')+'</td><td align="right"'+(!pendente&&resto<0?' class="finNegative"':'')+'>'+(pendente?'Em conferência':finMoney(resto))+'</td></tr>';
+   '</td><td align="right">'+(tipo==='custo'?finMoney(comprometidoCategoria):'—')+'</td><td align="right">'+(tipo==='custo'?finMoney(pendente):'—')+'</td><td align="right"'+(!pendente&&!custoPendente&&resto<0?' class="finNegative"':'')+'>'+(custoPendente?'Custo de transferência pendente':pendente?'Em conferência':finMoney(resto))+'</td></tr>';
  }).join('')+'</tbody></table></div>'+
  '<p class="hint">O valor de fabricação e instalação representa receita prevista, não lucro. Pedidos aprovados comprometem o saldo antes da entrega física. Na conciliação fiscal o compromisso correspondente é substituído pelo realizado. Notas em conferência não entram no saldo definitivo. Concilie em Compras ou confirme que o saldo da nota é independente dos pedidos. Romaneios não contabilizam faturamento.</p>';
+ if(totalTransferenciasPendentes)node('finSummary').insertAdjacentHTML('beforeend','<p class="hint">Transferências entre obras ou estoque próprio não são novas compras. O saldo definitivo da categoria depende da apropriação do custo de origem; nenhum valor estimado foi lançado automaticamente.</p>');
  finRenderClassificacaoFiscal(x);
 }
 
@@ -8426,7 +8430,7 @@ async function finRevisarNota(id,acao){
   const custoAtual=Number(custo?.realizado_centavos||0)/100+Number(custo?.comprometido_pendente_centavos||0)/100;
   const sobra=Number(finState.orcamento[d.categoria])-custoAtual-Number(d.valor);
   if(!window.confirm('Aprovar a nota '+d.numero_documento+' no valor de '+finMoney(d.valor)+
-    ' para esta obra?'+(sobra<0?'\nAtenção: ultrapassará o teto em '+finMoney(-sobra)+'.':'')+
+    ' para esta obra?'+(Number(custo?.transferencias_custo_pendentes||0)>0?'\nAtenção: existem transferências com custo pendente; o saldo definitivo não está disponível.':sobra<0?'\nAtenção: ultrapassará o teto em '+finMoney(-sobra)+'.':'')+
     '\n\nSe a nota puder pertencer a um pedido, o saldo ficará em conferência até a conciliação. Os preços dos itens vinculados serão registrados no histórico real dos materiais.'))return;
  }
  const btn=panel.querySelector('[data-fin-'+(acao==='aprovar'?'approve':'reject')+']');
@@ -9005,7 +9009,8 @@ async function finRegistrarCusto(event){
  }):[];
  const custo=finState.compromissos.find(x=>x.categoria===cat);
  const diff=Number(finState.orcamento[cat])-Number(custo?.realizado_centavos||0)/100-Number(custo?.comprometido_pendente_centavos||0)/100-val;
- if(diff<0&&!window.confirm('Esta despesa ultrapassará o teto previsto de '+finMoney(finState.orcamento[cat])+
+ if(Number(custo?.transferencias_custo_pendentes||0)>0&&!window.confirm('Há transferências com custo pendente nesta categoria. O saldo definitivo não está disponível. Deseja registrar a despesa?'))return;
+ if(!Number(custo?.transferencias_custo_pendentes||0)&&diff<0&&!window.confirm('Esta despesa ultrapassará o teto previsto de '+finMoney(finState.orcamento[cat])+
   '. A nota será conferida com os pedidos e, se avulsa, poderá deixar o saldo negativo. Deseja registrar mesmo assim?'))return;
  if(!window.confirm('Registrar '+finMoney(val)+' de gastos em '+finCategories.find(x=>x[0]===cat)?.[1]+
    ' para esta obra? O saldo físico do estoque não será alterado.'))return;
