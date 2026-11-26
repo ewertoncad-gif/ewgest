@@ -52,6 +52,7 @@ const ctx={
  stockReverseDescricaoMaterial:m=>({cabecalho:'TESTE MATERIAL',detalhes:m.local_estoque}),
  matFormat:(x)=>String(x),escapeHTML:x=>String(x),
  stockReverseIndividual:()=>{},
+ temPermissao:chave=>chave==='estoque.estornar',
 };
 vm.createContext(ctx);
 vm.runInContext(countFn+'\n'+depFn+'\n'+renderFn,ctx);
@@ -64,6 +65,14 @@ ctx.stockReverseHistoryRender(own);
 assert.equal(node('stockReverseHistoryCount').textContent,
  'Exibindo 2 de 2 movimentação(ões) neste filtro.');
 assert.doesNotMatch(node('stockReverseHistoryList').innerHTML,/Contrapartida de estorno/);
+
+assert.match(node('stockReverseHistoryList').innerHTML,/data-stock-reverse-item=/,
+ 'Usuário autorizado recebe a opção de estorno');
+ctx.temPermissao=()=>false;
+ctx.stockReverseHistoryRender(own);
+assert.doesNotMatch(node('stockReverseHistoryList').innerHTML,/data-stock-reverse-item=/,
+ 'Usuário sem a flag não recebe opção de estorno');
+ctx.temPermissao=chave=>chave==='estoque.estornar';
 
 ctx.stockReverseConciliadas=2;
 ctx.stockReverseHistoryRender(own);
