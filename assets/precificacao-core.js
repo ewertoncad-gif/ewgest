@@ -147,7 +147,49 @@
    fechamento:{fabricacaoCentavos:somaFab,instalacaoCentavos:somaInst,
     valorTotalCentavos:somaFab+somaInst,diferencaCentavos:0}};
  }
+
+ // Preço-base editável em centavos/m²; o rateio final continua sendo conferido
+ // pelo servidor. Usar áreas inteiras para que o orçamento não derive em floats.
+ function redistribuirPrecos(dados){
+  const total=totaisComDistribuicao(dados.fabricacaoOriginalCentavos,dados.instalacaoOriginalCentavos).totalCentavos;
+  const cats=dados.categorias.map(c=>({...c}));
+  const areas=new Map(cats.map(c=>[c.id,0n]));
+  if(areas.size!==cats.length)erro('Categorias duplicadas.');
+  for(const x of dados.itens){
+   if(!areas.has(x.categoriaId))erro('Categoria inválida.');
+   areas.set(x.categoriaId,areas.get(x.categoriaId)+areaEmMicrometrosQuadrados(x));
+  }
+  const areaTotal=[...areas.values()].reduce((a,b)=>a+b,0n);
+  if(areaTotal<=0n)erro('Não há área para calcular o preço médio.');
+  const orcamento=BigInt(total)*BigInt(DENOMINADOR_AREA_M2);
+  const arredondar=(num,den)=>Number((num+den/2n)/den);
+  const precoMedio=Math.max(1,arredondar(orcamento,areaTotal));
+  inteiro(precoMedio,'Preço médio por m²',1,100000000000);
+  const ativos=cats.filter(c=>areas.get(c.id)>0n);
+  const fixos=ativos.filter(c=>c.bloqueado), livres=ativos.filter(c=>!c.bloqueado);
+  for(const c of cats)inteiro(c.precoBaseCentavosM2,'Preço por m² de '+c.nome,0,100000000000);
+  if(fixos.some(c=>c.precoBaseCentavosM2<=0))erro('Categoria bloqueada com preço inválido.');
+  const fixado=fixos.reduce((sum,c)=>sum+areas.get(c.id)*BigInt(c.precoBaseCentavosM2),0n);
+  const saldo=orcamento-fixado;
+  if(!livres.length){
+   // Cada preço exibido é arredondado a 1 centavo/m². Uma diferença de até
+   // meio centavo/m² pode ser fechada pelo rateio de centavos já existente.
+   if((saldo<0n?-saldo:saldo)*2n>areaTotal)
+    erro('Os preços bloqueados não fecham o orçamento. Desbloqueie uma categoria ou restaure os preços médios.');
+  }else{
+   if(saldo<=0n)erro('Os preços bloqueados esgotam o orçamento. Reduza um preço ou desbloqueie uma categoria.');
+   const peso=c=>BigInt(c.precoBaseCentavosM2||precoMedio);
+   const somaPesos=livres.reduce((sum,c)=>sum+areas.get(c.id)*peso(c),0n);
+   const novos=livres.map(c=>[c,Math.max(1,arredondar(saldo*peso(c),somaPesos))]);
+   for(const [c,v] of novos)inteiro(v,'Preço redistribuído de '+c.nome,1,100000000000);
+   for(const [c,v] of novos)c.precoBaseCentavosM2=v;
+   const minimo=livres.reduce((sum,c)=>sum+areas.get(c.id),0n);
+   if(saldo<minimo&&fixos.length)erro('Saldo insuficiente para preços positivos nas demais categorias. Reduza um preço bloqueado.');
+  }
+  for(const c of cats)if(!c.bloqueado&&areas.get(c.id)===0n)c.precoBaseCentavosM2=precoMedio;
+  return cats;
+ }
  global.ewPrecificacaoCore=Object.freeze({
-  sugerirCategoria,totaisComDistribuicao,precificar
+  sugerirCategoria,totaisComDistribuicao,precificar,redistribuirPrecos
  });
 })(window);
