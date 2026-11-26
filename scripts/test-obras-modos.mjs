@@ -19,7 +19,7 @@ const make=()=>new Function(src+`
 const x=make(),visible=id=>!x.node(id).classList.contains('hidden');
 assert.equal(x.modoObrasPermitido('invalid'),false);
 x.abrirObrasPelaBarra('release');assert.equal(x.view(),'worksPage');assert.equal(x.listed(),1);
-x.mode('release');x.renderDetail(x.works[0]);assert.ok(x.node('items').innerHTML.includes('data-esq="ea"'));assert.ok(!x.node('items').innerHTML.includes('data-release-undo'));assert.equal(visible('releaseUndoActions'),false);
+x.mode('release');x.renderDetail(x.works[0]);assert.ok(x.node('items').classList.contains('releaseCompact'));assert.ok(x.node('items').innerHTML.includes('data-esq="ea"'));assert.ok(!x.node('items').innerHTML.includes('data-release-undo'));assert.equal(visible('releaseUndoActions'),false);
 x.abrirObrasPelaBarra('releaseUndo');assert.equal(x.selected().id,'a');assert.equal(visible('releaseUndoActions'),true);assert.ok(x.node('items').innerHTML.includes('data-release-undo="ea"'));assert.ok(!x.node('items').innerHTML.includes('data-esq="eb"'));
 x.abrirObrasPelaBarra('shipment');assert.equal(visible('romaneioActions'),true);assert.ok(x.node('items').innerHTML.includes('data-ship="ea"'));assert.ok(!x.node('items').innerHTML.includes('data-ship="eb"'));
 x.abrirObrasPelaBarra('shipmentUndo');assert.equal(visible('romaneioActions'),false);assert.equal(visible('romaneioHistoryPanel'),true);assert.equal(visible('detailItemFilter'),false);assert.equal(x.node('items').innerHTML,'');assert.ok(x.node('romaneioHistoryPanel').innerHTML.includes('data-romaneio-cancelar="ra"'));assert.ok(!x.node('romaneioHistoryPanel').innerHTML.includes('data-romaneio-cancelar="rb"'));assert.ok(!x.node('romaneioHistoryPanel').innerHTML.includes('data-romaneio-cancelar="rc"'));
