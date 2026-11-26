@@ -780,7 +780,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.13</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.14</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -801,7 +801,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.13</div>
+        <div class="build">EWGEST • v46.29.14</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -7599,7 +7599,7 @@ function cemAtualizarBotao(){
  else if(!nova&&esk)info='Esta obra já existe. Desmarque Esquadrias para não duplicar seus itens.';
  else if(!nova&&!perf&&!ace)info='Marque Perfis e/ou Acessórios para a obra existente.';
  else if(nova)info='Pronto para cadastrar a obra, esquadrias e materiais selecionados após confirmação.';
- else info='Pronto para vincular materiais à obra existente, preservando esquadrias e estoque físico.';
+ else info='Materiais previstos só podem ser atualizados em obra sem histórico operacional. O servidor verificará os vínculos antes de gravar.';
  node('cemCommitHint').textContent=info;
 }
 function cemBarrasConferencia(r){
@@ -7927,7 +7927,7 @@ function cemDescartarRascunho(){
   cemRenderPreview();
 }
 async function matVerificarZip(){
-  const analise=++cemAnaliseGeracao;
+  const analise=++cemAnaliseGeracao,empresaAnalise=currentCompany?.id;
   const arq=node('matCemArquivo').files?.[0],out=node('matCemResposta');
   cemParsed=null;cemOperacaoId=null;node('cemImportResult').textContent='';cemRenderPreview();
   if(!arq){out.textContent='Escolha o arquivo ZIP de exportação técnica.';return;}
@@ -7936,7 +7936,7 @@ async function matVerificarZip(){
   out.textContent='Lendo o ZIP no navegador e separando os itens calculados…';
   try{
     const xml=await cemExtrairXML(arq);
-    if(analise!==cemAnaliseGeracao||!session)return;
+    if(analise!==cemAnaliseGeracao||!session||currentCompany?.id!==empresaAnalise)return;
     const r=cemLerObra(xml);
     r.materiaisPayload=cemMontarPayload(r);
     r.esquadriasPayload=cemMontarEsquadrias(r);
@@ -7950,6 +7950,8 @@ async function matVerificarZip(){
     if(analise!==cemAnaliseGeracao||!session)return;
     if(!currentCompany?.id)throw new Error('Não foi possível identificar a empresa do usuário.');
     const empresaId=currentCompany.id;
+    if(empresaId!==empresaAnalise)return;
+    r.empresaId=empresaId;
     const empresa='eq.'+empresaId;
     const [obrasBanco,perfisBanco,acessoriosBanco,aliasesBanco]=await Promise.all([
       apiGet('obras',{select:'id,codigo,nome,cliente',empresa_id:empresa,arquivada_em:'is.null',limit:'1000'}),
@@ -7999,6 +8001,7 @@ async function cemImportarSelecionados(){
  const save=node('cemCommit'),result=node('cemImportResult');
  cemAtualizarBotao();
  if(save.disabled||!r||r.obraDuplicada)return;
+ if(!temPermissao('obras.importar')||!r.empresaId||currentCompany?.id!==r.empresaId){result.textContent='Empresa ou permissão alterada. Analise o ZIP novamente.';return;}
  const nova=!r.obraExistente,perf=p?r.materiaisPayload.perfis:[],aces=a?r.materiaisPayload.acessorios:[];
  const decisions=cemDecisoesAtivas();
  if(decisions.some(x=>!x.decisao)){result.textContent='Resolva primeiro os cadastros equivalentes.';return;}
@@ -8014,7 +8017,7 @@ async function cemImportarSelecionados(){
    'As esquadrias entrarão aguardando liberação. O estoque da obra e seus materiais necessários serão registrados, mas os saldos físicos começam zerados e só mudam após recebimento real. Não serão gerados liberações ou romaneios.'+extras:
    'Confirmar importação de '+perf.length+' perfis e '+aces.length+
    ' acessórios para '+r.obraExistente.nome+' ('+r.codigo+')?\n\n'+
-   'Os dados técnicos, as esquadrias existentes e o estoque físico serão preservados.'+extras;
+   'Somente obras sem histórico operacional podem atualizar materiais previstos. Compras, recebimentos, despesas, liberações e demais movimentações impedem a reimportação. As esquadrias, o financeiro e o estoque físico serão preservados.'+extras;
  if(!r.confirmacaoInicialFeita){
    if(!window.confirm(confirmacao))return;
    r.confirmacaoInicialFeita=true;
@@ -8030,6 +8033,7 @@ async function cemImportarSelecionados(){
  result.textContent=nova?'Cadastrando obra, esquadrias e materiais…':'Gravando materiais…';
  try{
    await ensureSession();
+   if(analise!==cemAnaliseGeracao||!session||currentCompany?.id!==r.empresaId||!temPermissao('obras.importar'))throw new Error('Empresa, arquivo ou permissão alterada. Analise novamente.');
    const payload=nova?{
      p_empresa_id:currentCompany.id,p_codigo_obra:r.codigo,p_nome_obra:r.nomeObra,
      p_cliente:r.clienteObra,p_esquadrias:r.esquadriasPayload,
@@ -8044,7 +8048,7 @@ async function cemImportarSelecionados(){
       (r.precificacaoDraft?'ew_importar_obra_cem_precificacao':'ew_importar_obra_cem_financeiro'):
       'ew_importar_cem_conciliado'),{
      method:'POST',token:session.access_token,timeoutMs:120000,body:payload});
-   if(analise!==cemAnaliseGeracao||!session)return;
+   if(analise!==cemAnaliseGeracao||!session||currentCompany?.id!==r.empresaId)return;
    if(!answer||answer.estoque_fisico_alterado!==false||
       (nova?(answer.obra_criada!==true||answer.orcamento_gravado!==true||
         (r.precificacaoDraft&&answer.precificacao_gravada!==true)||
@@ -10223,15 +10227,8 @@ function stockCemDados(r){
 
 function stockCemClose(){node('stockImportCemOverlay').classList.add('hidden');}
 function stockCemOpen(){
- const id=node('stockWork').value,obra=works.find(w=>w.id===id);
- if(!obra){node('stockMessage').textContent='Selecione uma obra antes de importar quantidades.';return;}
- stockCemParsed=null;stockCemOperationId=null;
- node('stockCemFile').value='';
- node('stockCemPreview').classList.add('hidden');
- node('stockCemConfirm').disabled=true;
- node('stockCemStatus').textContent='';
- node('stockCemTarget').textContent='Estoque selecionado: '+obra.nome+' ('+obra.codigo+').';
- node('stockImportCemOverlay').classList.remove('hidden');
+ node('stockMessage').textContent='O CEM informa materiais previstos. Registre a entrada física em Recebimento.';
+ stockCemClose();
 }
 function stockCemMirrorRow(tipo,row={},index=-1){
  const perfil=tipo==='perfil';
@@ -10370,44 +10367,9 @@ async function stockCemAnalyze(){
 }
 
 async function stockCemCommit(){
- const dados=stockCemParsed;
- if(!dados||!stockCemOperationId)return;
- if(node('stockWork').value!==dados.obraId){
-  node('stockCemStatus').textContent='A obra selecionada mudou; analise o arquivo novamente.';
-  return;
- }
- let mirror;
- try{mirror=stockCemReadMirror();}
- catch(e){node('stockCemStatus').textContent='Corrija o espelho: '+e.message;return;}
- if(!window.confirm('Confirmar importação para '+dados.codigo+'?\n'+
-  mirror.perfis.length+' linhas de perfis e '+mirror.acessorios.length+' de acessórios.'+
-  '\nEdições ou acréscimos no espelho: '+mirror.edicoes+'.\n'+
-  'Linhas desmarcadas: '+mirror.ignoradas+'.\n\n'+
-  'Saldos com lançamentos anteriores serão preservados, sem substituição.'))return;
- const btn=node('stockCemConfirm');btn.disabled=true;
- node('stockCemStatus').textContent='Registrando as quantidades revisadas…';
- try{
-  await ensureSession();
-  const res=await request('/rest/v1/rpc/ew_importar_saldo_obra_cem',{
-   method:'POST',token:session.access_token,timeoutMs:120000,
-   body:{p_empresa_id:currentCompany.id,p_codigo_obra:dados.codigo,
-    p_perfis:mirror.perfis,p_acessorios:mirror.acessorios,p_nome_arquivo:dados.nome_arquivo,
-    p_operacao_id:stockCemOperationId}
-  });
-  const pend=res.pendencias||[];
-  stockCemClose();
-  await abrirEstoque();
-  node('stockMessage').textContent='Importação revisada: '+res.linhas_importadas+
-    ' linha(s) nova(s); '+res.linhas_preservadas+' saldo(s) existente(s) preservado(s).'+
-    (pend.length?' Atenção: '+pend.length+' material(is) exigem conferência: '+
-      pend.slice(0,10).map(x=>x.codigo+' ('+x.cor+')').join(', ')+'.':'')+
-    (res.repetida?' Esta operação já estava registrada.':'');
-  stockCemParsed=null;
- }catch(err){
-  node('stockCemStatus').textContent='Não foi possível concluir: '+err.message+
-    '. Verifique os saldos antes de repetir.';
-  btn.disabled=false;
- }
+ node('stockCemConfirm').disabled=true;
+ stockCemClose();
+ node('stockMessage').textContent='Importação de saldo físico pelo CEM desativada. Utilize Recebimento.';
 }
 node('stockCemAnalyze').addEventListener('click',stockCemAnalyze);
 node('stockCemConfirm').addEventListener('click',stockCemCommit);
