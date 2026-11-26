@@ -1,6 +1,6 @@
 -- CEM: reimportação só antes de histórico operacional; estoque físico não nasce do plano.
 CREATE OR REPLACE FUNCTION ew_compras_interna.cem_obra_editavel(p_empresa uuid,p_codigo text) RETURNS uuid
-LANGUAGE plpgsql SECURITY INVOKER SET search_path='' AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $
 DECLARE w uuid; n int;
 BEGIN
  IF NOT public.ew_pode(p_empresa,'obras.importar') THEN RAISE EXCEPTION 'PERMISSAO_NEGADA: obras.importar';END IF;
@@ -24,6 +24,7 @@ BEGIN
  RETURN w;
 END;$$;
 REVOKE ALL ON FUNCTION ew_compras_interna.cem_obra_editavel(uuid,text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION ew_compras_interna.cem_obra_editavel(uuid,text) TO authenticated;
 CREATE OR REPLACE FUNCTION public.ew_conciliar_codigo_cem(p_empresa_id uuid, p_tipo text, p_material_id uuid, p_codigo_cem text, p_usar_codigo_cem boolean)
  RETURNS jsonb
  LANGUAGE plpgsql
