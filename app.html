@@ -822,7 +822,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.27</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.28</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -843,7 +843,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.27</div>
+        <div class="build">EWGEST • v46.29.28</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -2456,6 +2456,14 @@
     <label id="recognitionModulationLabel">Configuração existente ou nova variação</label>
     <select id="recognitionModulation" class="hidden" tabindex="-1" aria-hidden="true" disabled><option value="">Selecione primeiro uma tipologia</option></select>
     <div id="recognitionModulationChoices" class="descriptiveChoices" role="radiogroup" aria-labelledby="recognitionModulationLabel"></div>
+    <fieldset id="recognitionAdaptFields" class="hidden" style="margin:12px 0;border:1px solid #d5e0ed;border-radius:8px;padding:10px">
+      <legend>Adaptar descrição da tipologia selecionada</legend>
+      <p class="hint">Mantém o texto do catálogo e altera somente a quantidade explícita de módulos. Confira no projeto antes de aplicar.</p>
+      <label for="recognitionAdaptCount">Quantidade de módulos da variação</label>
+      <input id="recognitionAdaptCount" type="number" min="1" max="100" step="1" placeholder="Ex.: 6">
+      <p id="recognitionAdaptPreview" class="recognitionCompare" role="status" aria-live="polite"></p>
+      <button id="recognitionAdaptApply" type="button" class="btn secondary" disabled>Usar descrição adaptada</button>
+    </fieldset>
     <div id="recognitionNewModFields" class="hidden">
       <label for="recognitionModDescription">Descrição da nova modulação</label>
       <textarea id="recognitionModDescription" class="typologyEditInput" rows="3" maxlength="1000"></textarea>
@@ -3253,10 +3261,17 @@ function typologyPrincipalCode(item){
   if(!cadastro)return '';
   return (typologyCatalog.find(t=>t.id===(cadastro.tipologia_principal_id||cadastro.id))||cadastro).codigo;
 }
+// A descrição de catálogo só prevalece quando a variação registrada corresponde ao modelo oficial adaptado.
+function descricaoOperacionalTipologia(item){
+  const mod=modulationCatalog.find(m=>m.id===item.modulacao_id);
+  const principal=typologyCatalog.find(t=>t.id===mod?.tipologia_principal_id);
+  const oficial=descricaoAdaptadaModulos(principal?.descricao,mod?.quantidade_modulos||quantidadeModulosExpressa(mod?.descricao));
+  return oficial&&comparacaoEstritaDescricao(oficial)===comparacaoEstritaDescricao(mod.descricao)?mod.descricao:(item.descricao||'');
+}
 function labeledDescription(item){
   const code=typologyCode(item);
   const pendente=item.tipologia_id&&!item.modulacao_id?' · MODULAÇÃO A CONFERIR':'';
-  return (code?code+' — ':'')+(item.descricao||'')+pendente;
+  return (code?code+' — ':'')+descricaoOperacionalTipologia(item)+pendente;
 }
 function sortWorkItems(a,b){
   const ac=typologyPrincipalCode(a),bc=typologyPrincipalCode(b);
@@ -4360,7 +4375,7 @@ function renderDetail(w){
       const part=releaseParts(x);
       const pending=part.saldoCompleto;
       const latest=releaseHistory.find(r=>r.esquadria_id===x.id);
-      return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><div class="hint releaseDimensions" style="margin-top:var(--release-dimension-gap,8px)">${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Com alguma parte liberada: ${Number(x.qtd_liberada)||0}</span><span>Marcos: ${part.marcos} · Folhas (conj.): ${part.folhas}</span><span>Restam por liberar: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline releaseFooter" style="margin-top:var(--release-footer-gap,8px)"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/'))+
+      return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><div class="hint releaseDimensions" style="margin-top:var(--release-dimension-gap,8px)">${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</div><p class="muted itemdescription hidden">${escapeHTML(descricaoOperacionalTipologia(x))}</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Com alguma parte liberada: ${Number(x.qtd_liberada)||0}</span><span>Marcos: ${part.marcos} · Folhas (conj.): ${part.folhas}</span><span>Restam por liberar: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline releaseFooter" style="margin-top:var(--release-footer-gap,8px)"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/'))+
   (latest.fabrica?' · '+escapeHTML(latest.fabrica):' · fábrica não informada (histórico)'):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button>${undoRelease?`<div class="topactions" style="padding:4px 12px 10px"><button type="button" class="btn secondary releaseCancellationButton" data-release-undo="${escapeHTML(x.id)}" ${!latest||!temPermissao('liberacoes.cancelar')?'disabled':''}>Estornar liberação</button></div>`:''}</div>`;
     }).join(''):'<div class="empty">'+(undoRelease?'Nenhuma liberação ativa nesta obra.':'Nenhuma esquadria nesta obra.')+'</div>';
     node('items').querySelectorAll('[data-esq]').forEach(b=>b.addEventListener('click',()=>openRelease(b.dataset.esq)));
@@ -4370,7 +4385,7 @@ function renderDetail(w){
       const custom=expedicaoAtivaMap.get(x.id);
       if(custom){
         const pode=dispatchReady&&temPermissao('romaneios.emitir')&&custom.partes.some(p=>Number(p.saldo)>0);
-        return '<div class="item"><button type="button" class="itemclick" data-ship="'+escapeHTML(x.id)+'" '+(!pode?'disabled':'')+'><div class="itemline"><strong>'+escapeHTML(x.codigo)+'</strong><span class="muted itemlocation hidden">'+escapeHTML(x.localizacao||'')+'</span></div><p class="muted itemdescription hidden">'+escapeHTML(x.descricao||'')+'</p><div class="itemline"><span>Composição · revisão '+Number(custom.revisao)+'</span><span>'+escapeHTML(custom.partes.map(p=>p.nome+': '+p.enviado+'/'+p.total).join(' · '))+'</span><strong>'+amount(area(x,Number(custom.equivalente_expedido)))+' m² expedidos</strong></div><span class="hint">'+(pode?'Emitir componentes pelo romaneio':'Sem saldo disponível')+'</span></button></div>';
+        return '<div class="item"><button type="button" class="itemclick" data-ship="'+escapeHTML(x.id)+'" '+(!pode?'disabled':'')+'><div class="itemline"><strong>'+escapeHTML(x.codigo)+'</strong><span class="muted itemlocation hidden">'+escapeHTML(x.localizacao||'')+'</span></div><p class="muted itemdescription hidden">'+escapeHTML(descricaoOperacionalTipologia(x))+'</p><div class="itemline"><span>Composição · revisão '+Number(custom.revisao)+'</span><span>'+escapeHTML(custom.partes.map(p=>p.nome+': '+p.enviado+'/'+p.total).join(' · '))+'</span><strong>'+amount(area(x,Number(custom.equivalente_expedido)))+' m² expedidos</strong></div><span class="hint">'+(pode?'Emitir componentes pelo romaneio':'Sem saldo disponível')+'</span></button></div>';
       }
       const s=shipmentStats(x);
       const pendingFrames=Math.max(0,s.marcosLiberados-s.frames);
@@ -4381,7 +4396,7 @@ function renderDetail(w){
         ?'Folhas: composição a confirmar na primeira saída'
         :'Folhas enviadas: '+s.leaves+' / '+s.maxLeaves+' ( '+s.per+' por unidade )';
       const dateText=s.last?'Última saída: '+s.last.data_saida.split('-').reverse().join('/'):'Nenhuma saída registrada';
-      return `<div class="item"><button type="button" class="itemclick" data-ship="${escapeHTML(x.id)}" ${!canShip?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Com alguma parte liberada: ${s.released}</span><span>Marcos enviados: ${s.frames} / ${s.marcosLiberados}</span><span>${escapeHTML(sheetText)}</span></div><div class="itemline" style="margin-top:8px"><span class="hint">${escapeHTML(dateText)}</span><span class="tap">${!dispatchReady?'Configuração pendente':!canEdit?'Somente consulta':s.released===0?'Ainda não liberada':canShip?'Registrar saída':'Tudo expedido'}</span></div></button></div>`;
+      return `<div class="item"><button type="button" class="itemclick" data-ship="${escapeHTML(x.id)}" ${!canShip?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><p class="muted itemdescription hidden">${escapeHTML(descricaoOperacionalTipologia(x))}</p><div class="itemline"><span>Com alguma parte liberada: ${s.released}</span><span>Marcos enviados: ${s.frames} / ${s.marcosLiberados}</span><span>${escapeHTML(sheetText)}</span></div><div class="itemline" style="margin-top:8px"><span class="hint">${escapeHTML(dateText)}</span><span class="tap">${!dispatchReady?'Configuração pendente':!canEdit?'Somente consulta':s.released===0?'Ainda não liberada':canShip?'Registrar saída':'Tudo expedido'}</span></div></button></div>`;
     }).join(''):'<div class="empty">Nenhuma esquadria liberada para fabricação nesta obra.</div>';
     node('items').querySelectorAll('[data-ship]').forEach(b=>b.addEventListener('click',()=>openShipment(b.dataset.ship)));
   }
@@ -6008,6 +6023,7 @@ function abrirConferenciaTipologia(id){
   recognitionTargetRows=[];
   node('recognitionTargetSearch').value='';
   node('recognitionTargetType').value='';
+  node('recognitionAdaptCount').value=String(quantidadeModulosExpressa(item.descricao)||'');
   const sugestões=sugerirPorDescricao(item.descricao,typologyCatalog);
   const suggested=new Set(sugestões.map(x=>x.tipologia.id));
   if(sugestões.length){
@@ -6097,9 +6113,57 @@ function atualizarOpcoesModulacao(){
   node('recognitionModCount').value='';
   renderizarCamposModulacao();
 }
+// Não deduz módulos por folhas, medidas ou código. Somente uma ocorrência explícita é adaptável.
+function descricaoAdaptadaModulos(descricao,quantidade){
+  const q=Number(quantidade),texto=String(descricao||'').trim();
+  if(!Number.isInteger(q)||q<1||q>100)return '';
+  const padrao=/\b(\d+)(\s+M[ÓO]DULO(?:S|\(S\))?)(?=$|[\s.,;:/-])/gi;
+  if([...texto.matchAll(padrao)].length!==1)return '';
+  return texto.replace(padrao,(_,numero,sufixo)=>String(q)+sufixo);
+}
+function decidirAdaptacaoModulos(descricao,quantidade,mods){
+  const adaptada=descricaoAdaptadaModulos(descricao,quantidade);
+  if(!adaptada)return {descricao:'',existente:null,ambiguo:false};
+  const iguais=mods.filter(m=>comparacaoEstritaDescricao(m.descricao)===comparacaoEstritaDescricao(adaptada));
+  const existente=iguais.length===1&&(!iguais[0].quantidade_modulos||Number(iguais[0].quantidade_modulos)===Number(quantidade))?iguais[0]:null;
+  return {descricao:adaptada,existente,ambiguo:iguais.length>0&&!existente};
+}
+function estadoAdaptacaoReconhecimento(){
+  const t=typologyCatalog.find(x=>x.id===node('recognitionTarget').value);
+  const principal=typologyCatalog.find(x=>x.id===(t?.tipologia_principal_id||t?.id))||t;
+  const q=node('recognitionAdaptCount').value;
+  return {t,q,...decidirAdaptacaoModulos(principal?.descricao,q,modulacoesDaTipologia(t))};
+}
+function atualizarAdaptacaoReconhecimento(){
+  const a=estadoAdaptacaoReconhecimento();
+  node('recognitionAdaptFields').classList.toggle('hidden',!a.t);
+  const preview=node('recognitionAdaptPreview'),button=node('recognitionAdaptApply');
+  button.disabled=!a.t||!a.descricao||a.ambiguo;
+  if(!a.descricao){
+    preview.textContent='Informe de 1 a 100 módulos. A tipologia precisa ter exatamente uma quantidade de módulos explícita na descrição.';
+    return;
+  }
+  const outras=modulacoesDaTipologia(a.t).filter(m=>m.id!==a.existente?.id&&Number(m.quantidade_modulos||quantidadeModulosExpressa(m.descricao))===Number(a.q));
+  preview.textContent=a.descricao+(a.ambiguo?' · Há configurações com esta descrição e quantidade inconsistente ou duplicada. Revise o cadastro.':a.existente?' · Reutilizar '+codigoVariacaoTecnica(a.t,a.existente)+'.':' · Preparar nova variação, sem alterar o cadastro principal.')+
+    (outras.length?' · Existem outras configurações com '+a.q+' módulos: '+outras.map(m=>codigoVariacaoTecnica(a.t,m)).join(', ')+'. Compare as descrições antes de criar.':'');
+  button.textContent=a.existente?'Usar configuração existente':'Usar descrição adaptada';
+}
+function aplicarAdaptacaoReconhecimento(){
+  const a=estadoAdaptacaoReconhecimento();
+  if(!a.t||!a.descricao||a.ambiguo)return;
+  const select=node('recognitionModulation');
+  select.value=a.existente?a.existente.id:'__CRIAR__';
+  node('recognitionModDescription').value=a.descricao;
+  node('recognitionModCount').value=a.q;
+  for(const radio of node('recognitionModulationChoices').querySelectorAll('input[type="radio"]'))radio.checked=radio.value===select.value;
+  node('recognitionApproval').checked=false;
+  node('recognitionDivergence').checked=false;
+  renderizarCamposModulacao();
+}
 function renderizarCamposModulacao(){
   const criar=node('recognitionModulation').value==='__CRIAR__';
   node('recognitionNewModFields').classList.toggle('hidden',!criar);
+  atualizarAdaptacaoReconhecimento();
   atualizarComparacaoReconhecimento();
 }
 function diferencaNoReconhecimento(){
@@ -7269,6 +7333,8 @@ node('recognitionTarget').addEventListener('change',()=>{node('recognitionApprov
 node('recognitionTargetSearch').addEventListener('input',atualizarListaTipologiasReconhecimento);
 node('recognitionTargetType').addEventListener('change',atualizarListaTipologiasReconhecimento);
 node('recognitionModulation').addEventListener('change',()=>{node('recognitionApproval').checked=false;node('recognitionDivergence').checked=false;renderizarCamposModulacao();});
+node('recognitionAdaptCount').addEventListener('input',atualizarAdaptacaoReconhecimento);
+node('recognitionAdaptApply').addEventListener('click',aplicarAdaptacaoReconhecimento);
 node('recognitionModDescription').addEventListener('input',atualizarComparacaoReconhecimento);
 node('recognitionModCount').addEventListener('input',validarReconhecimento);
 node('recognitionApproval').addEventListener('change',validarReconhecimento);
