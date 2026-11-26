@@ -45,6 +45,9 @@ BEGIN
  SELECT * INTO STRICT v_principal FROM public.tipologias WHERE id=coalesce(v_tip.tipologia_principal_id,v_tip.id) AND empresa_id=v_item.empresa_id AND tipologia_principal_id IS NULL AND NOT provisoria FOR UPDATE;
  v_desc:=ew_tipologias_interna.descricao_padronizada(v_principal.descricao,p_quantidade_modulos);
  v_origem:=btrim(v_item.descricao);
+ IF p_reconhecer_futuras AND ew_tipologias_interna.modulos_explicitos(v_origem) IS NOT NULL AND ew_tipologias_interna.modulos_explicitos(v_origem)<>p_quantidade_modulos THEN
+  RAISE EXCEPTION 'A quantidade escolhida difere da origem CEM. Confirme somente nesta obra.';
+ END IF;
  IF v_desc IS NULL OR v_desc COLLATE "C" IS DISTINCT FROM btrim(p_descricao_esperada) COLLATE "C" THEN
   RAISE EXCEPTION 'A descrição do catálogo mudou ou não pode ser adaptada; atualize a tela.';
  END IF;
@@ -52,7 +55,7 @@ BEGIN
  -- Qualquer outro candidato com a mesma quantidade exige revisão; nunca funde por quantidade.
  SELECT array_agg(m.id ORDER BY m.id) INTO v_ids FROM public.tipologias_modulacoes m
  WHERE m.empresa_id=v_item.empresa_id AND m.tipologia_principal_id=v_principal.id
- AND (btrim(m.descricao) COLLATE "C" IN (v_desc COLLATE "C",v_origem COLLATE "C")
+ AND ((btrim(m.descricao) COLLATE "C"=v_desc COLLATE "C" OR (btrim(m.descricao) COLLATE "C"=v_origem COLLATE "C" AND ew_tipologias_interna.modulos_explicitos(m.descricao)=p_quantidade_modulos))
  OR m.quantidade_modulos=p_quantidade_modulos
  OR ew_tipologias_interna.modulos_explicitos(m.descricao)=p_quantidade_modulos);
  IF coalesce(cardinality(v_ids),0)>1 THEN RAISE EXCEPTION 'Mais de uma configuração possível para esta modulação. Revise o cadastro.'; END IF;
