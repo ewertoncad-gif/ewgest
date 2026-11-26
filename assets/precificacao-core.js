@@ -178,15 +178,18 @@
     erro('Os preços bloqueados não fecham o orçamento. Desbloqueie uma categoria ou restaure os preços médios.');
   }else{
    if(saldo<=0n)erro('Os preços bloqueados esgotam o orçamento. Reduza um preço ou desbloqueie uma categoria.');
-   const peso=c=>BigInt(c.precoBaseCentavosM2||precoMedio);
-   const somaPesos=livres.reduce((sum,c)=>sum+areas.get(c.id)*peso(c),0n);
-   const novos=livres.map(c=>[c,Math.max(1,arredondar(saldo*peso(c),somaPesos))]);
+   // Todas as categorias livres recebem a mesma média do saldo restante.
+   // Não reaproveitar pesos anteriores: abrir um cadeado ou mover itens
+   // deve recalcular a média, e não preservar proporções antigas.
+   const areaLivre=livres.reduce((sum,c)=>sum+areas.get(c.id),0n);
+   const mediaLivre=Math.max(1,arredondar(saldo,areaLivre));
+   const novos=livres.map(c=>[c,mediaLivre]);
    for(const [c,v] of novos)inteiro(v,'Preço redistribuído de '+c.nome,1,100000000000);
    for(const [c,v] of novos)c.precoBaseCentavosM2=v;
    const minimo=livres.reduce((sum,c)=>sum+areas.get(c.id),0n);
    if(saldo<minimo&&fixos.length)erro('Saldo insuficiente para preços positivos nas demais categorias. Reduza um preço bloqueado.');
   }
-  for(const c of cats)if(!c.bloqueado&&areas.get(c.id)===0n)c.precoBaseCentavosM2=precoMedio;
+  for(const c of cats)if(areas.get(c.id)===0n){c.bloqueado=false;c.precoBaseCentavosM2=0;}
   return cats;
  }
  global.ewPrecificacaoCore=Object.freeze({
