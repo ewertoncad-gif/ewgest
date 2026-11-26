@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import './test-precificacao.mjs';
+import './test-financeiro-lotes.mjs';
 import './test-precificacao-financeiro.mjs';
 import './test-precificacao-ui.mjs';
 import './test-cem-zip-precificacao-v469.mjs';
