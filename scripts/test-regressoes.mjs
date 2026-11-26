@@ -2688,11 +2688,11 @@ assert.ok(areaSql.includes("CREATE OR REPLACE FUNCTION public.emitir_romaneio_co
  areaSql.includes('v_item.largura_mm*v_item.altura_mm*v_qty/1000000.0'),
  'A proposta SQL deve preservar as guardas e persistir as áreas equivalentes por componente');
 
-// EWGEST v46.6 — liberação completa por padrão e expedição livre por componente.
-assert.ok(source.includes('Esquadria completa: marco + todas as folhas (100%)')&&
- source.includes('const complemento=permitePartes&&parts.marcos>parts.folhas')&&
- source.includes("select.value=[...select.options].some(o=>o.value===preferida&&!o.disabled)?preferida:'';"),
- 'A liberação normal deve ser completa, e um marco já liberado deve sugerir complementar as folhas');
+// Liberação completa obrigatória; expedição continua por componente.
+assert.ok(source.includes("if(componente!=='completo'||")&&
+ source.includes('A liberação deve ser da esquadria completa.')&&
+ source.includes("const escopo='esquadria completa (100%)';"),
+ 'A liberação deve ser completa; expedição por componentes permanece separada');
 assert.ok(source.includes('Folhas físicas (pode enviar uma de cada vez)')&&
  source.includes("const chave=id+'|'+tipo;")&&
  source.includes('if(usados.has(chave))')&&
