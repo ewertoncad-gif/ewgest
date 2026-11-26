@@ -25,6 +25,9 @@ const evento=(id,value)=>handlers.get('ewPriceCategorias:change')({target:{datas
 const clicar=(id)=>handlers.get('ewPriceCategorias:click')({target:{closest(sel){return sel==='[data-lock]'?{dataset:{lock:id}}:null;}}});
 const restaurar=()=>handlers.get('ewPriceRestore:click')();
 assert.ok(html().includes('100,00')&&!node('ewPriceConfirmar').disabled);
+assert.equal((node('ewPriceResumo').innerHTML.match(/class="ewPriceKpi"/g)||[]).length,3);
+assert.ok(!node('ewPriceResumo').innerHTML.includes('Diferença'));
+assert.ok(node('ewPriceResumo').innerHTML.includes('Total combinado')&&node('ewPriceResumo').innerHTML.includes('Fabricação recalculada')&&node('ewPriceResumo').innerHTML.includes('Instalação recalculada'));
 evento('categoria-0','130,00');
 assert.ok(html().includes('130,00')&&html().includes('87,53')&&html().includes('aria-pressed="true"'));
 evento('categoria-1','90,00');
