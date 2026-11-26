@@ -123,3 +123,12 @@ for(let i=1;i<=150;i++){
  verificar({...dados,categorias:redistribuirPrecos({...dados,categorias:cats}),percentualFabricacaoBp:i*53%10001});
 }
 console.log('OK: preço médio automático, cadeados, redistribuição, restauração, mudanças de categorias e 150 cenários adicionais de fechamento.');
+
+const livreNovamente=redistribuirPrecos({...exemploMedio,categorias:doisCadeados.map(c=>c.id==='esq'?{...c,bloqueado:false}:c)});
+assert.equal(livreNovamente.find(c=>c.id==='esq').precoBaseCentavosM2,livreNovamente.find(c=>c.id==='fach').precoBaseCentavosM2);
+assert.equal(livreNovamente.find(c=>c.id==='gc').precoBaseCentavosM2,9000);
+const vazio=redistribuirPrecos({...exemploMedio,categorias:doisCadeados,itens:exemploMedio.itens.map(x=>x.categoriaId==='esq'?{...x,categoriaId:'fach'}:x)});
+assert.equal(vazio[0].precoBaseCentavosM2,0);
+assert.equal(vazio[0].bloqueado,false);
+verificar({...exemploMedio,categorias:redistribuirPrecos({...exemploMedio,categorias:vazio})});
+console.log('OK: categorias vazias não participam; desbloqueio restaura média comum.');
