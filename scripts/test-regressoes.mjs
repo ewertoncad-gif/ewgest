@@ -313,6 +313,7 @@ const state={choice:'',next:'',form:{
  },
  differenceSecondStep:{classList:{toggle(){}}},differenceCreateFields:{classList:{toggle(){}}},
  differenceCorrectFields:{classList:{toggle(){}}},differenceCorrectDescription:{textContent:''},
+ differenceScope:{classList:{toggle(){}}},differenceScopeWork:{checked:true},differenceScopeFuture:{checked:false},
  differencePreserveCode:{textContent:''},
  differenceNewDescription:{value:'MODULO JANELA DE CORRER - SERIE 105'},
  differenceNewModules:{value:''},differenceSave:{disabled:true,textContent:''},
@@ -365,9 +366,11 @@ state.form.differenceNewDescription.value=modReferencia.descricao;
 functions.atualizarTelaDiferenca();
 assert.equal(state.form.differenceSave.disabled,true,'Impedir cadastrar descrição duplicada');
 state.form.differenceNewDescription.value='MODULO JANELA DE CORRER - SERIE 105';
+state.form.differenceScopeFuture.checked=true;
 state.next='corrigir';state.form.differenceConfig.value='m1';
 functions.atualizarTelaDiferenca();
 assert.equal(state.form.differenceSave.disabled,false,'Permitir corrigir descrição original somente após escolher configuração');
+assert.equal(state.form.differenceScopeFuture.checked,false,'Correção não autoriza reconhecimento futuro');
 state.next='adiar';functions.atualizarTelaDiferenca();
 assert.equal(state.form.differenceSave.disabled,false,'Permitir adiar e seguir obra');
 
