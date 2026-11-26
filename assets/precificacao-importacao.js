@@ -26,13 +26,14 @@ wrapper.setAttribute('role','presentation');
 wrapper.innerHTML=[
  '<div class="panel modalbox ewPriceDialog" role="dialog" aria-modal="true" aria-labelledby="ewPriceTitle">',
  '<div class="ewPriceStep"><h2 id="ewPriceTitle">Categorias e precificação por m²</h2><span class="ewPriceBadge">Etapa 3 · Antes da importação</span></div>',
- '<p class="ewPriceIntro">Confira as categorias e o preço-base do m². Os valores finais serão distribuídos entre fabricação e instalação, sem alterar os totais originais do orçamento.</p>',
+ '<p class="ewPriceIntro">O preço médio inicial é a soma de fabricação e instalação dividida pela área total. Edite um preço para fixá-lo; as categorias livres serão redistribuídas sem alterar o orçamento.</p>',
  '<p id="ewPriceWork" class="hint"></p>',
  '<div id="ewPriceResumo" class="ewPriceGrid" aria-live="polite"></div>',
- '<div class="ewPriceStep"><strong>1. Categorias e preços por m²</strong><span class="hint">Preços-base indicam o peso de cada categoria</span></div>',
+ '<div class="ewPriceStep"><strong>1. Categorias e preços por m²</strong><span class="hint">Cadeado fechado preserva o preço-base digitado</span></div>',
  '<div id="ewPriceCategorias" class="ewPriceTableWrap"></div>',
  '<div class="ewPriceActions"><input id="ewPriceNovaCategoria" maxlength="120" placeholder="Nova categoria">',
  '<button class="btn secondary" type="button" id="ewPriceAdd">+ Criar categoria</button>',
+ '<button class="btn secondary" type="button" id="ewPriceRestore">Restaurar preços médios</button>',
  '<label>Fabricação <input type="number" id="ewPricePercent" min="0" max="100" step="0.01" inputmode="decimal"> %</label>',
  '<span class="hint" id="ewPricePercentHint"></span></div>',
  '<div class="ewPriceStep"><strong>2. Conferir cada esquadria</strong><span class="hint">Altere a categoria individualmente. Marque Padrão para repetir a escolha nas próximas obras.</span></div>',
@@ -114,11 +115,23 @@ async function abrir(r,values,onSave){
   priceNode('ewPricePercent').value=(fab/(fab+inst)*100).toFixed(2);
   priceNode('ewPricePercentHint').textContent='Sugerido a partir do orçamento.';
   priceNode('ewPriceNovaCategoria').value='';
+  recalcularPrecos(true);
   renderizar();
  }catch(e){
   fechar();
   throw e;
  }
+}
+function recalcularPrecos(restaurar=false){
+ const s=estado;
+ if(restaurar)s.categorias=s.categorias.map(c=>({...c,bloqueado:false,precoBaseCentavosM2:0}));
+ s.erroRateio='';
+ try{
+  s.categorias=motor.redistribuirPrecos({
+   fabricacaoOriginalCentavos:s.fab,instalacaoOriginalCentavos:s.inst,
+   categorias:s.categorias,itens:s.itens
+  });
+ }catch(e){s.erroRateio=e.message;}
 }
 function renderizar(){
  if(!estado)return;
@@ -132,8 +145,9 @@ function renderizar(){
    const temItens=s.itens.some(x=>x.categoriaId===c.id);
    return '<tr><td><input data-name="'+esc(c.id)+'" value="'+esc(c.nome)+'" maxlength="120" aria-label="Nome da categoria"></td>'+
     '<td class="ewPriceNum">'+area(a)+'</td>'+
-    '<td><input data-price="'+esc(c.id)+'" inputmode="decimal" placeholder="R$ 0,00" aria-label="Preço por metro quadrado" value="'+
-    (c.precoBaseCentavosM2?esc(dinheiro(c.precoBaseCentavosM2)):'')+'"></td>'+
+    '<td><div class="ewPriceLockField"><input data-price="'+esc(c.id)+'" inputmode="decimal" placeholder="R$ 0,00" aria-label="Preço por metro quadrado de '+esc(c.nome)+'" value="'+
+    (c.precoBaseCentavosM2?esc(dinheiro(c.precoBaseCentavosM2)):'')+'">'+
+    '<button type="button" class="btn secondary ewPriceLock" data-lock="'+esc(c.id)+'" aria-pressed="'+Boolean(c.bloqueado)+'" aria-label="'+(c.bloqueado?'Desbloquear ':'Bloquear ')+esc(c.nome)+'" title="'+(c.bloqueado?'Preço fixado; clique para liberar':'Preço livre; clique para fixar')+'">'+(c.bloqueado?'🔒':'🔓')+'</button></div></td>'+
     '<td class="ewPriceNum" data-fab="'+esc(c.id)+'">—</td>'+
     '<td class="ewPriceNum" data-inst="'+esc(c.id)+'">—</td>'+
     '<td class="ewPriceNum" data-fab-m2="'+esc(c.id)+'">—</td>'+
@@ -183,6 +197,7 @@ function atualizar(){
   return;
  }
  try{
+  if(s.erroRateio)throw Error(s.erroRateio);
   const resultado=motor.precificar({
    fabricacaoOriginalCentavos:s.fab,instalacaoOriginalCentavos:s.inst,
    percentualFabricacaoBp:s.pctBp,categorias:s.categorias,itens:s.itens
@@ -214,10 +229,10 @@ function atualizar(){
   priceNode('ewPriceFechamento').textContent='Orçamento original: fabricação '+dinheiro(s.fab)+
     ' e instalação '+dinheiro(s.inst)+'. Redistribuição: fabricação '+dinheiro(total.fabricacaoCentavos)+
     ' e instalação '+dinheiro(total.instalacaoCentavos)+
-    '. Os preços/m² orientam a participação de cada categoria; os valores individuais em centavos são a referência exata.';
+    '. Cadeados preservam os preços-base. Os preços efetivos podem variar pelo arredondamento; os valores individuais em centavos são a referência exata.';
   priceNode('ewPriceFechamento').classList.remove('ewPriceError');
  }catch(err){
-  priceNode('ewPriceResumo').innerHTML='<div class="ewPriceKpi"><small>Conferência</small><strong>Informe os preços por m²</strong></div>';
+  priceNode('ewPriceResumo').innerHTML='<div class="ewPriceKpi"><small>Conferência</small><strong>Confira a distribuição</strong></div>';
   priceNode('ewPriceFechamento').textContent=err.message;
   priceNode('ewPriceFechamento').classList.add('ewPriceError');
  }
@@ -252,6 +267,10 @@ function montarDraft(){
   }))
  };
 }
+priceNode('ewPriceRestore').addEventListener('click',()=>{
+ if(!estado||gravando)return;
+ recalcularPrecos(true);renderizar();
+});
 priceNode('ewPriceAdd').addEventListener('click',()=>{
  if(!estado||gravando)return;
  const novo=nome(priceNode('ewPriceNovaCategoria').value);
@@ -259,7 +278,7 @@ priceNode('ewPriceAdd').addEventListener('click',()=>{
   invalidar('Nome de categoria inválido ou já existente.');return;
  }
  estado.categorias.push({id:'categoria-'+estado.proxima++,nome:novo,precoBaseCentavosM2:0});
- priceNode('ewPriceNovaCategoria').value='';renderizar();
+ priceNode('ewPriceNovaCategoria').value='';recalcularPrecos();renderizar();
 });
 priceNode('ewPriceCategorias').addEventListener('change',ev=>{
  if(!estado||gravando)return;
@@ -267,10 +286,13 @@ priceNode('ewPriceCategorias').addEventListener('change',ev=>{
  const cat=estado.categorias.find(x=>x.id===id);if(!cat)return;
  if(ev.target.dataset.price){
   const cents=lerDinheiro(ev.target.value);
-  if(!Number.isSafeInteger(cents)||cents<0||cents>100000000000){
-   invalidar('Preço inválido: use reais e até duas casas decimais.');return;
+  if(!Number.isSafeInteger(cents)||cents<=0||cents>100000000000){
+   ev.target.value=dinheiro(cat.precoBaseCentavosM2);
+   invalidar('Preço inválido: informe valor positivo em reais com até duas casas decimais.');return;
   }
   cat.precoBaseCentavosM2=cents;
+  cat.bloqueado=true;
+  recalcularPrecos();
  }else{
   const novo=nome(ev.target.value);
   if(novo.length<2||novo.length>120||estado.categorias.some(x=>x.id!==id&&nome(x.nome)===novo)){
@@ -282,12 +304,14 @@ priceNode('ewPriceCategorias').addEventListener('change',ev=>{
 });
 priceNode('ewPriceCategorias').addEventListener('click',ev=>{
  if(!estado||gravando)return;
+ const lock=ev.target.closest('[data-lock]')?.dataset.lock;
+ if(lock){const cat=estado.categorias.find(c=>c.id===lock);if(cat){cat.bloqueado=!cat.bloqueado;recalcularPrecos();renderizar();}return;}
  const id=ev.target.closest('[data-remove]')?.dataset.remove;if(!id)return;
  if(estado.itens.some(x=>x.categoriaId===id)){
   priceNode('ewPriceErro').textContent='Mova os itens desta categoria antes de excluí-la.';return;
  }
  if(estado.categorias.length<2)return;
- estado.categorias=estado.categorias.filter(x=>x.id!==id);renderizar();
+ estado.categorias=estado.categorias.filter(x=>x.id!==id);recalcularPrecos();renderizar();
 });
 priceNode('ewPriceItens').addEventListener('change',ev=>{
  if(!estado||gravando)return;
@@ -299,7 +323,7 @@ priceNode('ewPriceItens').addEventListener('change',ev=>{
  }
  const row=estado.itens.find(x=>x.id===ev.target.dataset.item);
  if(!row||!estado.categorias.some(c=>c.id===ev.target.value))return;
- row.categoriaId=ev.target.value;renderizar();
+ row.categoriaId=ev.target.value;recalcularPrecos();renderizar();
 });
 function percentualAlterado(){
  if(!estado||gravando)return;

@@ -85,3 +85,41 @@ assert.throws(()=>precificar({...base,categorias:categorias.map(x=>({...x,precoB
 assert.throws(()=>precificar({...base,categorias:categorias.map(x=>x.id==='esq'?{...x,precoBaseCentavosM2:0}:x)}),/preço por m²/);
 assert.equal(totaisComDistribuicao(7000,3000).totalCentavos,10000);
 console.log('OK: precificação por m² — 220 cenários, rateio determinístico, totais exatos, percentuais e validações.');
+
+const {redistribuirPrecos}=contexto.window.ewPrecificacaoCore;
+const exemploMedio={fabricacaoOriginalCentavos:983520,instalacaoOriginalCentavos:245880,
+ categorias:['esq','gc','fach'].map(id=>({id,nome:id,precoBaseCentavosM2:0})),
+ itens:[p({id:'EA',categoriaId:'esq',largura_mm:10000,altura_mm:3610}),
+ p({id:'GC',categoriaId:'gc',largura_mm:10000,altura_mm:5159}),
+ p({id:'FC',categoriaId:'fach',largura_mm:10000,altura_mm:3525})]};
+const media=redistribuirPrecos(exemploMedio);
+assert.ok(media.every(c=>c.precoBaseCentavosM2===10000),'Preço inicial de R$ 100,00/m²');
+assert.ok(exemploMedio.categorias.every(c=>c.precoBaseCentavosM2===0),'Entrada imutável');
+const editados=media.map(c=>c.id==='esq'?{...c,bloqueado:true,precoBaseCentavosM2:13000}:c);
+const redistribuidos=redistribuirPrecos({...exemploMedio,categorias:editados});
+assert.equal(redistribuidos.find(c=>c.id==='esq').precoBaseCentavosM2,13000);
+assert.ok(redistribuidos.filter(c=>c.id!=='esq').every(c=>c.precoBaseCentavosM2===8753));
+const calculado=verificar({...exemploMedio,categorias:redistribuidos});
+assert.equal(calculado.fechamento.valorTotalCentavos,1229400);
+assert.equal(calculado.totais.fabricacaoCentavos,983520);
+assert.equal(calculado.totais.instalacaoCentavos,245880);
+const doisCadeados=redistribuirPrecos({...exemploMedio,categorias:redistribuidos.map(c=>c.id==='gc'?{...c,bloqueado:true,precoBaseCentavosM2:9000}:c)});
+assert.equal(doisCadeados.find(c=>c.id==='gc').precoBaseCentavosM2,9000);
+assert.equal(doisCadeados.find(c=>c.id==='esq').precoBaseCentavosM2,13000);
+assert.equal(verificar({...exemploMedio,categorias:doisCadeados,percentualFabricacaoBp:6000}).totais.fabricacaoCentavos,737640);
+assert.throws(()=>redistribuirPrecos({...exemploMedio,categorias:editados.map(c=>c.id==='esq'?{...c,precoBaseCentavosM2:999999}:c)}),/esgotam/);
+assert.throws(()=>redistribuirPrecos({...exemploMedio,categorias:editados.map(c=>({...c,bloqueado:true}))}),/não fecham/);
+const travados=redistribuirPrecos({...exemploMedio,categorias:redistribuidos.map(c=>({...c,bloqueado:true}))});
+assert.equal(travados[0].precoBaseCentavosM2,13000);
+const restaurados=redistribuirPrecos({...exemploMedio,categorias:doisCadeados.map(c=>({...c,bloqueado:false,precoBaseCentavosM2:0}))});
+assert.ok(restaurados.every(c=>c.precoBaseCentavosM2===10000&&!c.bloqueado));
+const nova=[...redistribuidos,{id:'nova',nome:'Nova',precoBaseCentavosM2:0}];
+const movidos=exemploMedio.itens.map(x=>x.id==='FC'?{...x,categoriaId:'nova'}:x);
+assert.equal(verificar({...exemploMedio,itens:movidos,categorias:redistribuirPrecos({...exemploMedio,itens:movidos,categorias:nova})}).fechamento.valorTotalCentavos,1229400);
+for(let i=1;i<=150;i++){
+ const dados={...exemploMedio,fabricacaoOriginalCentavos:983520+i,instalacaoOriginalCentavos:245880+i*3};
+ const cats=redistribuirPrecos(dados);
+ cats[0]={...cats[0],bloqueado:true,precoBaseCentavosM2:10000+i};
+ verificar({...dados,categorias:redistribuirPrecos({...dados,categorias:cats}),percentualFabricacaoBp:i*53%10001});
+}
+console.log('OK: preço médio automático, cadeados, redistribuição, restauração, mudanças de categorias e 150 cenários adicionais de fechamento.');

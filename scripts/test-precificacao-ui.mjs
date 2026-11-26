@@ -53,10 +53,10 @@ assert.deepEqual(requested,
  ['ew_precificacao_categorias','tipologias','ew_precificacao_tipologias_padrao']);
 assert.match(el('ewPriceCategorias').innerHTML,/LINHA ESPECIAL/);
 assert.match(el('ewPriceItens').innerHTML,/LINHA ESPECIAL/);
-assert.equal(el('ewPriceConfirmar').disabled,true,'No preço = bloqueado');
+assert.equal(el('ewPriceConfirmar').disabled,false,'Preço médio inicial permite confirmação');
 change('ewPriceCategorias',{price:'catalogo-'+uuid},'R$ 1.500,00');
-assert.equal(el('ewPriceConfirmar').disabled,true,'Falta preço de guarda-corpo');
-change('ewPriceCategorias',{price:'categoria-1'},'1400');
+assert.equal(el('ewPriceConfirmar').disabled,false,'Guarda-corpo é redistribuído automaticamente');
+change('ewPriceCategorias',{price:'categoria-1'},'2327,27');
 assert.equal(el('ewPriceConfirmar').disabled,false,'Preços válidos liberam confirmação');
 // O usuário opta por atualizar o padrão da tipologia, não apenas esta obra.
 el('ewPriceItens').handlers.change({target:{dataset:{default:'item-000000'},checked:true}});
@@ -78,7 +78,7 @@ el('ewPricePercent').value='110';
 el('ewPricePercent').handlers.input({target:el('ewPricePercent')});
 assert.equal(el('ewPriceConfirmar').disabled,true);
 assert.match(el('ewPriceFechamento').textContent,/Informe fabricação/);
-change('ewPriceCategorias',{price:'categoria-1'},'1400');
+change('ewPriceCategorias',{price:'categoria-1'},'2327,27');
 assert.equal(el('ewPriceConfirmar').disabled,true,
  'Outra edição não pode validar silenciosamente o percentual anterior');
 el('ewPricePercent').value='60';
@@ -124,7 +124,7 @@ change('ewPriceCategorias',{price:'categoria-5'},'abc');
 assert.equal(el('ewPriceConfirmar').disabled,true,'Preço inválido bloqueia confirmação');
 assert.match(el('ewPriceErro').textContent,/Preço inválido/);
 change('ewPriceCategorias',{price:'catalogo-'+uuid},'1000');
-change('ewPriceCategorias',{price:'categoria-5'},'1250');
+change('ewPriceCategorias',{price:'categoria-5'},'2763,64');
 assert.equal(el('ewPriceConfirmar').disabled,false,'Preços reparados permitem importação');
 el('ewPriceVoltar').handlers.click();
 assert.equal(el('ewPriceOverlay').classList._state.has('hidden'),true);
