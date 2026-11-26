@@ -52,7 +52,9 @@ try{
  const edEnd=html.indexOf("node('expCompSave').addEventListener('click',expCompSave);",edStart);
  assert.ok(edStart>=0&&edEnd>edStart);
  await page.addScriptTag({content:html.slice(edStart,edEnd+"node('expCompSave').addEventListener('click',expCompSave);".length)});
- await page.evaluate(()=>expCompOpen());
+ // Simula o modal de edição aberto, como no fluxo real.
+ await page.evaluate(()=>{node('typologyEditOverlay').classList.remove('hidden');node('expCompEntry').classList.remove('hidden');});
+ await page.locator('#expCompOpen').click();
  await page.locator('#expCompOverlay').waitFor({state:'visible'});
  assert.equal(await page.locator('#expCompSimilar input').count(),1);
  assert.equal(await page.locator('#expCompSimilar input').isChecked(),false);
@@ -72,6 +74,31 @@ try{
  await page.waitForFunction(()=>window._calls.some(c=>c.path.endsWith('ew_salvar_composicoes_expedicao')));
  const saved=await page.evaluate(()=>window._calls.find(c=>c.path.endsWith('ew_salvar_composicoes_expedicao')).body);
  assert.equal(saved.p_alvos.length,2);assert.deepEqual(saved.p_partes.map(p=>p.peso),[5000,4000,1000]);
+ await page.locator('#typologyEditOverlay').waitFor({state:'visible'});
+ assert.match(await page.locator('#typologyEditSuccess').textContent(),/Composição salva em 2/);
+ assert.equal(await page.locator('#typologyEditError').textContent(),'');
+ await page.evaluate(()=>node('typologyEditOverlay').classList.add('hidden'));
+ // Atalho real no formulário de liberação, sem reinicializar campos.
+ await page.addScriptTag({content:slice('function expCompTipologiaLiberacao(item){',"node('releaseCancel').addEventListener")});
+ await page.evaluate(()=>{window.selectedItem={...elements[0],tipologia_id:'t1'};window.releaseOperationId='operacao';node('releaseModal').classList.remove('hidden');node('releaseExpCompOpen').classList.remove('hidden');node('releaseQty').value='2';node('releaseDate').value='2026-11-26';node('releaseFactory').value='AFOGADOS';});
+ await page.locator('#releaseExpCompOpen').click();
+ await page.locator('#expCompOverlay').waitFor({state:'visible'});
+ assert.equal(await page.locator('#releaseModal').isVisible(),false);
+ assert.match(await page.locator('#expCompSource').textContent(),/T1/);
+ await page.locator('#expCompClose').click();
+ await page.locator('#releaseModal').waitFor({state:'visible'});
+ assert.equal(await page.locator('#releaseQty').inputValue(),'2');
+ assert.equal(await page.locator('#releaseDate').inputValue(),'2026-11-26');
+ assert.equal(await page.locator('#releaseFactory').inputValue(),'AFOGADOS');
+ await page.locator('#releaseExpCompOpen').click();
+ await page.locator('#expCompOverlay').waitFor({state:'visible'});
+ await page.locator('#expCompSave').click();
+ await page.locator('#releaseModal').waitFor({state:'visible'});
+ assert.match(await page.locator('#releaseExpCompStatus').textContent(),/Composição salva em 1/);
+ assert.equal(await page.locator('#releaseQty').inputValue(),'2');
+ assert.equal(await page.locator('#releaseFactory').inputValue(),'AFOGADOS');
+ assert.equal(await page.evaluate(()=>window._calls.some(c=>c.path.includes('liberar'))),false);
+ await page.evaluate(()=>node('releaseModal').classList.add('hidden'));
  await page.addScriptTag({content:slice('function finEquivalentesExpedidos(linhas,composicoes){','function finXMLValor(parent,tag){')});
  const financial=await page.evaluate(()=>finEquivalentesExpedidos([{natureza:'esquadria',esquadria_id:'ea2',tipo_saida:'componente',quantidade:3,composicao_revisao_id:'rev1',equivalente_expedido:.75}],[]).get('ea2')*1.38);
  assert.ok(Math.abs(financial-1.035)<1e-9);
