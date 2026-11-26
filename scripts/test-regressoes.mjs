@@ -134,7 +134,7 @@ for(const token of [
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
  'id="recognitionDivergence"',
- 'resolver_modulacao_pendente_admin',
+ 'ew_resolver_modulacao_com_regra',
  'id="recognitionModulation"',
  'id="recognitionNewModFields"',
  'id="modulationCatalogPanel"',
