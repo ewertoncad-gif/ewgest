@@ -1641,7 +1641,7 @@ const niveisExemplo=[
 }));
 const exemplo=()=>({
  orcamento:{valor_total:183200},
- orcamentoNiveis:niveisExemplo,
+ orcamentoNiveis:niveisExemplo.map(n=>({...n})),
  despesas:[{categoria:'aluminio',status:'aprovada',valor:5000}],
  faturas:[{categoria:'fabricacao',status:'emitido',valor_total:2500}]
 });
