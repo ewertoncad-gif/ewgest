@@ -1,0 +1,51 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const app=readFileSync(new URL('../app.html',import.meta.url),'utf8');
+const cut=(a,b)=>app.slice(app.indexOf(a),app.indexOf(b,app.indexOf(a)));
+const src=cut('function tituloModoObras','// O hífen identifica')+'\n'+cut('function renderDetail(w)','function applyItemFilter')+'\n'+cut('function renderHistoricoRomaneios','let romaneioCancelSelecionado');
+const make=()=>new Function(src+`
+ const nodes=new Map(), nav=['release','shipment','releaseUndo','shipmentUndo'].map(m=>({dataset:{worksModo:m},classList:{toggle(){},remove(){}},setAttribute(){},removeAttribute(){}}));
+ const node=id=>{if(!nodes.has(id)){const cls=new Set();nodes.set(id,{innerHTML:'',textContent:'',disabled:false,value:'',classList:{toggle(k,v){if(v)cls.add(k);else cls.delete(k);},add:k=>cls.add(k),remove:k=>cls.delete(k),contains:k=>cls.has(k)},setAttribute(){},removeAttribute(){},replaceChildren(){this.innerHTML='';},querySelectorAll(sel){return id==='navWorksSubmenu'?nav:[];}});}return nodes.get(id);};
+ let flags=new Set(['obras.consultar','liberacoes.criar','liberacoes.cancelar','romaneios.emitir','romaneios.cancelar','obras.estornar','cadastros.consultar']),admin=true,almox=false;
+ const temPermissao=f=>flags.has(f),canAdministrate=()=>admin,isAlmoxarife=()=>almox;
+ let detailMode='release',selectedWork=null,detailBackTarget='',currentCompany={id:'e'},view='',listed=0;
+ let works=[{id:'a',nome:'Obra A'},{id:'b',nome:'Obra B'}],elements=[{id:'ea',obra_id:'a',codigo:'EA',quantidade:3,qtd_liberada:1},{id:'eb',obra_id:'a',codigo:'EB',quantidade:2,qtd_liberada:0},{id:'ec',obra_id:'b',codigo:'EC',quantidade:1,qtd_liberada:1}];
+ let releaseHistory=[{esquadria_id:'ea',data_liberacao:'2026-11-26'}],romaneios=[{id:'ra',obra_id:'a',numero:'001',status:'emitido'},{id:'rb',obra_id:'a',numero:'002',status:'cancelado'},{id:'rc',obra_id:'b',numero:'003',status:'emitido'}],romaneioItens=[],romaneioLoadError='',shipmentHistory=[{esquadria_id:'ea'}],dispatchReady=true,dispatchLoadError='',expedicaoAtivaMap=new Map();
+ const obrasComEsquadriasAtivas=()=>works,mostrarListaDeObras=()=>{listed++;setView('worksPage');},setView=v=>{view=v;node('detail').classList.toggle('hidden',v!=='detail');};
+ const sortWorkItems=()=>0,totals=()=>({total:5,released:1,made:0}),amount=String,renderUnitCounters=()=>{},escapeHTML=String,releaseParts=()=>({saldoCompleto:2,marcos:1,folhas:1}),area=()=>1,renderResumoRomaneios=()=>{},shipmentStats=()=>({released:1,marcosLiberados:1,folhasLiberadas:1,frames:0,leaves:0,maxLeaves:1,per:1}),dataRomaneioFormatada=()=>'',groupRenderedItems=()=>{},applyDetailVisibility=()=>{},applyItemFilter=()=>{};
+ node('detail').classList.add('hidden');
+ return {node,nav,works,modoObrasPermitido,abrirObrasPelaBarra,renderDetail,atualizarPermissoesObras,marcarModoObras,flags,mode:m=>detailMode=m,admin:v=>admin=v,almox:v=>almox=v,view:()=>view,listed:()=>listed,selected:()=>selectedWork,one:()=>works=works.slice(0,1),removeRoms:()=>romaneios=[]};
+ `)();
+const x=make(),visible=id=>!x.node(id).classList.contains('hidden');
+assert.equal(x.modoObrasPermitido('invalid'),false);
+x.abrirObrasPelaBarra('release');assert.equal(x.view(),'worksPage');assert.equal(x.listed(),1);
+x.mode('release');x.renderDetail(x.works[0]);assert.ok(x.node('items').innerHTML.includes('data-esq="ea"'));assert.ok(!x.node('items').innerHTML.includes('data-release-undo'));assert.equal(visible('releaseUndoActions'),false);
+x.abrirObrasPelaBarra('releaseUndo');assert.equal(x.selected().id,'a');assert.equal(visible('releaseUndoActions'),true);assert.ok(x.node('items').innerHTML.includes('data-release-undo="ea"'));assert.ok(!x.node('items').innerHTML.includes('data-esq="eb"'));
+x.abrirObrasPelaBarra('shipment');assert.equal(visible('romaneioActions'),true);assert.ok(x.node('items').innerHTML.includes('data-ship="ea"'));assert.ok(!x.node('items').innerHTML.includes('data-ship="eb"'));
+x.abrirObrasPelaBarra('shipmentUndo');assert.equal(visible('romaneioActions'),false);assert.equal(visible('romaneioHistoryPanel'),true);assert.equal(visible('detailItemFilter'),false);assert.equal(x.node('items').innerHTML,'');assert.ok(x.node('romaneioHistoryPanel').innerHTML.includes('data-romaneio-cancelar="ra"'));assert.ok(!x.node('romaneioHistoryPanel').innerHTML.includes('data-romaneio-cancelar="rb"'));assert.ok(!x.node('romaneioHistoryPanel').innerHTML.includes('data-romaneio-cancelar="rc"'));
+assert.equal(visible('detailLooseShipmentActions'),false);x.removeRoms();x.renderDetail(x.works[0]);assert.equal(visible('detailLooseShipmentActions'),true);
+x.flags.delete('liberacoes.cancelar');x.flags.delete('romaneios.cancelar');x.flags.delete('obras.estornar');x.atualizarPermissoesObras();assert.equal(x.nav[2].disabled,true);assert.equal(x.nav[3].disabled,true);assert.equal(x.nav[0].disabled,false);x.almox(true);assert.equal(x.modoObrasPermitido('release'),false);
+const y=make();y.one();y.abrirObrasPelaBarra('shipment');assert.equal(y.view(),'detail');assert.equal(y.selected().id,'a');
+console.log('OK: quatro modos Obras, lista ou obra única, estornos isolados, flags e romaneios ativos.');
+
+const estornarSrc=cut('async function estornarSaidasAvulsasNaObra(){',"node('detailLooseShipmentUndo').addEventListener");
+const scenario=async({romaneios=0,saidas=1,confirmacao='DEVOLVIDO',motivo='Devolução de teste',permitido=true,obraResposta='a'}={})=>{
+ const calls=[],button={disabled:false},status={textContent:''};
+ const run=new Function('calls','button','status','romaneios','saidas','confirmacao','motivo','permitido','obraResposta',`
+ let detailMode='shipmentUndo',selectedWork={id:'a',nome:'Obra A'},currentCompany={id:'e'},session={access_token:'mock'},works=[selectedWork];
+ const canAdministrate=()=>permitido,temPermissao=()=>permitido,node=id=>id==='detailLooseShipmentUndo'?button:status;
+ const ensureSession=async()=>{},loadPanel=async()=>{},renderDetail=()=>{};
+ const window={prompt:s=>s.includes('DEVOLVIDO')?confirmacao:motivo,confirm:()=>true};
+ const request=async(path,options)=>{calls.push({path,body:options.body});return path.endsWith('ew_inspecionar_reversao_obra')?{obra_id:obraResposta,resumo:{romaneios,saidas_producao:saidas}}:{canceladas:1};};
+ `+estornarSrc+'return estornarSaidasAvulsasNaObra();');
+ await run(calls,button,status,romaneios,saidas,confirmacao,motivo,permitido,obraResposta);
+ assert.equal(button.disabled,false);return {calls,status};
+};
+assert.equal((await scenario({permitido:false})).calls.length,0);
+assert.equal((await scenario({romaneios:1})).calls.length,1);
+assert.equal((await scenario({saidas:0})).calls.length,1);
+assert.equal((await scenario({motivo:'x'})).calls.length,1);
+assert.equal((await scenario({confirmacao:'NAO'})).calls.length,1);
+assert.equal((await scenario({obraResposta:'b'})).calls.length,1);
+const success=await scenario();assert.equal(success.calls.length,2);assert.equal(success.calls[1].path,'/rest/v1/rpc/ew_cancelar_saidas_avulsas_obra');assert.equal(success.calls[1].body.p_obra_id,'a');
+console.log('OK: saída avulsa — inspeção, motivo, confirmação física e bloqueios preservados.');

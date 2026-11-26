@@ -30,7 +30,7 @@ async function abrir(esquadria){
     submitting=true;btn.disabled=true;msg('Registrando estorno…');
     try{
      await ensureSession();await rpc('ew_estornar_liberacao_individual',{p_liberacao_id:r.id,p_motivo:reason.trim()});
-     try{await loadPanel();const w=works.find(x=>x.id===item.obra_id);if(w){detailMode='release';renderDetail(w);node('detailError').textContent='Liberação estornada. Histórico preservado.';}}catch(e){msg('Estorno confirmado, mas a atualização falhou. Recarregue a página.');return;}
+     try{await loadPanel();const w=works.find(x=>x.id===item.obra_id);if(w){if(detailMode!=='releaseUndo')detailMode='release';renderDetail(w);node('detailError').textContent='Liberação estornada. Histórico preservado.';}}catch(e){msg('Estorno confirmado, mas a atualização falhou. Recarregue a página.');return;}
      submitting=false;await abrir(esquadria);
     }catch(e){msg('Estorno bloqueado: '+e.message);btn.disabled=false;}
     finally{submitting=false;}
