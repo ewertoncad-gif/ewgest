@@ -1,0 +1,37 @@
+name: Verificar padronização de modulações no PostgreSQL
+on:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  padronizacao-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ewgest_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ewgest_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: postgres
+      PGHOST: localhost
+      PGUSER: postgres
+      PGDATABASE: ewgest_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar cliente PostgreSQL
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Executar SQL real em banco descartável
+        run: |
+          psql -v ON_ERROR_STOP=1 -f scripts/test-padronizacao-fixture.sql
+          sed '/^-- Altera apenas os campos do INSERT/,$d' database/proposals/20261126_reconhecimento_cem_descricao_exata.sql > /tmp/reconhecimento.sql
+          echo COMMIT\; >> /tmp/reconhecimento.sql
+          psql -v ON_ERROR_STOP=1 -f /tmp/reconhecimento.sql
+          psql -v ON_ERROR_STOP=1 -f database/proposals/20261126_padronizacao_modulacoes.sql
+          psql -v ON_ERROR_STOP=1 -f scripts/test-padronizacao-modulacoes.sql

@@ -129,7 +129,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.29',
+ 'EWGEST • v46.29.30',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2135,7 +2135,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.29')&&
+assert.ok(source.includes('v46.29.30')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2371,7 +2371,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.29</strong>'),
+ source.includes('EWGEST <strong>· v46.29.30</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -3081,7 +3081,7 @@ import './test-obras-modos.mjs';
 
 import './test-reconhecimento-cem.mjs';
 
-// v46.29.29 — compactação restrita à lista de liberação, sem fontes menores.
+// v46.29.30 — compactação restrita à lista de liberação, sem fontes menores.
 assert.ok(source.includes("node('items').classList.toggle('releaseCompact',detailMode==='release')"));
 const compactCss=source.slice(source.indexOf('/* Lista de liberação compacta:'),source.indexOf('.catalogFilters{',source.indexOf('/* Lista de liberação compacta:')));
 assert.ok(compactCss.includes('#items.releaseCompact .typologyGroup{margin:9px 0;padding:2px 16px 4px}'));
@@ -3151,7 +3151,7 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
  assert.equal(operacional({modulacao_id:'m6',descricao:'GRADIL 6 MÓDULO(S)'}),seis);
  assert.equal(operacional({descricao:'ORIGINAL CEM'}),'ORIGINAL CEM');
 
- // v46.29.29: escolher a família e a quantidade basta; o seletor interno
+ // v46.29.30: escolher a família e a quantidade basta; o seletor interno
  // permanece apenas como contrato com a RPC, sem decisão intermediária.
  {
   const cut=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end,source.indexOf(start)));
@@ -3162,7 +3162,7 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
   const ns=new Map();
   const n=id=>{if(!ns.has(id)){const flags=new Set();ns.set(id,{value:'',checked:false,disabled:false,textContent:'',classList:{toggle(k,v){v?flags.add(k):flags.delete(k);},contains:k=>flags.has(k)}});}return ns.get(id);};
   const catalog=[{id:'t',codigo:'UNIV-R08-GRADN00',descricao:oito},{id:'j',codigo:'JANELA',descricao:'JANELA DE CORRER - 2 FOLHAS'}];
-  const mods=[{...mSeis,tipologia_principal_id:'t',numero_variacao:3},{id:'gradil',tipologia_principal_id:'t',numero_variacao:1,descricao:'GRADIL 7 MÓDULO(S) - COM VIDRO - UNIVERSAL - HYDRO',quantidade_modulos:7},{id:'j1',tipologia_principal_id:'j',numero_variacao:1,descricao:'JANELA DE CORRER - 2 FOLHAS'}];
+  const mods=[{...mSeis,descricao:'GRADIL 6 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO',tipologia_principal_id:'t',numero_variacao:3},{id:'gradil',tipologia_principal_id:'t',numero_variacao:1,descricao:'GRADIL 7 MÓDULO(S) - COM VIDRO - UNIVERSAL - HYDRO',quantidade_modulos:7},{id:'j1',tipologia_principal_id:'j',numero_variacao:1,descricao:'JANELA DE CORRER - 2 FOLHAS'}];
   const origin={descricao:'GRADIL 6 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO'};
   const run=new Function('node','typologyCatalog','modulationCatalog','recognitionPendingItem','codigoVariacaoTecnica','diferencaNoReconhecimento',funcs+'\nconst atualizarComparacaoReconhecimento=validarReconhecimento;return renderizarCamposModulacao;')(n,catalog,mods,origin,(t,m)=>t.codigo+'-'+m.numero_variacao,()=>true);
   const hidden=id=>n(id).classList.contains('hidden');
@@ -3172,13 +3172,18 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
   assert.ok(hidden('recognitionManualFields')&&hidden('recognitionNewModFields'));
   assert.ok(!hidden('recognitionAdaptFields'));
   assert.ok(n('recognitionAdaptPreview').textContent.includes('Reutilizar'));
+  assert.ok(n('recognitionAdaptPreview').textContent.includes('padronizar'));
+  assert.equal(mods[0].descricao,origin.descricao,'Prévia não modifica o catálogo');
   assert.equal(n('recognitionConfirm').disabled,true);
   n('recognitionApproval').checked=true;n('recognitionDivergence').checked=true;run();
   assert.equal(n('recognitionConfirm').disabled,false);
   n('recognitionAdaptCount').value='7';run();
-  assert.equal(n('recognitionModulation').value,'__CRIAR__','GRADIL não equivale automaticamente a GUARDA CORPO');
-  assert.equal(n('recognitionModDescription').value,oito.replace('8 MÓDULO','7 MÓDULO'));
-  assert.equal(n('recognitionModCount').value,'7');
+  assert.equal(n('recognitionModulation').value,'','Mesma quantidade sem descrição compatível exige revisão');
+  assert.equal(n('recognitionConfirm').disabled,true);
+  n('recognitionAdaptCount').value='8';run();
+  assert.equal(n('recognitionModulation').value,'__CRIAR__');
+  assert.equal(n('recognitionModDescription').value,oito);
+  assert.equal(n('recognitionModCount').value,'8');
   assert.ok(hidden('recognitionNewModFields'));
   assert.ok(n('recognitionAdaptPreview').textContent.includes('Criar nova variação'));
   for(const q of ['','0','6.5','101']){
@@ -3200,4 +3205,21 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
   assert.equal(origin.descricao,'GRADIL 6 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO');
   assert.equal(catalog[0].descricao,oito);
  }
- console.log('OK v46.29.29: modulação automática, reuso, criação, exceções e bloqueios.');
+ console.log('OK v46.29.30: modulação automática, reuso, criação, exceções e bloqueios.');
+
+ // Reaproveita a descrição exata do CEM somente na família selecionada.
+ {
+  const origem='GRADIL 6 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO';
+  const legado={id:'m03',descricao:origem,quantidade_modulos:6};
+  const d=adaptar.decidirAdaptacaoModulos(oito,6,[legado],origem);
+  assert.equal(d.existente.id,'m03');
+  assert.equal(d.descricao,seis);
+  assert.equal(d.padronizar,true);
+  assert.equal(adaptar.decidirAdaptacaoModulos(oito,6,[legado,mSeis],origem).ambiguo,true);
+  assert.equal(adaptar.decidirAdaptacaoModulos(oito,6,[{...legado,quantidade_modulos:7}],origem).ambiguo,true);
+  assert.equal(adaptar.decidirAdaptacaoModulos(oito,6,[{...legado,quantidade_modulos:null}],origem).existente.id,'m03');
+  assert.equal(adaptar.decidirAdaptacaoModulos(oito,8,[legado],origem).existente,null);
+  assert.equal(adaptar.decidirAdaptacaoModulos(oito,8,[legado],origem).ambiguo,false);
+  assert.equal(adaptar.decidirAdaptacaoModulos(oito,6,[{...legado,descricao:origem.replace('COM VIDRO','SEM VIDRO')}],origem).ambiguo,true);
+  assert.equal(legado.descricao,origem);
+ }
