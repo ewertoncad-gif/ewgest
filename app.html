@@ -822,7 +822,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.30</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.31</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -843,7 +843,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.30</div>
+        <div class="build">EWGEST • v46.29.31</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -2226,6 +2226,8 @@
   <div class="panel modalbox releaseDialog" role="dialog" aria-modal="true" aria-labelledby="releaseTitle">
     <h2 id="releaseTitle">Liberar para corte</h2>
     <p id="releaseItem" class="muted"></p><p id="releaseBalance" class="hint"></p>
+    <button id="releaseExpCompOpen" type="button" class="btn secondary hidden">Composição de expedição</button>
+    <p id="releaseExpCompStatus" class="hint" role="status" aria-live="polite"></p>
     <form id="releaseForm">
       <label for="releaseQty">1. Quantas unidades estão sendo liberadas?</label>
       <input id="releaseQty" type="number" min="1" step="1" required autocomplete="off">
@@ -2545,9 +2547,10 @@
         </div>
         <p class="hint">O reconhecimento CEM por descrição exata exige autorização explícita na conferência da modulação. Gerencie as regras em Modulações internas cadastradas.</p>
       </div>
+      <p id="typologyEditSuccess" class="hint" role="status" aria-live="polite" style="color:#16834a"></p>
       <div id="typologyEditError" class="feedback" role="alert"></div>
       <div class="modalbuttons">
-        <button id="typologyEditCancel" type="button" class="btn secondary">Cancelar</button>
+        <button id="typologyEditCancel" type="button" class="btn primary">Fechar</button>
         <button id="typologyEditPrevious" type="button" class="btn secondary hidden">Voltar</button>
         <button id="typologyEditDelete" type="button" class="btn secondary hidden">Excluir tipologia</button>
         <button id="typologyEditSave" type="submit" class="btn primary">Continuar</button>
@@ -4941,12 +4944,22 @@ function openRelease(id){
  node('releaseDate').value=todayLocal();
  node('releaseFactory').value='';
  node('releaseError').textContent='';
+ node('releaseExpCompStatus').textContent='';node('releaseExpCompStatus').style.color='';
+ node('releaseExpCompOpen').classList.toggle('hidden',!expCompTipologiaLiberacao(selectedItem));
  node('releaseMirrorPanel').classList.add('hidden');
  node('releaseModal').classList.remove('hidden');
  releaseComponentAtualizar();
  (select.value?node('releaseQty'):select).focus();
 }
 function closeRelease(){node('releaseModal').classList.add('hidden');selectedItem=null;}
+function expCompTipologiaLiberacao(item){
+ if(!item?.tipologia_id||!expCompPodeConsultar()||!temPermissao('liberacoes.criar'))return null;
+ return typologyCatalog.find(t=>t.id===item.tipologia_id&&!t.provisoria)||null;
+}
+node('releaseExpCompOpen').addEventListener('click',()=>{
+ const source=expCompTipologiaLiberacao(selectedItem);
+ if(source&&!node('releaseSave').disabled&&!node('releaseModal').classList.contains('hidden'))void expCompOpen(source.id,true);
+});
 node('releaseCancel').addEventListener('click',closeRelease);
 node('releaseComponent').addEventListener('change',releaseComponentAtualizar);
 // O formulário manual de materiais permanece indisponível neste fluxo.
@@ -6593,12 +6606,26 @@ function syncDescriptionFromManufacturerField() {
     'Fabricante '+name+' ainda não cadastrado; confirme ao salvar.';
 }
 node('typologyEditManufacturer').addEventListener('change',syncDescriptionFromManufacturerField);
+function atualizarAcaoEdicaoTipologia(){
+  const mudou=Boolean(editingPendingItem||editingTypology&&(
+    node('typologyEditCode').value.trim()!==String(editingTypology.codigo||'').trim()||
+    node('typologyEditDescription').value.trim()!==String(editingTypology.descricao||'').trim()||
+    node('typologyEditManufacturer').value.trim().toLocaleUpperCase('pt-BR')!==String(editingTypology.fabricante||'').trim().toLocaleUpperCase('pt-BR')));
+  const revisar=typologyEditingStep!==1||mudou;
+  node('typologyEditSave').disabled=!revisar;
+  node('typologyEditSave').classList.toggle('primary',revisar);
+  node('typologyEditSave').classList.toggle('secondary',!revisar);
+  node('typologyEditCancel').textContent=revisar?'Cancelar':'Fechar';
+  node('typologyEditCancel').classList.toggle('primary',!revisar);
+  node('typologyEditCancel').classList.toggle('secondary',revisar);
+}
 function showTypologyEditStep(step) {
   typologyEditingStep=step;
   node('typologyEditFields').classList.toggle('hidden',step!==1);
   node('typologyEditChoice').classList.toggle('hidden',step!==2);
   node('typologyEditPrevious').classList.toggle('hidden',step!==2);
   node('typologyEditSave').textContent=step===1?'Revisar vínculo':(editingPendingItem?'Cadastrar tipologia':'Salvar alterações');
+  atualizarAcaoEdicaoTipologia();
   node('typologyEditForm').querySelector('input[name="originLinkChoice"][value="manter"]')
     .closest('.originChoice').classList.toggle('hidden',Boolean(editingPendingItem));
   node('typologyEditError').textContent='';
@@ -6614,6 +6641,7 @@ function openTypologyEdit(id) {
   if(!typology)return;
   editingTypology=typology;
   editingPendingItem=null;
+  node('typologyEditSuccess').textContent='';
   node('expCompEntry').classList.toggle('hidden',!expCompPodeConsultar()||typology.provisoria===true);
   node('typologyEditDelete').classList.toggle('hidden',!temPermissao('cadastros.editar'));
   const origins=typologyOrigins.filter(x=>x.tipologia_id===id);
@@ -6676,6 +6704,7 @@ function openPendingTypologyClassification(id) {
     && String(x.descricao||'').trim()===originalDescription);
   editingPendingItem=pending;
   editingTypology=null;
+  node('typologyEditSuccess').textContent='';
   node('typologyCroquiArea').classList.add('hidden');
   node('identityAction').classList.add('hidden');
   node('typologyEditTitle').textContent='Classificar esquadria · '+pending.codigo;
@@ -6854,6 +6883,8 @@ async function saveTypologyEdit(event) {
     return;
   }
   if(typologyEditingStep===1){
+    atualizarAcaoEdicaoTipologia();
+    if(node('typologyEditSave').disabled)return;
     const newManufacturer=!pendingItem && manufacturer &&
       !manufacturerCatalog.some(f=>f.nome===manufacturer);
     node('manufacturerNewConfirm').classList.toggle('hidden',!newManufacturer);
@@ -6997,6 +7028,10 @@ node('croquiZoomClose').addEventListener('click',()=>{
 node('typologyEditCancel').addEventListener('click',closeTypologyEdit);
 node('typologyEditPrevious').addEventListener('click',()=>showTypologyEditStep(1));
 node('typologyEditForm').addEventListener('submit',saveTypologyEdit);
+for(const id of ['typologyEditCode','typologyEditDescription','typologyEditManufacturer']){
+  node(id).addEventListener('input',atualizarAcaoEdicaoTipologia);
+  node(id).addEventListener('change',atualizarAcaoEdicaoTipologia);
+}
 // Editor independente, para não misturar alterações de identificação e composição.
 let expCompSeq=0,expCompCtx=null;
 function expCompPodeConsultar(){return temPermissao('cadastros.consultar')&&temPermissao('cadastros.composicao_consultar');}
@@ -7012,7 +7047,7 @@ function expCompPickerRender(){
 }
 function expCompPickerOpen(){
  if(!expCompPodeConsultar())return;
- node('expCompPickerSearch').value='';node('expCompPickerMessage').textContent='';
+ node('expCompPickerSearch').value='';node('expCompPickerMessage').textContent='';node('expCompPickerMessage').style.color='';
  expCompPickerRender();node('expCompPicker').classList.remove('hidden');
 }
 function expCompPct(p){return (p/100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%';}
@@ -7054,13 +7089,21 @@ function expCompClose(){
  if(expCompCtx?.busy)return;
  const ctx=expCompCtx;expCompSeq++;expCompCtx=null;
  node('expCompOverlay').classList.add('hidden');
- if(session&&ctx?.company===currentCompany?.id&&ctx.user===currentUser?.id){if(ctx.fromPicker)node('expCompPicker').classList.remove('hidden');else if(editingTypology?.id===ctx.source.id)node('typologyEditOverlay').classList.remove('hidden');}
+ if(session&&ctx?.company===currentCompany?.id&&ctx.user===currentUser?.id){
+  if(ctx.fromRelease){if(selectedItem?.id===ctx.releaseItemId&&releaseOperationId===ctx.releaseOp){node('releaseModal').classList.remove('hidden');node('releaseExpCompOpen').focus();}}
+  else if(ctx.fromPicker)node('expCompPicker').classList.remove('hidden');
+  else if(editingTypology?.id===ctx.source.id)node('typologyEditOverlay').classList.remove('hidden');
+ }
 }
-async function expCompOpen(sourceId){
- const fromPicker=typeof sourceId==='string';
- const source=fromPicker?typologyCatalog.find(t=>t.id===sourceId):editingTypology,company=currentCompany?.id,user=currentUser?.id;
+async function expCompOpen(sourceId,fromRelease=false){
+ const fromPicker=typeof sourceId==='string'&&!fromRelease;
+ const source=fromRelease?expCompTipologiaLiberacao(selectedItem):fromPicker?typologyCatalog.find(t=>t.id===sourceId):editingTypology,company=currentCompany?.id,user=currentUser?.id;
+ const releaseItemId=fromRelease?selectedItem?.id:null,releaseOp=fromRelease?releaseOperationId:null;
+ if(fromRelease&&source?.id!==sourceId)return;
  if(!source||!company||source.provisoria||!expCompPodeConsultar())return;
- const seq=++expCompSeq,button=fromPicker?node('expCompPickerOpen'):node('expCompEntry').querySelector('button'),msg=fromPicker?node('expCompPickerMessage'):node('typologyEditError');
+ const seq=++expCompSeq,button=fromRelease?node('releaseExpCompOpen'):fromPicker?node('expCompPickerOpen'):node('expCompEntry').querySelector('button'),msg=fromRelease?node('releaseExpCompStatus'):fromPicker?node('expCompPickerMessage'):node('typologyEditError');
+ if(fromRelease||fromPicker)msg.style.color='';
+ else node('typologyEditSuccess').textContent='';
  button.disabled=true;msg.textContent='Carregando composição…';
  try{
   await ensureSession();
@@ -7076,8 +7119,9 @@ async function expCompOpen(sourceId){
    if(!Array.isArray(data))throw Error('Resposta inválida do cadastro.');
    data.forEach(r=>revisions.set(r.tipologia_id,r));
   }
-  if(seq!==expCompSeq||!session||currentCompany?.id!==company||currentUser?.id!==user||(!fromPicker&&editingTypology?.id!==source.id)||(fromPicker&&node('expCompPicker').classList.contains('hidden')))return;
-  expCompCtx={company,user,source,fromPicker,core,revisions,suggestions,busy:false,op:null,signature:null};
+  if(seq!==expCompSeq||!session||currentCompany?.id!==company||currentUser?.id!==user||!expCompPodeConsultar()||(!fromRelease&&!fromPicker&&(editingTypology?.id!==source.id||node('typologyEditOverlay').classList.contains('hidden')))||(fromPicker&&node('expCompPicker').classList.contains('hidden'))||(fromRelease&&(selectedItem?.id!==releaseItemId||releaseOperationId!==releaseOp||node('releaseModal').classList.contains('hidden')||node('releaseSave').disabled||expCompTipologiaLiberacao(selectedItem)?.id!==source.id)))return;
+  expCompCtx={company,user,source,fromPicker,fromRelease,releaseItemId,releaseOp,core,revisions,suggestions,busy:false,op:null,signature:null};
+  node('expCompClose').textContent=fromRelease?'Voltar à liberação':'Voltar';
   node('expCompSource').textContent=source.codigo+' · '+source.descricao+(revisions.has(source.id)?' · Revisão '+revisions.get(source.id).revisao:' · Sem composição cadastrada');
   node('expCompRows').replaceChildren();node('expCompSimilar').replaceChildren();
   node('expCompSimilarBox').open=false;
@@ -7101,6 +7145,7 @@ async function expCompOpen(sourceId){
   node('expCompSimilar').querySelectorAll('input').forEach(x=>x.disabled=!editable);
   node('expCompMessage').textContent=editable?'':'Somente consulta. Sem composição cadastrada, os componentes exibidos são apenas uma sugestão.';
   msg.textContent='';
+  if(fromRelease)node('releaseModal').classList.add('hidden');
   node('typologyEditOverlay').classList.add('hidden');node('expCompPicker').classList.add('hidden');node('expCompOverlay').classList.remove('hidden');expCompUpdate();
  }catch(e){if(seq===expCompSeq)msg.textContent='Não foi possível consultar a composição: '+e.message;}
  finally{button.disabled=false;}
@@ -7127,7 +7172,9 @@ async function expCompSave(){
   if(expCompCtx!==ctx||currentCompany?.id!==ctx.company||currentUser?.id!==ctx.user)return;
   if(!Array.isArray(data)||data.length!==ids.length)throw Error('Confirme o resultado do salvamento antes de repetir.');
   data.forEach(r=>ctx.revisions.set(r.tipologia_id,{...r,partes:parts}));ctx.signature=null;ctx.op=null;
-  ctx.busy=false;expCompClose();node(ctx.fromPicker?'expCompPickerMessage':'typologyEditError').textContent='Composição salva em '+data.length+' tipologia(s).';
+  ctx.busy=false;expCompClose();
+  const status=node(ctx.fromRelease?'releaseExpCompStatus':ctx.fromPicker?'expCompPickerMessage':'typologyEditSuccess');
+  status.style.color='#16834a';status.textContent='Composição salva em '+data.length+' tipologia(s).';
  }catch(e){if(expCompCtx===ctx)node('expCompMessage').textContent='Não foi possível salvar: '+e.message;}
  finally{
   ctx.busy=false;node('expCompClose').disabled=false;node('expCompAdd').disabled=false;
