@@ -43,6 +43,17 @@ BEGIN
  SET CONSTRAINTS ALL IMMEDIATE;
  PERFORM set_config('role','postgres',true);
  IF (SELECT sum(custo_centavos) FROM ew_compras_interna.custo_lotes WHERE empresa_id=emp AND fonte='PEDIDO_OBRA') IS DISTINCT FROM 10000::numeric THEN RAISE EXCEPTION 'Nota única conciliada a dois recebimentos não abriu lotes'; END IF;
+ IF (SELECT count(*) FROM ew_compras_interna.custo_lotes WHERE empresa_id=emp AND fonte='PEDIDO_OBRA')<>2 OR (SELECT sum(custo_centavos) FROM ew_compras_interna.custo_lotes WHERE empresa_id=emp AND quantidade=1) IS DISTINCT FROM 3333::numeric OR (SELECT sum(custo_centavos) FROM ew_compras_interna.custo_lotes WHERE empresa_id=emp AND quantidade=2) IS DISTINCT FROM 6667::numeric THEN RAISE EXCEPTION 'Rateio por recebimento incorreto'; END IF;
+ PERFORM set_config('role','authenticated',true);
+ v:=public.ew_compras_compromissos_obra(emp,a);
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(v) x WHERE x->>'categoria'='aluminio' AND (x->>'realizado_centavos')::numeric=10000 AND (x->>'comprometido_pendente_centavos')::numeric=0 AND (x->>'consumido_centavos')::numeric=10000) THEN RAISE EXCEPTION 'Pedido e nota contados duas vezes: %',v; END IF;
+ v:=public.ew_transferir_estoque_entre_obras(emp,a,b,var,6000,'BARRA',3,'G1','G2','Transferência teste',tr1);
+ BEGIN v:=public.ew_compras_desvincular_nfe(conc,'Desvinculação prematura',gen_random_uuid()); RAISE EXCEPTION 'TESTE_FALHOU'; EXCEPTION WHEN raise_exception THEN IF SQLERRM='TESTE_FALHOU' THEN RAISE; END IF; END;
+ v:=public.ew_estornar_transferencia_entre_obras(emp,tr1,'Estorno teste',gen_random_uuid());
+ v:=public.ew_compras_desvincular_nfe(conc,'Desvinculação teste',gen_random_uuid());
+ PERFORM set_config('role','postgres',true);
+ IF (SELECT count(*) FROM ew_compras_interna.custo_lotes WHERE empresa_id=emp AND cancelado_em IS NOT NULL)<>2 THEN RAISE EXCEPTION 'Rateio fiscal não foi estornado'; END IF;
+ IF EXISTS(SELECT 1 FROM ew_compras_interna.custo_saldos_fragmentos WHERE empresa_id=emp) THEN RAISE EXCEPTION 'Lote fiscal cancelado ainda disponível'; END IF;
 END;$t$;
 ROLLBACK;
 SELECT 'nota única com dois recebimentos aprovada' resultado;
