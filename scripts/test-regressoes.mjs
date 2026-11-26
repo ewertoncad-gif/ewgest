@@ -2693,9 +2693,11 @@ assert.ok(areaSql.includes("CREATE OR REPLACE FUNCTION public.emitir_romaneio_co
  'A proposta SQL deve preservar as guardas e persistir as áreas equivalentes por componente');
 
 // Liberação completa obrigatória; expedição continua por componente.
-assert.ok(source.includes("if(componente!=='completo'||")&&
+assert.ok(source.includes("const fabrica=node('releaseFactory').value,componente='completo';")&&
+ source.includes('if(pending<=0)')&&
  source.includes('A liberação deve ser da esquadria completa.')&&
- source.includes("const escopo='esquadria completa (100%)';"),
+ source.includes("const escopo='esquadria completa (100%)';")&&
+ !source.includes('id="releaseComponent"')&&source.includes('p_componente:componente'),
  'A liberação deve ser completa; expedição por componentes permanece separada');
 assert.ok(source.includes('Folhas físicas (pode enviar uma de cada vez)')&&
  source.includes("const chave=id+'|'+tipo;")&&
