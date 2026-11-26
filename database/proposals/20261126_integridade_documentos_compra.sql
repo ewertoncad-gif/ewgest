@@ -44,12 +44,19 @@ BEGIN
   IF (NEW.id,NEW.despesa_id,NEW.empresa_id) IS DISTINCT FROM (OLD.id,OLD.despesa_id,OLD.empresa_id) THEN RAISE EXCEPTION 'Identidade do item fiscal é imutável.';END IF;
  END IF;
  d:=NEW.despesa_id;e:=NEW.empresa_id;
- IF EXISTS(SELECT 1 FROM public.ew_compras_nfe_conciliacoes c WHERE c.despesa_id=d AND c.empresa_id=e AND c.desvinculado_em IS NULL)
- OR EXISTS(SELECT 1 FROM public.ew_nfe_recebimentos r JOIN public.ew_obra_despesas_itens i ON i.id=r.despesa_item_id AND i.empresa_id=r.empresa_id WHERE i.despesa_id=d AND i.empresa_id=e AND r.estornado_em IS NULL)
- OR EXISTS(SELECT 1 FROM public.ew_insumos_movimentos m JOIN public.ew_obra_despesas_itens i ON i.id=m.despesa_item_id AND i.empresa_id=m.empresa_id WHERE i.despesa_id=d AND i.empresa_id=e AND m.origem='RECEBIMENTO' AND TG_OP='UPDATE')
+ IF TG_OP='INSERT' THEN
+  IF EXISTS(SELECT 1 FROM public.ew_compras_nfe_conciliacoes c WHERE c.despesa_id=d AND c.empresa_id=e AND c.desvinculado_em IS NULL)
+  THEN RAISE EXCEPTION 'Nota com vínculo fiscal ativo: desvincule antes de acrescentar itens.';END IF;
+  RETURN NEW;
+ END IF;
+ -- A classificação de um item ainda não recebido permanece possível.
+ IF (NEW.quantidade,NEW.unidade,NEW.valor_unitario,NEW.valor_total,NEW.perfil_id,NEW.acessorio_id) IS DISTINCT FROM (OLD.quantidade,OLD.unidade,OLD.valor_unitario,OLD.valor_total,OLD.perfil_id,OLD.acessorio_id)
+ AND (EXISTS(SELECT 1 FROM public.ew_compras_nfe_vinculos x JOIN public.ew_compras_nfe_conciliacoes c ON c.id=x.conciliacao_id WHERE c.despesa_id=d AND c.empresa_id=e AND c.desvinculado_em IS NULL AND x.desvinculado_em IS NULL AND x.despesa_item_id=OLD.id)
+ OR EXISTS(SELECT 1 FROM public.ew_nfe_recebimentos r WHERE r.despesa_item_id=OLD.id AND r.empresa_id=e AND r.estornado_em IS NULL)
+ OR EXISTS(SELECT 1 FROM public.ew_insumos_movimentos m WHERE m.despesa_item_id=OLD.id AND m.empresa_id=e AND m.origem='RECEBIMENTO'))
  THEN RAISE EXCEPTION 'Nota com vínculo físico ou fiscal ativo: regularize os vínculos antes de alterar itens.';END IF;
  RETURN NEW;
 END;$$;
 REVOKE ALL ON FUNCTION ew_compras_interna.proteger_itens_fiscais_vinculados() FROM PUBLIC,anon,authenticated;
--- INSERT permanece disponível para rotinas que criam itens e entradas intercaladamente.
-CREATE TRIGGER ew_itens_fiscais_guard BEFORE UPDATE ON public.ew_obra_despesas_itens FOR EACH ROW EXECUTE FUNCTION ew_compras_interna.proteger_itens_fiscais_vinculados();
+-- Permite entradas intercaladas no recebimento manual, mas não novos itens após conciliação.
+CREATE TRIGGER ew_itens_fiscais_guard BEFORE INSERT OR UPDATE ON public.ew_obra_despesas_itens FOR EACH ROW EXECUTE FUNCTION ew_compras_interna.proteger_itens_fiscais_vinculados();
