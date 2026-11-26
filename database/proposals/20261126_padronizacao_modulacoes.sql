@@ -93,3 +93,5 @@ REVOKE ALL ON FUNCTION ew_tipologias_interna.modulos_explicitos(text) FROM PUBLI
 REVOKE ALL ON FUNCTION ew_tipologias_interna.descricao_padronizada(text,integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.ew_resolver_modulacao_padronizada(uuid,uuid,uuid,text,integer,boolean,boolean) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.ew_resolver_modulacao_padronizada(uuid,uuid,uuid,text,integer,boolean,boolean) TO authenticated;
+
+NOTIFY pgrst,'reload schema';
