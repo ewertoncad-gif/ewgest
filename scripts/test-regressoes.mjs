@@ -3012,7 +3012,7 @@ assert.ok(transferDocsJS.includes('x.obra_id!==sel[0].obra_id')&&transferDocsJS.
 console.log('OK v46.28: numeração por obra, flags e histórico de junções.');
 
 // v46.29.16 — interface acompanha as autorizações e conserva o histórico legado.
-assert.ok(source.includes("if(componente!=='completo'||") && !source.includes('Liberação parcial: somente o marco'));
+assert.ok(source.includes("componente='completo';") && source.includes('p_componente:componente') && !source.includes('id="releaseComponent"') && !source.includes('Liberação parcial: somente o marco'));
 assert.ok(deliveryClient.includes("temPermissao('estoque.baixar')") && !deliveryClient.includes("temPermissao('estoque.receber')"));
 assert.ok(source.includes("function stockModoPermitido(modo)") && source.includes("Somente consulta: seu nível não permite estornar estoque."));
 const stockModeSource=source.slice(source.indexOf('function stockModoPermitido(modo)'),source.indexOf('function stockSelecionarModo(modo)'));
