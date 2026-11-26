@@ -510,17 +510,28 @@
    return;
   }
   const faturas=new Map(),despesas=new Map();
+  const integrado=Array.isArray(state.compromissos),porCategoria=new Map((state.compromissos||[]).map(d=>[d.categoria,d]));
+  const apropriado=integrado&&(state.compromissos||[]).some(d=>Object.hasOwn(d,'ajuste_transferencias_centavos'));
   for(const f of state.faturas)if(f.status==='emitido')
    faturas.set(f.categoria,(faturas.get(f.categoria)||0)+Number(f.valor_total||0));
   for(const d of state.despesas)if(d.status==='aprovada')
    despesas.set(d.categoria,(despesas.get(d.categoria)||0)+Number(d.valor||0));
   const totalF=levels.filter(n=>n.faturar).reduce((sum,n)=>sum+Number(n.valor||0),0);
   const realizado=[...faturas.values()].reduce((sum,v)=>sum+v,0);
-  const gastos=[...despesas.values()].reduce((sum,v)=>sum+v,0);
+  const gastos=integrado?(state.compromissos||[]).reduce((sum,d)=>sum+Number(d.realizado_centavos||0),0)/100:[...despesas.values()].reduce((sum,v)=>sum+v,0);
+  const ajustes=(state.compromissos||[]).reduce((sum,d)=>sum+Number(d.ajuste_transferencias_centavos||0),0)/100;
+  const comprometido=(state.compromissos||[]).reduce((sum,d)=>sum+Number(d.comprometido_pendente_centavos||0),0)/100;
+  const notasPendentes=(state.compromissos||[]).reduce((sum,d)=>sum+Number(d.pendencia_centavos||0),0)/100;
+  const transferenciasPendentes=(state.compromissos||[]).reduce((sum,d)=>sum+Number(d.transferencias_custo_pendentes||0),0);
   byId('finTotals').innerHTML='<span><strong>Valor da obra: '+finMoney(state.orcamento.valor_total)+'</strong></span>'+
    '<span><strong>Faturado: '+finMoney(realizado)+'</strong></span>'+
    '<span><strong>A faturar: '+finMoney(Math.max(0,totalF-realizado))+'</strong></span>'+
-   '<span><strong>Gastos registrados: '+finMoney(gastos)+'</strong></span>';
+   '<span><strong>Gastos registrados: '+finMoney(gastos)+'</strong></span>'+
+   (integrado?'<span><strong>Ajuste líquido de transferências: '+(apropriado?finMoney(ajustes):'Não integrado')+'</strong></span>'+
+    '<span><strong>Custo apropriado'+(transferenciasPendentes?' (parcial)':'')+': '+(apropriado?finMoney(gastos+ajustes):'Não integrado')+'</strong></span>'+
+    '<span><strong>Pedidos comprometidos (a conciliar): '+finMoney(comprometido)+'</strong></span>'+
+    (notasPendentes?'<span><strong>Notas em conferência: '+finMoney(notasPendentes)+'</strong></span>':'')+
+    (transferenciasPendentes?'<span><strong>Transferências com custo pendente: '+transferenciasPendentes+'</strong></span>':''):'');
 
   // Um grupo interno pode reunir vários níveis personalizados. Sem vínculo
   // do lançamento ao nível específico, não podemos atribuir gasto/receita
@@ -539,9 +550,15 @@
    const known=(counts.get(key)===1)&&(n.faturar||canSpend);
    // Faturamento de outros níveis ainda não pode ser lançado no EWGEST;
    // exibir zero registrado, distinguindo previsão de emissão disponível.
-   const real=known?(n.faturar?(faturas.get(base)||0):(despesas.get(base)||0)):null;
-   const previsto=Number(n.valor||0),restante=real===null?null:
-    (Math.round(previsto*100)-Math.round(real*100))/100;
+   const d=porCategoria.get(base)||{};
+   const real=known?(n.faturar?(faturas.get(base)||0):integrado?Number(d.realizado_centavos||0)/100:(despesas.get(base)||0)):null;
+   const custo=known&&!n.faturar&&integrado;
+   const ajuste=custo?Number(d.ajuste_transferencias_centavos||0)/100:0;
+   const compromisso=custo?Number(d.comprometido_pendente_centavos||0)/100:0;
+   const pendente=custo&&Number(d.pendencia_centavos||0)>0;
+   const transferenciaPendente=custo&&Number(d.transferencias_custo_pendentes||0)>0;
+   const previsto=Number(n.valor||0),restante=real===null||pendente||transferenciaPendente?null:
+    (Math.round(previsto*100)-Math.round(real*100)-Math.round(ajuste*100)-Math.round(compromisso*100))/100;
    if(real===null)naoDiscriminados=true;
    const finalidade=n.faturar?(
     canBill?'Faturamento':'Faturamento (emissão pendente)'
@@ -552,22 +569,24 @@
     '<td align="right">'+Number(n.percentual||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%</td>'+
     '<td>'+finalidade+'</td>'+
     '<td align="right">'+(real===null?'—':finMoney(real))+'</td>'+
+    (integrado?'<td align="right">'+(custo&&apropriado?finMoney(ajuste):'—')+'</td><td align="right">'+(custo?finMoney(compromisso):'—')+'</td>':'')+
     '<td align="right"'+(restante!==null&&restante<0?' class="finNegative"':'')+'>'+
-    (restante===null?'—':finMoney(restante))+'</td></tr>';
+    (transferenciaPendente?'Custo de transferência pendente':pendente?'Em conferência':restante===null?'—':finMoney(restante))+'</td></tr>';
   }).join('');
   byId('finSummary').innerHTML=
    '<h3>Orçamento por níveis e acompanhamento financeiro</h3>'+
    '<div class="finTableWrap"><table class="finTable"><thead><tr>'+
    '<th>Nível</th><th>Empresa</th><th align="right">Previsto</th>'+
    '<th align="right">% da obra</th><th>Finalidade</th>'+
-   '<th align="right">Realizado</th><th align="right">Restante</th>'+
+   '<th align="right">Realizado</th>'+(integrado?'<th align="right">Ajuste de transferências</th><th align="right">Comprometido a conciliar</th>':'')+'<th align="right">Restante</th>'+
    '</tr></thead><tbody>'+rows+'</tbody></table></div>'+
    '<p class="hint">Realizado considera apenas despesas aprovadas e faturamentos emitidos registrados no EWGEST. '+
    'Romaneios não contabilizam faturamento. Níveis de faturamento fora de fabricação/instalação '+
    'ainda não podem ter nota emitida por este módulo.'+
    (naoDiscriminados?' Quando vários níveis compartilham uma categoria interna ou não possuem categoria '+
     'de lançamento correspondente, seus valores realizados não são distribuídos automaticamente (—).':'')+
-   '</p>';
+   '</p>'+(integrado?'<p class="hint">Transferências não são novas compras. O ajuste líquido compõe o custo apropriado; o saldo definitivo não é exibido enquanto houver custo ou nota em conferência.</p>':'');
+  if(integrado)finRenderClassificacaoFiscal(state);
   initForm();
  };
  byId('finExpenseForm').removeEventListener('submit',finRegistrarCusto);
