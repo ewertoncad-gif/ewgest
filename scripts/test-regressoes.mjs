@@ -887,8 +887,9 @@ assert.ok(!source.includes('id="stockNewManual"')&&
  'Estoque não exibe entradas manuais, NF-e e cadastro de galpão redundantes');
 assert.ok(source.includes('function stockCemReadMirror(){')&&
  source.includes('function stockCemMirrorRow(tipo,row={},index=-1){')&&
- source.includes('p_perfis:mirror.perfis,p_acessorios:mirror.acessorios'),
- 'Importação utiliza o espelho editado, não os dados originais do arquivo');
+ source.includes('Importação de saldo físico pelo CEM desativada. Utilize Recebimento.')&&
+ !source.slice(source.indexOf('async function stockCemCommit(){'),source.indexOf("node('stockCemAnalyze').addEventListener('click',stockCemAnalyze)")).includes('request('),
+ 'Espelho permanece disponível para conferência; importação CEM não registra saldo físico');
 assert.ok(source.includes('stockCemMirrorUpdate')&&source.includes('data-stock-cem-add'),
  'Espelho de importação permite alterações e inclusão de linhas');
 assert.ok(!source.includes('CEM Plus'),'Nome da marca não deve aparecer na interface nem em mensagens de erro');
