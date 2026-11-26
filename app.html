@@ -8283,11 +8283,13 @@ async function finLoad(){
 }
 function finRenderResumo(){
  const x=finState,o=x.orcamento;
- const gastos=new Map(),faturado=new Map(),comprometido=new Map(),pendencias=new Map(),transferenciasPendentes=new Map();
- for(const d of x.compromissos||[]){gastos.set(d.categoria,Number(d.realizado_centavos)/100);comprometido.set(d.categoria,Number(d.comprometido_pendente_centavos)/100);pendencias.set(d.categoria,Number(d.pendencia_centavos||0)/100);transferenciasPendentes.set(d.categoria,Number(d.transferencias_custo_pendentes||0));}
+ const gastos=new Map(),faturado=new Map(),comprometido=new Map(),pendencias=new Map(),transferenciasPendentes=new Map(),ajustesTransferencias=new Map();
+ for(const d of x.compromissos||[]){gastos.set(d.categoria,Number(d.realizado_centavos)/100);comprometido.set(d.categoria,Number(d.comprometido_pendente_centavos)/100);pendencias.set(d.categoria,Number(d.pendencia_centavos||0)/100);transferenciasPendentes.set(d.categoria,Number(d.transferencias_custo_pendentes||0));ajustesTransferencias.set(d.categoria,Number(d.ajuste_transferencias_centavos??0)/100);}
  for(const f of x.faturas)if(f.status==='emitido')faturado.set(f.categoria,(faturado.get(f.categoria)||0)+Number(f.valor_total));
  const compromissoTotal=[...comprometido.values()].reduce((a,b)=>a+b,0),pendenciaTotal=[...pendencias.values()].reduce((a,b)=>a+b,0);
  const totalTransferenciasPendentes=[...transferenciasPendentes.values()].reduce((a,b)=>a+b,0);
+ const temApropriacao=(x.compromissos||[]).some(d=>Object.prototype.hasOwnProperty.call(d,'ajuste_transferencias_centavos'));
+ const ajusteTotal=[...ajustesTransferencias.values()].reduce((a,b)=>a+b,0);
  const gastoTotal=[...gastos.values()].reduce((a,b)=>a+b,0),recebTotal=[...faturado.values()].reduce((a,b)=>a+b,0);
  const totalReceita=x.precificacao?
   (Number(x.precificacao.fabricacao_distribuida_centavos)+
@@ -8298,7 +8300,9 @@ function finRenderResumo(){
  node('finTotals').innerHTML='<span><strong>Valor da obra: '+finMoney(o.valor_total)+'</strong></span>'+
   '<span><strong>Faturado: '+finMoney(recebTotal)+'</strong></span>'+
   '<span><strong>A faturar (fabricação/instalação): '+finMoney(totalReceita-recebTotal)+'</strong></span>'+
-  '<span><strong>Gastos realizados'+(totalTransferenciasPendentes?' (sem apropriação das transferências)':'')+': '+finMoney(gastoTotal)+'</strong></span>'+
+  '<span><strong>Gastos realizados (notas)'+': '+finMoney(gastoTotal)+'</strong></span>'+
+  '<span><strong>Ajuste líquido de transferências: '+(temApropriacao?finMoney(ajusteTotal):'Não integrado')+'</strong></span>'+
+  '<span><strong>Custo apropriado'+(totalTransferenciasPendentes?' (parcial)':'')+': '+(temApropriacao?finMoney(gastoTotal+ajusteTotal):'Não integrado')+'</strong></span>'+
   '<span><strong>Pedidos comprometidos (a conciliar): '+finMoney(compromissoTotal)+'</strong></span>'+
   (pendenciaTotal?'<span><strong>Notas em conferência: '+finMoney(pendenciaTotal)+'</strong></span>':'')+
   (totalTransferenciasPendentes?'<span><strong>Transferências com custo pendente: '+totalTransferenciasPendentes+'</strong></span>':'');
@@ -8336,7 +8340,7 @@ function finRenderResumo(){
   }).join('')+'</tbody></table></div>'+
   '<p class="hint">Os preços-base/m² representam pesos comerciais. Os valores em centavos por esquadria, aprovados na importação, são a referência exata para faturamento; o R$/m² exibido é informativo.</p>':'';
  node('finSummary').innerHTML=resumoNiveis+resumoPreco+'<div class="finTableWrap"><table class="finTable"><thead><tr>'+
-   '<th>Categoria</th><th>Controle</th><th align="right">Previsto / teto</th><th align="right">Realizado</th><th align="right">Comprometido a conciliar</th><th align="right">Notas em conferência</th><th align="right">Restante disponível</th></tr></thead><tbody>'+
+   '<th>Categoria</th><th>Controle</th><th align="right">Previsto / teto</th><th align="right">Realizado / faturado</th><th align="right">Ajuste de transferências</th><th align="right">Comprometido a conciliar</th><th align="right">Notas em conferência</th><th align="right">Restante disponível</th></tr></thead><tbody>'+
  finCategories.map(([k,label,tipo])=>{
    const total=x.precificacao&&['fabricacao','instalacao'].includes(k)?
      Number(x.precificacao[k+'_distribuida_centavos'])/100:Number(o[k]);
@@ -8344,13 +8348,14 @@ function finRenderResumo(){
    const comprometidoCategoria=tipo==='custo'?(comprometido.get(k)||0):0;
    const pendente=tipo==='custo'?(pendencias.get(k)||0):0;
    const custoPendente=tipo==='custo'&&(transferenciasPendentes.get(k)||0)>0;
-   const resto=Math.round((total-real-comprometidoCategoria)*100)/100;
+   const ajuste=tipo==='custo'?(ajustesTransferencias.get(k)||0):0;
+   const resto=Math.round((total-real-ajuste-comprometidoCategoria)*100)/100;
    return '<tr><td>'+label+'</td><td>'+(tipo==='custo'?'Gasto':'Faturamento')+
    '</td><td align="right">'+finMoney(total)+'</td><td align="right">'+finMoney(real)+
-   '</td><td align="right">'+(tipo==='custo'?finMoney(comprometidoCategoria):'—')+'</td><td align="right">'+(tipo==='custo'?finMoney(pendente):'—')+'</td><td align="right"'+(!pendente&&!custoPendente&&resto<0?' class="finNegative"':'')+'>'+(custoPendente?'Custo de transferência pendente':pendente?'Em conferência':finMoney(resto))+'</td></tr>';
+   '</td><td align="right">'+(tipo==='custo'&&temApropriacao?finMoney(ajuste):'—')+'</td><td align="right">'+(tipo==='custo'?finMoney(comprometidoCategoria):'—')+'</td><td align="right">'+(tipo==='custo'?finMoney(pendente):'—')+'</td><td align="right"'+(!pendente&&!custoPendente&&resto<0?' class="finNegative"':'')+'>'+(custoPendente?'Custo de transferência pendente':pendente?'Em conferência':finMoney(resto))+'</td></tr>';
  }).join('')+'</tbody></table></div>'+
  '<p class="hint">O valor de fabricação e instalação representa receita prevista, não lucro. Pedidos aprovados comprometem o saldo antes da entrega física. Na conciliação fiscal o compromisso correspondente é substituído pelo realizado. Notas em conferência não entram no saldo definitivo. Concilie em Compras ou confirme que o saldo da nota é independente dos pedidos. Romaneios não contabilizam faturamento.</p>';
- if(totalTransferenciasPendentes)node('finSummary').insertAdjacentHTML('beforeend','<p class="hint">Transferências entre obras ou estoque próprio não são novas compras. O saldo definitivo da categoria depende da apropriação do custo de origem; nenhum valor estimado foi lançado automaticamente.</p>');
+ if(totalTransferenciasPendentes)node('finSummary').insertAdjacentHTML('beforeend','<p class="hint">Transferências entre obras ou estoque próprio não são novas compras. O saldo definitivo da categoria depende da apropriação do custo de origem; somente custos comprovados podem ser apropriados. Os ajustes já conciliados são exibidos separadamente das notas fiscais.</p>');
  finRenderClassificacaoFiscal(x);
 }
 
