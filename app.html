@@ -822,7 +822,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.28</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.29</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -843,7 +843,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.28</div>
+        <div class="build">EWGEST • v46.29.29</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -2453,16 +2453,17 @@
     </div>
     <select id="recognitionTarget" class="hidden" tabindex="-1" aria-hidden="true"><option value="">Selecione para comparar</option></select>
     <div id="recognitionTargetChoices" class="descriptiveChoices" role="radiogroup" aria-labelledby="recognitionTargetLabel"></div>
+    <div id="recognitionManualFields" class="hidden">
     <label id="recognitionModulationLabel">Configuração existente ou nova variação</label>
     <select id="recognitionModulation" class="hidden" tabindex="-1" aria-hidden="true" disabled><option value="">Selecione primeiro uma tipologia</option></select>
     <div id="recognitionModulationChoices" class="descriptiveChoices" role="radiogroup" aria-labelledby="recognitionModulationLabel"></div>
+    </div>
     <fieldset id="recognitionAdaptFields" class="hidden" style="margin:12px 0;border:1px solid #d5e0ed;border-radius:8px;padding:10px">
-      <legend>Adaptar descrição da tipologia selecionada</legend>
-      <p class="hint">Mantém o texto do catálogo e altera somente a quantidade explícita de módulos. Confira no projeto antes de aplicar.</p>
+      <legend>Modulação da tipologia selecionada</legend>
+      <p class="hint">Informe a quantidade de módulos. O sistema reutiliza a descrição correspondente ou prepara uma nova variação da mesma tipologia.</p>
       <label for="recognitionAdaptCount">Quantidade de módulos da variação</label>
       <input id="recognitionAdaptCount" type="number" min="1" max="100" step="1" placeholder="Ex.: 6">
       <p id="recognitionAdaptPreview" class="recognitionCompare" role="status" aria-live="polite"></p>
-      <button id="recognitionAdaptApply" type="button" class="btn secondary" disabled>Usar descrição adaptada</button>
     </fieldset>
     <div id="recognitionNewModFields" class="hidden">
       <label for="recognitionModDescription">Descrição da nova modulação</label>
@@ -5996,7 +5997,7 @@ function atualizarListaTipologiasReconhecimento(){
   const tipo=node('recognitionTargetType').value;
   const rows=filtrarTiposReconhecimento(recognitionTargetRows,typologyCatalog,tipo);
   const select=node('recognitionTarget');
-  if(select.value&&!rows.some(r=>r.value===select.value)){
+  if(!select.disabled&&select.value&&!rows.some(r=>r.value===select.value)){
     select.value='';
     node('recognitionApproval').checked=false;
     node('recognitionDivergence').checked=false;
@@ -6132,38 +6133,33 @@ function estadoAdaptacaoReconhecimento(){
   const t=typologyCatalog.find(x=>x.id===node('recognitionTarget').value);
   const principal=typologyCatalog.find(x=>x.id===(t?.tipologia_principal_id||t?.id))||t;
   const q=node('recognitionAdaptCount').value;
-  return {t,q,...decidirAdaptacaoModulos(principal?.descricao,q,modulacoesDaTipologia(t))};
+  const automatico=Boolean(t&&descricaoAdaptadaModulos(principal?.descricao,1));
+  return {t,q,automatico,...decidirAdaptacaoModulos(principal?.descricao,q,modulacoesDaTipologia(t))};
 }
 function atualizarAdaptacaoReconhecimento(){
   const a=estadoAdaptacaoReconhecimento();
-  node('recognitionAdaptFields').classList.toggle('hidden',!a.t);
-  const preview=node('recognitionAdaptPreview'),button=node('recognitionAdaptApply');
-  button.disabled=!a.t||!a.descricao||a.ambiguo;
-  if(!a.descricao){
-    preview.textContent='Informe de 1 a 100 módulos. A tipologia precisa ter exatamente uma quantidade de módulos explícita na descrição.';
-    return;
-  }
-  const outras=modulacoesDaTipologia(a.t).filter(m=>m.id!==a.existente?.id&&Number(m.quantidade_modulos||quantidadeModulosExpressa(m.descricao))===Number(a.q));
-  preview.textContent=a.descricao+(a.ambiguo?' · Há configurações com esta descrição e quantidade inconsistente ou duplicada. Revise o cadastro.':a.existente?' · Reutilizar '+codigoVariacaoTecnica(a.t,a.existente)+'.':' · Preparar nova variação, sem alterar o cadastro principal.')+
-    (outras.length?' · Existem outras configurações com '+a.q+' módulos: '+outras.map(m=>codigoVariacaoTecnica(a.t,m)).join(', ')+'. Compare as descrições antes de criar.':'');
-  button.textContent=a.existente?'Usar configuração existente':'Usar descrição adaptada';
-}
-function aplicarAdaptacaoReconhecimento(){
-  const a=estadoAdaptacaoReconhecimento();
-  if(!a.t||!a.descricao||a.ambiguo)return;
+  node('recognitionAdaptFields').classList.toggle('hidden',!a.automatico);
+  node('recognitionManualFields').classList.toggle('hidden',!a.t||a.automatico);
+  const preview=node('recognitionAdaptPreview');
+  if(!a.automatico){preview.textContent='';return false;}
   const select=node('recognitionModulation');
-  select.value=a.existente?a.existente.id:'__CRIAR__';
-  node('recognitionModDescription').value=a.descricao;
-  node('recognitionModCount').value=a.q;
-  for(const radio of node('recognitionModulationChoices').querySelectorAll('input[type="radio"]'))radio.checked=radio.value===select.value;
-  node('recognitionApproval').checked=false;
-  node('recognitionDivergence').checked=false;
-  renderizarCamposModulacao();
+  // Cada quantidade redefine a escolha; nenhum valor oculto anterior pode ser confirmado.
+  select.value=a.descricao&&!a.ambiguo?(a.existente?a.existente.id:'__CRIAR__'):'';
+  node('recognitionModDescription').value=a.descricao&&!a.ambiguo?a.descricao:'';
+  node('recognitionModCount').value=a.descricao&&!a.ambiguo?a.q:'';
+  if(!a.descricao){
+    preview.textContent='Informe uma quantidade inteira de 1 a 100 módulos.';
+  }else if(a.ambiguo){
+    preview.textContent=a.descricao+' · Existem configurações duplicadas ou com quantidade inconsistente. Revise o cadastro antes de confirmar.';
+  }else{
+    preview.textContent=a.descricao+(a.existente?' · Reutilizar '+codigoVariacaoTecnica(a.t,a.existente)+'.':' · Criar nova variação da mesma tipologia ao confirmar.');
+  }
+  return true;
 }
 function renderizarCamposModulacao(){
+  const automatico=atualizarAdaptacaoReconhecimento();
   const criar=node('recognitionModulation').value==='__CRIAR__';
-  node('recognitionNewModFields').classList.toggle('hidden',!criar);
-  atualizarAdaptacaoReconhecimento();
+  node('recognitionNewModFields').classList.toggle('hidden',automatico||!criar);
   atualizarComparacaoReconhecimento();
 }
 function diferencaNoReconhecimento(){
@@ -6198,7 +6194,7 @@ function atualizarComparacaoReconhecimento(){
     tipo.textContent='Tipologia: '+principal.codigo+' — '+target.descricao;compare.append(tipo);
     const config=document.createElement('p');
     config.textContent=(nova?'Nova variação '+proximoSufixoVisual(target)+' (código definitivo gerado ao salvar)':
-      mod?'Variação '+codigoVariacaoTecnica(target,mod)+' ('+mod.codigo_interno+')':'Selecione uma variação')+
+      mod?'Variação '+codigoVariacaoTecnica(target,mod)+' ('+mod.codigo_interno+')':'Configuração ainda não definida')+
       ' — '+(desc||'Sem descrição');compare.append(config);
     if(mod){const info=document.createElement('p');info.textContent=mod.quantidade_modulos?mod.quantidade_modulos+' módulo(s)':'Quantidade de módulos não conferida';compare.append(info);}
     const conflito=avisoConflitoReconhecimento(item,mod?.id);
@@ -7333,8 +7329,7 @@ node('recognitionTarget').addEventListener('change',()=>{node('recognitionApprov
 node('recognitionTargetSearch').addEventListener('input',atualizarListaTipologiasReconhecimento);
 node('recognitionTargetType').addEventListener('change',atualizarListaTipologiasReconhecimento);
 node('recognitionModulation').addEventListener('change',()=>{node('recognitionApproval').checked=false;node('recognitionDivergence').checked=false;renderizarCamposModulacao();});
-node('recognitionAdaptCount').addEventListener('input',atualizarAdaptacaoReconhecimento);
-node('recognitionAdaptApply').addEventListener('click',aplicarAdaptacaoReconhecimento);
+node('recognitionAdaptCount').addEventListener('input',()=>{node('recognitionApproval').checked=false;node('recognitionDivergence').checked=false;renderizarCamposModulacao();});
 node('recognitionModDescription').addEventListener('input',atualizarComparacaoReconhecimento);
 node('recognitionModCount').addEventListener('input',validarReconhecimento);
 node('recognitionApproval').addEventListener('change',validarReconhecimento);

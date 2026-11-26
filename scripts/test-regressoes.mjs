@@ -129,7 +129,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.28',
+ 'EWGEST • v46.29.29',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2135,7 +2135,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.28')&&
+assert.ok(source.includes('v46.29.29')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2371,7 +2371,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.28</strong>'),
+ source.includes('EWGEST <strong>· v46.29.29</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -3081,7 +3081,7 @@ import './test-obras-modos.mjs';
 
 import './test-reconhecimento-cem.mjs';
 
-// v46.29.28 — compactação restrita à lista de liberação, sem fontes menores.
+// v46.29.29 — compactação restrita à lista de liberação, sem fontes menores.
 assert.ok(source.includes("node('items').classList.toggle('releaseCompact',detailMode==='release')"));
 const compactCss=source.slice(source.indexOf('/* Lista de liberação compacta:'),source.indexOf('.catalogFilters{',source.indexOf('/* Lista de liberação compacta:')));
 assert.ok(compactCss.includes('#items.releaseCompact .typologyGroup{margin:9px 0;padding:2px 16px 4px}'));
@@ -3142,9 +3142,62 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
  assert.equal(adaptar.decidirAdaptacaoModulos(oito,6,[{descricao:seis.replace('COM VIDRO','SEM VIDRO'),quantidade_modulos:6}]).existente,null);
  assert.equal(adaptar.decidirAdaptacaoModulos(oito,6,[{descricao:'GRADIL 6 MÓDULO(S) - COM VIDRO - UNIVERSAL - HYDRO',quantidade_modulos:6}]).existente,null);
  assert.ok(source.includes('id="recognitionAdaptCount"'));
- assert.ok(source.includes("node('recognitionAdaptApply').addEventListener('click',aplicarAdaptacaoReconhecimento)"));
+ assert.ok(!source.includes('id="recognitionAdaptApply"'));
+ assert.ok(source.includes('id="recognitionManualFields" class="hidden"'));
+ assert.ok(source.includes("node('recognitionAdaptCount').addEventListener('input',()=>{node('recognitionApproval').checked=false;node('recognitionDivergence').checked=false;renderizarCamposModulacao();})"));
  assert.ok(source.includes("node('recognitionApproval').checked=false;"));
  const opInicio=source.indexOf('function descricaoOperacionalTipologia('),opFim=source.indexOf('function labeledDescription(',opInicio);
  const operacional=new Function('modulationCatalog','typologyCatalog','descricaoAdaptadaModulos','comparacaoEstritaDescricao','quantidadeModulosExpressa',source.slice(opInicio,opFim)+'return descricaoOperacionalTipologia;')([{...mSeis,tipologia_principal_id:'t'}],[{id:'t',descricao:oito}],adaptar.descricaoAdaptadaModulos,s=>String(s||'').trim().toUpperCase(),()=>null);
  assert.equal(operacional({modulacao_id:'m6',descricao:'GRADIL 6 MÓDULO(S)'}),seis);
  assert.equal(operacional({descricao:'ORIGINAL CEM'}),'ORIGINAL CEM');
+
+ // v46.29.29: escolher a família e a quantidade basta; o seletor interno
+ // permanece apenas como contrato com a RPC, sem decisão intermediária.
+ {
+  const cut=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end,source.indexOf(start)));
+  const funcs=cut('function comparacaoEstritaDescricao(','function sugerirPorDescricao(')+
+   cut('function descricaoAdaptadaModulos(','function diferencaNoReconhecimento(')+
+   cut('function modulacoesDaTipologia(','function atualizarOpcoesModulacao(')+
+   cut('function validarReconhecimento(){','function fecharConferenciaTipologia(){');
+  const ns=new Map();
+  const n=id=>{if(!ns.has(id)){const flags=new Set();ns.set(id,{value:'',checked:false,disabled:false,textContent:'',classList:{toggle(k,v){v?flags.add(k):flags.delete(k);},contains:k=>flags.has(k)}});}return ns.get(id);};
+  const catalog=[{id:'t',codigo:'UNIV-R08-GRADN00',descricao:oito},{id:'j',codigo:'JANELA',descricao:'JANELA DE CORRER - 2 FOLHAS'}];
+  const mods=[{...mSeis,tipologia_principal_id:'t',numero_variacao:3},{id:'gradil',tipologia_principal_id:'t',numero_variacao:1,descricao:'GRADIL 7 MÓDULO(S) - COM VIDRO - UNIVERSAL - HYDRO',quantidade_modulos:7},{id:'j1',tipologia_principal_id:'j',numero_variacao:1,descricao:'JANELA DE CORRER - 2 FOLHAS'}];
+  const origin={descricao:'GRADIL 6 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO'};
+  const run=new Function('node','typologyCatalog','modulationCatalog','recognitionPendingItem','codigoVariacaoTecnica','diferencaNoReconhecimento',funcs+'\nconst atualizarComparacaoReconhecimento=validarReconhecimento;return renderizarCamposModulacao;')(n,catalog,mods,origin,(t,m)=>t.codigo+'-'+m.numero_variacao,()=>true);
+  const hidden=id=>n(id).classList.contains('hidden');
+  n('recognitionTarget').value='t';n('recognitionAdaptCount').value='6';run();
+  assert.equal(n('recognitionModulation').value,'m6');
+  assert.equal(n('recognitionModDescription').value,seis);
+  assert.ok(hidden('recognitionManualFields')&&hidden('recognitionNewModFields'));
+  assert.ok(!hidden('recognitionAdaptFields'));
+  assert.ok(n('recognitionAdaptPreview').textContent.includes('Reutilizar'));
+  assert.equal(n('recognitionConfirm').disabled,true);
+  n('recognitionApproval').checked=true;n('recognitionDivergence').checked=true;run();
+  assert.equal(n('recognitionConfirm').disabled,false);
+  n('recognitionAdaptCount').value='7';run();
+  assert.equal(n('recognitionModulation').value,'__CRIAR__','GRADIL não equivale automaticamente a GUARDA CORPO');
+  assert.equal(n('recognitionModDescription').value,oito.replace('8 MÓDULO','7 MÓDULO'));
+  assert.equal(n('recognitionModCount').value,'7');
+  assert.ok(hidden('recognitionNewModFields'));
+  assert.ok(n('recognitionAdaptPreview').textContent.includes('Criar nova variação'));
+  for(const q of ['','0','6.5','101']){
+   n('recognitionAdaptCount').value=q;run();
+   assert.equal(n('recognitionModulation').value,'');
+   assert.equal(n('recognitionModDescription').value,'');
+   assert.equal(n('recognitionConfirm').disabled,true);
+  }
+  mods.push({...mods[0],id:'duplicada'});
+  n('recognitionAdaptCount').value='6';run();
+  assert.equal(n('recognitionConfirm').disabled,true);
+  assert.ok(n('recognitionAdaptPreview').textContent.includes('duplicadas'));
+  n('recognitionTarget').value='j';n('recognitionModulation').value='j1';run();
+  assert.ok(!hidden('recognitionManualFields')&&hidden('recognitionAdaptFields'));
+  assert.equal(n('recognitionModulation').value,'j1');
+  n('recognitionTarget').value='';n('recognitionModulation').value='';run();
+  assert.ok(hidden('recognitionManualFields')&&hidden('recognitionAdaptFields'));
+  assert.equal(n('recognitionConfirm').disabled,true);
+  assert.equal(origin.descricao,'GRADIL 6 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO');
+  assert.equal(catalog[0].descricao,oito);
+ }
+ console.log('OK v46.29.29: modulação automática, reuso, criação, exceções e bloqueios.');
