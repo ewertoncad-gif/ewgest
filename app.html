@@ -786,7 +786,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.21</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.22</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -807,7 +807,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.21</div>
+        <div class="build">EWGEST • v46.29.22</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -1699,7 +1699,7 @@
             <li>Fabricante, busca e tipo são filtros combináveis. Edições de código/descrição e vínculos de origem são procedimentos separados, restritos ao administrador.</li>
             <li>Código da esquadria (como EA14_1) é válido no contexto da obra e não identifica automaticamente a tipologia de outras obras.</li>
             <li>Em novas obras: sugerir pelo texto da descrição, comparar e exigir confirmação do ADM. Divergências exigem aceite adicional.</li>
-            <li>Classificação pendente afeta apenas a obra conferida; não cria reconhecimento automático global. Confirmar deve gerar auditoria.</li>
+            <li>Classificação pendente afeta apenas a obra conferida. Com autorização explícita, uma descrição exata poderá ser reconhecida em novas importações da mesma empresa.</li>
             <li>Pendências de cadastro: ADM confirma tipologia correta e escolhe modulação interna MOD existente ou cadastra nova pela descrição.</li>
             <li>Código EA do relatório não é código técnico confiável. Número de FOLHAS não determina automaticamente número de MÓDULOS.</li>
             <li>Corrigir identificação de cadastro já existente vincula o código original a uma tipologia técnica principal, sem apagar os croquis, obras ou histórico. Somente ADM, com confirmação e auditoria.</li>
@@ -1758,6 +1758,8 @@
           <summary>Modulações internas cadastradas · <span id="modulationCatalogCount">—</span></summary>
           <p class="hint">Padrão de exibição: INV-PGR207-01, INV-PGR207-02... O código MOD permanece interno. Sufixo não representa quantidade de folhas ou módulos.</p>
           <div id="modulationCatalogList"></div>
+          <h3>Reconhecimento automático CEM</h3><p class="hint">Regras autorizadas por descrição exata e variação. Desativar não muda obras já classificadas.</p>
+          <button type="button" id="cemRulesReload" class="btn secondary">Atualizar regras</button><p id="cemRulesStatus" class="hint" role="status"></p><div id="cemRulesList"></div>
         </details>
         <details class="systemRules hidden" id="variationManager">
           <summary>Organizar tipologia principal e variações</summary>
@@ -2371,6 +2373,10 @@
         <p class="hint">A descrição original recebida da obra será guardada no histórico. O croqui não será modificado.</p>
       </div>
     </div>
+    <fieldset id="differenceScope" class="hidden" style="margin:12px 0;border:1px solid #d5e0ed;border-radius:8px;padding:10px"><legend>Aplicação da associação</legend>
+      <label class="recognitionCheck"><input type="radio" name="differenceScope" id="differenceScopeWork" checked><span>Somente nesta obra.</span></label>
+      <label class="recognitionCheck"><input type="radio" name="differenceScope" id="differenceScopeFuture"><span>Nesta obra e nas próximas importações CEM com a descrição original exatamente igual, nesta empresa.</span></label>
+    </fieldset>
     <p id="differenceError" class="feedback" role="status" aria-live="polite"></p>
     <div class="modalbuttons" style="flex-wrap:wrap">
       <button type="button" id="differenceCancel" class="btn secondary">Cancelar</button>
@@ -2399,8 +2405,13 @@
       <span>Conferi a diferença entre as descrições e mesmo assim confirmo esta tipologia.</span>
     </label>
     <label class="recognitionCheck"><input type="checkbox" id="recognitionApproval">
-      <span><strong>Confirmo a tipologia desta obra.</strong> Não autorizo reconhecimento automático em outras obras.</span>
+      <span><strong>Confirmo a tipologia e a variação desta obra.</strong></span>
     </label>
+    <fieldset style="margin:12px 0;border:1px solid #d5e0ed;border-radius:8px;padding:10px"><legend>Aplicação da associação</legend>
+      <label class="recognitionCheck"><input type="radio" name="recognitionScope" value="obra" id="recognitionScopeWork" checked><span>Somente nesta obra.</span></label>
+      <label class="recognitionCheck"><input type="radio" name="recognitionScope" value="futuras" id="recognitionScopeFuture"><span>Nesta obra e nas próximas importações CEM com descrição exatamente igual, nesta empresa.</span></label>
+      <p class="hint">Conflitos não serão reconhecidos automaticamente. A autorização poderá ser desativada no cadastro.</p>
+    </fieldset>
     <p id="recognitionMessage" class="feedback" role="status" aria-live="polite"></p>
     <div class="modalbuttons" style="flex-wrap:wrap">
       <button id="recognitionNew" class="btn secondary" type="button">Cadastrar nova tipologia</button>
@@ -2460,7 +2471,7 @@
             <small>Confirme que o nome está correto. O fabricante ficará disponível no cadastro mestre e nos filtros.</small></span>
           </label>
         </div>
-        <p class="hint">Classificações de itens pendentes não ativam reconhecimento automático para outras obras. A importação automática ainda não está implementada.</p>
+        <p class="hint">O reconhecimento CEM por descrição exata exige autorização explícita na conferência da modulação. Gerencie as regras em Modulações internas cadastradas.</p>
       </div>
       <div id="typologyEditError" class="feedback" role="alert"></div>
       <div class="modalbuttons">
@@ -5681,6 +5692,7 @@ function abrirConferenciaDescricao(item){
   seletor.value=igual?.id||(configs.length===1?configs[0].id:'');
   node('differenceNewDescription').value=item.descricao||'';
   node('differenceNewModules').value='';
+  node('differenceScopeWork').checked=true;node('differenceScopeFuture').checked=false;
   node('differenceError').textContent='';
   node('differenceOverlay').classList.remove('hidden');
   atualizarTelaDiferenca();
@@ -5741,6 +5753,9 @@ function atualizarTelaDiferenca(){
   node('differenceSecondStep').classList.toggle('hidden',modo!=='nao');
   node('differenceCreateFields').classList.toggle('hidden',modo!=='nao'||opcao!=='nova');
   node('differenceCorrectFields').classList.toggle('hidden',modo!=='nao'||opcao!=='corrigir');
+  const podeMemorizar=modo==='sim'||(modo==='nao'&&opcao==='nova');
+  node('differenceScope').classList.toggle('hidden',!podeMemorizar);
+  if(!podeMemorizar){node('differenceScopeWork').checked=true;node('differenceScopeFuture').checked=false;}
   node('differenceCorrectDescription').textContent=mod?.descricao||'Escolha uma configuração cadastrada.';
   const raiz=tipologia?
     (typologyCatalog.find(t=>t.id===(tipologia.tipologia_principal_id||tipologia.id))||tipologia):null;
@@ -5799,7 +5814,7 @@ async function salvarConferenciaDescricao(){
       const descricaoCriar=modo==='sim'?String(item.descricao||'').trim():
         node('differenceNewDescription').value.trim();
       const num=node('differenceNewModules').value.trim();
-      resposta=await request('/rest/v1/rpc/resolver_modulacao_pendente_admin',{
+      resposta=await request('/rest/v1/rpc/ew_resolver_modulacao_com_regra',{
         method:'POST',token:session.access_token,
         body:{p_esquadria_id:item.id,p_tipologia_id:tipologia.id,
           p_modulacao_id:criar?null:existente.id,
@@ -5807,12 +5822,12 @@ async function salvarConferenciaDescricao(){
           p_descricao_modulacao:criar?descricaoCriar:null,
           p_quantidade_modulos:criar?(modo==='sim'?
             quantidadeModulosExpressa(item.descricao):(num?Number(num):null)):null,
-          p_confirmar_divergencia:true}
+          p_confirmar_divergencia:true,p_reconhecer_futuras:node('differenceScopeFuture').checked}
       });
       const principal=typologyCatalog.find(t=>t.id===(tipologia.tipologia_principal_id||tipologia.id))||tipologia;
       const codigo=principal.codigo+'-'+String(resposta.numero_variacao).padStart(2,'0');
       resultado=(criar?'Configuração registrada: ':'Configuração identificada: ')+codigo+
-        ' · '+resposta.esquadrias_classificadas+' esquadria(s). O código técnico foi mantido; nenhum croqui anterior foi substituído.';
+        ' · '+resposta.esquadrias_classificadas+' esquadria(s). O código técnico foi mantido; nenhum croqui anterior foi substituído. '+(resposta.regra_autorizada?'Reconhecimento futuro autorizado.':'Associação somente nesta obra.');
     }else if(modo==='nao'&&(opcao==='corrigir'||opcao==='adiar')){
       resposta=await request('/rest/v1/rpc/revisar_descricao_configuracao_admin',{
         method:'POST',token:session.access_token,
@@ -5878,6 +5893,8 @@ function abrirConferenciaTipologia(id){
   select.disabled=Boolean(tipologiaAtual);
   node('recognitionNew').classList.toggle('hidden',Boolean(tipologiaAtual));
   node('recognitionApproval').checked=false;
+  node('recognitionScopeWork').checked=true;
+  node('recognitionScopeFuture').checked=false;
   node('recognitionDivergence').checked=false;
   node('recognitionMessage').textContent='';
   atualizarOpcoesModulacao();
@@ -5987,7 +6004,7 @@ async function confirmarReconhecimentoTipologia(){
   try{
     await ensureSession();
     const q=node('recognitionModCount').value.trim();
-    const res=await request('/rest/v1/rpc/resolver_modulacao_pendente_admin',{
+    const res=await request('/rest/v1/rpc/ew_resolver_modulacao_com_regra',{
       method:'POST',token:session.access_token,
       body:{
         p_esquadria_id:item.id,p_tipologia_id:target.id,
@@ -5995,7 +6012,8 @@ async function confirmarReconhecimentoTipologia(){
         p_criar_modulacao:nova,
         p_descricao_modulacao:nova?node('recognitionModDescription').value.trim():null,
         p_quantidade_modulos:nova&&q?Number(q):null,
-        p_confirmar_divergencia:node('recognitionDivergence').checked
+        p_confirmar_divergencia:node('recognitionDivergence').checked,
+        p_reconhecer_futuras:node('recognitionScopeFuture').checked
       }
     });
     fecharConferenciaTipologia();
@@ -6007,10 +6025,10 @@ async function confirmarReconhecimentoTipologia(){
     const codigo=principal.codigo+'-'+String(res.numero_variacao).padStart(2,'0');
     node('typologyAdminMessage').textContent=(res.nova_modulacao?'Configuração criada: ':'Configuração vinculada: ')+
       codigo+' ('+res.codigo_interno+') · '+(res.esquadrias_classificadas||0)+
-      ' esquadria(s) desta obra. Nenhum código EA de outra obra foi associado.';
+      ' esquadria(s) desta obra. Nenhuma obra anterior foi alterada. '+(res.regra_autorizada?'Reconhecimento futuro autorizado.':'Associação somente nesta obra.');
   }catch(err){
     node('recognitionMessage').textContent='Não foi possível confirmar: '+err.message;
-  }finally{button.disabled=false;button.textContent='Confirmar associação';}
+  }finally{button.textContent='Confirmar associação';validarReconhecimento();}
 }
 function renderModulacoesCadastradas(){
   const target=node('modulationCatalogList');
@@ -6037,6 +6055,32 @@ function renderModulacoesCadastradas(){
       (imagem?'':' · Croqui ainda não cadastrado nesta configuração')+
       '</span></div>'+imagem+'</div>';
   }).join('');
+}
+let cemRulesSeq=0;
+async function carregarRegrasCem(){
+  const seq=++cemRulesSeq, empresa=currentCompany?.id;
+  const status=node('cemRulesStatus'),box=node('cemRulesList');
+  box.replaceChildren();status.textContent='';
+  if(!empresa||!temPermissao('cadastros.editar'))return;
+  status.textContent='Consultando regras…';
+  try{
+    await ensureSession();
+    const regras=await request('/rest/v1/rpc/ew_listar_regras_cem',{method:'POST',token:session.access_token,body:{p_empresa_id:empresa}});
+    if(seq!==cemRulesSeq||currentCompany?.id!==empresa||!temPermissao('cadastros.editar'))return;
+    status.textContent=regras.length+' regra(s).';
+    box.innerHTML=regras.map(r=>{
+      const m=modulationCatalog.find(x=>x.id===r.modulacao_id),t=typologyCatalog.find(x=>x.id===m?.tipologia_principal_id);
+      const code=m&&t?codigoVariacaoTecnica(t,m):'Destino histórico';
+      return '<div class="reviewPendingRow"><div><strong>'+escapeHTML(code)+' · '+(r.ativo?(r.aplicavel?'Autorizada':'Autorizada, mas bloqueada por conflito ou alteração do cadastro'):'Desativada')+'</strong><p class="muted">'+escapeHTML(r.descricao_origem)+'</p></div>'+
+      (r.ativo?'<button type="button" class="btn secondary" data-cem-rule-disable="'+escapeHTML(r.id)+'">Desativar</button>':'')+'</div>';
+    }).join('')||'<p class="hint">Nenhuma regra autorizada.</p>';
+    box.querySelectorAll('[data-cem-rule-disable]').forEach(b=>b.addEventListener('click',async()=>{
+      if(!temPermissao('cadastros.editar')||currentCompany?.id!==empresa||!window.confirm('Desativar esta regra para futuras importações? As obras já vinculadas serão preservadas.'))return;
+      b.disabled=true;
+      try{await ensureSession();await request('/rest/v1/rpc/ew_desativar_regra_cem',{method:'POST',token:session.access_token,body:{p_regra_id:b.dataset.cemRuleDisable}});await carregarRegrasCem();}
+      catch(e){status.textContent='Não foi possível desativar: '+e.message;b.disabled=false;}
+    }));
+  }catch(e){if(seq===cemRulesSeq&&currentCompany?.id===empresa)status.textContent='Não foi possível consultar as regras: '+e.message;}
 }
 function refreshVariationManager(){
   const signature=typologyCatalog.map(t=>[t.id,t.codigo,t.tipologia_principal_id||'',t.quantidade_modulos||''].join(':')).join('|');
@@ -6176,6 +6220,7 @@ function renderTypologiesAdmin() {
   refreshVariationManager();
   renderConferenciaPendentes();
   renderModulacoesCadastradas();
+  void carregarRegrasCem();
   node('catalogCount').textContent=typologyCatalog.length.toLocaleString('pt-BR');
   renderAbreviacoesCatalogo();
   const options=[...new Set([...manufacturerCatalog.map(m=>m.nome),...typologyCatalog.map(t=>String(t.fabricante||'').trim().toLocaleUpperCase('pt-BR')).filter(Boolean)])]
@@ -7056,6 +7101,7 @@ node('recognitionModulation').addEventListener('change',renderizarCamposModulaca
 node('recognitionModDescription').addEventListener('input',atualizarComparacaoReconhecimento);
 node('recognitionModCount').addEventListener('input',validarReconhecimento);
 node('recognitionApproval').addEventListener('change',validarReconhecimento);
+node('cemRulesReload').addEventListener('click',carregarRegrasCem);
 node('recognitionDivergence').addEventListener('change',validarReconhecimento);
 node('recognitionCancel').addEventListener('click',fecharConferenciaTipologia);
 node('recognitionConfirm').addEventListener('click',confirmarReconhecimentoTipologia);

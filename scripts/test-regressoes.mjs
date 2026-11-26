@@ -129,12 +129,12 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.21',
+ 'EWGEST • v46.29.22',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
  'id="recognitionDivergence"',
- 'resolver_modulacao_pendente_admin',
+ 'ew_resolver_modulacao_com_regra',
  'id="recognitionModulation"',
  'id="recognitionNewModFields"',
  'id="modulationCatalogPanel"',
@@ -313,6 +313,7 @@ const state={choice:'',next:'',form:{
  },
  differenceSecondStep:{classList:{toggle(){}}},differenceCreateFields:{classList:{toggle(){}}},
  differenceCorrectFields:{classList:{toggle(){}}},differenceCorrectDescription:{textContent:''},
+ differenceScope:{classList:{toggle(){}}},differenceScopeWork:{checked:true},differenceScopeFuture:{checked:false},
  differencePreserveCode:{textContent:''},
  differenceNewDescription:{value:'MODULO JANELA DE CORRER - SERIE 105'},
  differenceNewModules:{value:''},differenceSave:{disabled:true,textContent:''},
@@ -365,9 +366,11 @@ state.form.differenceNewDescription.value=modReferencia.descricao;
 functions.atualizarTelaDiferenca();
 assert.equal(state.form.differenceSave.disabled,true,'Impedir cadastrar descrição duplicada');
 state.form.differenceNewDescription.value='MODULO JANELA DE CORRER - SERIE 105';
+state.form.differenceScopeFuture.checked=true;
 state.next='corrigir';state.form.differenceConfig.value='m1';
 functions.atualizarTelaDiferenca();
 assert.equal(state.form.differenceSave.disabled,false,'Permitir corrigir descrição original somente após escolher configuração');
+assert.equal(state.form.differenceScopeFuture.checked,false,'Correção não autoriza reconhecimento futuro');
 state.next='adiar';functions.atualizarTelaDiferenca();
 assert.equal(state.form.differenceSave.disabled,false,'Permitir adiar e seguir obra');
 
@@ -2132,7 +2135,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.21')&&
+assert.ok(source.includes('v46.29.22')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2368,7 +2371,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.21</strong>'),
+ source.includes('EWGEST <strong>· v46.29.22</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -3075,3 +3078,5 @@ assert.ok(source.includes("total-real-ajuste-comprometidoCategoria"));
 assert.ok(source.includes("Ajuste líquido de transferências"));
 
 import './test-obras-modos.mjs';
+
+import './test-reconhecimento-cem.mjs';
