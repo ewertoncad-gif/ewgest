@@ -43,18 +43,34 @@ assert.ok(conflito.avisoConflitoReconhecimento({descricao:'MÓDULO JANELA'},'m2'
 assert.equal(conflito.avisoConflitoReconhecimento({descricao:'MÓDULO JANELA'},'m1'),'');
 
 // Executa o seletor real com opções simuladas, verificando ordem e padrão seguro.
-const montarSeletor=new Function('typologyCatalog','modulationCatalog','recognitionPendingItem','elements','node','document','normalizarReconhecimento','codigoVariacaoTecnica','proximoSufixoVisual','renderizarCamposModulacao',extract('function modulacoesDaTipologia(t){','function renderizarCamposModulacao(){')+'return atualizarOpcoesModulacao;');
+const montarSeletor=new Function('typologyCatalog','modulationCatalog','recognitionPendingItem','elements','node','document','normalizarReconhecimento','codigoVariacaoTecnica','proximoSufixoVisual','renderizarCamposModulacao','renderListaDescritiva',extract('function linhasConfiguracoes(t,mods,item){','let recognitionTargetRows=[];')+extract('function modulacoesDaTipologia(t){','function renderizarCamposModulacao(){')+'return atualizarOpcoesModulacao;');
 function simularSeletor(mods,descricao,anteriores=[]){
  const ns=new Map(),doc={createElement:()=>({value:'',textContent:''})};
  const n=id=>{if(!ns.has(id))ns.set(id,{value:'',children:[],replaceChildren(){this.children=[];},append(o){this.children.push(o);}});return ns.get(id);};
  n('recognitionTarget').value='t';
- montarSeletor([{id:'t',codigo:'WINFAC-JCR203'}],mods,{descricao},anteriores,n,doc,v=>String(v||'').toUpperCase(),(t,m)=>t.codigo+'-'+String(m.numero_variacao).padStart(2,'0'),()=> 'WINFAC-JCR203-03',()=>{})();
+ montarSeletor([{id:'t',codigo:'WINFAC-JCR203'}],mods,{descricao},anteriores,n,doc,v=>String(v||'').toUpperCase(),(t,m)=>t.codigo+'-'+String(m.numero_variacao).padStart(2,'0'),()=> 'WINFAC-JCR203-03',()=>{},(id,rows)=>{n(id).rows=rows;})();
  return n('recognitionModulation');
 }
 const m1={id:'m1',tipologia_principal_id:'t',numero_variacao:1,descricao:'DIFERENTE'};
 const m2={id:'m2',tipologia_principal_id:'t',numero_variacao:2,descricao:'OUTRA'};
-const unico=simularSeletor([m1],'CEM');assert.equal(unico.value,'m1');assert.equal(unico.children[0].textContent,'Usar existente: WINFAC-JCR203-01');assert.equal(unico.children[1].value,'__CRIAR__');
+const unico=simularSeletor([m1],'CEM');assert.equal(unico.value,'m1');assert.equal(unico.rows[0].code,'Usar existente: WINFAC-JCR203-01');assert.equal(unico.rows[0].description,'DIFERENTE');assert.equal(unico.rows[1].value,'__CRIAR__');
 assert.equal(simularSeletor([m1,m2],'CEM').value,'');
 assert.equal(simularSeletor([m1,m2],'OUTRA').value,'m2');
 assert.equal(simularSeletor([m1,m2],'CEM',[{descricao:'CEM',modulacao_id:'m1'}]).value,'m1');
 assert.equal(simularSeletor([],'CEM').value,'__CRIAR__');
+
+const duas=simularSeletor([m1,m2],'OUTRA');
+assert.equal(duas.rows[0].value,'m2');assert.ok(duas.rows[0].meta.includes('Descrição exata'));
+assert.equal(duas.rows.at(-1).value,'__CRIAR__');
+assert.equal(simularSeletor([m1,m2],'OUTRA',[{descricao:'OUTRA',modulacao_id:'m1'}]).value,'','Conflito histórico exige escolha');
+const nodes=new Map();
+const el=()=>({children:[],append(...els){this.children.push(...els);},replaceChildren(){this.children=[];},addEventListener(type,fn){this.listener=fn;}});
+const node=id=>{if(!nodes.has(id))nodes.set(id,el());return nodes.get(id);};
+const render=new Function('node','document','normalizarReconhecimento','Event',extract("function renderListaDescritiva(selectId,rows,query=''){",'function linhasConfiguracoes(t,mods,item){')+'return renderListaDescritiva;')(node,{createElement:el},v=>String(v||'').toUpperCase(),class{});
+node('sel').value='a';node('sel').dispatchEvent=()=>{};
+const long='GRADIL 6 MÓDULO(S) - COM VIDRO - UNIVERSAL - HYDRO '.repeat(6);
+render('sel',[{value:'a',code:'A-01',description:long},{value:'b',code:'B-02',description:'OUTRA'}]);
+assert.equal(node('selChoices').children[0].children[1].children[1].textContent,long,'Descrição integral, sem truncamento');
+assert.equal(node('selChoices').children[0].children[0].checked,true);
+const radio=node('selChoices').children[1].children[0];radio.checked=true;radio.listener();assert.equal(node('sel').value,'b');
+render('sel',[{value:'a',code:'A-01',description:long},{value:'b',code:'B-02',description:'OUTRA'}],'GRADIL');assert.equal(node('selChoices').children.length,2,'Busca preserva seleção');

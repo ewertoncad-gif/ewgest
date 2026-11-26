@@ -177,6 +177,21 @@
     #recognitionOverlay .modalbox{width:min(100%,720px);min-width:0}
     #recognitionOverlay select{display:block;width:100%;min-width:0;max-width:100%}
     #recognitionOverlay .muted,#recognitionOverlay .hint{overflow-wrap:anywhere}
+    .descriptiveChoices{max-height:260px;overflow-y:auto;overflow-x:hidden;min-width:0;border:1px solid #ccdcec;border-radius:9px;background:#fff;padding:4px;scrollbar-color:#c1d3e5 transparent}
+    .descriptiveChoices .descriptionChoice{display:flex;align-items:flex-start;gap:9px;margin:0;padding:9px 10px;color:#29415f;border:1px solid transparent;border-bottom-color:#e5edf5;border-radius:6px;cursor:pointer;min-width:0;line-height:1.4}
+    .descriptiveChoices .descriptionChoice:last-child{border-bottom-color:transparent}
+    .descriptiveChoices .descriptionChoice:has(input:checked){background:#eaf3ff;border-color:#8ab6e5}
+    .descriptiveChoices .descriptionChoice:focus-within{outline:2px solid #1978d0;outline-offset:-2px}
+    .descriptiveChoices .descriptionChoice input{width:auto;flex:none;margin:3px 0 0;accent-color:#1978d0}
+    .descriptionChoiceBody{display:block;min-width:0;flex:1;overflow-wrap:anywhere;white-space:normal}
+    .descriptionChoiceCode{display:block;font-weight:700;font-size:14px;color:#17456c}
+    .descriptionChoiceText{display:block;font-size:13px;margin-top:3px}
+    .descriptionChoiceMeta{display:block;font-size:12px;margin-top:3px;color:#516f89}
+    .descriptionChoiceGroup{padding:5px 9px;font-size:12px;font-weight:700;color:#516f89}
+    #recognitionTargetChoices{max-height:215px}
+    #recognitionOverlay .modalbox{width:min(100%,820px)}
+    #recognitionTargetSearch{margin:5px 0 7px}
+    @media(max-width:520px){.descriptiveChoices{max-height:230px}.descriptiveChoices .descriptionChoice{padding:8px 5px}}
     .catalogConfigurations{margin:5px 0 0;display:flex;flex-wrap:wrap;gap:5px 10px;color:#516f89;font-size:12px}
     .catalogConfigurations span{overflow-wrap:anywhere}
     .recognitionCheck{display:flex;align-items:flex-start;gap:10px;margin-top:15px;font-size:13px}
@@ -804,7 +819,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.25</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.26</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -825,7 +840,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.25</div>
+        <div class="build">EWGEST • v46.29.26</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -2391,8 +2406,9 @@
         <p class="hint">Informe o que muda (abertura, veneziana, módulos etc.). O código da tipologia será mantido; somente a configuração receberá o próximo sufixo.</p>
       </div>
       <div id="differenceCorrectFields" class="differenceStep hidden">
-        <label for="differenceConfig">Escolha a configuração cadastrada cuja descrição deve ser usada</label>
-        <select id="differenceConfig"></select>
+        <label id="differenceConfigLabel">Escolha a configuração cadastrada cuja descrição deve ser usada</label>
+        <select id="differenceConfig" class="hidden" tabindex="-1" aria-hidden="true"></select>
+        <div id="differenceConfigChoices" class="descriptiveChoices" role="radiogroup" aria-labelledby="differenceConfigLabel"></div>
         <p class="differenceMeta">Nova descrição da esquadria:</p>
         <p id="differenceCorrectDescription" class="differenceMeta"></p>
         <p class="hint">A descrição original recebida da obra será guardada no histórico. O croqui não será modificado.</p>
@@ -2414,11 +2430,13 @@
     <h2 id="recognitionTitle">Conferir tipologia pendente</h2>
     <p id="recognitionOrigin" class="muted"></p>
     <p class="hint">Sugestões pela descrição, nunca pelo código EA. Nenhuma associação é automática.</p>
-    <label for="recognitionTarget">Tipologia existente no catálogo</label>
-    <select id="recognitionTarget"><option value="">Selecione para comparar</option></select>
-    <label for="recognitionModulation">Configuração existente ou nova variação</label>
-    <select id="recognitionModulation" disabled><option value="">Selecione primeiro uma tipologia</option></select>
-    <p class="hint">A descrição completa da configuração selecionada aparece na conferência abaixo.</p>
+    <label id="recognitionTargetLabel" for="recognitionTargetSearch">Tipologia existente no catálogo</label>
+    <input id="recognitionTargetSearch" type="search" autocomplete="off" placeholder="Buscar código ou descrição da tipologia">
+    <select id="recognitionTarget" class="hidden" tabindex="-1" aria-hidden="true"><option value="">Selecione para comparar</option></select>
+    <div id="recognitionTargetChoices" class="descriptiveChoices" role="radiogroup" aria-labelledby="recognitionTargetLabel"></div>
+    <label id="recognitionModulationLabel">Configuração existente ou nova variação</label>
+    <select id="recognitionModulation" class="hidden" tabindex="-1" aria-hidden="true" disabled><option value="">Selecione primeiro uma tipologia</option></select>
+    <div id="recognitionModulationChoices" class="descriptiveChoices" role="radiogroup" aria-labelledby="recognitionModulationLabel"></div>
     <div id="recognitionNewModFields" class="hidden">
       <label for="recognitionModDescription">Descrição da nova modulação</label>
       <textarea id="recognitionModDescription" class="typologyEditInput" rows="3" maxlength="1000"></textarea>
@@ -5737,6 +5755,7 @@ function abrirConferenciaDescricao(item){
   const igual=configs.find(m=>normalizarReconhecimento(m.descricao)===
     normalizarReconhecimento(item.descricao));
   seletor.value=igual?.id||(configs.length===1?configs[0].id:'');
+  renderListaDescritiva('differenceConfig',linhasConfiguracoes(tipologia,configs,item));
   node('differenceNewDescription').value=item.descricao||'';
   node('differenceNewModules').value='';
   node('differenceScopeWork').checked=true;node('differenceScopeFuture').checked=false;
@@ -5896,6 +5915,44 @@ async function salvarConferenciaDescricao(){
     if(differencePendingItem)atualizarTelaDiferenca();
   }
 }
+// Listas nativas de rádio com descrição integral; os selects ocultos conservam o contrato das RPCs.
+function renderListaDescritiva(selectId,rows,query=''){
+  const select=node(selectId),host=node(selectId+'Choices');
+  const term=normalizarReconhecimento(query);
+  const visible=rows.filter(r=>r.value===select.value||!term||normalizarReconhecimento([r.code,r.description].join(' ')).includes(term));
+  host.replaceChildren();
+  let group='';
+  for(const row of visible){
+    if(row.group&&row.group!==group){
+      group=row.group;const h=document.createElement('div');h.className='descriptionChoiceGroup';h.textContent=group;host.append(h);
+    }
+    const label=document.createElement('label');label.className='descriptionChoice';
+    const radio=document.createElement('input');radio.type='radio';radio.name=selectId+'Descriptive';radio.value=row.value;
+    radio.checked=row.value===select.value;radio.disabled=select.disabled;
+    const body=document.createElement('span');body.className='descriptionChoiceBody';
+    const code=document.createElement('span');code.className='descriptionChoiceCode';code.textContent=row.code;body.append(code);
+    if(row.description){const desc=document.createElement('span');desc.className='descriptionChoiceText';desc.textContent=row.description;body.append(desc);}
+    if(row.meta){const meta=document.createElement('span');meta.className='descriptionChoiceMeta';meta.textContent=row.meta;body.append(meta);}
+    radio.addEventListener('change',()=>{
+      if(!radio.checked||select.disabled)return;
+      select.value=row.value;
+      select.dispatchEvent(new Event('change',{bubbles:true}));
+    });
+    label.append(radio,body);host.append(label);
+  }
+  if(!visible.length){const empty=document.createElement('p');empty.className='hint';empty.textContent=rows.length?'Nenhuma opção encontrada.':'Nenhuma configuração disponível.';host.append(empty);}
+}
+function linhasConfiguracoes(t,mods,item){
+  const desc=String(item?.descricao||'').trim(),prev=variacoesJaAssociadas(item);
+  return mods.map(m=>{
+    const exata=Boolean(desc&&String(m.descricao||'').trim()===desc);
+    const historica=prev.includes(m.id);
+    return {value:m.id,code:'Usar existente: '+codigoVariacaoTecnica(t,m),description:m.descricao||'Sem descrição',
+      meta:[exata?'Descrição exata':'',historica?'Já associada a esta descrição':'',m.quantidade_modulos?m.quantidade_modulos+' módulo(s)':'Quantidade de módulos não conferida'].filter(Boolean).join(' · '),
+      rank:exata?0:historica?1:2};
+  }).sort((a,b)=>a.rank-b.rank);
+}
+let recognitionTargetRows=[];
 function abrirConferenciaTipologia(id){
   if(!modoObrasPermitido('pending'))return;
   const item=elements.find(x=>x.id===id&&!x.modulacao_id);
@@ -5912,6 +5969,8 @@ function abrirConferenciaTipologia(id){
   const select=node('recognitionTarget');
   select.replaceChildren();
   const empty=document.createElement('option');empty.value='';empty.textContent='Selecione após conferir a descrição';select.append(empty);
+  recognitionTargetRows=[];
+  node('recognitionTargetSearch').value='';
   const sugestões=sugerirPorDescricao(item.descricao,typologyCatalog);
   const suggested=new Set(sugestões.map(x=>x.tipologia.id));
   if(sugestões.length){
@@ -5920,6 +5979,7 @@ function abrirConferenciaTipologia(id){
       const option=document.createElement('option');option.value=t.id;
       option.textContent=t.codigo+' · '+Math.round(score*100)+'% similar';
       group.append(option);
+      recognitionTargetRows.push({value:t.id,code:t.codigo,description:t.descricao,meta:Math.round(score*100)+'% similar',group:'Sugestões pela descrição'});
     }
     select.append(group);
   }
@@ -5928,6 +5988,7 @@ function abrirConferenciaTipologia(id){
       .sort((a,b)=>a.codigo.localeCompare(b.codigo,'pt-BR',{numeric:true}))){
     const option=document.createElement('option');option.value=t.id;
     option.textContent=t.codigo;remaining.append(option);
+    recognitionTargetRows.push({value:t.id,code:t.codigo,description:t.descricao,group:'Outras tipologias cadastradas'});
   }
   select.append(remaining);
   const tipologiaAtual=typologyCatalog.find(t=>t.id===item.tipologia_id);
@@ -5942,9 +6003,10 @@ function abrirConferenciaTipologia(id){
   node('recognitionScopeFuture').checked=false;
   node('recognitionDivergence').checked=false;
   node('recognitionMessage').textContent='';
+  renderListaDescritiva('recognitionTarget',recognitionTargetRows);
   atualizarOpcoesModulacao();
   node('recognitionOverlay').classList.remove('hidden');
-  select.focus();
+  node('recognitionTargetSearch').focus();
 }
 
 function modulacoesDaTipologia(t){
@@ -5974,13 +6036,13 @@ function atualizarOpcoesModulacao(){
   select.replaceChildren();
   if(!t){
     const o=document.createElement('option');o.value='';o.textContent='Escolha a tipologia primeiro';
-    select.append(o);select.disabled=true;renderizarCamposModulacao();return;
+    select.append(o);select.disabled=true;renderListaDescritiva('recognitionModulation',[]);renderizarCamposModulacao();return;
   }
   select.disabled=false;
   const modulations=modulacoesDaTipologia(t);
   const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Selecione uma configuração existente';placeholder.disabled=true;
-  if(modulations.length>1)select.append(placeholder);
-  const descricaoOrigem=normalizarReconhecimento(recognitionPendingItem?.descricao);
+  if(modulations.length)select.append(placeholder);
+  const descricaoOrigem=String(recognitionPendingItem?.descricao||'').trim();
   for(const m of modulations){
     const op=document.createElement('option');op.value=m.id;
     op.textContent='Usar existente: '+codigoVariacaoTecnica(t,m);
@@ -5988,10 +6050,12 @@ function atualizarOpcoesModulacao(){
   }
   const novo=document.createElement('option');novo.value='__CRIAR__';
   novo.textContent='+ Criar nova: '+proximoSufixoVisual(t);select.append(novo);
-  const exact=modulations.filter(m=>descricaoOrigem&&normalizarReconhecimento(m.descricao)===descricaoOrigem);
+  const exact=modulations.filter(m=>descricaoOrigem&&String(m.descricao||'').trim()===descricaoOrigem);
   const prev=variacoesJaAssociadas(recognitionPendingItem);
   const conhecida=prev.length===1?modulations.find(m=>m.id===prev[0]):null;
-  select.value=conhecida?conhecida.id:exact.length===1?exact[0].id:modulations.length===1?modulations[0].id:modulations.length?'':'__CRIAR__';
+  const conflito=prev.length>1||(conhecida&&exact.length===1&&exact[0].id!==conhecida.id);
+  select.value=conflito&&modulations.length?'':conhecida?conhecida.id:exact.length===1?exact[0].id:modulations.length===1?modulations[0].id:modulations.length?'':'__CRIAR__';
+  renderListaDescritiva('recognitionModulation',[...linhasConfiguracoes(t,modulations,recognitionPendingItem),{value:'__CRIAR__',code:novo.textContent,description:'Somente se nenhuma configuração cadastrada atender à obra.'}]);
   node('recognitionModDescription').value=String(recognitionPendingItem?.descricao||'');
   node('recognitionModCount').value='';
   renderizarCamposModulacao();
@@ -7164,8 +7228,9 @@ node('differenceNewDescription').addEventListener('input',atualizarTelaDiferenca
 node('differenceNewModules').addEventListener('input',atualizarTelaDiferenca);
 node('differenceCancel').addEventListener('click',fecharConferenciaDescricao);
 node('differenceSave').addEventListener('click',salvarConferenciaDescricao);
-node('recognitionTarget').addEventListener('change',atualizarOpcoesModulacao);
-node('recognitionModulation').addEventListener('change',renderizarCamposModulacao);
+node('recognitionTarget').addEventListener('change',()=>{node('recognitionApproval').checked=false;node('recognitionDivergence').checked=false;atualizarOpcoesModulacao();});
+node('recognitionTargetSearch').addEventListener('input',()=>renderListaDescritiva('recognitionTarget',recognitionTargetRows,node('recognitionTargetSearch').value));
+node('recognitionModulation').addEventListener('change',()=>{node('recognitionApproval').checked=false;node('recognitionDivergence').checked=false;renderizarCamposModulacao();});
 node('recognitionModDescription').addEventListener('input',atualizarComparacaoReconhecimento);
 node('recognitionModCount').addEventListener('input',validarReconhecimento);
 node('recognitionApproval').addEventListener('change',validarReconhecimento);
