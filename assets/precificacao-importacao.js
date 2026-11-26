@@ -222,9 +222,8 @@ function atualizar(){
   priceNode('ewPriceResumo').innerHTML=[
    ['Total combinado',dinheiro(total.totalCentavos)],
    ['Fabricação recalculada',dinheiro(total.fabricacaoCentavos)],
-   ['Instalação recalculada',dinheiro(total.instalacaoCentavos)],
-   ['Diferença','R$ 0,00']
-  ].map((v,i)=>'<div class="ewPriceKpi'+(i===3?' ewPriceHighlighted':'')+'"><small>'+v[0]+'</small><strong>'+v[1]+'</strong></div>').join('');
+   ['Instalação recalculada',dinheiro(total.instalacaoCentavos)]
+  ].map(v=>'<div class="ewPriceKpi"><small>'+v[0]+'</small><strong>'+v[1]+'</strong></div>').join('');
   priceNode('ewPriceFechamento').textContent='Orçamento original: fabricação '+dinheiro(s.fab)+
     ' e instalação '+dinheiro(s.inst)+'. Redistribuição: fabricação '+dinheiro(total.fabricacaoCentavos)+
     ' e instalação '+dinheiro(total.instalacaoCentavos)+
