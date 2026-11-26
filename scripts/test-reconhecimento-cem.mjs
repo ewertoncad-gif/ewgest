@@ -41,3 +41,20 @@ const conflito=new Function('elements','modulationCatalog','typologyCatalog','co
 assert.deepEqual(conflito.variacoesJaAssociadas({descricao:'MÓDULO JANELA'}),['m1']);
 assert.ok(conflito.avisoConflitoReconhecimento({descricao:'MÓDULO JANELA'},'m2').includes('WINFAC-JCR203-01'));
 assert.equal(conflito.avisoConflitoReconhecimento({descricao:'MÓDULO JANELA'},'m1'),'');
+
+// Executa o seletor real com opções simuladas, verificando ordem e padrão seguro.
+const montarSeletor=new Function('typologyCatalog','modulationCatalog','recognitionPendingItem','elements','node','document','normalizarReconhecimento','codigoVariacaoTecnica','proximoSufixoVisual','renderizarCamposModulacao',extract('function modulacoesDaTipologia(t){','function renderizarCamposModulacao(){')+'return atualizarOpcoesModulacao;');
+function simularSeletor(mods,descricao,anteriores=[]){
+ const ns=new Map(),doc={createElement:()=>({value:'',textContent:''})};
+ const n=id=>{if(!ns.has(id))ns.set(id,{value:'',children:[],replaceChildren(){this.children=[];},append(o){this.children.push(o);}});return ns.get(id);};
+ n('recognitionTarget').value='t';
+ montarSeletor([{id:'t',codigo:'WINFAC-JCR203'}],mods,{descricao},anteriores,n,doc,v=>String(v||'').toUpperCase(),(t,m)=>t.codigo+'-'+String(m.numero_variacao).padStart(2,'0'),()=> 'WINFAC-JCR203-03',()=>{})();
+ return n('recognitionModulation');
+}
+const m1={id:'m1',tipologia_principal_id:'t',numero_variacao:1,descricao:'DIFERENTE'};
+const m2={id:'m2',tipologia_principal_id:'t',numero_variacao:2,descricao:'OUTRA'};
+const unico=simularSeletor([m1],'CEM');assert.equal(unico.value,'m1');assert.equal(unico.children[0].textContent,'Usar existente: WINFAC-JCR203-01');assert.equal(unico.children[1].value,'__CRIAR__');
+assert.equal(simularSeletor([m1,m2],'CEM').value,'');
+assert.equal(simularSeletor([m1,m2],'OUTRA').value,'m2');
+assert.equal(simularSeletor([m1,m2],'CEM',[{descricao:'CEM',modulacao_id:'m1'}]).value,'m1');
+assert.equal(simularSeletor([],'CEM').value,'__CRIAR__');

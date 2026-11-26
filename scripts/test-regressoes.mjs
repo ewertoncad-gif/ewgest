@@ -129,7 +129,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.24',
+ 'EWGEST • v46.29.25',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2135,7 +2135,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.24')&&
+assert.ok(source.includes('v46.29.25')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2371,7 +2371,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.24</strong>'),
+ source.includes('EWGEST <strong>· v46.29.25</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -3081,7 +3081,7 @@ import './test-obras-modos.mjs';
 
 import './test-reconhecimento-cem.mjs';
 
-// v46.29.24 — compactação restrita à lista de liberação, sem fontes menores.
+// v46.29.25 — compactação restrita à lista de liberação, sem fontes menores.
 assert.ok(source.includes("node('items').classList.toggle('releaseCompact',detailMode==='release')"));
 const compactCss=source.slice(source.indexOf('/* Lista de liberação compacta:'),source.indexOf('.catalogFilters{',source.indexOf('/* Lista de liberação compacta:')));
 assert.ok(compactCss.includes('#items.releaseCompact .typologyGroup{margin:9px 0;padding:2px 16px 4px}'));
@@ -3094,3 +3094,9 @@ assert.ok(source.includes('id="workPendingPage"'));
 assert.equal((source.match(/id="pendingReviewPanel"/g)||[]).length,1);
 assert.ok(source.includes("gruposTipologiaPendente().filter(g=>!filtro||g.item.obra_id===filtro)"));
 assert.ok(source.includes("if(modo==='pending')return canAdministrate()&&temPermissao('cadastros.editar')"));
+
+// Seletor de configurações: rótulos curtos, existentes primeiro e escolha explícita quando ambígua.
+assert.ok(source.includes("op.textContent='Usar existente: '+codigoVariacaoTecnica(t,m)"));
+assert.ok(source.includes("novo.textContent='+ Criar nova: '+proximoSufixoVisual(t)"));
+assert.ok(source.includes("const codigoConfiguracao=codigoVariacaoTecnica(t,modulo)"));
+assert.ok(source.includes('Configurações cadastradas:'));
