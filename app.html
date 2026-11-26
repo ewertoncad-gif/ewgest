@@ -780,7 +780,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.12</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.13</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -801,7 +801,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.12</div>
+        <div class="build">EWGEST • v46.29.13</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -6049,7 +6049,7 @@ function renderAbreviacoesCatalogo(){
   atualizarPreviaAbreviacao();
 }
 async function salvarAbreviacaoCatalogo(restaurar=false){
-  if(!canAdministrate())return;
+  if(!temPermissao('cadastros.editar'))return;
   const t=typologyCatalog.find(x=>x.id===node('typologyAbbrevSelect').value);
   if(!t)return;
   const texto=restaurar?null:node('typologyAbbrevText').value.trim();
@@ -6082,7 +6082,7 @@ async function salvarAbreviacaoCatalogo(restaurar=false){
   }
 }
 function renderTypologiesAdmin() {
-  if(!canAdministrate()){setView('dashboard');return;}
+  if(!temPermissao('cadastros.editar')){setView('dashboard');return;}
   refreshVariationManager();
   renderConferenciaPendentes();
   renderModulacoesCadastradas();
@@ -6225,7 +6225,7 @@ function showTypologyEditStep(step) {
 }
 
 function openTypologyEdit(id) {
-  if(!canAdministrate())return;
+  if(!temPermissao('cadastros.editar'))return;
   if(!typologyOriginReady){
     node('typologyAdminMessage').textContent='Não foi possível consultar os vínculos de origem. Clique em Atualizar dados e tente novamente.';
     return;
@@ -6235,7 +6235,7 @@ function openTypologyEdit(id) {
   editingTypology=typology;
   editingPendingItem=null;
   node('expCompEntry').classList.toggle('hidden',!expCompPodeConsultar()||typology.provisoria===true);
-  node('typologyEditDelete').classList.toggle('hidden',!isFullAdminUser());
+  node('typologyEditDelete').classList.toggle('hidden',!temPermissao('cadastros.editar'));
   const origins=typologyOrigins.filter(x=>x.tipologia_id===id);
   const originalCodes=[...new Set(origins.map(x=>x.codigo_origem))];
   node('typologyEditTitle').textContent='Editar tipologia · '+typology.codigo;
@@ -6280,7 +6280,7 @@ function openTypologyEdit(id) {
 
 
 function openPendingTypologyClassification(id) {
-  if(!canAdministrate())return;
+  if(!temPermissao('cadastros.editar'))return;
   node('expCompEntry').classList.add('hidden');
   if(!typologyOriginReady){
     node('typologyAdminMessage').textContent='Os vínculos de origem ainda não foram carregados. Atualize o painel antes de classificar.';
@@ -6339,7 +6339,7 @@ function escolhaIdentificacao(){
 function abrirCorrecaoIdentificacao(){
   const origem=editingTypology;
   if(!origem||editingPendingItem||
-     !canAdministrate())return;
+     !temPermissao('cadastros.editar'))return;
   const temDependentes=typologyCatalog.some(t=>t.tipologia_principal_id===origem.id);
   const temModulacoesDeOutros=modulationCatalog.some(m=>m.tipologia_principal_id===origem.id&&m.tipologia_legada_id!==origem.id);
   if(temDependentes||temModulacoesDeOutros)return;
@@ -6463,7 +6463,7 @@ function closeTypologyEdit() {
 async function saveTypologyEdit(event) {
   event.preventDefault();
   if(!editingTypology&&!editingPendingItem)return;
-  if(!canAdministrate())return;
+  if(!temPermissao('cadastros.editar'))return;
   const pendingItem=editingPendingItem;
   const code=node('typologyEditCode').value.trim();
   const description=node('typologyEditDescription').value.trim();
@@ -6538,7 +6538,7 @@ async function saveTypologyEdit(event) {
 
 
 async function salvarCroquiRemoto(tipologiaId,imagemBase64,origem,exemplo){
-  if(!canAdministrate()){
+  if(!temPermissao('cadastros.editar')){
     throw new Error('Somente o administrador pode cadastrar croquis.');
   }
   await ensureSession();
@@ -6764,7 +6764,7 @@ node('expCompSave').addEventListener('click',expCompSave);
 
 
 function adminCanManageManufacturers() {
-  return canAdministrate();
+  return temPermissao('cadastros.consultar');
 }
 function refreshManufacturerSuggestions(){
   const list=node('typologyManufacturerSuggestions');
@@ -6775,6 +6775,7 @@ function refreshManufacturerSuggestions(){
   }
 }
 function renderManufacturers() {
+  node('manufacturerForm').classList.toggle('hidden',!temPermissao('cadastros.editar'));
   if(!adminCanManageManufacturers()){setView('dashboard');return;}
   const host=node('manufacturerList');
   const list=manufacturerCatalog.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
@@ -6782,7 +6783,7 @@ function renderManufacturers() {
     const count=typologyCatalog.filter(t=>t.fabricante===f.nome).length;
     return '<div class="manufacturerLine"><strong>'+escapeHTML(f.nome)+'</strong>'+
       '<span>'+count+' tipologia(s) vinculada(s)</span>'+
-      (isFullAdminUser()?'<button type="button" class="btn secondary" data-manufacturer-manage="'+escapeHTML(f.id)+'">Editar / excluir</button>':'')+
+      (temPermissao('cadastros.editar')?'<button type="button" class="btn secondary" data-manufacturer-manage="'+escapeHTML(f.id)+'">Editar / excluir</button>':'')+
       '</div>';
   }).join(''):'<div class="empty">Nenhum fabricante cadastrado.</div>';
   host.querySelectorAll('[data-manufacturer-manage]').forEach(b=>
@@ -6795,7 +6796,7 @@ function renderManufacturers() {
 /* Exclusão técnica: nunca apagar materiais já usados em obra, NF, estoque
  * ou cadastros dependentes. O backend sempre valida o vínculo sob transação. */
 async function excluirCadastroTecnico(tipo,id,identificador){
- if(!isFullAdminUser()||!currentCompany)return false;
+ if(!temPermissao('cadastros.editar')||!currentCompany)return false;
  if(!window.confirm('Excluir '+identificador+'?\nA exclusão só será permitida se não houver nenhum vínculo com obras, estoque, notas ou cadastros.'))return false;
  try{
   await ensureSession();
@@ -6814,7 +6815,7 @@ async function excluirCadastroTecnico(tipo,id,identificador){
 }
 let manufacturerManaging=null;
 function abrirGerenciamentoFabricante(id){
- if(!isFullAdminUser())return;
+ if(!temPermissao('cadastros.editar'))return;
  const item=manufacturerCatalog.find(f=>f.id===id);if(!item)return;
  manufacturerManaging={id,nome:item.nome};
  node('manufacturerManageTitle').textContent='Editar fabricante · '+item.nome;
@@ -6826,7 +6827,7 @@ function fecharGerenciamentoFabricante(){
  manufacturerManaging=null;node('manufacturerManagePanel').classList.add('hidden');
 }
 async function atualizarGerenciamentoFabricante(excluir=false){
- if(!isFullAdminUser()||!manufacturerManaging)return;
+ if(!temPermissao('cadastros.editar')||!manufacturerManaging)return;
  const item=manufacturerManaging;
  const nome=node('manufacturerManageName').value.trim().toLocaleUpperCase('pt-BR');
  if(!excluir&&(nome.length<2||nome.length>80)){
@@ -6863,7 +6864,7 @@ node('manufacturerManageSave').addEventListener('click',()=>atualizarGerenciamen
 node('manufacturerManageDelete').addEventListener('click',()=>atualizarGerenciamentoFabricante(true));
 node('manufacturerManageCancel').addEventListener('click',fecharGerenciamentoFabricante);
 node('typologyEditDelete').addEventListener('click',async()=>{
- if(!editingTypology||!isFullAdminUser())return;
+ if(!editingTypology||!temPermissao('cadastros.editar'))return;
  const {id,codigo}=editingTypology;
  if(await excluirCadastroTecnico('tipologia',id,codigo)){
   typologyCatalog=typologyCatalog.filter(t=>t.id!==id);
@@ -6873,7 +6874,7 @@ node('typologyEditDelete').addEventListener('click',async()=>{
  }
 });
 node('matVarDelete').addEventListener('click',async()=>{
- if(!matVarOriginal||!isFullAdminUser())return;
+ if(!matVarOriginal||!temPermissao('cadastros.editar'))return;
  const v=matVarOriginal;
  if(await excluirCadastroTecnico('variacao',v.id,
   (matVarSelected?.codigo||'material')+' · '+(v.cor||v.acabamento||'variação'))){
@@ -6889,7 +6890,7 @@ function openManufacturersPage(){
 node('openManufacturers').addEventListener('click',openManufacturersPage);
 node('manufacturerForm').addEventListener('submit',async(event)=>{
   event.preventDefault();
-  if(!adminCanManageManufacturers())return;
+  if(!temPermissao('cadastros.editar'))return;
   const name=node('manufacturerNewName').value.trim().toLocaleUpperCase('pt-BR');
   if(name.length<2||name.length>80){
     node('manufacturerPageMessage').textContent='Informe um nome entre 2 e 80 caracteres.';
@@ -6937,7 +6938,7 @@ node('identityDifferent').addEventListener('change',validarCorrecaoIdentificacao
 node('identityCancel').addEventListener('click',()=>fecharCorrecaoIdentificacao(true));
 node('identitySave').addEventListener('click',salvarCorrecaoIdentificacao);
 node('openTypologies').addEventListener('click',()=>{
-  if(!canAdministrate()){expCompPickerOpen();return;}
+  if(!temPermissao('cadastros.editar')){expCompPickerOpen();return;}
   node('typologySearch').value='';
   renderTypologiesAdmin();
   setView('typologies');
@@ -7016,7 +7017,7 @@ function matAtualizarEquivalencia(){
     'Informe as unidades e a quantidade para visualizar a equivalência da embalagem.';
 }
 function matNovaUnidade(id){
-  if(!matIsAdmin())return;
+  if(!temPermissao('cadastros.editar'))return;
   const campo=node(id);
   const valor=window.prompt('Código da nova unidade (ex.: PC, PT, RL):',campo.value.trim());
   if(valor===null)return;
@@ -7075,7 +7076,7 @@ async function carregarMateriais(){
   renderMateriais();
 }
 async function abrirMateriais(){
-  if(!matIsAdmin())return;
+  if(!temPermissao('cadastros.consultar'))return;
   setView('materials');node('matMessage').textContent='Consultando cadastros…';
   try{await carregarMateriais();node('matMessage').textContent='';}
   catch(e){node('matMessage').textContent='Não foi possível carregar os materiais: '+e.message;}
@@ -7097,6 +7098,8 @@ function matSelecionarTipo(tipo){
   node('matNovo').textContent='+ Novo '+matLbl();renderMateriais();
 }
 function renderMateriais(){
+  const editar=temPermissao('cadastros.editar');
+  for(const id of ['matNovo','matNovoHeader'])node(id).classList.toggle('hidden',!editar);
   node('matCountPerfis').textContent=matPerfis.length.toLocaleString('pt-BR');
   node('matCountAcessorios').textContent=matAcessorios.length.toLocaleString('pt-BR');
   node('matCountVariacoes').textContent=matVariacoes.filter(v=>v.tipo===matTipo).length.toLocaleString('pt-BR');
@@ -7133,13 +7136,13 @@ function renderMateriais(){
       '<div class="materialDetails">'+extras+'</div>'+
       precoHTML+
       '<div class="materialVariants">'+(vars.length?vars.map(v=>
-        '<button class="materialVariant" type="button" data-mat-var-edit="'+escapeHTML(v.id)+'">'+
+        '<button class="materialVariant" type="button" '+(editar?'':'disabled')+' data-mat-var-edit="'+escapeHTML(v.id)+'">'+
         escapeHTML(v.acabamento)+' / '+escapeHTML(v.cor)+(v.codigo_cor?' ('+escapeHTML(v.codigo_cor)+')':'')+
         '</button>').join(''):'<span class="hint">Nenhuma cor/acabamento cadastrada</span>')+
       '</div></div><div class="materialRowActions">'+
-      '<button type="button" class="btn secondary" data-mat-edit="'+escapeHTML(x.id)+'">Editar</button>'+
-      '<button type="button" class="btn secondary" data-mat-new-var="'+escapeHTML(x.id)+'">+ Cor / acabamento</button>'+
-      (isFullAdminUser()?'<button type="button" class="btn secondary" data-mat-delete="'+escapeHTML(x.id)+'">Excluir</button>':'')+
+      (editar?'<button type="button" class="btn secondary" data-mat-edit="'+escapeHTML(x.id)+'">Editar</button>'+
+      '<button type="button" class="btn secondary" data-mat-new-var="'+escapeHTML(x.id)+'">+ Cor / acabamento</button>':'')+
+      (temPermissao('cadastros.editar')?'<button type="button" class="btn secondary" data-mat-delete="'+escapeHTML(x.id)+'">Excluir</button>':'')+
       '</div></div>';
   }).join('');
   container.querySelectorAll('[data-mat-edit]').forEach(b=>b.addEventListener('click',()=>abrirEdicaoMaterial(b.dataset.matEdit)));
@@ -7153,7 +7156,7 @@ function renderMateriais(){
   container.querySelectorAll('[data-mat-var-edit]').forEach(b=>b.addEventListener('click',()=>editarVariacaoMaterial(b.dataset.matVarEdit)));
 }
 function abrirEdicaoMaterial(id=null){
-  if(!matIsAdmin())return;
+  if(!temPermissao('cadastros.editar'))return;
   matSelected=id?matEntries().find(v=>v.id===id)||null:null;
   if(id&&!matSelected)return;
   const x=matSelected||{};
@@ -7177,7 +7180,7 @@ function abrirEdicaoMaterial(id=null){
 }
 function matClose(){node('matEditOverlay').classList.add('hidden');matSelected=null;}
 async function salvarMaterial(event){
-  event.preventDefault();if(!matIsAdmin())return;
+  event.preventDefault();if(!temPermissao('cadastros.editar'))return;
   const codigo=node('matCodigo').value.trim().toUpperCase();
   const fabricante=node('matFabricante').value.trim().toUpperCase();
   const descricao=node('matDescricao').value.trim();
@@ -7235,7 +7238,7 @@ async function salvarMaterial(event){
   finally{btn.disabled=false;}
 }
 function abrirVariacaoMaterial(id){
-  if(!matIsAdmin())return;
+  if(!temPermissao('cadastros.editar'))return;
   matVarSelected=matEntries().find(x=>x.id===id)||null;matVarOriginal=null;
   if(!matVarSelected)return;
   node('matVarForm').reset();node('matVarAcabamento').value='';
@@ -7246,14 +7249,14 @@ function abrirVariacaoMaterial(id){
   node('matVarError').textContent='';node('matVarOverlay').classList.remove('hidden');node('matVarAcabamento').focus();
 }
 function editarVariacaoMaterial(id){
-  if(!matIsAdmin())return;
+  if(!temPermissao('cadastros.editar'))return;
   const v=matVariacoes.find(x=>x.id===id);
   if(!v)return;
   matTipo=v.tipo;
   matVarSelected=matEntries().find(x=>x.id===(matTipo==='perfil'?v.perfil_id:v.acessorio_id))||null;
   if(!matVarSelected)return;
   matVarOriginal=v;node('matVarForm').reset();
-  node('matVarDelete').classList.toggle('hidden',!isFullAdminUser());
+  node('matVarDelete').classList.toggle('hidden',!temPermissao('cadastros.editar'));
   node('matVarTitle').textContent='Editar variação';
   node('matVarSubtitle').textContent=matVarSelected.codigo+' · '+matVarSelected.descricao;
   node('matVarAcabamento').value=v.acabamento||'';
@@ -7264,7 +7267,7 @@ function editarVariacaoMaterial(id){
 }
 function matVarClose(){node('matVarOverlay').classList.add('hidden');matVarSelected=null;matVarOriginal=null;}
 async function salvarVariacao(event){
-  event.preventDefault();if(!matIsAdmin()||!matVarSelected)return;
+  event.preventDefault();if(!temPermissao('cadastros.editar')||!matVarSelected)return;
   const dados={acabamento:node('matVarAcabamento').value.trim().toUpperCase()||'NÃO INFORMADO',
     cor:node('matVarCor').value.trim().toUpperCase()||'NÃO INFORMADA',
     codigo_cor:node('matVarCodigoCor').value.trim().toUpperCase(),
