@@ -6126,7 +6126,7 @@ function decidirAdaptacaoModulos(descricao,quantidade,mods,origem=''){
   const adaptada=descricaoAdaptadaModulos(descricao,quantidade);
   if(!adaptada)return {descricao:'',existente:null,ambiguo:false,padronizar:false};
   const q=Number(quantidade),original=String(origem||'').trim();
-  const match=m=>[adaptada,original].includes(String(m.descricao||'').trim());
+  const match=m=>String(m.descricao||'').trim()===adaptada||(String(m.descricao||'').trim()===original&&explicita(m)===q);
   const explicita=m=>{
     const achados=[...String(m.descricao||'').matchAll(/\b(\d+)\s+M[ÓO]DULO(?:S|\(S\))?(?=$|[\s.,;:/-])/gi)];
     return achados.length===1?Number(achados[0][1]):null;
