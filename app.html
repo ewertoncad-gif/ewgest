@@ -297,7 +297,7 @@
     .workspaceSubnav{display:grid;gap:3px;margin:0 0 5px 24px;padding-left:9px;border-left:2px solid #e0e8f2;flex:none}
     .workspaceSublink{min-height:34px;padding:8px 10px;font-size:12px}
     .comprasNavChevron{margin-left:auto;color:#6384a7;transition:transform .15s}
-    #navCompras[aria-expanded="true"] .comprasNavChevron,#navRecebimento[aria-expanded="true"] .comprasNavChevron,#navStock[aria-expanded="true"] .comprasNavChevron{transform:rotate(180deg)}
+    #navWorks[aria-expanded="true"] .comprasNavChevron,#navCompras[aria-expanded="true"] .comprasNavChevron,#navRecebimento[aria-expanded="true"] .comprasNavChevron,#navStock[aria-expanded="true"] .comprasNavChevron{transform:rotate(180deg)}
     @media(max-width:760px){.workspaceSubnav{display:flex;align-items:center;margin:0;padding:0 3px;border-left:0;gap:4px}.workspaceSublink{width:auto;white-space:nowrap}}
     .workspaceNavFooter{margin-top:30px;border-top:1px solid #ecf0f6;padding:15px 13px 0;color:#74869d;font-size:12px;font-weight:650}
     .workspaceNavFooter strong{color:#2074c9}
@@ -751,7 +751,13 @@
     </div>
     <div class="workspaceNavCaption">ESPAÇO DE TRABALHO</div>
     <button id="navHome" class="workspaceLink" type="button"><span class="navSymbol">⌂</span> Tela inicial</button>
-    <button id="navWorks" class="workspaceLink" type="button"><span class="navSymbol">▦</span> Obras</button>
+    <button id="navWorks" class="workspaceLink" type="button" aria-expanded="false" aria-controls="navWorksSubmenu"><span class="navSymbol">▦</span> Obras <span class="comprasNavChevron" aria-hidden="true">▾</span></button>
+    <div id="navWorksSubmenu" class="workspaceSubnav hidden" role="group" aria-label="Operações da obra">
+      <button type="button" class="workspaceLink workspaceSublink" data-works-modo="release">Liberação para corte</button>
+      <button type="button" class="workspaceLink workspaceSublink" data-works-modo="shipment">Saída para obra</button>
+      <button type="button" class="workspaceLink workspaceSublink" data-works-modo="releaseUndo">Estorno de liberação</button>
+      <button type="button" class="workspaceLink workspaceSublink" data-works-modo="shipmentUndo">Estorno de saída para obra</button>
+    </div>
     <button id="navRomaneios" class="workspaceLink" type="button"><span class="navSymbol">▤</span> Romaneios e expedição</button>
     <button id="navCompras" class="workspaceLink hidden" type="button" aria-expanded="false" aria-controls="navComprasSubmenu"><span class="navSymbol">▧</span> Compras <span class="comprasNavChevron" aria-hidden="true">▾</span></button>
     <div id="navComprasSubmenu" class="workspaceSubnav hidden" role="group" aria-label="Etapas de compras">
@@ -780,7 +786,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.20</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.21</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -801,7 +807,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.20</div>
+        <div class="build">EWGEST • v46.29.21</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -1050,8 +1056,8 @@
     </section>
     <section id="worksPage" class="hidden">
       <div class="head"><div>
-        <h1>Obras</h1>
-        <p class="muted">Selecione a obra para consultar esquadrias, liberações e expedição.</p>
+        <h1 id="worksPageTitle">Obras</h1>
+        <p class="muted">Selecione a obra para continuar na operação escolhida.</p>
 
       </div></div>
       <div class="section">
@@ -1177,7 +1183,7 @@
       <div class="qtystats" aria-label="Quantidades de esquadrias"><div class="stat"><div class="label">Unidades totais</div><div class="number" id="detailUnitsTotal">—</div></div><div class="stat"><div class="label">Com alguma parte liberada</div><div class="number" id="detailUnitsReleased">—</div></div><div class="stat"><div class="label">Sem liberação</div><div class="number" id="detailUnitsPending">—</div></div></div>
       <div class="section panel">
         <div class="detailSticky">
-        <div class="detailtabs"><button type="button" class="btn secondary active" id="tabRelease" aria-pressed="true">Liberações para corte</button><button type="button" class="btn secondary" id="tabShip" aria-pressed="false">Saídas para obra</button></div>
+        <h2 id="detailModeTitle">Liberação para corte</h2><div class="detailtabs hidden"><button type="button" class="btn secondary active" id="tabRelease" aria-pressed="true">Liberações para corte</button><button type="button" class="btn secondary" id="tabShip" aria-pressed="false">Saídas para obra</button></div>
         <div id="romaneioActions" class="romaneioActions hidden">
           <button type="button" class="btn primary" id="openRomaneio">+ Emitir romaneio</button>
           <button type="button" class="btn secondary" id="toggleRomaneioHistory">Romaneios emitidos</button>
@@ -1188,11 +1194,11 @@
         </div>
         <h2 id="itemListTitle">Itens da obra</h2>
         
-<div class="itemfilter"><label for="itemSearch">Buscar na lista</label><div class="filterrow"><select id="itemSearchMode" aria-label="Buscar por"><option value="esquadria">Código da esquadria</option><option value="tipologia">Código da tipologia</option></select><input id="itemSearch" type="search" placeholder="Ex.: EA2 ou 2" autocomplete="off" spellcheck="false"><button id="clearItemSearch" type="button" class="btn secondary">Limpar</button></div><div class="displayoptions"><label><input id="showItemDescription" type="checkbox" checked> Mostrar descrição</label><label><input id="showItemLocation" type="checkbox"> Mostrar localização</label></div><p id="itemFilterCount" class="hint filtercount" role="status" aria-live="polite"></p></div>
+<div id="detailItemFilter" class="itemfilter"><label for="itemSearch">Buscar na lista</label><div class="filterrow"><select id="itemSearchMode" aria-label="Buscar por"><option value="esquadria">Código da esquadria</option><option value="tipologia">Código da tipologia</option></select><input id="itemSearch" type="search" placeholder="Ex.: EA2 ou 2" autocomplete="off" spellcheck="false"><button id="clearItemSearch" type="button" class="btn secondary">Limpar</button></div><div class="displayoptions"><label><input id="showItemDescription" type="checkbox" checked> Mostrar descrição</label><label><input id="showItemLocation" type="checkbox"> Mostrar localização</label></div><p id="itemFilterCount" class="hint filtercount" role="status" aria-live="polite"></p></div>
         </div>
         <p id="detailIntro" class="hint">Clique em um item para registrar uma liberação para corte.</p>
         <div id="romaneioOverview" class="romaneioOverview hidden"></div>
-        <div id="romaneioHistoryPanel" class="romaneioOverview hidden"></div>
+        <div id="romaneioHistoryPanel" class="romaneioOverview hidden"></div><div id="detailLooseShipmentActions" class="topactions hidden"><button type="button" id="detailLooseShipmentUndo" class="btn secondary releaseCancellationButton">Estornar saídas avulsas</button></div>
                 <div id="shipmentOverview" class="shipmentoverview hidden">
           <div class="stat"><div class="label">Marcos enviados</div><div class="number" id="shipFramesTotal">—</div></div>
           <div class="stat"><div class="label">Folhas enviadas</div><div class="number" id="shipLeavesTotal">—</div></div>
@@ -2658,6 +2664,10 @@ function setView(view){
   if(!autenticado){expCompSeq++;expCompCtx=null;romaneioComposicaoSeq++;romaneioComposicoes=new Map();expedicaoAtivaMap=new Map();node('expCompOverlay').classList.add('hidden');node('expCompPicker').classList.add('hidden');node('expCompRows').replaceChildren();node('expCompSimilar').replaceChildren();node('romaneioModal').classList.add('hidden');node('typologyEditOverlay').classList.add('hidden');}
   node('workspaceNav').classList.toggle('hidden',!autenticado);
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
+  if(view!=='detail'&&view!=='worksPage'){
+    node('navWorksSubmenu').classList.add('hidden');node('navWorks').setAttribute('aria-expanded','false');
+    node('navWorksSubmenu').querySelectorAll('[data-works-modo]').forEach(b=>{b.classList.remove('active');b.removeAttribute('aria-current');});
+  }else marcarModoObras();
   if(view!=='compras'){
     node('navComprasSubmenu').classList.add('hidden');
     node('navCompras').setAttribute('aria-expanded','false');
@@ -2840,6 +2850,7 @@ async function loadPanel(){
     node('createUserRole').value='gerenciador';
   setNavPermission('navHome',temPermissao('obras.consultar'));
   setNavPermission('navWorks',temPermissao('obras.consultar'));
+  atualizarPermissoesObras();
   setNavPermission('navRomaneios',temPermissao('romaneios.consultar'));
   node('navEnviarNotas').classList.add('hidden'); // Fluxo antigo preservado internamente; nova entrada no Recebimento.
   setNavPermission('navRecebimento',temPermissao('estoque.receber'));
@@ -3067,7 +3078,8 @@ function obrasComEsquadriasAtivas(){
  return works.filter(w=>ids.has(w.id)||w.cadastro_manual===true);
 }
 function mostrarListaDeObras(){
- if(isAlmoxarife()||!currentCompany)return;
+ if(isAlmoxarife()||!currentCompany||!modoObrasPermitido(detailMode))return;
+ node('worksPageTitle').textContent='Obras — '+tituloModoObras(detailMode);
  const lista=obrasComEsquadriasAtivas();
 
  const container=node('worksPageList');
@@ -3099,9 +3111,34 @@ function mostrarListaDeObras(){
  }));
  setView('worksPage');
 }
-function abrirObrasPelaBarra(){
- if(isAlmoxarife()||!currentCompany)return;
+function tituloModoObras(modo){
+ return ({release:'Liberação para corte',shipment:'Saída para obra',releaseUndo:'Estorno de liberação',shipmentUndo:'Estorno de saída para obra'})[modo]||'Obras';
+}
+function modoObrasPermitido(modo){
+ if(!temPermissao('obras.consultar')||isAlmoxarife())return false;
+ if(modo==='release'||modo==='shipment')return true;
+ if(modo==='releaseUndo')return temPermissao('liberacoes.cancelar');
+ if(modo==='shipmentUndo')return canAdministrate()&&(temPermissao('romaneios.cancelar')||temPermissao('obras.estornar'));
+ return false;
+}
+function atualizarPermissoesObras(){
+ node('navWorksSubmenu').querySelectorAll('[data-works-modo]').forEach(b=>{b.disabled=!modoObrasPermitido(b.dataset.worksModo);b.setAttribute('aria-disabled',String(b.disabled));});
+ if(!temPermissao('obras.consultar')){node('navWorksSubmenu').classList.add('hidden');node('navWorks').setAttribute('aria-expanded','false');}
+}
+function marcarModoObras(){
+ if(!modoObrasPermitido(detailMode))return;
+ node('navWorksSubmenu').classList.remove('hidden');node('navWorks').setAttribute('aria-expanded','true');
+ node('navWorksSubmenu').querySelectorAll('[data-works-modo]').forEach(b=>{
+  const ativo=!b.disabled&&b.dataset.worksModo===detailMode;b.classList.toggle('active',ativo);
+  if(ativo)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
+ });
+}
+function abrirObrasPelaBarra(modo='release'){
+ if(!currentCompany||!modoObrasPermitido(modo))return;
+ detailMode=modo;
  const lista=obrasComEsquadriasAtivas();
+ const atual=!node('detail').classList.contains('hidden')&&lista.find(w=>w.id===selectedWork?.id);
+ if(atual){detailBackTarget='worksPage';renderDetail(atual);return;}
  if(lista.length===1){
   detailBackTarget='worksPage';
   renderDetail(lista[0]);
@@ -3248,13 +3285,15 @@ function renderResumoRomaneios(obraId){
 }
 function renderHistoricoRomaneios(obraId){
   const list=romaneios.filter(r=>r.obra_id===obraId);
+  const podeEstornar=detailMode==='shipmentUndo'&&canAdministrate()&&temPermissao('romaneios.cancelar');
   const el=node('romaneioHistoryPanel');
+  if(romaneioLoadError){el.textContent='Falha ao carregar romaneios: '+romaneioLoadError;return;}
   el.innerHTML='<strong>Romaneios da obra</strong>'+
-    (list.length?list.slice(0,30).map(r=>{
+    (list.length?list.map(r=>{
       const n=romaneioItens.filter(i=>i.romaneio_id===r.id).length;
       const dt=String(r.data_saida).split('-').reverse().join('/');
       const cancelado=r.status==='cancelado';
-      const adm=canAdministrate();
+      const adm=podeEstornar;
       return '<div class="romaneioHistoryRow"><span><strong>'+escapeHTML(r.numero)+
         '</strong> · '+escapeHTML(dt)+' · '+n+' item(ns) · '+escapeHTML(r.motorista)+
         (cancelado?' · <strong style="color:#ffb8aa">CANCELADO</strong>':'')+
@@ -3276,7 +3315,7 @@ function renderHistoricoRomaneios(obraId){
 }
 let romaneioCancelSelecionado=null;
 function cancelarRomaneio(id){
-  if(!canAdministrate())return;
+  if(!canAdministrate()||!temPermissao('romaneios.cancelar'))return;
   const original=romaneios.find(r=>r.id===id&&r.status!=='cancelado');
   if(!original)return;
   romaneioCancelSelecionado=original;
@@ -3299,7 +3338,7 @@ function onRomaneioCancelInput(){
 async function confirmarCancelamentoRomaneio(event){
   event.preventDefault();
   const original=romaneioCancelSelecionado;
-  if(!original||!canAdministrate())return;
+  if(!original||!canAdministrate()||!temPermissao('romaneios.cancelar'))return;
   const texto=node('romaneioCancelReason').value.trim();
   if(texto.length<10||texto.length>400){
     node('romaneioCancelError').textContent='Informe um motivo de 10 a 400 caracteres.';
@@ -3332,7 +3371,7 @@ async function confirmarCancelamentoRomaneio(event){
       node('hubRomaneioMessage').textContent=mensagem;
     }else{
       const obra=works.find(w=>w.id===obraId);
-      if(obra){detailMode='shipment';renderDetail(obra);}
+      if(obra){detailMode='shipmentUndo';renderDetail(obra);}
       node('romaneioHistoryPanel').classList.remove('hidden');
       renderHistoricoRomaneios(obraId);
       node('detailError').textContent=mensagem;
@@ -4172,10 +4211,13 @@ function abrirAreaRomaneios(){
   if(window.ewTransferRomaneiosReload)window.ewTransferRomaneiosReload();
 }
 function changeDetailMode(mode) {
+  if(!modoObrasPermitido(mode))return;
   detailMode=mode;
   if(selectedWork)renderDetail(selectedWork);
 }
 function renderDetail(w){
+  if(!modoObrasPermitido(detailMode))detailMode='release';
+  if(!modoObrasPermitido(detailMode)){setView('dashboard');return;}
   if(selectedWork?.id!==w.id)node('itemSearch').value='';
   selectedWork=w;
   const list=elements.filter(x=>x.obra_id===w.id).sort(sortWorkItems);
@@ -4188,24 +4230,28 @@ function renderDetail(w){
   node('detailPending').textContent=amount(t.total-t.released);
   node('detailMade').textContent=amount(t.made);
   renderUnitCounters('detail',t);
-  const canEdit=temPermissao('liberacoes.criar');
-  const shipping=detailMode==='shipment';
-  const exibidos=shipping?list.filter(x=>Number(x.qtd_liberada)>0):list;
+  const undoRelease=detailMode==='releaseUndo',undoShip=detailMode==='shipmentUndo';
+  const canEdit=!undoRelease&&temPermissao('liberacoes.criar');
+  const shipping=detailMode==='shipment'||undoShip;
+  const exibidos=undoRelease?list.filter(x=>releaseHistory.some(h=>h.esquadria_id===x.id)):shipping?list.filter(x=>Number(x.qtd_liberada)>0):list;
+  node('detailModeTitle').textContent=tituloModoObras(detailMode);
+  node('detailItemFilter').classList.toggle('hidden',undoShip);
+  node('detailLooseShipmentActions').classList.add('hidden');
   node('tabRelease').classList.toggle('active',!shipping);
   node('tabRelease').setAttribute('aria-pressed',String(!shipping));
   node('tabShip').classList.toggle('active',shipping);
   node('tabShip').setAttribute('aria-pressed',String(shipping));
-  node('shipmentOverview').classList.toggle('hidden',!shipping);
-  node('romaneioActions').classList.toggle('hidden',!shipping);
-  node('releaseUndoActions').classList.toggle('hidden',shipping);
+  node('shipmentOverview').classList.toggle('hidden',!shipping||undoShip);
+  node('romaneioActions').classList.toggle('hidden',!shipping||undoShip);
+  node('releaseUndoActions').classList.toggle('hidden',!undoRelease);
   node('releaseUndoAll').disabled=!temPermissao('liberacoes.cancelar')||!releaseHistory.some(h=>list.some(x=>x.id===h.esquadria_id));
 
   node('releaseBatchActions').classList.add('hidden'); // A liberação permanece por item.
   node('openRomaneio').disabled=!temPermissao('romaneios.emitir')||!dispatchReady||Boolean(romaneioLoadError);
-  node('romaneioOverview').classList.toggle('hidden',!shipping);
+  node('romaneioOverview').classList.toggle('hidden',!shipping||undoShip);
   node('romaneioHistoryPanel').classList.add('hidden');
   if(shipping)renderResumoRomaneios(w.id);
-  node('itemListTitle').textContent=shipping?'Saídas da produção':'Itens da obra';
+  node('itemListTitle').textContent=undoShip?'Romaneios e saídas registradas':undoRelease?'Liberações ativas':shipping?'Saídas da produção':'Itens da obra';
   node('detailIntro').textContent=shipping
     ?'Somente esquadrias com liberação técnica aparecem aqui. Registre a saída apenas das partes liberadas para fabricação.'
     :'Clique em um item para registrar uma liberação para corte.';
@@ -4220,14 +4266,23 @@ function renderDetail(w){
     node('shipLeavesTotal').textContent=leaves.toLocaleString('pt-BR');
     node('shipEventsTotal').textContent=shipmentHistory.filter(h=>ids.has(h.esquadria_id)).length.toLocaleString('pt-BR');
   }
+  if(undoShip){
+    node('detailIntro').textContent='Consulte os romaneios da obra e estorne somente após confirmar a devolução física. Os históricos serão preservados.';
+    node('items').replaceChildren();node('itemFilterEmpty').classList.add('hidden');
+    node('romaneioHistoryPanel').classList.remove('hidden');renderHistoricoRomaneios(w.id);
+    const podeAvulsas=canAdministrate()&&temPermissao('obras.estornar')&&temPermissao('cadastros.consultar');
+    node('detailLooseShipmentActions').classList.toggle('hidden',!podeAvulsas);
+    setView('detail');return;
+  }
+  if(undoRelease)node('detailIntro').textContent='Escolha uma esquadria com liberação ativa para estornar um registro, ou estorne todas as liberações da obra.';
   if(!shipping){
-    node('items').innerHTML=list.length?list.map(x=>{
+    node('items').innerHTML=exibidos.length?exibidos.map(x=>{
       const part=releaseParts(x);
       const pending=part.saldoCompleto;
       const latest=releaseHistory.find(r=>r.esquadria_id===x.id);
       return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><div class="hint" style="margin-top:8px">${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Com alguma parte liberada: ${Number(x.qtd_liberada)||0}</span><span>Marcos: ${part.marcos} · Folhas (conj.): ${part.folhas}</span><span>Restam por liberar: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline" style="margin-top:8px"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/'))+
-  (latest.fabrica?' · '+escapeHTML(latest.fabrica):' · fábrica não informada (histórico)'):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button><div class="topactions" style="padding:4px 12px 10px"><button type="button" class="btn secondary releaseCancellationButton" data-release-undo="${escapeHTML(x.id)}" ${!latest||!temPermissao('liberacoes.cancelar')?'disabled':''}>Estornar liberação</button></div></div>`;
-    }).join(''):'<div class="empty">Nenhuma esquadria nesta obra.</div>';
+  (latest.fabrica?' · '+escapeHTML(latest.fabrica):' · fábrica não informada (histórico)'):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button>${undoRelease?`<div class="topactions" style="padding:4px 12px 10px"><button type="button" class="btn secondary releaseCancellationButton" data-release-undo="${escapeHTML(x.id)}" ${!latest||!temPermissao('liberacoes.cancelar')?'disabled':''}>Estornar liberação</button></div>`:''}</div>`;
+    }).join(''):'<div class="empty">'+(undoRelease?'Nenhuma liberação ativa nesta obra.':'Nenhuma esquadria nesta obra.')+'</div>';
     node('items').querySelectorAll('[data-esq]').forEach(b=>b.addEventListener('click',()=>openRelease(b.dataset.esq)));
     node('items').querySelectorAll('[data-release-undo]').forEach(b=>b.addEventListener('click',()=>window.ewReleaseUndo?.abrir(b.dataset.releaseUndo)));
   }else{
@@ -4709,7 +4764,7 @@ async function confirmReleaseCancelAll(){
   closeReleaseCancelAll();
   await loadPanel();
   const w=works.find(w=>w.id===obraId);
-  if(w){detailMode='release';renderDetail(w);node('detailError').textContent=
+  if(w){if(detailMode!=='releaseUndo')detailMode='release';renderDetail(w);node('detailError').textContent=
     'Estorno realizado: '+Number(result?.canceladas||0)+' liberação(ões). Histórico preservado.';}
 
  }catch(err){
@@ -4722,7 +4777,13 @@ async function confirmReleaseCancelAll(){
 }
 node('detailWorksBack').addEventListener('click',mostrarListaDeObras);
 
-node('releaseUndoAll').addEventListener('click',()=>{if(selectedWork)openReleaseCancelAll(selectedWork.id);});
+node('releaseUndoAll').addEventListener('click',()=>{if(selectedWork&&detailMode==='releaseUndo')openReleaseCancelAll(selectedWork.id);});
+node('detailLooseShipmentUndo').addEventListener('click',async()=>{
+ const obra=selectedWork;
+ if(detailMode!=='shipmentUndo'||!obra||!canAdministrate()||!temPermissao('obras.estornar')||!temPermissao('cadastros.consultar'))return;
+ abrirGerenciamentoObras();await inspecionarExclusaoObra(obra.id);
+ node('manageWorksFeedback').textContent='Confira as saídas avulsas e registre o motivo antes do estorno. Não é necessário excluir a obra.';
+});
 node('releaseCancelAllClose').addEventListener('click',closeReleaseCancelAll);
 node('releaseCancelAllConfirm').addEventListener('click',confirmReleaseCancelAll);
 function releaseComponentSaldo(partes,tipo){
@@ -5219,7 +5280,13 @@ node('manageWorksBack').addEventListener('click',()=>setView('cadastros'));
 node('manageWorksSearch').addEventListener('input',renderGerenciamentoObras);
 node('openRomaneioHub').addEventListener('click',abrirAreaRomaneios);
 node('navHome').addEventListener('click',()=>setView('dashboard'));
-node('navWorks').addEventListener('click',abrirObrasPelaBarra);
+node('navWorks').addEventListener('click',()=>{
+ if(!temPermissao('obras.consultar')||isAlmoxarife())return;
+ atualizarPermissoesObras();
+ const sub=node('navWorksSubmenu'),open=sub.classList.contains('hidden');
+ sub.classList.toggle('hidden',!open);node('navWorks').setAttribute('aria-expanded',String(open));
+});
+node('navWorksSubmenu').querySelectorAll('[data-works-modo]').forEach(b=>b.addEventListener('click',()=>abrirObrasPelaBarra(b.dataset.worksModo)));
 node('navRomaneios').addEventListener('click',abrirAreaRomaneios);
 node('navTypologies').addEventListener('click',()=>node('openTypologies').click());
 node('navManufacturers').addEventListener('click',()=>node('openManufacturers').click());
@@ -11443,7 +11510,7 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/cadastro-locais-estoque.js?v=20261124a"></script>
 <div id="releaseUndoOverlay" class="modaloverlay hidden" role="presentation"><div class="panel modalbox releaseCancelAllDialog" role="dialog" aria-modal="true" aria-labelledby="releaseUndoTitle"><h2 id="releaseUndoTitle">Estornar liberação</h2><p id="releaseUndoStatus" class="hint" role="status"></p><div id="releaseUndoList"></div><div class="modalbuttons"><button id="releaseUndoClose" type="button" class="btn secondary">Fechar</button></div></div></div>
 <style>#releaseUndoList .btn:disabled,#releaseUndoAll:disabled,[data-release-undo]:disabled,#worksCreateManual:disabled,#manageWorksList .btn:disabled,#manageWorksDelete:disabled{opacity:.48;cursor:not-allowed;transform:none;box-shadow:none}</style>
-<script src="/assets/estorno-liberacao.js?v=20261124a"></script>
+<script src="/assets/estorno-liberacao.js?v=20261126e"></script>
 <script src="/assets/cadastro-obras.js?v=20261125a"></script>
 <script defer src="/pwa-install.js?v=25"></script>
 </body>
