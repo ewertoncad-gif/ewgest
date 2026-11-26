@@ -127,7 +127,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.14',
+ 'EWGEST • v46.29.15',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2123,7 +2123,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.14')&&
+assert.ok(source.includes('v46.29.15')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2359,7 +2359,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261125a')&&
- source.includes('EWGEST <strong>· v46.29.14</strong>'),
+ source.includes('EWGEST <strong>· v46.29.15</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2997,7 +2997,7 @@ assert.ok(source.includes('p_empresa_id:empresaId,p_obra_id:obraId')&&source.inc
 assert.ok(transferDocsJS.includes('x.obra_id!==sel[0].obra_id')&&transferDocsJS.includes('result.proximo_codigo'));
 console.log('OK v46.28: numeração por obra, flags e histórico de junções.');
 
-// v46.29.14 — interface acompanha as autorizações e conserva o histórico legado.
+// v46.29.15 — interface acompanha as autorizações e conserva o histórico legado.
 assert.ok(source.includes("if(componente!=='completo'||") && !source.includes('Liberação parcial: somente o marco'));
 assert.ok(deliveryClient.includes("temPermissao('estoque.baixar')") && !deliveryClient.includes("temPermissao('estoque.receber')"));
 assert.ok(source.includes("function stockModoPermitido(modo)") && source.includes("Somente consulta: seu nível não permite estornar estoque."));
@@ -3009,7 +3009,7 @@ assert.equal(stockModeTest(['estoque.consultar'])('transferencias'),false);
 assert.equal(stockModeTest(['estoque.consultar'])('historico'),true);
 assert.equal(stockModeTest([])('consulta'),false);
 
-// v46.29.14 — o módulo de insumos deve conservar o modo de navegação e ignorar respostas antigas.
+// v46.29.15 — o módulo de insumos deve conservar o modo de navegação e ignorar respostas antigas.
 assert.ok(insumosClient.includes('await abrirEstoqueOriginal(...args)'));
 assert.ok(insumosClient.includes('seq===saldosEpoch&&currentCompany?.id===empresa&&byId(\'stockWork\').value===obra'));
 assert.ok(insumosClient.includes("obra.startsWith('empresa:')"));
@@ -3022,7 +3022,7 @@ assert.ok(insumosClient.includes("obra.startsWith('empresa:')"));
  assert.deepEqual(calls,[['producao'],'saldos',['transferencias'],'saldos']);
 }
 
-// v46.29.14 — autorização por flag nos cadastros e insumos.
+// v46.29.15 — autorização por flag nos cadastros e insumos.
 assert.ok(!insumosClient.includes('isFullAdminUser()')&&!insumosClient.includes('canAdministrate()'));
 assert.ok(insumosClient.includes("temPermissao('cadastros.editar')")&&insumosClient.includes("temPermissao('estoque.estornar')"));
 assert.ok(receiveScript.includes("!hasStock&&!temPermissao('financeiro.despesas')"));
@@ -3034,8 +3034,25 @@ assert.ok(source.includes("function abrirEdicaoMaterial(id=null){\n  if(!temPerm
 assert.ok(source.includes("function adminCanManageManufacturers() {\n  return temPermissao('cadastros.consultar');"));
 assert.ok(source.includes("if(!editingTypology||!temPermissao('cadastros.editar'))return;"));
 
-// v46.29.14 — guarda da empresa e separação do planejamento e saldo físico.
+// v46.29.15 — guarda da empresa e separação do planejamento e saldo físico.
 assert.ok(source.includes('r.empresaId=empresaId;'));
 assert.ok(source.includes("currentCompany?.id!==r.empresaId||!temPermissao('obras.importar')"));
 assert.ok(source.includes('Somente obras sem histórico operacional podem atualizar materiais previstos.'));
 assert.ok(!source.includes("'/rest/v1/rpc/ew_importar_saldo_obra_cem'"));
+
+// v46.29.15 — faturamento precificado fecha os centavos aprovados, inclusive em parcelas.
+{
+ const inicio=source.indexOf('function finValorPrecificadoCentavos('),fim=source.indexOf('function finRenderFaturaveis(){',inicio);
+ const calc=new Function(source.slice(inicio,fim)+'return finValorPrecificadoCentavos;')();
+ const linha={area_m2:3,instalacao_centavos:7001,fabricacao_centavos:3000};
+ assert.equal(calc(linha,'instalacao',1,0,0),2334);
+ assert.equal(calc(linha,'instalacao',1,1,2334),2333);
+ assert.equal(calc(linha,'instalacao',1,2,4667),2334);
+ assert.equal(calc(linha,'instalacao',3,0,0),7001);
+ assert.equal(calc(linha,'fabricacao',1,0,0),1000);
+ assert.equal(calc(linha,'instalacao',2,2,4667),null);
+ assert.equal(calc({area_m2:0.123456,instalacao_centavos:10001},'instalacao',0.123456,0,0),10001);
+ assert.equal(calc({area_m2:1,instalacao_centavos:1},'instalacao',0.1,0,0),0);
+ assert.ok(source.includes("(r.precificacao?' readonly':'')"));
+ assert.ok(source.includes("finMoney(Number(data.valor_total??value))"));
+}
