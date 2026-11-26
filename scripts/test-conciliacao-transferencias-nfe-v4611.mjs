@@ -33,12 +33,13 @@ function context({serverCount=4,localCount=4,serverAfter=4}={}){
   if(!elements.has(id))elements.set(id,{
    value:'',textContent:'',innerHTML:'',disabled:false,title:'',
    classList:{add(){},remove(){},toggle(){}},
-   removeAttribute(){},setAttribute(){},scrollIntoView(){}
+   removeAttribute(){},setAttribute(){},scrollIntoView(){},closest(){return this;}
   });
   return elements.get(id);
  };
  const env={
   matIsAdmin:()=>true,
+  temPermissao:chave=>['estoque.consultar','estoque.estornar'].includes(chave),
   stockLocais:[{obra_id:'obra-demo'}],
   works:[{id:'obra-demo',nome:'Obra fictícia',codigo:'CEM-TESTE'}],
   node:el,
@@ -65,6 +66,7 @@ function context({serverCount=4,localCount=4,serverAfter=4}={}){
   stockReverseSelectedWorkId:null,
   stockReverseReady:false,
   stockReverseConciliadas:0,
+  stockReverseConciliadasNfe:0,
   stockReverseHistoryLimit:60,
   stockReverseBalancesLimit:70,
  };

@@ -1,0 +1,47 @@
+BEGIN;
+DO $t$
+DECLARE emp uuid:=gen_random_uuid(); u uuid:=gen_random_uuid(); sid uuid:=gen_random_uuid(); a uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); c uuid:=gen_random_uuid(); tr1 uuid:=gen_random_uuid(); tr2 uuid:=gen_random_uuid(); perfil uuid:=gen_random_uuid(); var uuid:=gen_random_uuid(); desp uuid; rec uuid; op uuid:=gen_random_uuid(); v jsonb; itens jsonb; cat text; ins uuid;
+BEGIN
+ INSERT INTO auth.users(id,email,aud,role) VALUES(u,'homologacao-'||u::text||'@example.invalid','authenticated','authenticated');
+ INSERT INTO public.empresas(id,nome) VALUES(emp,'Empresa fictícia teste lotes');
+ INSERT INTO public.ew_niveis_acesso(empresa_id,nivel,nome) VALUES(emp,1,'Teste ADM') ON CONFLICT DO NOTHING;
+ INSERT INTO public.ew_niveis_permissoes(empresa_id,nivel,chave,permitido) SELECT emp,1,chave,true FROM public.ew_permissoes_catalogo ON CONFLICT(empresa_id,nivel,chave) DO UPDATE SET permitido=true;
+ INSERT INTO public.usuarios_empresas(empresa_id,usuario_id,perfil,nivel_acesso) VALUES(emp,u,'administrador',1);
+ INSERT INTO public.usuarios_login(usuario_id,empresa_id,perfil,ativo,nome,login,nivel_acesso) VALUES(u,emp,'administrador',true,'Usuário fictício','teste-'||u::text,1);
+ INSERT INTO public.ew_sessoes_unicas(usuario_id,sessao_auth_id) VALUES(u,sid);
+ PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',u,'session_id',sid,'role','authenticated')::text,true);
+ INSERT INTO public.obras(id,empresa_id,nome,codigo) VALUES(a,emp,'Obra fictícia A','TESTE-A'),(b,emp,'Obra fictícia B','TESTE-B'),(c,emp,'Obra fictícia C','TESTE-C');
+ INSERT INTO public.ew_estoques_locais(empresa_id,obra_id,criado_por) VALUES(emp,a,u),(emp,b,u),(emp,c,u) ON CONFLICT DO NOTHING;
+ INSERT INTO public.ew_locais_fisicos(empresa_id,nome,ativo) VALUES(emp,'GALPAO1',true),(emp,'GALPAO2',true),(emp,'GALPAO3',true) ON CONFLICT DO NOTHING;
+ INSERT INTO public.ew_perfis(id,empresa_id,codigo,descricao,fabricante,comprimento_comercial_mm) VALUES(perfil,emp,'TESTE-01','Perfil fictício','Fabricante teste',6000);
+ INSERT INTO public.ew_materiais_variacoes(id,empresa_id,tipo,perfil_id,ativo) VALUES(var,emp,'perfil',perfil,true);
+ INSERT INTO public.ew_cem_obras_materiais(empresa_id,obra_id,tipo,perfil_id,variacao_id,quantidade_prevista,unidade_prevista) VALUES(emp,a,'perfil',perfil,var,3,'BARRA');
+ INSERT INTO public.ew_fornecedores(empresa_id,nome,ativo) VALUES(emp,'Fornecedor fictício',true);
+ INSERT INTO public.ew_obra_orcamento(empresa_id,obra_id,valor_total,aluminio,acessorios,vidros,outros,fabricacao,instalacao,criado_por) VALUES(emp,a,1000,1000,0,0,0,0,0,u);
+ INSERT INTO public.ew_unidades_medida(empresa_id,codigo,nome) VALUES(emp,'PC','Peça') ON CONFLICT DO NOTHING;
+ UPDATE public.ew_obra_orcamento SET valor_total=3000,vidros=1000,outros=1000 WHERE empresa_id=emp;
+ FOREACH cat IN ARRAY ARRAY['vidros','outros'] LOOP
+ op:=gen_random_uuid();tr1:=gen_random_uuid();
+ itens:=jsonb_build_array(jsonb_build_object('descricao','Insumo teste '||cat,'unidade','PC','quantidade',3,'valor_total',100));
+ PERFORM set_config('role','authenticated',true);
+ v:=public.ew_insumos_receber(emp,a,cat,100,'Fornecedor fictício','TESTE-'||cat,current_date,'Teste',op,itens,'GALPAO1');
+ desp:=(v->>'id')::uuid;
+ SET CONSTRAINTS ALL IMMEDIATE;
+ PERFORM set_config('role','postgres',true);
+ SELECT id INTO STRICT ins FROM public.ew_insumos_catalogo WHERE empresa_id=emp AND categoria=cat;
+ IF (SELECT count(*) FROM ew_compras_interna.custo_lotes WHERE empresa_id=emp AND categoria=cat AND custo_centavos=10000)<>1 THEN RAISE EXCEPTION 'Lote insumo ausente %',cat; END IF;
+ PERFORM set_config('role','authenticated',true);
+ v:=public.ew_insumos_transferir(emp,a,b,ins,'GALPAO1','GALPAO2',1,'Transferência teste',tr1);
+ PERFORM set_config('role','postgres',true);
+ IF (SELECT ajuste_centavos FROM ew_compras_interna.custo_transferencias_ajustes_financeiros WHERE empresa_id=emp AND obra_id=b AND categoria=cat) IS DISTINCT FROM 3333::numeric THEN RAISE EXCEPTION 'Custo insumo incorreto %',cat; END IF;
+ PERFORM set_config('role','authenticated',true);
+ BEGIN v:=public.ew_insumos_cancelar_nota(emp,desp,'Estorno prematuro'); RAISE EXCEPTION 'TESTE_FALHOU'; EXCEPTION WHEN raise_exception THEN IF SQLERRM='TESTE_FALHOU' THEN RAISE; END IF; END;
+ v:=public.ew_insumos_estornar_transferencia(emp,tr1,'Estorno da transferência');
+ v:=public.ew_insumos_cancelar_nota(emp,desp,'Estorno integral teste');
+ PERFORM set_config('role','postgres',true);
+ IF EXISTS(SELECT 1 FROM ew_compras_interna.custo_saldos_fragmentos f JOIN ew_compras_interna.custo_lotes l USING(empresa_id,lote_id) WHERE f.empresa_id=emp AND l.categoria=cat) THEN RAISE EXCEPTION 'Saldo insumo não zerado'; END IF;
+ SET CONSTRAINTS ALL DEFERRED;
+ END LOOP;
+END;$t$;
+ROLLBACK;
+SELECT 'vidros e outros insumos aprovados' resultado;

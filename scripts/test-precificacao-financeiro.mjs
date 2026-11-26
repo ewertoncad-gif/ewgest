@@ -34,8 +34,17 @@ assert.ok(app.includes("apiGet('ew_precificacao_revisoes_categorias',{")&&
 assert.ok(app.includes("billedValues={fabricacao:new Map(),instalacao:new Map()}")&&
  app.includes("Math.round(Number(x.valor_total||0)*100)")&&
  app.includes("row.dataset.autoPrice='0'")&&
- app.includes("finPrecoM2Sugerido(precificacao,tipo,e.quantidade,areaUnit,areaMax,ja"),
- 'Descontar histórico faturado e aceitar edição manual do preço sugerido');
+ app.includes("finPrecoEfetivo(precificacao,tipo,areaMax,jaArea,finState.billedValues[tipo].get(e.id)||0)")&&
+ app.includes("(r.precificacao?' readonly':'')"),
+ 'Descontar histórico faturado, preservar centavos aprovados e permitir edição apenas sem precificação');
+const valorExato=new Function(app.slice(start,end)+'\nreturn finValorPrecificadoCentavos;')();
+const precoEfetivo=new Function(app.slice(start,end)+'\nreturn finPrecoEfetivo;')();
+const aprovado={fabricacao_centavos:10000,area_m2:3};
+assert.equal(valorExato(aprovado,'fabricacao',1,0,0),3333);
+assert.equal(valorExato(aprovado,'fabricacao',1,1,3333),3334);
+assert.equal(valorExato(aprovado,'fabricacao',1,2,6667),3333);
+assert.equal(precoEfetivo(aprovado,'fabricacao',1,2,6667),33.33);
+assert.equal(valorExato(aprovado,'fabricacao',2,2,6667),null);
 assert.ok(app.includes("const teto=finState.precificacao?")&&
  app.includes("Number(finState.precificacao[tipo+'_distribuida_centavos'])/100"),
  'Frontend valida novo teto de faturamento, preservando orçamento legado');

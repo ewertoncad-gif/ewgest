@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import './test-precificacao.mjs';
+import './test-financeiro-lotes.mjs';
 import './test-precificacao-financeiro.mjs';
 import './test-precificacao-ui.mjs';
 import './test-cem-zip-precificacao-v469.mjs';
@@ -55,7 +56,7 @@ assert.ok(inlineJS.length>=1,'Script principal da interface deve estar no HTML')
 for(const js of inlineJS)assert.doesNotThrow(()=>new Function(js),
  'JavaScript principal da interface deve ser sintaticamente válido');
 const receiptCacheHeaders=readFileSync(fileURLToPath(new URL('../_headers',import.meta.url)),'utf8');
-assert.ok(source.includes('/assets/recebimento-manual.js?v=20261125a')&&
+assert.ok(source.includes('/assets/recebimento-manual.js?v=20261126a')&&
  source.includes('/assets/recebimento-manual.css?v=20261121g'),
  'O recebimento precisa de URLs versionadas para evitar assets antigos após deploy');
 assert.match(receiptCacheHeaders,/\/assets\/recebimento-manual\.js\s+Content-Type: text\/javascript; charset=utf-8\s+Cache-Control: no-store/,
@@ -127,7 +128,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.16',
+ 'EWGEST • v46.29.17',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -193,7 +194,6 @@ for(const token of [
  "tipoSelect.querySelector('option[value=\"parcial\"]').disabled=maxim",
  "node('shipmentLeaves').required=precisaComposicao",
  "const per=kind==='completo'?null:",
- 'Liberação parcial: somente o marco (50%)',
  'Folhas físicas (pode enviar uma de cada vez)',
  'data-rom-field="esquadria_search"',
  "p_motivo:texto",
@@ -887,8 +887,9 @@ assert.ok(!source.includes('id="stockNewManual"')&&
  'Estoque não exibe entradas manuais, NF-e e cadastro de galpão redundantes');
 assert.ok(source.includes('function stockCemReadMirror(){')&&
  source.includes('function stockCemMirrorRow(tipo,row={},index=-1){')&&
- source.includes('p_perfis:mirror.perfis,p_acessorios:mirror.acessorios'),
- 'Importação utiliza o espelho editado, não os dados originais do arquivo');
+ source.includes('Importação de saldo físico pelo CEM desativada. Utilize Recebimento.')&&
+ !source.slice(source.indexOf('async function stockCemCommit(){'),source.indexOf("node('stockCemAnalyze').addEventListener('click',stockCemAnalyze)")).includes('request('),
+ 'Espelho permanece disponível para conferência; importação CEM não registra saldo físico');
 assert.ok(source.includes('stockCemMirrorUpdate')&&source.includes('data-stock-cem-add'),
  'Espelho de importação permite alterações e inclusão de linhas');
 assert.ok(!source.includes('CEM Plus'),'Nome da marca não deve aparecer na interface nem em mensagens de erro');
@@ -1582,7 +1583,7 @@ assert.ok(source.includes('id="finCostXML" class="hidden" disabled')&&
  !source.includes('<label>XML da nota fiscal (NF-e)')&&
  source.includes('id="finCostCategory" required'),
  'Entrada financeira não pode oferecer envio de XML; almoxarifado mantém fluxo próprio');
-assert.ok(source.includes('recebimento-manual.js?v=20261125a')&&
+assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
  source.includes('recebimento-manual.css?v=20261121g')&&receiveCSS.includes('.finManualTable'),
  'HTML deve carregar arquivos de recebimento manual');
 assert.ok(receiveScript.includes('ew_registrar_recebimento_manual_financeiro')&&
@@ -1622,7 +1623,7 @@ const resumoPrelude=[
  "const byId=id=>nodes[id];",
  "const finMoney=n=>Number(n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});",
  "const escapeHTML=x=>String(x||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');",
- "const initForm=()=>{};",
+ "const initForm=()=>{},finRenderClassificacaoFiscal=()=>{};",
  "let finRenderResumo=function(){legacyCalls++;};"
 ].join('\n');
 const renderResumo=new Function('state',resumoPrelude+'\n'+
@@ -1641,7 +1642,7 @@ const niveisExemplo=[
 }));
 const exemplo=()=>({
  orcamento:{valor_total:183200},
- orcamentoNiveis:niveisExemplo,
+ orcamentoNiveis:niveisExemplo.map(n=>({...n})),
  despesas:[{categoria:'aluminio',status:'aprovada',valor:5000}],
  faturas:[{categoria:'fabricacao',status:'emitido',valor_total:2500}]
 });
@@ -1671,6 +1672,13 @@ assert.equal((dupHtml.match(/<table\b/g)||[]).length,1);
 assert.ok(dupHtml.includes('seus valores realizados não são distribuídos automaticamente (—)')&&
  dupHtml.includes('ALUMÍNIO ADICIONAL'),
  'Níveis repetidos não podem contabilizar o mesmo gasto duas vezes');
+const comLotes=exemplo();
+comLotes.compromissos=[{categoria:'aluminio',realizado_centavos:500000,ajuste_transferencias_centavos:150000,comprometido_pendente_centavos:100000}];
+const integradoResumo=renderResumo(comLotes);
+assert.ok(integradoResumo.nodes.finSummary.innerHTML.replace(/\u00a0/g,' ').includes('R$ 65.700,00'));
+assert.ok(integradoResumo.nodes.finTotals.innerHTML.replace(/\u00a0/g,' ').includes('Custo apropriado: R$ 6.500,00'));
+comLotes.compromissos[0].transferencias_custo_pendentes=1;
+assert.ok(renderResumo(comLotes).nodes.finSummary.innerHTML.includes('Custo de transferência pendente'));
 const legado=renderResumo({orcamentoNiveis:[],despesas:[],faturas:[],orcamento:{}});
 assert.equal(legado.legacyCalls,1,'Obras antigas permanecem com resumo legado');
 
@@ -2123,7 +2131,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.16')&&
+assert.ok(source.includes('v46.29.17')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2312,7 +2320,7 @@ assert.ok(!source.includes('id="stockTransferQty" type="number" min="0.001" step
 // EWGEST v45.8 — acessórios em PC/UN/PR/CJ/CX não podem ser fracionados em NF.
 const countableMigration=readFileSync(fileURLToPath(new URL(
  '../database/proposals/20261121_recebimento_quantidades_contaveis_v458.sql',import.meta.url)),'utf8');
-assert.ok(source.includes('/assets/recebimento-manual.js?v=20261125a'),
+assert.ok(source.includes('/assets/recebimento-manual.js?v=20261126a'),
  'Novas regras de quantidade devem invalidar o cache do JS anterior');
 for(const marker of [
  "const unidadesContaveis=new Set(['PC','UN','PR','CJ','CX','MT'])",
@@ -2358,8 +2366,8 @@ assert.ok(
  receiveScript.includes("item.quantidade='1';")&&
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
-assert.ok(source.includes('recebimento-manual.js?v=20261125a')&&
- source.includes('EWGEST <strong>· v46.29.16</strong>'),
+assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
+ source.includes('EWGEST <strong>· v46.29.17</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2680,11 +2688,11 @@ assert.ok(areaSql.includes("CREATE OR REPLACE FUNCTION public.emitir_romaneio_co
  areaSql.includes('v_item.largura_mm*v_item.altura_mm*v_qty/1000000.0'),
  'A proposta SQL deve preservar as guardas e persistir as áreas equivalentes por componente');
 
-// EWGEST v46.6 — liberação completa por padrão e expedição livre por componente.
-assert.ok(source.includes('Esquadria completa: marco + todas as folhas (100%)')&&
- source.includes('const complemento=permitePartes&&parts.marcos>parts.folhas')&&
- source.includes("select.value=[...select.options].some(o=>o.value===preferida&&!o.disabled)?preferida:'';"),
- 'A liberação normal deve ser completa, e um marco já liberado deve sugerir complementar as folhas');
+// Liberação completa obrigatória; expedição continua por componente.
+assert.ok(source.includes("if(componente!=='completo'||")&&
+ source.includes('A liberação deve ser da esquadria completa.')&&
+ source.includes("const escopo='esquadria completa (100%)';"),
+ 'A liberação deve ser completa; expedição por componentes permanece separada');
 assert.ok(source.includes('Folhas físicas (pode enviar uma de cada vez)')&&
  source.includes("const chave=id+'|'+tipo;")&&
  source.includes('if(usados.has(chave))')&&
@@ -3060,4 +3068,7 @@ assert.ok(!source.includes("'/rest/v1/rpc/ew_importar_saldo_obra_cem'"));
 // Transferências sem apropriação: a categoria não deve apresentar saldo definitivo.
 assert.ok(source.includes("transferenciasPendentes.set(d.categoria,Number(d.transferencias_custo_pendentes||0))"));
 assert.ok(source.includes("custoPendente?'Custo de transferência pendente':pendente?'Em conferência':finMoney(resto)"));
-assert.ok(source.includes("Gastos realizados'+(totalTransferenciasPendentes?' (sem apropriação das transferências)':'')"));
+assert.ok(source.includes("Gastos realizados (notas)"));
+assert.ok(source.includes("ajuste_transferencias_centavos??0"));
+assert.ok(source.includes("total-real-ajuste-comprometidoCategoria"));
+assert.ok(source.includes("Ajuste líquido de transferências"));

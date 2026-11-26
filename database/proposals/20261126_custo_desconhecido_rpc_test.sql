@@ -1,0 +1,43 @@
+BEGIN;
+DO $t$
+DECLARE emp uuid:=gen_random_uuid(); u uuid:=gen_random_uuid(); sid uuid:=gen_random_uuid(); a uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); c uuid:=gen_random_uuid(); tr1 uuid:=gen_random_uuid(); tr2 uuid:=gen_random_uuid(); perfil uuid:=gen_random_uuid(); var uuid:=gen_random_uuid(); desp uuid; rec uuid; op uuid:=gen_random_uuid(); v jsonb; itens jsonb;
+BEGIN
+ INSERT INTO auth.users(id,email,aud,role) VALUES(u,'homologacao-'||u::text||'@example.invalid','authenticated','authenticated');
+ INSERT INTO public.empresas(id,nome) VALUES(emp,'Empresa fictícia teste lotes');
+ INSERT INTO public.ew_niveis_acesso(empresa_id,nivel,nome) VALUES(emp,1,'Teste ADM') ON CONFLICT DO NOTHING;
+ INSERT INTO public.ew_niveis_permissoes(empresa_id,nivel,chave,permitido) SELECT emp,1,chave,true FROM public.ew_permissoes_catalogo ON CONFLICT(empresa_id,nivel,chave) DO UPDATE SET permitido=true;
+ INSERT INTO public.usuarios_empresas(empresa_id,usuario_id,perfil,nivel_acesso) VALUES(emp,u,'administrador',1);
+ INSERT INTO public.usuarios_login(usuario_id,empresa_id,perfil,ativo,nome,login,nivel_acesso) VALUES(u,emp,'administrador',true,'Usuário fictício','teste-'||u::text,1);
+ INSERT INTO public.ew_sessoes_unicas(usuario_id,sessao_auth_id) VALUES(u,sid);
+ PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',u,'session_id',sid,'role','authenticated')::text,true);
+ INSERT INTO public.obras(id,empresa_id,nome,codigo) VALUES(a,emp,'Obra fictícia A','TESTE-A'),(b,emp,'Obra fictícia B','TESTE-B'),(c,emp,'Obra fictícia C','TESTE-C');
+ INSERT INTO public.ew_estoques_locais(empresa_id,obra_id,criado_por) VALUES(emp,a,u),(emp,b,u),(emp,c,u) ON CONFLICT DO NOTHING;
+ INSERT INTO public.ew_locais_fisicos(empresa_id,nome,ativo) VALUES(emp,'G1',true),(emp,'G2',true),(emp,'G3',true) ON CONFLICT DO NOTHING;
+ INSERT INTO public.ew_perfis(id,empresa_id,codigo,descricao,fabricante,comprimento_comercial_mm) VALUES(perfil,emp,'TESTE-01','Perfil fictício','Fabricante teste',6000);
+ INSERT INTO public.ew_materiais_variacoes(id,empresa_id,tipo,perfil_id,ativo) VALUES(var,emp,'perfil',perfil,true);
+ INSERT INTO public.ew_cem_obras_materiais(empresa_id,obra_id,tipo,perfil_id,variacao_id,quantidade_prevista,unidade_prevista) VALUES(emp,a,'perfil',perfil,var,3,'BARRA');
+ INSERT INTO public.ew_fornecedores(empresa_id,nome,ativo) VALUES(emp,'Fornecedor fictício',true);
+ INSERT INTO public.ew_obra_orcamento(empresa_id,obra_id,valor_total,aluminio,acessorios,vidros,outros,fabricacao,instalacao,criado_por) VALUES(emp,a,1000,1000,0,0,0,0,0,u);
+ itens:=jsonb_build_array(jsonb_build_object('variacao_id',var,'comprimento_mm',6000,'quantidade',3,'valor_total',100));
+ PERFORM set_config('role','authenticated',true);
+ v:=public.ew_receber_materiais_almox(emp,a,'aluminio',100,'Fornecedor fictício','TESTE',current_date,'Aquisição fictícia','G1',itens,op);
+ desp:=(v->>'id')::uuid;
+ v:=public.ew_receber_materiais_almox(emp,a,'aluminio',100,'Fornecedor fictício','TESTE',current_date,'Aquisição fictícia','G1',itens,op);
+ IF NOT coalesce((v->>'ja_registrado')::boolean,false) THEN RAISE EXCEPTION 'Recebimento repetido não reconhecido'; END IF;
+ SET CONSTRAINTS ALL IMMEDIATE;
+ PERFORM set_config('role','postgres',true);
+ IF (SELECT count(*) FROM ew_compras_interna.custo_lotes WHERE empresa_id=emp AND custo_centavos=10000 AND quantidade=3)<>1 THEN RAISE EXCEPTION 'Lote não criado'; END IF;
+ SELECT r.id INTO STRICT rec FROM public.ew_nfe_recebimentos r JOIN public.ew_obra_despesas_itens i ON i.id=r.despesa_item_id WHERE i.despesa_id=desp;
+ PERFORM set_config('role','authenticated',true);
+ PERFORM set_config('role','postgres',true);
+ INSERT INTO public.ew_estoque_obras_movimentos(empresa_id,obra_id,variacao_id,comprimento_mm,unidade,quantidade_delta,origem,operacao_id,observacao,usuario_id,local_estoque)
+ VALUES(emp,a,var,6000,'BARRA',1,'ABERTURA',gen_random_uuid(),'Saldo sem evidência fiscal',u,'G1');
+ PERFORM set_config('role','authenticated',true);
+ v:=public.ew_transferir_estoque_entre_obras(emp,a,b,var,6000,'BARRA',1,'G1','G2','Transferência sem custo completo',tr1);
+ v:=public.ew_compras_compromissos_obra(emp,b);
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(v) x WHERE x->>'categoria'='aluminio' AND (x->>'transferencias_custo_pendentes')::int=1 AND x->'consumido_centavos'='null'::jsonb) THEN RAISE EXCEPTION 'Saldo financeiro deveria estar pendente'; END IF;
+ PERFORM set_config('role','postgres',true);
+ IF EXISTS(SELECT 1 FROM ew_compras_interna.custo_transferencias_integradas WHERE empresa_id=emp) THEN RAISE EXCEPTION 'Custo incerto apropriado'; END IF;
+END;$t$;
+ROLLBACK;
+SELECT 'custo desconhecido permanece pendente' resultado;
