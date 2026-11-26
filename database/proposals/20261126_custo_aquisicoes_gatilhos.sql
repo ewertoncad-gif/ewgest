@@ -22,20 +22,20 @@ BEGIN
 END;$f$;
 CREATE FUNCTION ew_compras_interna.custo_evento_fiscal()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $f$
-DECLARE j jsonb:=to_jsonb(NEW); emp uuid:=(j->>'empresa_id')::uuid; item uuid; fonte text; l record; u uuid:=auth.uid();
+DECLARE j jsonb:=to_jsonb(NEW); emp uuid:=(j->>'empresa_id')::uuid; item uuid; v_fonte text; l record; u uuid:=auth.uid();
 BEGIN
  IF emp IS NULL THEN RAISE EXCEPTION 'Empresa fiscal ausente'; END IF;
- IF TG_TABLE_NAME='ew_nfe_recebimentos' THEN item:=(j->>'despesa_item_id')::uuid; fonte:='NFE_DIRETA';
+ IF TG_TABLE_NAME='ew_nfe_recebimentos' THEN item:=(j->>'despesa_item_id')::uuid; v_fonte:='NFE_DIRETA';
  ELSIF TG_TABLE_NAME='ew_insumos_movimentos' THEN
-  IF j->>'origem'='RECEBIMENTO' THEN item:=(j->>'despesa_item_id')::uuid; fonte:='INSUMO';
+  IF j->>'origem'='RECEBIMENTO' THEN item:=(j->>'despesa_item_id')::uuid; v_fonte:='INSUMO';
   ELSE RETURN NEW; END IF;
- ELSIF TG_TABLE_NAME='ew_compras_nfe_vinculos' THEN item:=(j->>'despesa_item_id')::uuid; fonte:='PEDIDO_OBRA';
- ELSIF TG_TABLE_NAME='ew_compras_notas_empresa_itens' THEN item:=(j->>'id')::uuid; fonte:='PEDIDO_EMPRESA';
+ ELSIF TG_TABLE_NAME='ew_compras_nfe_vinculos' THEN item:=(j->>'despesa_item_id')::uuid; v_fonte:='PEDIDO_OBRA';
+ ELSIF TG_TABLE_NAME='ew_compras_notas_empresa_itens' THEN item:=(j->>'id')::uuid; v_fonte:='PEDIDO_EMPRESA';
  ELSE RAISE EXCEPTION 'Tabela fiscal não prevista';
  END IF;
  IF TG_OP='UPDATE' THEN
   FOR l IN SELECT c.lote_id FROM ew_compras_interna.custo_lotes c
-   WHERE c.empresa_id=emp AND c.fonte=fonte AND c.item_fiscal_id=item AND c.cancelado_em IS NULL
+   WHERE c.empresa_id=emp AND c.fonte=v_fonte AND c.item_fiscal_id=item AND c.cancelado_em IS NULL
    AND NOT EXISTS(SELECT 1 FROM ew_compras_interna.lotes_aquisicao_evidencias v WHERE v.empresa_id=c.empresa_id AND v.fonte=c.fonte AND v.item_fiscal_id=c.item_fiscal_id AND v.movimento_id=c.movimento_id AND v.quantidade=c.quantidade AND v.custo_centavos=c.custo_centavos AND v.categoria=c.categoria)
    ORDER BY c.lote_id FOR UPDATE
   LOOP
@@ -43,7 +43,7 @@ BEGIN
    PERFORM ew_compras_interna.custo_cancelar_lote(emp,l.lote_id,gen_random_uuid(),u);
   END LOOP;
  ELSE
-  PERFORM ew_compras_interna.custo_abrir_evidencia(emp,fonte,item);
+  PERFORM ew_compras_interna.custo_abrir_evidencia(emp,v_fonte,item);
  END IF;
  RETURN NEW;
 END;$f$;
