@@ -81,6 +81,8 @@ try{
  // Atalho real no formulário de liberação, sem reinicializar campos.
  await page.addScriptTag({content:slice('function expCompTipologiaLiberacao(item){',"node('releaseCancel').addEventListener")});
  await page.evaluate(()=>{window.selectedItem={...elements[0],tipologia_id:'t1'};window.releaseOperationId='operacao';node('releaseModal').classList.remove('hidden');node('releaseExpCompOpen').classList.remove('hidden');node('releaseQty').value='2';node('releaseDate').value='2026-11-26';node('releaseFactory').value='AFOGADOS';});
+ assert.equal(await page.locator('#releaseComponent').count(),0);
+ assert.match(await page.locator('#releaseScopeNotice').textContent(),/somente na saída para a obra/);
  await page.locator('#releaseExpCompOpen').click();
  await page.locator('#expCompOverlay').waitFor({state:'visible'});
  assert.equal(await page.locator('#releaseModal').isVisible(),false);
