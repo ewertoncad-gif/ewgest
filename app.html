@@ -83,6 +83,18 @@
     .typologyHeading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 0 8px;border-bottom:1px solid #33506a;flex-wrap:wrap}
     .typologyHeading strong{font-size:16px;letter-spacing:.2px;color:#62d9b3}
     .typologyHeading span{color:#a7bfd3;font-size:12px}
+    /* Lista de liberação compacta: apenas espaçamentos, sem reduzir fontes. */
+    #items.releaseCompact .typologyGroup{margin:9px 0;padding:2px 16px 4px}
+    #items.releaseCompact .typologyHeading{padding:7px 0 5px;row-gap:4px}
+    #items.releaseCompact .item{padding:7px 0}
+    #items.releaseCompact .itemline{row-gap:3px}
+    #items.releaseCompact .itemdescription{margin:5px 0}
+    #items.releaseCompact{--release-dimension-gap:3px;--release-footer-gap:3px}
+    #items.releaseCompact .releaseFooter{justify-content:flex-end}
+    #items.releaseCompact .releaseFooter .hint:not(:empty){margin-right:auto}
+    #items.releaseCompact .releaseFooter .hint:empty{display:none}
+    @media(max-width:620px){#items.releaseCompact .typologyGroup{padding-inline:10px}#items.releaseCompact .item{padding:8px 0}}
+
     .catalogFilters{display:grid;grid-template-columns:repeat(2,minmax(220px,290px));gap:12px 16px;align-items:end;margin:12px 0 12px}
     .catalogFilters .manufacturerFilter{max-width:none;margin:0}
     @media(max-width:650px){.catalogFilters{grid-template-columns:1fr}}
@@ -786,7 +798,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.22</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.23</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -807,7 +819,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.22</div>
+        <div class="build">EWGEST • v46.29.23</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -4242,6 +4254,7 @@ function renderDetail(w){
   node('detailMade').textContent=amount(t.made);
   renderUnitCounters('detail',t);
   const undoRelease=detailMode==='releaseUndo',undoShip=detailMode==='shipmentUndo';
+  node('items').classList.toggle('releaseCompact',detailMode==='release');
   const canEdit=!undoRelease&&temPermissao('liberacoes.criar');
   const shipping=detailMode==='shipment'||undoShip;
   const exibidos=undoRelease?list.filter(x=>releaseHistory.some(h=>h.esquadria_id===x.id)):shipping?list.filter(x=>Number(x.qtd_liberada)>0):list;
@@ -4293,7 +4306,7 @@ function renderDetail(w){
       const part=releaseParts(x);
       const pending=part.saldoCompleto;
       const latest=releaseHistory.find(r=>r.esquadria_id===x.id);
-      return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><div class="hint" style="margin-top:8px">${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Com alguma parte liberada: ${Number(x.qtd_liberada)||0}</span><span>Marcos: ${part.marcos} · Folhas (conj.): ${part.folhas}</span><span>Restam por liberar: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline" style="margin-top:8px"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/'))+
+      return `<div class="item"><button type="button" class="itemclick" data-esq="${escapeHTML(x.id)}" ${!canEdit||!pending?'disabled':''}><div class="itemline"><strong>${escapeHTML(x.codigo)}</strong><span class="muted itemlocation hidden">${escapeHTML(x.localizacao||'')}</span></div><div class="hint releaseDimensions" style="margin-top:var(--release-dimension-gap,8px)">${amount(x.largura_mm)} × ${amount(x.altura_mm)} mm</div><p class="muted itemdescription hidden">${escapeHTML(x.descricao||'')}</p><div class="itemline"><span>Total: ${Number(x.quantidade)||0}</span><span>Com alguma parte liberada: ${Number(x.qtd_liberada)||0}</span><span>Marcos: ${part.marcos} · Folhas (conj.): ${part.folhas}</span><span>Restam por liberar: ${pending}</span><strong>${amount(area(x,x.quantidade))} m²</strong></div><div class="itemline releaseFooter" style="margin-top:var(--release-footer-gap,8px)"><span class="hint">${latest?'Última liberação: '+escapeHTML(latest.data_liberacao.split('-').reverse().join('/'))+
   (latest.fabrica?' · '+escapeHTML(latest.fabrica):' · fábrica não informada (histórico)'):''}</span><span class="tap">${canEdit?(pending?'Clique para liberar':'Tudo liberado'):'Somente consulta'}</span></div></button>${undoRelease?`<div class="topactions" style="padding:4px 12px 10px"><button type="button" class="btn secondary releaseCancellationButton" data-release-undo="${escapeHTML(x.id)}" ${!latest||!temPermissao('liberacoes.cancelar')?'disabled':''}>Estornar liberação</button></div>`:''}</div>`;
     }).join(''):'<div class="empty">'+(undoRelease?'Nenhuma liberação ativa nesta obra.':'Nenhuma esquadria nesta obra.')+'</div>';
     node('items').querySelectorAll('[data-esq]').forEach(b=>b.addEventListener('click',()=>openRelease(b.dataset.esq)));
