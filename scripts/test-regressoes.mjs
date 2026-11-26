@@ -129,7 +129,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.31',
+ 'EWGEST • v46.29.32',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -758,7 +758,7 @@ assert.ok(!source.includes('rows.slice(0,6)'), 'Exibe a lista completa de materi
 assert.ok(source.includes('id="stockManualForm"')&&source.includes('id="stockManualWork"')&&
  source.includes('id="stockNewMaterialCode"'), 'Cadastro manual de obra e material deve existir');
 assert.ok(source.includes('class="releaseMirrorIntro hidden"')&&
- source.includes('id="releaseComponent" required')&&
+ !source.includes('id="releaseComponent"')&&source.includes('id="releaseScopeNotice"')&&
  source.includes('id="releaseMirrorPanel" class="hidden"')&&
  source.includes("p_materiais:[],p_fonte:'SEM_BAIXA'"),
  'Liberação individual é somente técnica, completa e sem baixa');
@@ -2135,7 +2135,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.31')&&
+assert.ok(source.includes('v46.29.32')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2371,7 +2371,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.31</strong>'),
+ source.includes('EWGEST <strong>· v46.29.32</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2603,7 +2603,7 @@ for(const token of [
 assert.ok(!/insert into public\.ew_estoque_obras_movimentos/i.test(componentMigration)&&
  !/insert into public\.ew_insumos_movimentos/i.test(componentMigration),
  'Liberação parcial não pode movimentar estoque');
-assert.ok(source.includes('id="releaseComponent" required')&&
+assert.ok(!source.includes('id="releaseComponent"')&&source.includes('id="releaseScopeNotice"')&&
  source.includes("p_materiais:[],p_fonte:'SEM_BAIXA'")&&
  source.includes('p_componente:componente')&&
  source.includes("shipping?list.filter(x=>Number(x.qtd_liberada)>0):list;")&&
@@ -3081,7 +3081,7 @@ import './test-obras-modos.mjs';
 
 import './test-reconhecimento-cem.mjs';
 
-// v46.29.31 — compactação restrita à lista de liberação, sem fontes menores.
+// v46.29.32 — compactação restrita à lista de liberação, sem fontes menores.
 assert.ok(source.includes("node('items').classList.toggle('releaseCompact',detailMode==='release')"));
 const compactCss=source.slice(source.indexOf('/* Lista de liberação compacta:'),source.indexOf('.catalogFilters{',source.indexOf('/* Lista de liberação compacta:')));
 assert.ok(compactCss.includes('#items.releaseCompact .typologyGroup{margin:9px 0;padding:2px 16px 4px}'));
@@ -3151,7 +3151,7 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
  assert.equal(operacional({modulacao_id:'m6',descricao:'GRADIL 6 MÓDULO(S)'}),seis);
  assert.equal(operacional({descricao:'ORIGINAL CEM'}),'ORIGINAL CEM');
 
- // v46.29.31: escolher a família e a quantidade basta; o seletor interno
+ // v46.29.32: escolher a família e a quantidade basta; o seletor interno
  // permanece apenas como contrato com a RPC, sem decisão intermediária.
  {
   const cut=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end,source.indexOf(start)));
@@ -3205,7 +3205,7 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
   assert.equal(origin.descricao,'GRADIL 6 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO');
   assert.equal(catalog[0].descricao,oito);
  }
- console.log('OK v46.29.31: modulação automática, reuso, criação, exceções e bloqueios.');
+ console.log('OK v46.29.32: modulação automática, reuso, criação, exceções e bloqueios.');
 
  // Reaproveita a descrição exata do CEM somente na família selecionada.
  {
@@ -3224,7 +3224,7 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
   assert.equal(legado.descricao,origem);
  }
 
-// v46.29.31: composição independente e atalho sem reiniciar a liberação.
+// v46.29.32: composição independente e atalho sem reiniciar a liberação.
 {
  const cut=(a,b)=>source.slice(source.indexOf(a),source.indexOf(b,source.indexOf(a)));
  const ns=new Map();const n=id=>{if(!ns.has(id)){const flags=new Set();ns.set(id,{value:'',disabled:false,textContent:'',focus(){},classList:{toggle(k,v){v?flags.add(k):flags.delete(k)},add(k){flags.add(k)},remove(k){flags.delete(k)},contains(k){return flags.has(k)}}});}return ns.get(id);};
@@ -3249,4 +3249,25 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
  assert.ok(source.includes("void expCompOpen(source.id,true)"));
  assert.ok(source.includes("node('expCompClose').textContent=fromRelease?'Voltar à liberação':'Voltar'"));
 }
-console.log('OK v46.29.31: fechar edição sem mudanças, permissões e retorno à liberação.');
+console.log('OK v46.29.32: fechar edição sem mudanças, permissões e retorno à liberação.');
+
+// v46.29.32 — sem seletor; escopo completo fixo e saldo respeitado.
+{
+ const start=source.indexOf("node('releaseForm').addEventListener('submit'");
+ const end=source.indexOf("p_componente:componente",start);
+ assert.ok(start>=0&&end>start);
+ const submit=source.slice(start,end);
+ assert.ok(submit.includes("componente='completo'"));
+ assert.ok(submit.includes('if(pending<=0)'));
+ assert.ok(submit.includes('qty>pending'));
+ assert.ok(!source.includes("node('releaseComponent')"));
+ assert.ok(source.includes('A divisão por componentes é feita somente na saída para a obra.'));
+ const i=source.indexOf('function releaseComponentSaldo('),j=source.indexOf('function openRelease(',i);
+ const fields=new Map([['releaseQty',{value:'',max:''}],['releaseComponentBalance',{textContent:''}]]);
+ const parts={saldoCompleto:3,marcos:2,folhas:2};
+ const update=new Function('node','selectedItem','releaseParts',source.slice(i,j)+'return releaseComponentAtualizar;')(id=>fields.get(id),{quantidade:5},()=>parts);
+ update();assert.equal(fields.get('releaseQty').max,'3');assert.equal(fields.get('releaseQty').value,'1');
+ fields.get('releaseQty').value='2';update();assert.equal(fields.get('releaseQty').value,'2');
+ parts.saldoCompleto=0;update();assert.equal(fields.get('releaseQty').value,'');assert.equal(fields.get('releaseQty').max,'0');
+}
+console.log('OK v46.29.32: liberação completa sem seletor, saldo e aviso de expedição.');
