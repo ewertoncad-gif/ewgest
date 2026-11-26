@@ -4271,7 +4271,9 @@ function renderDetail(w){
     node('items').replaceChildren();node('itemFilterEmpty').classList.add('hidden');
     node('romaneioHistoryPanel').classList.remove('hidden');renderHistoricoRomaneios(w.id);
     const podeAvulsas=canAdministrate()&&temPermissao('obras.estornar')&&temPermissao('cadastros.consultar');
-    node('detailLooseShipmentActions').classList.toggle('hidden',!podeAvulsas);
+    const possuiSaidas=shipmentHistory.some(h=>list.some(x=>x.id===h.esquadria_id));
+    const possuiRomaneios=romaneios.some(r=>r.obra_id===w.id&&r.status!=='cancelado');
+    node('detailLooseShipmentActions').classList.toggle('hidden',!podeAvulsas||!possuiSaidas||possuiRomaneios||!dispatchReady||Boolean(romaneioLoadError));
     setView('detail');return;
   }
   if(undoRelease)node('detailIntro').textContent='Escolha uma esquadria com liberação ativa para estornar um registro, ou estorne todas as liberações da obra.';
@@ -4778,12 +4780,33 @@ async function confirmReleaseCancelAll(){
 node('detailWorksBack').addEventListener('click',mostrarListaDeObras);
 
 node('releaseUndoAll').addEventListener('click',()=>{if(selectedWork&&detailMode==='releaseUndo')openReleaseCancelAll(selectedWork.id);});
-node('detailLooseShipmentUndo').addEventListener('click',async()=>{
- const obra=selectedWork;
- if(detailMode!=='shipmentUndo'||!obra||!canAdministrate()||!temPermissao('obras.estornar')||!temPermissao('cadastros.consultar'))return;
- abrirGerenciamentoObras();await inspecionarExclusaoObra(obra.id);
- node('manageWorksFeedback').textContent='Confira as saídas avulsas e registre o motivo antes do estorno. Não é necessário excluir a obra.';
-});
+async function estornarSaidasAvulsasNaObra(){
+ const obra=selectedWork,empresa=currentCompany?.id,btn=node('detailLooseShipmentUndo'),estado=node('detailError');
+ if(detailMode!=='shipmentUndo'||!obra||!empresa||btn.disabled||!canAdministrate()||!temPermissao('obras.estornar')||!temPermissao('cadastros.consultar'))return;
+ btn.disabled=true;
+ try{
+  await ensureSession();
+  const check=await request('/rest/v1/rpc/ew_inspecionar_reversao_obra',{method:'POST',token:session.access_token,body:{p_obra_id:obra.id},timeoutMs:30000});
+  if(currentCompany?.id!==empresa||selectedWork?.id!==obra.id||detailMode!=='shipmentUndo')return;
+  if(check?.obra_id!==obra.id)throw Error('Conferência de obra inválida.');
+  const resumo=check.resumo||{};
+  if(Number(resumo.romaneios)>0)throw Error('Estorne os romaneios ativos antes das saídas avulsas.');
+  if(!Number(resumo.saidas_producao)){estado.textContent='Não há saídas avulsas ativas para estornar.';return;}
+  const motivo=window.prompt('Motivo do estorno das saídas avulsas (5 a 400 caracteres):');
+  if(motivo===null)return;
+  if(motivo.trim().length<5||motivo.trim().length>400)throw Error('Informe um motivo de 5 a 400 caracteres.');
+  if(!window.confirm('Estornar todas as saídas avulsas da obra '+obra.nome+'? O histórico será preservado.'))return;
+  if(window.prompt('Confirme a devolução física das esquadrias sem romaneio. Digite DEVOLVIDO:','')!=='DEVOLVIDO')return;
+  await ensureSession();
+  if(currentCompany?.id!==empresa||selectedWork?.id!==obra.id||detailMode!=='shipmentUndo'||!canAdministrate()||!temPermissao('obras.estornar'))return;
+  const resultado=await request('/rest/v1/rpc/ew_cancelar_saidas_avulsas_obra',{method:'POST',token:session.access_token,body:{p_obra_id:obra.id,p_motivo:motivo.trim()},timeoutMs:60000});
+  await loadPanel();
+  const atual=works.find(w=>w.id===obra.id);
+  if(atual&&currentCompany?.id===empresa&&detailMode==='shipmentUndo'&&selectedWork?.id===obra.id){renderDetail(atual);estado.textContent='Saídas avulsas estornadas: '+Number(resultado?.canceladas||0)+'. Histórico preservado.';}
+ }catch(e){if(currentCompany?.id===empresa&&selectedWork?.id===obra.id&&detailMode==='shipmentUndo')estado.textContent='Não foi possível concluir a reversão: '+e.message+'. Confira o histórico antes de repetir.';}
+ finally{btn.disabled=false;}
+}
+node('detailLooseShipmentUndo').addEventListener('click',estornarSaidasAvulsasNaObra);
 node('releaseCancelAllClose').addEventListener('click',closeReleaseCancelAll);
 node('releaseCancelAllConfirm').addEventListener('click',confirmReleaseCancelAll);
 function releaseComponentSaldo(partes,tipo){
