@@ -769,6 +769,7 @@
       <button type="button" class="workspaceLink workspaceSublink" data-works-modo="shipment">Saída para obra</button>
       <button type="button" class="workspaceLink workspaceSublink" data-works-modo="releaseUndo">Estorno de liberação</button>
       <button type="button" class="workspaceLink workspaceSublink" data-works-modo="shipmentUndo">Estorno de saída para obra</button>
+      <button type="button" class="workspaceLink workspaceSublink" data-works-modo="pending">Pendências de tipologias</button>
     </div>
     <button id="navRomaneios" class="workspaceLink" type="button"><span class="navSymbol">▤</span> Romaneios e expedição</button>
     <button id="navCompras" class="workspaceLink hidden" type="button" aria-expanded="false" aria-controls="navComprasSubmenu"><span class="navSymbol">▧</span> Compras <span class="comprasNavChevron" aria-hidden="true">▾</span></button>
@@ -798,7 +799,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.23</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.24</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -819,7 +820,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.23</div>
+        <div class="build">EWGEST • v46.29.24</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -1218,6 +1219,17 @@
         </div><div id="detailError" class="feedback" role="alert"></div><div id="items"></div><div id="itemFilterEmpty" class="empty hidden">Nenhuma esquadria encontrada. Busque pelo código da esquadria ou pela tipologia CEM.</div></div>
     </section>
 
+    <section id="workPendingPage" class="hidden">
+      <div class="head"><div><h1>Pendências de tipologias</h1><p class="muted">Conferência das tipologias e variações importadas das obras.</p></div></div>
+      <div class="panel"><label for="workPendingFilter">Obra</label><select id="workPendingFilter"><option value="">Todas as obras</option></select>
+      <p id="workPendingMessage" class="feedback" role="status" aria-live="polite"></p>
+        <details class="systemRules" id="pendingReviewPanel" open>
+          <summary>Pendências da obra · <span id="pendingReviewCount">—</span></summary>
+          <p class="hint">Esquadrias sem tipologia ou com modulação ainda não confirmada. Sugestões pela descrição, nunca pelo código EA, com aprovação do ADM.</p>
+          <div id="pendingReviewList" aria-live="polite"></div>
+        </details>
+      </div>
+    </section>
     <section id="users" class="hidden">
       <div class="head"><div><button type="button" class="btn secondary cadastrosBack">← Voltar para cadastros</button>
         <button id="userAccessHistoryToggle" class="btn secondary" type="button">Histórico de acessos</button>
@@ -1761,11 +1773,7 @@
           </div>
           <p id="typologyAbbrevStatus" class="hint" role="status" aria-live="polite"></p>
         </details>
-        <details class="systemRules" id="pendingReviewPanel" open>
-          <summary>Pendências de cadastro · <span id="pendingReviewCount">—</span></summary>
-          <p class="hint">Esquadrias sem tipologia ou com modulação ainda não confirmada. Sugestões pela descrição, nunca pelo código EA, com aprovação do ADM.</p>
-          <div id="pendingReviewList" aria-live="polite"></div>
-        </details>
+        <p class="hint">A conferência das tipologias importadas fica em Obras → Pendências de tipologias.</p>
         <details class="systemRules" id="modulationCatalogPanel">
           <summary>Modulações internas cadastradas · <span id="modulationCatalogCount">—</span></summary>
           <p class="hint">Padrão de exibição: INV-PGR207-01, INV-PGR207-02... O código MOD permanece interno. Sufixo não representa quantidade de folhas ou módulos.</p>
@@ -2622,6 +2630,7 @@ function permissaoParaTela(view){
   cadastros:'cadastros.consultar',fornecedoresPage:'cadastros.consultar',galpoesPage:'cadastros.consultar',insumosPage:'cadastros.consultar',unidadesPage:'cadastros.consultar',typologies:'cadastros.consultar',manufacturers:'cadastros.consultar',
   materials:'cadastros.consultar',stock:'estoque.consultar',financeiro:'financeiro.consultar',
   cemImport:'obras.importar',users:'usuarios.gerenciar'};
+ if(view==='workPendingPage')return modoObrasPermitido('pending');
  if(view==='relatorios')return podeVerRelatorios();
  if(view==='accessLevels')return currentAccessLevel===1&&temPermissao('niveis.gerenciar');
  if(view==='cadastroLocaisEstoque')return temPermissao('cadastros.consultar')&&temPermissao('estoque.gerenciar_locais');
@@ -2679,7 +2688,7 @@ function setView(view){
   node('startup').classList.add('hidden');
   if(view!=='login'&&view!=='dashboard'&&view!=='myPassword'&&accessReady&&!permissaoParaTela(view))
     view='dashboard';
-  for(const id of ['login','dashboard','worksPage','detail','manageWorks','romaneiosPage','compras','recebimento','almoxNotas','cadastros','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','typologies','manufacturers','materials','stock','financeiro','relatorios','cemImport','users','accessLevels','cadastroLocaisEstoque','myPassword'])
+  for(const id of ['login','dashboard','worksPage','detail','workPendingPage','manageWorks','romaneiosPage','compras','recebimento','almoxNotas','cadastros','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','typologies','manufacturers','materials','stock','financeiro','relatorios','cemImport','users','accessLevels','cadastroLocaisEstoque','myPassword'])
     node(id).classList.toggle('hidden',id!==view);
   node('logout').classList.toggle('hidden',view==='login');
   node('myPasswordHeader').classList.toggle('hidden',view==='login');
@@ -2687,10 +2696,10 @@ function setView(view){
   if(!autenticado){expCompSeq++;expCompCtx=null;romaneioComposicaoSeq++;romaneioComposicoes=new Map();expedicaoAtivaMap=new Map();node('expCompOverlay').classList.add('hidden');node('expCompPicker').classList.add('hidden');node('expCompRows').replaceChildren();node('expCompSimilar').replaceChildren();node('romaneioModal').classList.add('hidden');node('typologyEditOverlay').classList.add('hidden');}
   node('workspaceNav').classList.toggle('hidden',!autenticado);
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
-  if(view!=='detail'&&view!=='worksPage'){
+  if(view!=='detail'&&view!=='worksPage'&&view!=='workPendingPage'){
     node('navWorksSubmenu').classList.add('hidden');node('navWorks').setAttribute('aria-expanded','false');
     node('navWorksSubmenu').querySelectorAll('[data-works-modo]').forEach(b=>{b.classList.remove('active');b.removeAttribute('aria-current');});
-  }else marcarModoObras();
+  }else marcarModoObras(view==='workPendingPage'?'pending':detailMode);
   if(view!=='compras'){
     node('navComprasSubmenu').classList.add('hidden');
     node('navCompras').setAttribute('aria-expanded','false');
@@ -2706,7 +2715,7 @@ function setView(view){
     node('navStockSubmenu').querySelectorAll('[data-stock-modo]').forEach(b=>{b.classList.remove('active');b.removeAttribute('aria-current');});
     window.ewLimparEntregasProducao?.();
   }
-  const ativo=view==='detail'?'worksPage':view;
+  const ativo=view==='detail'||view==='workPendingPage'?'worksPage':view;
   for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],['navCompras','compras'],['navRecebimento','recebimento'],['navEnviarNotas','almoxNotas'],['navCadastros','cadastros'],
       ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navRelatorios','relatorios'],['navCem','cemImport'],['navUsers','users'],['navAccessLevels','accessLevels']]){
     const button=node(id);
@@ -3135,10 +3144,11 @@ function mostrarListaDeObras(){
  setView('worksPage');
 }
 function tituloModoObras(modo){
- return ({release:'Liberação para corte',shipment:'Saída para obra',releaseUndo:'Estorno de liberação',shipmentUndo:'Estorno de saída para obra'})[modo]||'Obras';
+ return ({release:'Liberação para corte',shipment:'Saída para obra',releaseUndo:'Estorno de liberação',shipmentUndo:'Estorno de saída para obra',pending:'Pendências de tipologias'})[modo]||'Obras';
 }
 function modoObrasPermitido(modo){
  if(!temPermissao('obras.consultar')||isAlmoxarife())return false;
+ if(modo==='pending')return canAdministrate()&&temPermissao('cadastros.editar');
  if(modo==='release'||modo==='shipment')return true;
  if(modo==='releaseUndo')return temPermissao('liberacoes.cancelar');
  if(modo==='shipmentUndo')return canAdministrate()&&(temPermissao('romaneios.cancelar')||temPermissao('obras.estornar'));
@@ -3148,16 +3158,17 @@ function atualizarPermissoesObras(){
  node('navWorksSubmenu').querySelectorAll('[data-works-modo]').forEach(b=>{b.disabled=!modoObrasPermitido(b.dataset.worksModo);b.setAttribute('aria-disabled',String(b.disabled));});
  if(!temPermissao('obras.consultar')){node('navWorksSubmenu').classList.add('hidden');node('navWorks').setAttribute('aria-expanded','false');}
 }
-function marcarModoObras(){
- if(!modoObrasPermitido(detailMode))return;
+function marcarModoObras(modo=detailMode){
+ if(!modoObrasPermitido(modo))return;
  node('navWorksSubmenu').classList.remove('hidden');node('navWorks').setAttribute('aria-expanded','true');
  node('navWorksSubmenu').querySelectorAll('[data-works-modo]').forEach(b=>{
-  const ativo=!b.disabled&&b.dataset.worksModo===detailMode;b.classList.toggle('active',ativo);
+  const ativo=!b.disabled&&b.dataset.worksModo===modo;b.classList.toggle('active',ativo);
   if(ativo)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
  });
 }
 function abrirObrasPelaBarra(modo='release'){
  if(!currentCompany||!modoObrasPermitido(modo))return;
+ if(modo==='pending'){abrirPendenciasObra(!node('detail').classList.contains('hidden')?selectedWork?.id:'');return;}
  detailMode=modo;
  const lista=obrasComEsquadriasAtivas();
  const atual=!node('detail').classList.contains('hidden')&&lista.find(w=>w.id===selectedWork?.id);
@@ -5641,8 +5652,25 @@ function gruposTipologiaPendente(){
   }
   return [...grupos.values()];
 }
+function abrirPendenciasObra(obraId='',mensagem=''){
+  if(!modoObrasPermitido('pending')){setView('dashboard');return;}
+  const select=node('workPendingFilter');
+  select.replaceChildren();
+  const todos=document.createElement('option');todos.value='';todos.textContent='Todas as obras';select.append(todos);
+  const ids=new Set(gruposTipologiaPendente().map(g=>g.item.obra_id));
+  const lista=works.filter(w=>ids.has(w.id)||w.id===obraId);
+  for(const w of lista){
+    const o=document.createElement('option');o.value=w.id;o.textContent=w.nome+' · '+(w.codigo||'');select.append(o);
+  }
+  select.value=lista.some(w=>w.id===obraId)?obraId:'';
+  node('workPendingMessage').textContent=mensagem;
+  node('pendingReviewPanel').open=true;
+  renderConferenciaPendentes();
+  setView('workPendingPage');
+}
 function renderConferenciaPendentes(){
-  const grupos=gruposTipologiaPendente();
+  const filtro=node('workPendingFilter').value;
+  const grupos=gruposTipologiaPendente().filter(g=>!filtro||g.item.obra_id===filtro);
   node('pendingReviewCount').textContent=grupos.length+' grupo(s) pendente(s)';
   const list=node('pendingReviewList');
   if(!grupos.length){
@@ -5676,7 +5704,7 @@ function abrirConferenciaDescricao(item){
   if(!item||!item.tipologia_id||item.modulacao_id)return;
   const tipologia=typologyCatalog.find(t=>t.id===item.tipologia_id);
   if(!tipologia){
-    node('typologyAdminMessage').textContent='Tipologia técnica não localizada. Atualize o cadastro.';
+    node('workPendingMessage').textContent='Tipologia técnica não localizada. Atualize o cadastro.';
     return;
   }
   differencePendingItem=item;
@@ -5852,11 +5880,9 @@ async function salvarConferenciaDescricao(){
         'Conferência adiada e registrada. A obra continua funcionando e a pendência permanece disponível.';
     }else return;
     fecharConferenciaDescricao();
+    const filtro=node('workPendingFilter').value;
     await loadPanel();
-    renderTypologiesAdmin();
-    setView('typologies');
-    node('pendingReviewPanel').open=true;
-    node('typologyAdminMessage').textContent=resultado;
+    abrirPendenciasObra(filtro,resultado);
   }catch(err){
     node('differenceError').textContent='Não foi possível salvar: '+err.message;
   }finally{
@@ -5865,7 +5891,7 @@ async function salvarConferenciaDescricao(){
   }
 }
 function abrirConferenciaTipologia(id){
-  if(!canAdministrate())return;
+  if(!modoObrasPermitido('pending'))return;
   const item=elements.find(x=>x.id===id&&!x.modulacao_id);
   if(!item)return;
   if(item.tipologia_id){
@@ -5921,6 +5947,21 @@ function modulacoesDaTipologia(t){
   return modulationCatalog.filter(m=>m.tipologia_principal_id===raiz)
     .sort((a,b)=>Number(a.numero_variacao)-Number(b.numero_variacao));
 }
+function variacoesJaAssociadas(item){
+  const desc=String(item?.descricao||'').trim();
+  if(!desc)return [];
+  return [...new Set(elements.filter(e=>e.modulacao_id&&String(e.descricao||'').trim()===desc).map(e=>e.modulacao_id))];
+}
+function avisoConflitoReconhecimento(item,modId){
+  const ids=variacoesJaAssociadas(item).filter(id=>id!==modId);
+  if(!ids.length)return '';
+  const codigos=ids.map(id=>{
+    const m=modulationCatalog.find(x=>x.id===id);
+    const t=typologyCatalog.find(x=>x.id===m?.tipologia_principal_id);
+    return m&&t?codigoVariacaoTecnica(t,m):'variação histórica';
+  });
+  return 'Esta descrição exata já foi associada a '+codigos.join(', ')+'. Para autorizar reconhecimento futuro, selecione a variação já vinculada (se tecnicamente correta). Uma nova variação pode ser confirmada somente nesta obra; não alteraremos o histórico.';
+}
 function atualizarOpcoesModulacao(){
   const t=typologyCatalog.find(x=>x.id===node('recognitionTarget').value);
   const select=node('recognitionModulation');
@@ -5942,7 +5983,9 @@ function atualizarOpcoesModulacao(){
     select.append(op);
   }
   const exact=modulations.find(m=>normalizarReconhecimento(m.descricao)===descricaoOrigem);
-  select.value=exact?exact.id:'__CRIAR__';
+  const prev=variacoesJaAssociadas(recognitionPendingItem);
+  const conhecida=prev.length===1?modulations.find(m=>m.id===prev[0]):null;
+  select.value=conhecida?conhecida.id:exact?exact.id:'__CRIAR__';
   node('recognitionModDescription').value=String(recognitionPendingItem?.descricao||'');
   node('recognitionModCount').value='';
   renderizarCamposModulacao();
@@ -5986,6 +6029,8 @@ function atualizarComparacaoReconhecimento(){
     config.textContent=(nova?'Nova variação '+proximoSufixoVisual(target)+' (código definitivo gerado ao salvar)':
       mod?'Variação '+codigoVariacaoTecnica(target,mod)+' ('+mod.codigo_interno+')':'Selecione uma variação')+
       ' — '+(desc||'Sem descrição');compare.append(config);
+    const conflito=avisoConflitoReconhecimento(item,mod?.id);
+    if(conflito){const p=document.createElement('p');p.textContent=conflito;compare.append(p);}
   }
   validarReconhecimento();
 }
@@ -6030,17 +6075,15 @@ async function confirmarReconhecimentoTipologia(){
       }
     });
     fecharConferenciaTipologia();
+    const filtro=node('workPendingFilter').value;
     await loadPanel();
-    renderTypologiesAdmin();
-    setView('typologies');
-    node('pendingReviewPanel').open=true;
     const principal=typologyCatalog.find(t=>t.id===(target.tipologia_principal_id||target.id))||target;
     const codigo=principal.codigo+'-'+String(res.numero_variacao).padStart(2,'0');
-    node('typologyAdminMessage').textContent=(res.nova_modulacao?'Configuração criada: ':'Configuração vinculada: ')+
+    abrirPendenciasObra(filtro,(res.nova_modulacao?'Configuração criada: ':'Configuração vinculada: ')+
       codigo+' ('+res.codigo_interno+') · '+(res.esquadrias_classificadas||0)+
-      ' esquadria(s) desta obra. Nenhuma obra anterior foi alterada. '+(res.regra_autorizada?'Reconhecimento futuro autorizado.':'Associação somente nesta obra.');
+      ' esquadria(s) desta obra. Nenhuma obra anterior foi alterada. '+(res.regra_autorizada?'Reconhecimento futuro autorizado.':'Associação somente nesta obra.'));
   }catch(err){
-    node('recognitionMessage').textContent='Não foi possível confirmar: '+err.message;
+    node('recognitionMessage').textContent='Não foi possível confirmar: '+err.message+(node('recognitionScopeFuture').checked?' '+avisoConflitoReconhecimento(item,mod?.id):'');
   }finally{button.textContent='Confirmar associação';validarReconhecimento();}
 }
 function renderModulacoesCadastradas(){
@@ -6231,7 +6274,6 @@ async function salvarAbreviacaoCatalogo(restaurar=false){
 function renderTypologiesAdmin() {
   if(!temPermissao('cadastros.editar')){setView('dashboard');return;}
   refreshVariationManager();
-  renderConferenciaPendentes();
   renderModulacoesCadastradas();
   void carregarRegrasCem();
   node('catalogCount').textContent=typologyCatalog.length.toLocaleString('pt-BR');
@@ -6431,7 +6473,7 @@ function openPendingTypologyClassification(id) {
   if(!temPermissao('cadastros.editar'))return;
   node('expCompEntry').classList.add('hidden');
   if(!typologyOriginReady){
-    node('typologyAdminMessage').textContent='Os vínculos de origem ainda não foram carregados. Atualize o painel antes de classificar.';
+    node('workPendingMessage').textContent='Os vínculos de origem ainda não foram carregados. Atualize o painel antes de classificar.';
     return;
   }
   const pending=elements.find(x=>x.id===id&&!x.tipologia_id);
@@ -6665,6 +6707,7 @@ async function saveTypologyEdit(event) {
       await loadPanel();
       node('typologySearch').value=code;
       node('typologyManufacturerFilter').value='';
+      if(pendingItem){abrirPendenciasObra(node('workPendingFilter').value,'Tipologia '+code+' cadastrada. Apenas esquadrias desta obra foram vinculadas.');return;}
       renderTypologiesAdmin();
       setView('typologies');
       node('typologyAdminMessage').textContent=(pendingItem
@@ -7114,6 +7157,7 @@ node('recognitionModulation').addEventListener('change',renderizarCamposModulaca
 node('recognitionModDescription').addEventListener('input',atualizarComparacaoReconhecimento);
 node('recognitionModCount').addEventListener('input',validarReconhecimento);
 node('recognitionApproval').addEventListener('change',validarReconhecimento);
+node('workPendingFilter').addEventListener('change',renderConferenciaPendentes);
 node('cemRulesReload').addEventListener('click',carregarRegrasCem);
 node('recognitionDivergence').addEventListener('change',validarReconhecimento);
 node('recognitionCancel').addEventListener('click',fecharConferenciaTipologia);

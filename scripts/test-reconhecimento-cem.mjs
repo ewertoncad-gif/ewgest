@@ -10,7 +10,7 @@ assert.ok(app.includes("p_reconhecer_futuras:node('recognitionScopeFuture').chec
 assert.ok(app.includes('ew_desativar_regra_cem'));
 const make=new Function(extract('function validarReconhecimento(){','function fecharConferenciaTipologia(){')+
 extract('async function confirmarReconhecimentoTipologia(){','function renderModulacoesCadastradas(){')+
-"\n const nodes=new Map();\n const node=id=>{if(!nodes.has(id))nodes.set(id,{value:'',checked:false,disabled:false,textContent:''});return nodes.get(id);};\n let recognitionPendingItem={id:'e'},typologyCatalog=[{id:'t',codigo:'T'}],modulationCatalog=[{id:'m'}],divergence=true,calls=[];\n const diferencaNoReconhecimento=()=>divergence,ensureSession=async()=>{},session={access_token:'fake'};\n const request=async(url,opts)=>{calls.push([url,opts.body]);return {numero_variacao:2,codigo_interno:'MOD2',esquadrias_classificadas:1,regra_autorizada:opts.body.p_reconhecer_futuras};};\n const fecharConferenciaTipologia=()=>{},loadPanel=async()=>{},renderTypologiesAdmin=()=>{},setView=()=>{};\n return {node,validarReconhecimento,confirmarReconhecimentoTipologia,calls,div:v=>divergence=v};\n")();
+"\n const nodes=new Map();\n const node=id=>{if(!nodes.has(id))nodes.set(id,{value:'',checked:false,disabled:false,textContent:''});return nodes.get(id);};\n let recognitionPendingItem={id:'e'},typologyCatalog=[{id:'t',codigo:'T'}],modulationCatalog=[{id:'m'}],divergence=true,calls=[];\n const diferencaNoReconhecimento=()=>divergence,ensureSession=async()=>{},session={access_token:'fake'};\n const request=async(url,opts)=>{calls.push([url,opts.body]);return {numero_variacao:2,codigo_interno:'MOD2',esquadrias_classificadas:1,regra_autorizada:opts.body.p_reconhecer_futuras};};\n const fecharConferenciaTipologia=()=>{},loadPanel=async()=>{},renderTypologiesAdmin=()=>{},setView=()=>{},abrirPendenciasObra=()=>{},avisoConflitoReconhecimento=()=>'';\n return {node,validarReconhecimento,confirmarReconhecimentoTipologia,calls,div:v=>divergence=v};\n")();
 make.node('recognitionTarget').value='t';
 make.node('recognitionModulation').value='__CRIAR__';
 make.node('recognitionModDescription').value='Descrição exata';
@@ -36,3 +36,8 @@ for(const token of ["CREATE UNIQUE INDEX regras_cem_uma_ativa","r.empresa_id=p_e
  assert.ok(sql.includes(token),'Contrato SQL ausente: '+token);
 }
 console.log('Reconhecimento CEM: autorização, divergência, escopo e contratos SQL aprovados.');
+
+const conflito=new Function('elements','modulationCatalog','typologyCatalog','codigoVariacaoTecnica',extract('function variacoesJaAssociadas(item){','function atualizarOpcoesModulacao(){')+'return {variacoesJaAssociadas,avisoConflitoReconhecimento};')([{descricao:'MÓDULO JANELA',modulacao_id:'m1'},{descricao:'MÓDULO JANELA',modulacao_id:null},{descricao:'módulo janela',modulacao_id:'m2'}],[{id:'m1',tipologia_principal_id:'t1'}],[{id:'t1',codigo:'WINFAC-JCR203'}],()=> 'WINFAC-JCR203-01');
+assert.deepEqual(conflito.variacoesJaAssociadas({descricao:'MÓDULO JANELA'}),['m1']);
+assert.ok(conflito.avisoConflitoReconhecimento({descricao:'MÓDULO JANELA'},'m2').includes('WINFAC-JCR203-01'));
+assert.equal(conflito.avisoConflitoReconhecimento({descricao:'MÓDULO JANELA'},'m1'),'');
