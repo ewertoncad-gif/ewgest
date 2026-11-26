@@ -129,7 +129,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.32',
+ 'EWGEST • v46.29.33',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2135,7 +2135,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.32')&&
+assert.ok(source.includes('v46.29.33')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2371,7 +2371,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.32</strong>'),
+ source.includes('EWGEST <strong>· v46.29.33</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2674,7 +2674,7 @@ assert.ok(avaliarSaldo('folha',[{...ea2SemFolhas,folhasLiberadas:1}]).includes('
  'Distinguir folha sem liberação de folha já expedida');
 assert.ok(avaliarSaldo('marco',[{...ea2SemFolhas,marcosLiberados:0}]).includes('marco ainda não foi liberado'),
  'Marco ainda não liberado tem aviso claro');
-assert.ok(source.includes("row.dataset.mensagemSemSaldo=disponiveis.length?'':mensagemSemSaldoRomaneio(tipo,candidatos)")&&
+assert.ok(source.includes("row.dataset.mensagemSemSaldo=disponiveis.length?'':")&&source.includes("Nenhuma esquadria com saldo de expedição.")&&
  source.includes("summary.textContent=el.dataset.mensagemSemSaldo||")&&
  source.includes("if(elements.some(x=>x.obra_id===selectedWork.id))"),
  'Romaneio exibe linha de seleção e explica pendência mesmo quando não há saldo');
@@ -3083,7 +3083,7 @@ import './test-obras-modos.mjs';
 
 import './test-reconhecimento-cem.mjs';
 
-// v46.29.32 — compactação restrita à lista de liberação, sem fontes menores.
+// v46.29.33 — compactação restrita à lista de liberação, sem fontes menores.
 assert.ok(source.includes("node('items').classList.toggle('releaseCompact',detailMode==='release')"));
 const compactCss=source.slice(source.indexOf('/* Lista de liberação compacta:'),source.indexOf('.catalogFilters{',source.indexOf('/* Lista de liberação compacta:')));
 assert.ok(compactCss.includes('#items.releaseCompact .typologyGroup{margin:9px 0;padding:2px 16px 4px}'));
@@ -3153,7 +3153,7 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
  assert.equal(operacional({modulacao_id:'m6',descricao:'GRADIL 6 MÓDULO(S)'}),seis);
  assert.equal(operacional({descricao:'ORIGINAL CEM'}),'ORIGINAL CEM');
 
- // v46.29.32: escolher a família e a quantidade basta; o seletor interno
+ // v46.29.33: escolher a família e a quantidade basta; o seletor interno
  // permanece apenas como contrato com a RPC, sem decisão intermediária.
  {
   const cut=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end,source.indexOf(start)));
@@ -3207,7 +3207,7 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
   assert.equal(origin.descricao,'GRADIL 6 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO');
   assert.equal(catalog[0].descricao,oito);
  }
- console.log('OK v46.29.32: modulação automática, reuso, criação, exceções e bloqueios.');
+ console.log('OK v46.29.33: modulação automática, reuso, criação, exceções e bloqueios.');
 
  // Reaproveita a descrição exata do CEM somente na família selecionada.
  {
@@ -3226,7 +3226,7 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
   assert.equal(legado.descricao,origem);
  }
 
-// v46.29.32: composição independente e atalho sem reiniciar a liberação.
+// v46.29.33: composição independente e atalho sem reiniciar a liberação.
 {
  const cut=(a,b)=>source.slice(source.indexOf(a),source.indexOf(b,source.indexOf(a)));
  const ns=new Map();const n=id=>{if(!ns.has(id)){const flags=new Set();ns.set(id,{value:'',disabled:false,textContent:'',focus(){},classList:{toggle(k,v){v?flags.add(k):flags.delete(k)},add(k){flags.add(k)},remove(k){flags.delete(k)},contains(k){return flags.has(k)}}});}return ns.get(id);};
@@ -3251,9 +3251,9 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
  assert.ok(source.includes("void expCompOpen(source.id,true)"));
  assert.ok(source.includes("node('expCompClose').textContent=fromRelease?'Voltar à liberação':'Voltar'"));
 }
-console.log('OK v46.29.32: fechar edição sem mudanças, permissões e retorno à liberação.');
+console.log('OK v46.29.33: fechar edição sem mudanças, permissões e retorno à liberação.');
 
-// v46.29.32 — sem seletor; escopo completo fixo e saldo respeitado.
+// v46.29.33 — sem seletor; escopo completo fixo e saldo respeitado.
 {
  const start=source.indexOf("node('releaseForm').addEventListener('submit'");
  const end=source.indexOf("p_componente:componente",start);
@@ -3272,4 +3272,17 @@ console.log('OK v46.29.32: fechar edição sem mudanças, permissões e retorno 
  fields.get('releaseQty').value='2';update();assert.equal(fields.get('releaseQty').value,'2');
  parts.saldoCompleto=0;update();assert.equal(fields.get('releaseQty').value,'');assert.equal(fields.get('releaseQty').max,'0');
 }
-console.log('OK v46.29.32: liberação completa sem seletor, saldo e aviso de expedição.');
+console.log('OK v46.29.33: liberação completa sem seletor, saldo e aviso de expedição.');
+
+// v46.29.33: apenas opções disponíveis da composição, sem duplicar marco/folha legados.
+{
+ const i=source.indexOf('function opcoesExpedicaoRomaneio('),j=source.indexOf('function atualizarQuantidadeRomaneio(',i);
+ assert.ok(i>=0&&j>i);
+ const options=new Function('shipmentStats','suggestedLeaves','romaneioSaldoPorTipo','ehMaximArRomaneio',source.slice(i,j)+'return opcoesExpedicaoRomaneio;')(()=>({per:2}),()=>2,(_,tipo)=>tipo==='folha'?2:1,()=>false);
+ const e={id:'ea2'};const parts={completas_disponiveis:1,partes:[{id:'m',nome:'Marco',quantidade:1,peso:5000,saldo:1},{id:'f',nome:'Folhas',quantidade:2,peso:5000,saldo:2},{id:'z',nome:'Sem saldo',quantidade:1,peso:100,saldo:0}]};
+ const opts=options(e,parts);assert.deepEqual(opts.map(x=>[x.value,x.saldo,x.eq]),[['completo',1,1],['parte:m',1,.5],['parte:f',2,.25]]);
+ parts.completas_disponiveis=0;parts.partes[0].saldo=0;assert.deepEqual(options(e,parts).map(x=>x.value),['parte:f']);
+ assert.deepEqual(options(e,null).map(x=>x.tipo),['completo','marco','folha']);
+ assert.ok(source.includes('data-rom-choice required disabled')&&!source.includes('Componente cadastrado na tipologia</option>'));
+}
+console.log('OK v46.29.33: opções diretas por composição, saldo e equivalência por peça.');
