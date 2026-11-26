@@ -129,7 +129,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.18',
+ 'EWGEST • v46.29.19',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2132,7 +2132,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.18')&&
+assert.ok(source.includes('v46.29.19')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2368,7 +2368,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.18</strong>'),
+ source.includes('EWGEST <strong>· v46.29.19</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -2895,9 +2895,9 @@ const precificacaoMapeamento=readFileSync(fileURLToPath(new URL('../database/pro
 const precificacaoSchema=readFileSync(fileURLToPath(new URL('../database/proposals/20261122_precificacao_categorias_historico_fase1.sql',import.meta.url)),'utf8');
 new Function(precificacaoUI);
 new Function(precificacaoOrc);
-assert.ok(source.includes('precificacao-core.js?v=20261126b')&&
- source.includes('precificacao-importacao.js?v=20261126b')&&
- source.includes('precificacao-importacao.css?v=20261126b')&&
+assert.ok(source.includes('precificacao-core.js?v=20261126c')&&
+ source.includes('precificacao-importacao.js?v=20261126c')&&
+ source.includes('precificacao-importacao.css?v=20261126c')&&
  source.includes("ew_importar_obra_cem_precificacao")&&
  source.includes("r.precificacaoDraft&&answer.precificacao_gravada!==true")&&
  source.includes("Conclua a etapa de categorias e preços antes da importação."),
