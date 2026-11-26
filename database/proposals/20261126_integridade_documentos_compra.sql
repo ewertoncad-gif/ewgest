@@ -23,10 +23,12 @@ BEGIN
   OR (TG_TABLE_NAME='ew_compras_notas_empresa' AND EXISTS(SELECT 1 FROM public.ew_obra_despesas d WHERE d.empresa_id=NEW.empresa_id AND d.chave_nfe=k AND d.status<>'cancelada'))
   THEN RAISE EXCEPTION 'Chave NF-e já registrada em outro fluxo de estoque da empresa.';END IF;
  END IF;
- IF TG_TABLE_NAME='ew_obra_despesas' AND doc IS NOT NULL AND forn IS NOT NULL THEN
+ IF TG_TABLE_NAME='ew_obra_despesas' THEN
+ IF doc IS NOT NULL AND forn IS NOT NULL THEN
   PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('nf-obra-doc|'||NEW.empresa_id::text||'|'||NEW.obra_id::text||'|'||forn||'|'||doc,68742));
   IF EXISTS(SELECT 1 FROM public.ew_obra_despesas d WHERE d.empresa_id=NEW.empresa_id AND d.obra_id=NEW.obra_id AND d.id<>NEW.id AND d.status<>'cancelada' AND lower(btrim(d.fornecedor))=forn AND upper(btrim(d.numero_documento))=doc AND (k IS NULL OR d.chave_nfe IS NULL))
   THEN RAISE EXCEPTION 'Documento já registrado para este fornecedor na obra. Confira a nota anterior antes de lançar novamente.';END IF;
+ END IF;
  END IF;
  RETURN NEW;
 END;$$;
