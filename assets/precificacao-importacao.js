@@ -29,10 +29,11 @@ wrapper.innerHTML=[
  '<p class="ewPriceIntro">O preço médio inicial é a soma de fabricação e instalação dividida pela área total. Edite um preço para fixá-lo; as categorias livres serão redistribuídas sem alterar o orçamento.</p>',
  '<p id="ewPriceWork" class="hint"></p>',
  '<div id="ewPriceResumo" class="ewPriceGrid" aria-live="polite"></div>',
- '<div class="ewPriceStep"><strong>1. Categorias e preços por m²</strong><span class="hint">Cadeado fechado preserva o preço-base digitado</span></div>',
+ '<div class="ewPriceStep"><strong>1. Categorias e preços por m²</strong><span class="hint">Somente categorias com área · cadeado fechado preserva o preço</span></div>',
  '<div id="ewPriceCategorias" class="ewPriceTableWrap"></div>',
  '<div class="ewPriceActions"><input id="ewPriceNovaCategoria" maxlength="120" placeholder="Nova categoria">',
  '<button class="btn secondary" type="button" id="ewPriceAdd">+ Criar categoria</button>',
+ '<span class="hint">Categorias sem área ficam disponíveis na lista das esquadrias.</span>',
  '<button class="btn secondary" type="button" id="ewPriceRestore">Restaurar preços médios</button>',
  '<label>Fabricação <input type="number" id="ewPricePercent" min="0" max="100" step="0.01" inputmode="decimal"> %</label>',
  '<span class="hint" id="ewPricePercentHint"></span></div>',
@@ -124,7 +125,8 @@ async function abrir(r,values,onSave){
 }
 function recalcularPrecos(restaurar=false){
  const s=estado;
- if(restaurar)s.categorias=s.categorias.map(c=>({...c,bloqueado:false,precoBaseCentavosM2:0}));
+ const usadas=new Set(s.itens.map(x=>x.categoriaId));
+ s.categorias=s.categorias.map(c=>restaurar||!usadas.has(c.id)?{...c,bloqueado:false,precoBaseCentavosM2:0}:c);
  s.erroRateio='';
  try{
   s.categorias=motor.redistribuirPrecos({
@@ -138,11 +140,10 @@ function renderizar(){
  const s=estado;
  const ops=s.categorias.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>').join('');
  priceNode('ewPriceCategorias').innerHTML=
-  '<table><thead><tr><th>Categoria</th><th>Área</th><th>Preço-base/m²</th><th>Fabricação</th><th>Instalação</th><th>Fab. R$/m²</th><th>Inst. R$/m²</th><th>Ações</th></tr></thead><tbody>'+
-  s.categorias.map(c=>{
+  '<table><thead><tr><th>Categoria</th><th>Área</th><th>Preço-base/m²</th><th>Fabricação</th><th>Instalação</th><th>Fab. R$/m²</th><th>Inst. R$/m²</th></tr></thead><tbody>'+
+  s.categorias.filter(c=>s.itens.some(x=>x.categoriaId===c.id)).map(c=>{
    const a=s.itens.filter(x=>x.categoriaId===c.id)
     .reduce((sum,x)=>sum+x.largura_mm*x.altura_mm*x.quantidade/1000000,0);
-   const temItens=s.itens.some(x=>x.categoriaId===c.id);
    return '<tr><td><input data-name="'+esc(c.id)+'" value="'+esc(c.nome)+'" maxlength="120" aria-label="Nome da categoria"></td>'+
     '<td class="ewPriceNum">'+area(a)+'</td>'+
     '<td><div class="ewPriceLockField"><input data-price="'+esc(c.id)+'" inputmode="decimal" placeholder="R$ 0,00" aria-label="Preço por metro quadrado de '+esc(c.nome)+'" value="'+
@@ -151,9 +152,7 @@ function renderizar(){
     '<td class="ewPriceNum" data-fab="'+esc(c.id)+'">—</td>'+
     '<td class="ewPriceNum" data-inst="'+esc(c.id)+'">—</td>'+
     '<td class="ewPriceNum" data-fab-m2="'+esc(c.id)+'">—</td>'+
-    '<td class="ewPriceNum" data-inst-m2="'+esc(c.id)+'">—</td>'+
-    '<td><button type="button" class="btn secondary" data-remove="'+esc(c.id)+'"'+
-    (temItens?' disabled title="Mova as esquadrias antes de excluir"':'')+'>Excluir</button></td></tr>';
+    '<td class="ewPriceNum" data-inst-m2="'+esc(c.id)+'">—</td></tr>';
   }).join('')+'</tbody></table>';
  // Exibir esquadrias agrupadas por categoria, com possibilidade de mover cada item.
  priceNode('ewPriceItens').innerHTML='<table><thead><tr><th>Código</th><th>Descrição</th><th>Qtd.</th><th>Área</th><th>Categoria</th><th>Padrão</th><th>Fabricação</th><th>Instalação</th></tr></thead><tbody>'+
@@ -306,12 +305,7 @@ priceNode('ewPriceCategorias').addEventListener('click',ev=>{
  if(!estado||gravando)return;
  const lock=ev.target.closest('[data-lock]')?.dataset.lock;
  if(lock){const cat=estado.categorias.find(c=>c.id===lock);if(cat){cat.bloqueado=!cat.bloqueado;recalcularPrecos();renderizar();}return;}
- const id=ev.target.closest('[data-remove]')?.dataset.remove;if(!id)return;
- if(estado.itens.some(x=>x.categoriaId===id)){
-  priceNode('ewPriceErro').textContent='Mova os itens desta categoria antes de excluí-la.';return;
- }
- if(estado.categorias.length<2)return;
- estado.categorias=estado.categorias.filter(x=>x.id!==id);recalcularPrecos();renderizar();
+
 });
 priceNode('ewPriceItens').addEventListener('change',ev=>{
  if(!estado||gravando)return;
