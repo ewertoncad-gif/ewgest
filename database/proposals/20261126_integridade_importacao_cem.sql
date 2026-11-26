@@ -24,7 +24,6 @@ BEGIN
  RETURN w;
 END;$$;
 REVOKE ALL ON FUNCTION ew_compras_interna.cem_obra_editavel(uuid,text) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION ew_compras_interna.cem_obra_editavel(uuid,text) TO authenticated;
 CREATE OR REPLACE FUNCTION public.ew_conciliar_codigo_cem(p_empresa_id uuid, p_tipo text, p_material_id uuid, p_codigo_cem text, p_usar_codigo_cem boolean)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -804,3 +803,6 @@ $function$;
 
 -- Endpoint legado de saldo calculado não é mais uma operação permitida ao cliente.
 REVOKE EXECUTE ON FUNCTION public.ew_importar_saldo_obra_cem(uuid,text,jsonb,jsonb,text,uuid) FROM PUBLIC,anon,authenticated;
+
+-- A importação de materiais é uma etapa interna da RPC conciliada, não um segundo caminho público.
+REVOKE EXECUTE ON FUNCTION public.importar_materiais_cem(uuid,text,jsonb,jsonb,uuid) FROM PUBLIC,anon,authenticated;
