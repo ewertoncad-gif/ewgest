@@ -2603,7 +2603,7 @@ assert.ok(!/insert into public\.ew_estoque_obras_movimentos/i.test(componentMigr
 assert.ok(source.includes('id="releaseComponent" required')&&
  source.includes("p_materiais:[],p_fonte:'SEM_BAIXA'")&&
  source.includes('p_componente:componente')&&
- source.includes("const exibidos=shipping?list.filter(x=>Number(x.qtd_liberada)>0):list;")&&
+ source.includes("shipping?list.filter(x=>Number(x.qtd_liberada)>0):list;")&&
  source.includes('groupRenderedItems(exibidos)')&&
  source.includes('Nenhuma esquadria liberada para fabricação nesta obra.'),
  'Saída somente exibe liberadas; nova liberação não baixa estoque');
