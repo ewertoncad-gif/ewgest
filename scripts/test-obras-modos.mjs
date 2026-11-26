@@ -27,3 +27,25 @@ assert.equal(visible('detailLooseShipmentActions'),false);x.removeRoms();x.rende
 x.flags.delete('liberacoes.cancelar');x.flags.delete('romaneios.cancelar');x.flags.delete('obras.estornar');x.atualizarPermissoesObras();assert.equal(x.nav[2].disabled,true);assert.equal(x.nav[3].disabled,true);assert.equal(x.nav[0].disabled,false);x.almox(true);assert.equal(x.modoObrasPermitido('release'),false);
 const y=make();y.one();y.abrirObrasPelaBarra('shipment');assert.equal(y.view(),'detail');assert.equal(y.selected().id,'a');
 console.log('OK: quatro modos Obras, lista ou obra única, estornos isolados, flags e romaneios ativos.');
+
+const estornarSrc=cut('async function estornarSaidasAvulsasNaObra(){',"node('detailLooseShipmentUndo').addEventListener");
+const scenario=async({romaneios=0,saidas=1,confirmacao='DEVOLVIDO',motivo='Devolução de teste',permitido=true,obraResposta='a'}={})=>{
+ const calls=[],button={disabled:false},status={textContent:''};
+ const run=new Function('calls','button','status','romaneios','saidas','confirmacao','motivo','permitido','obraResposta',`
+ let detailMode='shipmentUndo',selectedWork={id:'a',nome:'Obra A'},currentCompany={id:'e'},session={access_token:'mock'},works=[selectedWork];
+ const canAdministrate=()=>permitido,temPermissao=()=>permitido,node=id=>id==='detailLooseShipmentUndo'?button:status;
+ const ensureSession=async()=>{},loadPanel=async()=>{},renderDetail=()=>{};
+ const window={prompt:s=>s.includes('DEVOLVIDO')?confirmacao:motivo,confirm:()=>true};
+ const request=async(path,options)=>{calls.push({path,body:options.body});return path.endsWith('ew_inspecionar_reversao_obra')?{obra_id:obraResposta,resumo:{romaneios,saidas_producao:saidas}}:{canceladas:1};};
+ `+estornarSrc+'return estornarSaidasAvulsasNaObra();');
+ await run(calls,button,status,romaneios,saidas,confirmacao,motivo,permitido,obraResposta);
+ assert.equal(button.disabled,false);return {calls,status};
+};
+assert.equal((await scenario({permitido:false})).calls.length,0);
+assert.equal((await scenario({romaneios:1})).calls.length,1);
+assert.equal((await scenario({saidas:0})).calls.length,1);
+assert.equal((await scenario({motivo:'x'})).calls.length,1);
+assert.equal((await scenario({confirmacao:'NAO'})).calls.length,1);
+assert.equal((await scenario({obraResposta:'b'})).calls.length,1);
+const success=await scenario();assert.equal(success.calls.length,2);assert.equal(success.calls[1].path,'/rest/v1/rpc/ew_cancelar_saidas_avulsas_obra');assert.equal(success.calls[1].body.p_obra_id,'a');
+console.log('OK: saída avulsa — inspeção, motivo, confirmação física e bloqueios preservados.');
