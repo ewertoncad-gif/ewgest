@@ -3060,4 +3060,7 @@ assert.ok(!source.includes("'/rest/v1/rpc/ew_importar_saldo_obra_cem'"));
 // Transferências sem apropriação: a categoria não deve apresentar saldo definitivo.
 assert.ok(source.includes("transferenciasPendentes.set(d.categoria,Number(d.transferencias_custo_pendentes||0))"));
 assert.ok(source.includes("custoPendente?'Custo de transferência pendente':pendente?'Em conferência':finMoney(resto)"));
-assert.ok(source.includes("Gastos realizados'+(totalTransferenciasPendentes?' (sem apropriação das transferências)':'')"));
+assert.ok(source.includes("Gastos realizados (notas)"));
+assert.ok(source.includes("ajuste_transferencias_centavos??0"));
+assert.ok(source.includes("total-real-ajuste-comprometidoCategoria"));
+assert.ok(source.includes("Ajuste líquido de transferências"));
