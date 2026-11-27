@@ -730,6 +730,7 @@
   .finCostMap{width:100%;max-width:270px}
   .finTable .finSmallInput{width:95px;min-width:75px;padding:5px 7px;font-size:12px}
   .finTable .finPrice{width:140px;min-width:130px;box-sizing:border-box}
+  .finTable .finInvoiceValue{white-space:nowrap;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
   .finValuesGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
   .finValuesGrid label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:650;color:#345575}
   .finValuesGrid input{width:100%;min-width:0}
@@ -824,7 +825,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.33</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.34</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -845,7 +846,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.33</div>
+        <div class="build">EWGEST • v46.29.34</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -9275,7 +9276,7 @@ function finRenderFaturaveis(){
    'Obra sem precificação individual: informe os preços por m² manualmente.')+'</p>'+
   '<div class="finTableWrap"><table class="finTable"><thead><tr>'+
   '<th>Faturar</th><th>Esquadria</th><th>Categoria da obra</th><th>Expedido (m²)</th><th>Já faturado ('+
-  (tipo==='fabricacao'?'fab.':'inst.')+') (m²)</th><th>Disponível (m²)</th><th>Área a faturar (m²)</th><th>Preço (R$/m²)</th></tr></thead><tbody>'+
+  (tipo==='fabricacao'?'fab.':'inst.')+') (m²)</th><th>Disponível (m²)</th><th>Área a faturar (m²)</th><th>Preço (R$/m²)</th><th align="right">Valor a faturar (R$)</th></tr></thead><tbody>'+
  rows.map(r=>'<tr class="finInvoiceRow" data-esq="'+escapeHTML(r.e.id)+
   '" data-max="'+r.areaMax+'" data-equivalent-max="'+r.disponivel+'" data-area-unit="'+r.areaUnit+'" data-auto-price="'+(r.sugestao!==null?'1':'0')+'">'+
   '<td class="finRowCheck"><input class="finSelected" type="checkbox"'+(r.areaMax===0?' disabled':'')+'></td>'+
@@ -9286,7 +9287,8 @@ function finRenderFaturaveis(){
   '" step="0.000001" value="'+(r.areaMax||'')+'"'+(r.areaMax===0?' disabled':'')+'></td>'+
   '<td><input class="finPrice finSmallInput" type="text" inputmode="decimal" autocomplete="off" placeholder="R$ 0,00" aria-label="Preço em reais por metro quadrado" value="'+
   (r.sugestao===null?'':escapeHTML(finPrecoFormatar(r.sugestao)))+'"'+
-  (r.areaMax===0?' disabled':'')+(r.precificacao?' readonly':'')+'></td></tr>').join('')+
+  (r.areaMax===0?' disabled':'')+(r.precificacao?' readonly':'')+'></td>'+
+  '<td class="finInvoiceValue" align="right">—</td></tr>').join('')+
   '</tbody></table></div>':'<p class="hint">Nenhuma esquadria com saída registrada em romaneio ativo está disponível nesta obra.</p>';
  node('finBillingRows').querySelectorAll('.finInvoiceRow').forEach(row=>{
   const campo=row.querySelector('.finPrice'),quantidade=row.querySelector('.finQty');
@@ -9318,18 +9320,29 @@ function finRenderFaturaveis(){
  });
  finAtualizarSomaFatura();
 }
+function finValorLinhaCentavos(linha,tipo,qtd,preco,areaJa,valorJa){
+ return linha?finValorPrecificadoCentavos(linha,tipo,qtd,areaJa,valorJa):Math.round(qtd*preco*100);
+}
 function finAtualizarSomaFatura(){
- let sum=0,count=0,invalidos=0;
+ let sumCentavos=0,count=0,invalidos=0;
  const tipo=node('finBillingCategory').value;
  for(const row of node('finBillingRows').querySelectorAll('.finInvoiceRow')){
-  if(!row.querySelector('.finSelected').checked)continue;
-  count++;
   const valor=finPrecoValor(row.querySelector('.finPrice').value);
   const qtd=Number(row.querySelector('.finQty').value||0),linha=finState?.precoPorEsquadria.get(row.dataset.esq);
-  if(linha){const cents=finValorPrecificadoCentavos(linha,tipo,qtd,finState.billedAreas[tipo].get(row.dataset.esq)||0,finState.billedValues[tipo].get(row.dataset.esq)||0);if(cents===null||cents<=0)invalidos++;else sum+=cents/100;}
-  else if(Number.isFinite(valor)&&valor>0)sum+=Math.round(qtd*valor*100)/100;
+  const a=Number(row.dataset.areaUnit),max=Number(row.dataset.max);
+  const valida=Number.isFinite(qtd)&&qtd>0&&qtd<=max+1e-9&&
+   Math.abs(qtd*1000000-Math.round(qtd*1000000))<=0.00001&&
+   Number.isFinite(valor)&&valor>0&&Math.abs(valor*10000-Math.round(valor*10000))<=0.00001&&
+   a>0&&Math.round(qtd/a*1000000)>0&&Math.round(valor*a*10000)>0;
+  const cents=valida?finValorLinhaCentavos(linha,tipo,qtd,valor,
+   finState.billedAreas[tipo].get(row.dataset.esq)||0,finState.billedValues[tipo].get(row.dataset.esq)||0):null;
+  const positivo=Number.isSafeInteger(cents)&&cents>0;
+  row.querySelector('.finInvoiceValue').textContent=positivo?finMoney(cents/100):(max===0?finMoney(0):'—');
+  if(!row.querySelector('.finSelected').checked)continue;
+  count++;
+  if(positivo)sumCentavos+=cents;else invalidos++;
  }
- node('finBillingSum').textContent='Selecionados: '+count+' · Valor calculado: '+finMoney(sum)+(invalidos?' · '+invalidos+' item(ns) sem saldo positivo ou área válida.':'');
+ node('finBillingSum').textContent='Selecionados: '+count+' · Valor calculado: '+finMoney(sumCentavos/100)+(invalidos?' · '+invalidos+' item(ns) sem saldo positivo ou área válida.':'');
 }
 
 
@@ -9479,7 +9492,7 @@ async function finRegistrarFaturamento(event){
   const precoIntegral=Math.round(preco*a*10000)/10000;
   if(!(a>0)||!(equivalente>0)||!(precoIntegral>0)){node('finBillingMessage').textContent='Área ou preço insuficiente para faturamento.';return;}
   const linha=finState.precoPorEsquadria.get(row.dataset.esq);
-  const cents=linha?finValorPrecificadoCentavos(linha,tipo,qtd,finState.billedAreas[tipo].get(row.dataset.esq)||0,finState.billedValues[tipo].get(row.dataset.esq)||0):Math.round(qtd*preco*100);
+  const cents=finValorLinhaCentavos(linha,tipo,qtd,preco,finState.billedAreas[tipo].get(row.dataset.esq)||0,finState.billedValues[tipo].get(row.dataset.esq)||0);
   if(cents===null||cents<=0){node('finBillingMessage').textContent='Área sem valor positivo disponível. Confira o saldo e a precificação.';return;}
   valueCentavos+=cents;
   itens.push({esquadria_id:row.dataset.esq,quantidade:equivalente,valor_unitario:precoIntegral,area_m2:qtd,preco_m2:preco});
