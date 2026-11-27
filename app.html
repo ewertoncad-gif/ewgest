@@ -796,6 +796,7 @@
       <button type="button" class="workspaceLink workspaceSublink" data-works-modo="releaseUndo">Estorno de liberação</button>
       <button type="button" class="workspaceLink workspaceSublink" data-works-modo="shipmentUndo">Estorno de saída para obra</button>
       <button type="button" class="workspaceLink workspaceSublink" data-works-modo="pending">Pendências de tipologias</button>
+      <button type="button" class="workspaceLink workspaceSublink" data-works-modo="workUndo">Estorno da obra</button>
     </div>
     <button id="navRomaneios" class="workspaceLink" type="button"><span class="navSymbol">▤</span> Romaneios e expedição</button>
     <button id="navCompras" class="workspaceLink hidden" type="button" aria-expanded="false" aria-controls="navComprasSubmenu"><span class="navSymbol">▧</span> Compras <span class="comprasNavChevron" aria-hidden="true">▾</span></button>
@@ -825,7 +826,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.34</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.35</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -846,7 +847,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.34</div>
+        <div class="build">EWGEST • v46.29.35</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -1100,12 +1101,13 @@
 
       </div></div>
       <div class="section">
+        <div class="panel" style="margin-bottom:12px"><label for="worksPageSelect">Escolher obra</label><select id="worksPageSelect"><option value="">Selecione uma obra</option></select></div>
         <div id="worksPageList" class="works"></div>
       </div>
     </section>
     <section id="manageWorks" class="hidden">
       <div class="head"><div>
-        <button id="manageWorksBack" type="button" class="btn secondary">← Voltar para cadastros</button><h1>Cadastro de obras</h1>
+        <button id="manageWorksBack" type="button" class="btn secondary">← Voltar para cadastros</button><h1 id="manageWorksTitle">Cadastro de obras</h1>
         <p class="muted">Encerrar uma obra é DEFINITIVO. Cancele os romaneios e liberações, reverta as movimentações e zere o estoque. Para trabalhar novamente, será necessário importar a obra do início e refazer os processos. Somente os registros de auditoria serão preservados.</p>
       </div></div>
       <div class="section panel">
@@ -1117,7 +1119,8 @@
 <h3>Nova obra — cadastro manual</h3><p class="hint">O estoque vinculado será criado automaticamente. Nenhuma esquadria ou material será presumido.</p>
 <div class="stockFilters"><label>Nome da obra <input id="worksManualName" required minlength="3" maxlength="180"></label><label>Código (opcional) <input id="worksManualCode" maxlength="80" placeholder="Gerado automaticamente se vazio"></label><label>Cliente / construtora <input id="worksManualClient" maxlength="180"></label><label>Prazo previsto <input id="worksManualDue" type="date" min="2000-01-01"></label></div>
 <div class="topactions"><button type="submit" id="worksManualSave" class="btn primary">Cadastrar obra</button><button type="button" id="worksManualClose" class="btn secondary">Cancelar</button></div><p id="worksManualStatus" class="feedback" role="status"></p></form>
-<label>Buscar obra <input id="manageWorksSearch" type="search" placeholder="Nome, código ou cliente"></label><div id="manageWorksList"></div>
+<label id="manageWorksSearchLabel">Buscar obra <input id="manageWorksSearch" type="search" placeholder="Nome, código ou cliente"></label>
+<label id="manageWorksSelectLabel" class="hidden">Escolher obra <select id="manageWorksSelect"><option value="">Selecione uma obra</option></select></label><div id="manageWorksList"></div>
         <p id="manageWorksFeedback" class="feedback" role="status"></p>
       </div>
       <div id="manageWorksReview" class="section panel hidden">
@@ -1212,7 +1215,7 @@
       </div>
     </div>
     <section id="detail" class="hidden">
-      <div class="head"><div><div class="detailnav hidden"><button id="back" class="btn secondary" type="button">← Voltar</button><button id="goHome" class="btn secondary" type="button">⌂ Tela inicial</button><button id="detailFinanceiro" class="btn secondary hidden" type="button">Financeiro da obra</button></div><h1 id="workName"></h1><div class="topactions" style="margin:8px 0"><button id="detailWorksBack" class="btn secondary" type="button">← Obras</button></div><div id="workMeta" class="muted"></div></div></div>
+      <div class="head"><div><div class="detailnav hidden"><button id="back" class="btn secondary" type="button">← Voltar</button><button id="goHome" class="btn secondary" type="button">⌂ Tela inicial</button><button id="detailFinanceiro" class="btn secondary hidden" type="button">Financeiro da obra</button></div><h1 id="workName"></h1><div class="topactions" style="margin:8px 0"><button id="detailWorksBack" class="btn secondary" type="button">← Obras</button></div><div id="workMeta" class="muted"></div><label for="detailWorkSelect" style="display:block;margin-top:12px">Escolher obra</label><select id="detailWorkSelect" style="width:min(100%,560px)"><option value="">Selecione uma obra</option></select></div></div>
       <div class="stats">
         <div class="stat"><div class="label">Área total</div><div class="number" id="detailTotal">—</div></div>
         <div class="stat"><div class="label">Liberada</div><div class="number" id="detailReleased">—</div></div>
@@ -2685,13 +2688,14 @@ function permissaoParaTela(view){
   materials:'cadastros.consultar',stock:'estoque.consultar',financeiro:'financeiro.consultar',
   cemImport:'obras.importar',users:'usuarios.gerenciar'};
  if(view==='workPendingPage')return modoObrasPermitido('pending');
+ if(view==='manageWorks'&&manageWorksUndoMode)return modoObrasPermitido('workUndo');
  if(view==='relatorios')return podeVerRelatorios();
  if(view==='accessLevels')return currentAccessLevel===1&&temPermissao('niveis.gerenciar');
  if(view==='cadastroLocaisEstoque')return temPermissao('cadastros.consultar')&&temPermissao('estoque.gerenciar_locais');
   if(view==='compras')return temPermissao('compras.consultar');
  return !requires[view]||temPermissao(requires[view]);
 }
-let detailBackTarget='dashboard';
+let detailBackTarget='dashboard',manageWorksUndoMode=false;
 let shipmentHistory=[],dispatchConfig=[],dispatchReady=false,dispatchLoadError='',detailMode='release',currentShipmentRequestId=null;
 let expedicaoAtivaMap=new Map(),romaneioComposicoes=new Map(),romaneioComposicaoSeq=0;
 let romaneios=[],romaneioItens=[],romaneioLoadError='',romaneioRows=[],romaneioOperationId=null,romaneioOperationSignature='';
@@ -2750,10 +2754,10 @@ function setView(view){
   if(!autenticado){expCompSeq++;expCompCtx=null;romaneioComposicaoSeq++;romaneioComposicoes=new Map();expedicaoAtivaMap=new Map();node('expCompOverlay').classList.add('hidden');node('expCompPicker').classList.add('hidden');node('expCompRows').replaceChildren();node('expCompSimilar').replaceChildren();node('romaneioModal').classList.add('hidden');node('typologyEditOverlay').classList.add('hidden');}
   node('workspaceNav').classList.toggle('hidden',!autenticado);
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
-  if(view!=='detail'&&view!=='worksPage'&&view!=='workPendingPage'){
+  if(view!=='detail'&&view!=='worksPage'&&view!=='workPendingPage'&&!(view==='manageWorks'&&manageWorksUndoMode)){
     node('navWorksSubmenu').classList.add('hidden');node('navWorks').setAttribute('aria-expanded','false');
     node('navWorksSubmenu').querySelectorAll('[data-works-modo]').forEach(b=>{b.classList.remove('active');b.removeAttribute('aria-current');});
-  }else marcarModoObras(view==='workPendingPage'?'pending':detailMode);
+  }else marcarModoObras(view==='manageWorks'?'workUndo':view==='workPendingPage'?'pending':detailMode);
   if(view!=='compras'){
     node('navComprasSubmenu').classList.add('hidden');
     node('navCompras').setAttribute('aria-expanded','false');
@@ -2769,7 +2773,7 @@ function setView(view){
     node('navStockSubmenu').querySelectorAll('[data-stock-modo]').forEach(b=>{b.classList.remove('active');b.removeAttribute('aria-current');});
     window.ewLimparEntregasProducao?.();
   }
-  const ativo=view==='detail'||view==='workPendingPage'?'worksPage':view;
+  const ativo=view==='detail'||view==='workPendingPage'||(view==='manageWorks'&&manageWorksUndoMode)?'worksPage':view;
   for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],['navCompras','compras'],['navRecebimento','recebimento'],['navEnviarNotas','almoxNotas'],['navCadastros','cadastros'],
       ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navRelatorios','relatorios'],['navCem','cemImport'],['navUsers','users'],['navAccessLevels','accessLevels']]){
     const button=node(id);
@@ -3163,11 +3167,23 @@ function obrasComEsquadriasAtivas(){
  const ids=new Set(elements.map(e=>e.obra_id));
  return works.filter(w=>ids.has(w.id)||w.cadastro_manual===true);
 }
+function preencherSeletorObras(select,lista,valor='',placeholder='Selecione uma obra'){
+ const ordenadas=lista.slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR')||String(a.codigo||'').localeCompare(String(b.codigo||''),'pt-BR'));
+ select.innerHTML='<option value="">'+escapeHTML(placeholder)+'</option>'+ordenadas.map(w=>'<option value="'+escapeHTML(w.id)+'">'+escapeHTML([w.nome,w.codigo,w.cliente].filter(Boolean).join(' · '))+'</option>').join('');
+ select.value=ordenadas.some(w=>w.id===valor)?valor:'';
+}
+function escolherObraTecnica(id){
+ if(!modoObrasPermitido(detailMode)||!['release','shipment','releaseUndo','shipmentUndo'].includes(detailMode))return;
+ const obra=obrasComEsquadriasAtivas().find(w=>w.id===id);
+ if(!obra){mostrarListaDeObras();return;}
+ detailBackTarget='worksPage';renderDetail(obra);
+}
 function mostrarListaDeObras(){
  if(isAlmoxarife()||!currentCompany||!modoObrasPermitido(detailMode))return;
  node('worksPageTitle').textContent='Obras — '+tituloModoObras(detailMode);
  const lista=obrasComEsquadriasAtivas();
 
+ preencherSeletorObras(node('worksPageSelect'),lista);
  const container=node('worksPageList');
  if(!lista.length){
   container.innerHTML='<div class="empty">Nenhuma obra com esquadrias cadastradas. '+
@@ -3198,11 +3214,12 @@ function mostrarListaDeObras(){
  setView('worksPage');
 }
 function tituloModoObras(modo){
- return ({release:'Liberação para corte',shipment:'Saída para obra',releaseUndo:'Estorno de liberação',shipmentUndo:'Estorno de saída para obra',pending:'Pendências de tipologias'})[modo]||'Obras';
+ return ({release:'Liberação para corte',shipment:'Saída para obra',releaseUndo:'Estorno de liberação',shipmentUndo:'Estorno de saída para obra',pending:'Pendências de tipologias',workUndo:'Estorno da obra'})[modo]||'Obras';
 }
 function modoObrasPermitido(modo){
  if(!temPermissao('obras.consultar')||isAlmoxarife())return false;
  if(modo==='pending')return canAdministrate()&&temPermissao('cadastros.editar');
+ if(modo==='workUndo')return canAdministrate()&&temPermissao('cadastros.consultar')&&temPermissao('obras.estornar');
  if(modo==='release'||modo==='shipment')return true;
  if(modo==='releaseUndo')return temPermissao('liberacoes.cancelar');
  if(modo==='shipmentUndo')return canAdministrate()&&(temPermissao('romaneios.cancelar')||temPermissao('obras.estornar'));
@@ -3223,6 +3240,7 @@ function marcarModoObras(modo=detailMode){
 function abrirObrasPelaBarra(modo='release'){
  if(!currentCompany||!modoObrasPermitido(modo))return;
  if(modo==='pending'){abrirPendenciasObra(!node('detail').classList.contains('hidden')?selectedWork?.id:'');return;}
+ if(modo==='workUndo'){abrirEstornoObra();return;}
  detailMode=modo;
  const lista=obrasComEsquadriasAtivas();
  const atual=!node('detail').classList.contains('hidden')&&lista.find(w=>w.id===selectedWork?.id);
@@ -4310,8 +4328,9 @@ function changeDetailMode(mode) {
 function renderDetail(w){
   if(!modoObrasPermitido(detailMode))detailMode='release';
   if(!modoObrasPermitido(detailMode)){setView('dashboard');return;}
-  if(selectedWork?.id!==w.id)node('itemSearch').value='';
+  if(selectedWork?.id!==w.id){node('itemSearch').value='';selectedItem=null;}
   selectedWork=w;
+  preencherSeletorObras(node('detailWorkSelect'),obrasComEsquadriasAtivas(),w.id);
   const list=elements.filter(x=>x.obra_id===w.id).sort(sortWorkItems);
   const t=totals(list);
   node('workName').textContent=w.nome;
@@ -4871,6 +4890,8 @@ async function confirmReleaseCancelAll(){
  }
 }
 node('detailWorksBack').addEventListener('click',mostrarListaDeObras);
+node('detailWorkSelect').addEventListener('change',()=>escolherObraTecnica(node('detailWorkSelect').value));
+node('worksPageSelect').addEventListener('change',()=>escolherObraTecnica(node('worksPageSelect').value));
 
 node('releaseUndoAll').addEventListener('click',()=>{if(selectedWork&&detailMode==='releaseUndo')openReleaseCancelAll(selectedWork.id);});
 async function estornarSaidasAvulsasNaObra(){
@@ -5395,9 +5416,16 @@ node('navAccessLevels').addEventListener('click',async()=>{
  setView('accessLevels');
  try{await window.nivelAcessoPreparar();}catch(e){node('userLevelsStatus').textContent='Não foi possível consultar níveis: '+e.message;}
 });
-node('cadastroJumpObras').addEventListener('click',abrirGerenciamentoObras);
+node('cadastroJumpObras').addEventListener('click',()=>{manageWorksUndoMode=false;abrirGerenciamentoObras();});
 node('manageWorksBack').addEventListener('click',()=>setView('cadastros'));
 node('manageWorksSearch').addEventListener('input',renderGerenciamentoObras);
+node('manageWorksSelect').addEventListener('change',()=>{
+ if(!manageWorksUndoMode||!modoObrasPermitido('workUndo')||workDeleteSubmitting)return;
+ workDeleteRequestId++;workDeleteInspection=null;workDeleteOperationId=null;
+ node('manageWorksReview').classList.add('hidden');node('manageWorksFeedback').textContent='';
+ renderGerenciamentoObras();
+ if(node('manageWorksSelect').value)void inspecionarExclusaoObra(node('manageWorksSelect').value);
+});
 node('openRomaneioHub').addEventListener('click',abrirAreaRomaneios);
 node('navHome').addEventListener('click',()=>setView('dashboard'));
 node('navWorks').addEventListener('click',()=>{
@@ -5719,12 +5747,9 @@ function abrirPendenciasObra(obraId='',mensagem=''){
   const select=node('workPendingFilter');
   select.replaceChildren();
   const todos=document.createElement('option');todos.value='';todos.textContent='Todas as obras';select.append(todos);
-  const ids=new Set(gruposTipologiaPendente().map(g=>g.item.obra_id));
+  const ids=new Set([...gruposTipologiaPendente().map(g=>g.item.obra_id),...obrasComEsquadriasAtivas().map(w=>w.id)]);
   const lista=works.filter(w=>ids.has(w.id)||w.id===obraId);
-  for(const w of lista){
-    const o=document.createElement('option');o.value=w.id;o.textContent=w.nome+' · '+(w.codigo||'');select.append(o);
-  }
-  select.value=lista.some(w=>w.id===obraId)?obraId:'';
+  preencherSeletorObras(select,lista,obraId,'Todas as obras');
   node('workPendingMessage').textContent=mensagem;
   node('pendingReviewPanel').open=true;
   renderConferenciaPendentes();
@@ -11548,6 +11573,17 @@ node('releaseBatchConfirm').addEventListener('click',async()=>{
 /* Remoção de obra somente antes de qualquer operação. A validação definitiva
    ocorre em transação no Supabase, nunca em uma regra do navegador. */
 let workDeleteInspection=null,workDeleteOperationId=null,workDeleteRequestId=0,workDeleteSubmitting=false;
+function obrasParaGerenciamento(){
+ return works.filter(w=>w.cadastro_manual===true||!/^MAN-[A-F0-9]{10}$/i.test(w.codigo||'')||elements.some(e=>e.obra_id===w.id));
+}
+function abrirEstornoObra(){
+ if(!modoObrasPermitido('workUndo')||workDeleteSubmitting)return;
+ const anterior=!node('detail').classList.contains('hidden')?selectedWork?.id:'';
+ manageWorksUndoMode=true;
+ preencherSeletorObras(node('manageWorksSelect'),obrasParaGerenciamento(),anterior);
+ abrirGerenciamentoObras();
+ if(node('manageWorksSelect').value)void inspecionarExclusaoObra(node('manageWorksSelect').value);
+}
 function renderGerenciamentoObras(){
  const out=node('manageWorksList');
  if(!works.length){
@@ -11555,7 +11591,8 @@ function renderGerenciamentoObras(){
   return;
  }
  const busca=node('manageWorksSearch').value.trim().toLocaleLowerCase('pt-BR');
- const lista=works.filter(w=>w.cadastro_manual===true||!/^MAN-[A-F0-9]{10}$/i.test(w.codigo||'')||elements.some(e=>e.obra_id===w.id)).filter(w=>[w.nome,w.codigo,w.cliente].join(' ').toLocaleLowerCase('pt-BR').includes(busca));
+ const lista=obrasParaGerenciamento().filter(w=>manageWorksUndoMode?w.id===node('manageWorksSelect').value:[w.nome,w.codigo,w.cliente].join(' ').toLocaleLowerCase('pt-BR').includes(busca));
+ if(manageWorksUndoMode&&!lista.length){out.innerHTML='<p class="hint">Selecione a obra para conferir as etapas de estorno.</p>';return;}
  out.innerHTML=lista.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(w=>{
   const qtd=elements.filter(e=>e.obra_id===w.id).length;
   const ids=new Set(elements.filter(e=>e.obra_id===w.id).map(e=>e.id));
@@ -11581,10 +11618,16 @@ function renderGerenciamentoObras(){
   b.addEventListener('click',()=>openReleaseCancelAll(b.dataset.workCancelReleases)));
 }
 function abrirGerenciamentoObras(){
- if(!currentCompany||!temPermissao('cadastros.consultar'))return;
- node('worksCreateManual').disabled=!temPermissao('obras.importar');
+ if(!currentCompany||!temPermissao('cadastros.consultar')||(manageWorksUndoMode&&!modoObrasPermitido('workUndo')))return;
+ node('manageWorksTitle').textContent=manageWorksUndoMode?'Estorno da obra':'Cadastro de obras';
+ node('manageWorksBack').classList.toggle('hidden',manageWorksUndoMode);
+ node('worksCreateManual').classList.toggle('hidden',manageWorksUndoMode);
+ node('manageWorksSearchLabel').classList.toggle('hidden',manageWorksUndoMode);
+ node('manageWorksSelectLabel').classList.toggle('hidden',!manageWorksUndoMode);
+ if(manageWorksUndoMode)preencherSeletorObras(node('manageWorksSelect'),obrasParaGerenciamento(),node('manageWorksSelect').value);
+ node('worksCreateManual').disabled=manageWorksUndoMode||!temPermissao('obras.importar');
  node('worksManualForm').classList.add('hidden');
- workDeleteInspection=null;workDeleteOperationId=null;
+ workDeleteRequestId++;workDeleteInspection=null;workDeleteOperationId=null;
  node('manageWorksReview').classList.add('hidden');
  node('manageWorksFeedback').textContent='';
  renderGerenciamentoObras();
@@ -11702,6 +11745,7 @@ async function executarReversaoObra(tipo){
    'Confirme que as esquadrias enviadas sem romaneio foram efetivamente devolvidas/conciliadas.\n\nDigite DEVOLVIDO para confirmar:','');
   if(confirmar!=='DEVOLVIDO'){estado.textContent='Reversão cancelada. Nenhum movimento foi alterado.';return;}
  }
+ workDeleteSubmitting=true;node('manageWorksSelect').disabled=true;
  btn.disabled=true;estado.textContent='Processando a reversão e salvando auditoria…';
  try{
   await ensureSession();
@@ -11721,7 +11765,7 @@ async function executarReversaoObra(tipo){
  }catch(err){
   estado.textContent='Não foi possível concluir a reversão: '+err.message+
     '. Confira o estado da obra antes de repetir.';
- }finally{btn.disabled=false;}
+ }finally{btn.disabled=false;workDeleteSubmitting=false;node('manageWorksSelect').disabled=false;atualizarEstadoExclusaoObra();}
 }
 node('manageWorksGoRomaneios').addEventListener('click',()=>{
  const obra=works.find(w=>w.id===workDeleteInspection?.obra_id);
@@ -11752,7 +11796,7 @@ node('manageWorksDelete').addEventListener('click',async()=>{
   confirmacao=String(workDeleteInspection.codigo||workDeleteInspection.nome||'').trim();
  const aviso='ATENÇÃO: PROCESSO IRREVERSÍVEL. TEM CERTEZA QUE DESEJA ESTORNAR?';
  if(!window.confirm(aviso))return;
- workDeleteSubmitting=true;
+ workDeleteSubmitting=true;node('manageWorksSelect').disabled=true;
  btn.disabled=true;
  node('manageWorksFeedback').textContent='Conferindo novamente e excluindo a obra…';
  try{
@@ -11775,7 +11819,7 @@ node('manageWorksDelete').addEventListener('click',async()=>{
    'Não foi possível concluir a exclusão: '+err.message+
    '. Confira a lista antes de tentar novamente.';
  }finally{
-  workDeleteSubmitting=false;
+  workDeleteSubmitting=false;node('manageWorksSelect').disabled=false;
   atualizarEstadoExclusaoObra();
  }
 });
