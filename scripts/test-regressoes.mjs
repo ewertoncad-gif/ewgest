@@ -617,7 +617,7 @@ for(const expected of [
  'tipologias_abreviacoes',
  '/rest/v1/rpc/salvar_abreviacao_tipologia',
  'function descricaoPadraoRomaneio(item',
- 'campoDescricao.value=descricaoPadraoRomaneio(item,modo)'
+ 'descricaoPadraoRomaneio(item,opcao.tipo)'
 ])assert.ok(source.includes(expected),'Painel de abreviação: '+expected);
 const standardStart=source.indexOf('function descricaoPadraoRomaneio(item,');
 const standardEnd=source.indexOf('function dataRomaneioFormatada(value){',standardStart);
