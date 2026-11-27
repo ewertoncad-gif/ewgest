@@ -2,22 +2,22 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const app=readFileSync(new URL('../app.html',import.meta.url),'utf8');
 const cut=(a,b)=>app.slice(app.indexOf(a),app.indexOf(b,app.indexOf(a)));
-const src=cut('function tituloModoObras','// O hífen identifica')+'\n'+cut('function renderDetail(w)','function applyItemFilter')+'\n'+cut('function renderHistoricoRomaneios','let romaneioCancelSelecionado');
+const src=cut('function preencherSeletorObras(','function mostrarListaDeObras(){')+'\n'+cut('function tituloModoObras','// O hífen identifica')+'\n'+cut('function renderDetail(w)','function applyItemFilter')+'\n'+cut('function renderHistoricoRomaneios','let romaneioCancelSelecionado');
 const helperSource=['descricaoOperacionalTipologia','descricaoAdaptadaModulos','comparacaoEstritaDescricao','quantidadeModulosExpressa'].map(name=>{const start=app.indexOf('function '+name+'(');return app.slice(start,app.indexOf('\nfunction ',start+1));}).join('\n');
 const make=()=>new Function(src+'\n'+helperSource+`
- const nodes=new Map(), nav=['release','shipment','releaseUndo','shipmentUndo','pending'].map(m=>({dataset:{worksModo:m},classList:{toggle(){},remove(){}},setAttribute(){},removeAttribute(){}}));
+ const nodes=new Map(), nav=['release','shipment','releaseUndo','shipmentUndo','pending','workUndo'].map(m=>({dataset:{worksModo:m},classList:{toggle(){},remove(){}},setAttribute(){},removeAttribute(){}}));
  const node=id=>{if(!nodes.has(id)){const cls=new Set();nodes.set(id,{innerHTML:'',textContent:'',disabled:false,value:'',classList:{toggle(k,v){if(v)cls.add(k);else cls.delete(k);},add:k=>cls.add(k),remove:k=>cls.delete(k),contains:k=>cls.has(k)},setAttribute(){},removeAttribute(){},replaceChildren(){this.innerHTML='';},querySelectorAll(sel){return id==='navWorksSubmenu'?nav:[];}});}return nodes.get(id);};
  let flags=new Set(['obras.consultar','liberacoes.criar','liberacoes.cancelar','romaneios.emitir','romaneios.cancelar','obras.estornar','cadastros.consultar']),admin=true,almox=false;
  const temPermissao=f=>flags.has(f),canAdministrate=()=>admin,isAlmoxarife=()=>almox;
- let detailMode='release',selectedWork=null,detailBackTarget='',currentCompany={id:'e'},view='',listed=0;
+ let detailMode='release',selectedWork=null,selectedItem=null,detailBackTarget='',currentCompany={id:'e'},view='',listed=0;
  let works=[{id:'a',nome:'Obra A'},{id:'b',nome:'Obra B'}],elements=[{id:'ea',obra_id:'a',codigo:'EA',quantidade:3,qtd_liberada:1},{id:'eb',obra_id:'a',codigo:'EB',quantidade:2,qtd_liberada:0},{id:'ec',obra_id:'b',codigo:'EC',quantidade:1,qtd_liberada:1}];
  const typologyCatalog=[{id:'t',descricao:'GUARDA CORPO - 8 MÓDULO(S) - COM VIDRO'}],modulationCatalog=[{id:'m6',tipologia_principal_id:'t',descricao:'GUARDA CORPO - 6 MÓDULO(S) - COM VIDRO',quantidade_modulos:6}];
  elements[0].modulacao_id='m6';elements[0].descricao='GRADIL 6 MÓDULO(S)';elements[1].descricao='DESCRIÇÃO ORIGINAL';
  let releaseHistory=[{esquadria_id:'ea',data_liberacao:'2026-11-26'}],romaneios=[{id:'ra',obra_id:'a',numero:'001',status:'emitido'},{id:'rb',obra_id:'a',numero:'002',status:'cancelado'},{id:'rc',obra_id:'b',numero:'003',status:'emitido'}],romaneioItens=[],romaneioLoadError='',shipmentHistory=[{esquadria_id:'ea'}],dispatchReady=true,dispatchLoadError='',expedicaoAtivaMap=new Map();
- const abrirPendenciasObra=id=>{view='workPendingPage';node('detail').classList.add('hidden');node('workPendingFilter').value=id||'';},obrasComEsquadriasAtivas=()=>works,mostrarListaDeObras=()=>{listed++;setView('worksPage');},setView=v=>{view=v;node('detail').classList.toggle('hidden',v!=='detail');};
+ const abrirEstornoObra=()=>{view='manageWorks';},abrirPendenciasObra=id=>{view='workPendingPage';node('detail').classList.add('hidden');node('workPendingFilter').value=id||'';},obrasComEsquadriasAtivas=()=>works,mostrarListaDeObras=()=>{listed++;setView('worksPage');},setView=v=>{view=v;node('detail').classList.toggle('hidden',v!=='detail');};
  const sortWorkItems=()=>0,totals=()=>({total:5,released:1,made:0}),amount=String,renderUnitCounters=()=>{},escapeHTML=String,releaseParts=()=>({saldoCompleto:2,marcos:1,folhas:1}),area=()=>1,renderResumoRomaneios=()=>{},shipmentStats=()=>({released:1,marcosLiberados:1,folhasLiberadas:1,frames:0,leaves:0,maxLeaves:1,per:1}),dataRomaneioFormatada=()=>'',groupRenderedItems=()=>{},applyDetailVisibility=()=>{},applyItemFilter=()=>{};
  node('detail').classList.add('hidden');
- return {node,nav,works,modoObrasPermitido,abrirObrasPelaBarra,renderDetail,atualizarPermissoesObras,marcarModoObras,flags,mode:m=>detailMode=m,admin:v=>admin=v,almox:v=>almox=v,view:()=>view,listed:()=>listed,selected:()=>selectedWork,one:()=>works=works.slice(0,1),removeRoms:()=>romaneios=[]};
+ return {node,nav,works,modoObrasPermitido,abrirObrasPelaBarra,renderDetail,escolherObraTecnica,atualizarPermissoesObras,marcarModoObras,flags,mode:m=>detailMode=m,admin:v=>admin=v,almox:v=>almox=v,view:()=>view,listed:()=>listed,selected:()=>selectedWork,one:()=>works=works.slice(0,1),removeRoms:()=>romaneios=[]};
  `)();
 const x=make(),visible=id=>!x.node(id).classList.contains('hidden');
 assert.equal(x.modoObrasPermitido('invalid'),false);
@@ -54,3 +54,5 @@ const success=await scenario();assert.equal(success.calls.length,2);assert.equal
 console.log('OK: saída avulsa — inspeção, motivo, confirmação física e bloqueios preservados.');
 
 const p=make();assert.equal(p.modoObrasPermitido('pending'),false);p.flags.add('cadastros.editar');assert.equal(p.modoObrasPermitido('pending'),true);p.renderDetail(p.works[0]);p.abrirObrasPelaBarra('pending');assert.equal(p.view(),'workPendingPage');assert.equal(p.node('workPendingFilter').value,'a');p.admin(false);assert.equal(p.modoObrasPermitido('pending'),false);
+
+const z=make();z.renderDetail(z.works[0]);assert.equal(z.node('detailWorkSelect').value,'a');z.abrirObrasPelaBarra('shipmentUndo');z.escolherObraTecnica('b');assert.equal(z.selected().id,'b');assert.equal(z.node('detailWorkSelect').value,'b');assert.ok(z.node('romaneioHistoryPanel').innerHTML.includes('data-romaneio-cancelar="rc"'));assert.ok(!z.node('romaneioHistoryPanel').innerHTML.includes('data-romaneio-cancelar="ra"'));assert.equal(z.modoObrasPermitido('workUndo'),true);z.abrirObrasPelaBarra('workUndo');assert.equal(z.view(),'manageWorks');z.flags.delete('obras.estornar');z.atualizarPermissoesObras();assert.equal(z.nav[5].disabled,true);

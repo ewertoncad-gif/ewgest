@@ -129,7 +129,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.34',
+ 'EWGEST • v46.29.35',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -1339,7 +1339,7 @@ assert.ok(source.includes('Esquadrias e materiais serão cadastrados somente ap�
 assert.ok(!source.includes('id="openManageWorks"')&&
  !source.includes("node('openManageWorks')")&&
  !source.includes('id="navManageWorks"')&&
- source.includes("node('cadastroJumpObras').addEventListener('click',abrirGerenciamentoObras)")&&source.includes('id="releaseUndoAll"')&&source.includes('data-release-undo='),
+ source.includes("node('cadastroJumpObras').addEventListener('click',()=>{manageWorksUndoMode=false;abrirGerenciamentoObras();})")&&source.includes('id="releaseUndoAll"')&&source.includes('data-release-undo='),
  'Gerenciar obras não duplica o menu lateral e mantém acesso por Cadastros e estorno dentro de Obras');
 // v44.4: sem contador/importação global de croquis; upload individual só ao editar a tipologia.
 for(const deleted of ['croquiCatalogCount','croquiPackageButton','croquiPackageInput',
@@ -2135,7 +2135,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.34')&&
+assert.ok(source.includes('v46.29.35')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2371,7 +2371,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.34</strong>'),
+ source.includes('EWGEST <strong>· v46.29.35</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -3083,7 +3083,7 @@ import './test-obras-modos.mjs';
 
 import './test-reconhecimento-cem.mjs';
 
-// v46.29.34 — compactação restrita à lista de liberação, sem fontes menores.
+// v46.29.35 — compactação restrita à lista de liberação, sem fontes menores.
 assert.ok(source.includes("node('items').classList.toggle('releaseCompact',detailMode==='release')"));
 const compactCss=source.slice(source.indexOf('/* Lista de liberação compacta:'),source.indexOf('.catalogFilters{',source.indexOf('/* Lista de liberação compacta:')));
 assert.ok(compactCss.includes('#items.releaseCompact .typologyGroup{margin:9px 0;padding:2px 16px 4px}'));
@@ -3153,7 +3153,7 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
  assert.equal(operacional({modulacao_id:'m6',descricao:'GRADIL 6 MÓDULO(S)'}),seis);
  assert.equal(operacional({descricao:'ORIGINAL CEM'}),'ORIGINAL CEM');
 
- // v46.29.34: escolher a família e a quantidade basta; o seletor interno
+ // v46.29.35: escolher a família e a quantidade basta; o seletor interno
  // permanece apenas como contrato com a RPC, sem decisão intermediária.
  {
   const cut=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end,source.indexOf(start)));
@@ -3207,7 +3207,7 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
   assert.equal(origin.descricao,'GRADIL 6 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO');
   assert.equal(catalog[0].descricao,oito);
  }
- console.log('OK v46.29.34: modulação automática, reuso, criação, exceções e bloqueios.');
+ console.log('OK v46.29.35: modulação automática, reuso, criação, exceções e bloqueios.');
 
  // Reaproveita a descrição exata do CEM somente na família selecionada.
  {
@@ -3226,7 +3226,7 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
   assert.equal(legado.descricao,origem);
  }
 
-// v46.29.34: composição independente e atalho sem reiniciar a liberação.
+// v46.29.35: composição independente e atalho sem reiniciar a liberação.
 {
  const cut=(a,b)=>source.slice(source.indexOf(a),source.indexOf(b,source.indexOf(a)));
  const ns=new Map();const n=id=>{if(!ns.has(id)){const flags=new Set();ns.set(id,{value:'',disabled:false,textContent:'',focus(){},classList:{toggle(k,v){v?flags.add(k):flags.delete(k)},add(k){flags.add(k)},remove(k){flags.delete(k)},contains(k){return flags.has(k)}}});}return ns.get(id);};
@@ -3251,9 +3251,9 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
  assert.ok(source.includes("void expCompOpen(source.id,true)"));
  assert.ok(source.includes("node('expCompClose').textContent=fromRelease?'Voltar à liberação':'Voltar'"));
 }
-console.log('OK v46.29.34: fechar edição sem mudanças, permissões e retorno à liberação.');
+console.log('OK v46.29.35: fechar edição sem mudanças, permissões e retorno à liberação.');
 
-// v46.29.34 — sem seletor; escopo completo fixo e saldo respeitado.
+// v46.29.35 — sem seletor; escopo completo fixo e saldo respeitado.
 {
  const start=source.indexOf("node('releaseForm').addEventListener('submit'");
  const end=source.indexOf("p_componente:componente",start);
@@ -3272,9 +3272,9 @@ console.log('OK v46.29.34: fechar edição sem mudanças, permissões e retorno 
  fields.get('releaseQty').value='2';update();assert.equal(fields.get('releaseQty').value,'2');
  parts.saldoCompleto=0;update();assert.equal(fields.get('releaseQty').value,'');assert.equal(fields.get('releaseQty').max,'0');
 }
-console.log('OK v46.29.34: liberação completa sem seletor, saldo e aviso de expedição.');
+console.log('OK v46.29.35: liberação completa sem seletor, saldo e aviso de expedição.');
 
-// v46.29.34: apenas opções disponíveis da composição, sem duplicar marco/folha legados.
+// v46.29.35: apenas opções disponíveis da composição, sem duplicar marco/folha legados.
 {
  const i=source.indexOf('function opcoesExpedicaoRomaneio('),j=source.indexOf('function atualizarQuantidadeRomaneio(',i);
  assert.ok(i>=0&&j>i);
@@ -3285,9 +3285,9 @@ console.log('OK v46.29.34: liberação completa sem seletor, saldo e aviso de ex
  assert.deepEqual(options(e,null).map(x=>x.tipo),['completo','marco','folha']);
  assert.ok(source.includes('data-rom-choice required disabled')&&!source.includes('Componente cadastrado na tipologia</option>'));
 }
-console.log('OK v46.29.34: opções diretas por composição, saldo e equivalência por peça.');
+console.log('OK v46.29.35: opções diretas por composição, saldo e equivalência por peça.');
 
-// v46.29.34: valor por linha, inclusive desmarcada, usa centavos da emissão.
+// v46.29.35: valor por linha, inclusive desmarcada, usa centavos da emissão.
 {
  const i=source.indexOf('function finValorLinhaCentavos('),j=source.indexOf('function finXMLValor(',i);
  const k=source.indexOf('function finValorPrecificadoCentavos('),l=source.indexOf('function finRenderFaturaveis(){',k);
@@ -3307,4 +3307,27 @@ console.log('OK v46.29.34: opções diretas por composição, saldo e equivalên
  rows[0].fields['.finQty'].value='0.346';update();assert.equal(rows[0].fields['.finInvoiceValue'].textContent,'—');assert.ok(sum.textContent.includes(money(25)));assert.ok(sum.textContent.includes('1 item(ns)'));
  assert.ok(source.includes('Valor a faturar (R$)')&&source.includes('const cents=finValorLinhaCentavos(linha,tipo,qtd,preco,'));
 }
-console.log('OK v46.29.34: valor por linha, seleção, saldo e centavos residuais.');
+console.log('OK v46.29.35: valor por linha, seleção, saldo e centavos residuais.');
+
+// v46.29.35: seleção direta de obras sem abandonar a subdivisão e estorno protegido.
+{
+ const i=source.indexOf('function preencherSeletorObras('),j=source.indexOf('function mostrarListaDeObras(){',i);
+ assert.ok(i>=0&&j>i);
+ const obras=[{id:'b',nome:'Zeta',codigo:'Z'},{id:'a',nome:'Alfa',codigo:'A',cliente:'Cliente & obra'}];
+ const select={innerHTML:'',value:''};let aberta=null,lista=false;
+ const esc=x=>String(x).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
+ const ctx=new Function('escapeHTML','obrasComEsquadriasAtivas','renderDetail','mostrarListaDeObras','modoObrasPermitido',
+  'let detailMode="shipmentUndo",detailBackTarget="";'+source.slice(i,j)+'return {preencherSeletorObras,escolherObraTecnica};')(esc,()=>obras,w=>aberta=w,()=>lista=true,()=>true);
+ ctx.preencherSeletorObras(select,obras,'b');assert.equal(select.value,'b');assert.ok(select.innerHTML.indexOf('Alfa')<select.innerHTML.indexOf('Zeta'));assert.ok(select.innerHTML.includes('Cliente &amp; obra'));
+ ctx.escolherObraTecnica('a');assert.equal(aberta.id,'a');ctx.escolherObraTecnica('');assert.ok(lista);
+ ctx.preencherSeletorObras(select,obras,'removida');assert.equal(select.value,'');
+ const m=source.indexOf('function modoObrasPermitido('),n=source.indexOf('function atualizarPermissoesObras(',m);
+ const acesso=new Set(['obras.consultar','cadastros.consultar','obras.estornar']);
+ const permitido=new Function('temPermissao','isAlmoxarife','canAdministrate',source.slice(m,n)+'return modoObrasPermitido;')(p=>acesso.has(p),()=>false,()=>true);
+ assert.equal(permitido('workUndo'),true);acesso.delete('obras.estornar');assert.equal(permitido('workUndo'),false);
+ for(const id of ['detailWorkSelect','worksPageSelect','manageWorksSelect','workPendingFilter'])assert.ok(source.includes('id="'+id+'"'));
+ assert.ok(source.includes('data-works-modo="workUndo"')&&source.includes("if(modo==='workUndo'){abrirEstornoObra();return;}")&&source.includes("view==='manageWorks'&&manageWorksUndoMode"));
+ assert.ok(source.includes("manageWorksUndoMode&&node('manageWorksSelect').value!==id")&&source.includes("workDeleteSubmitting=true;node('manageWorksSelect').disabled=true"));
+ assert.ok(source.includes("ew_inspecionar_reversao_obra")&&source.includes("ew_arquivar_obra_reconciliada"));
+}
+console.log('OK v46.29.35: seletores, troca de obra e estorno com autorização preservada.');

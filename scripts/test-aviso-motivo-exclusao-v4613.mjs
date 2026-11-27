@@ -17,7 +17,7 @@ assert.match(updater,/!info\?\.permitido\|\|workDeleteSubmitting/);
 assert.match(handler,/window\.alert\(mensagem\)/);
 assert.match(handler,/motivoCampo\.focus\(\)/);
 
-function setup({permitido=true,confirmar=true,erro=false}={}){
+function setup({permitido=true,confirmar=true,erro=false,flag=true}={}){
  const alerts=[],confirms=[],requests=[],hooks={},elements=new Map();
  const el=id=>{
   if(!elements.has(id))elements.set(id,{
@@ -30,7 +30,7 @@ function setup({permitido=true,confirmar=true,erro=false}={}){
  };
  const ctx={
   node:el,works:[{id:'obra-teste',codigo:'TESTE-123',nome:'OBRA DE TREINAMENTO'}],
-  canAdministrate:()=>true,
+  canAdministrate:()=>true,temPermissao:p=>p==='obras.estornar'&&flag,
   window:{
    alert(msg){alerts.push(msg)},
    confirm(msg){confirms.push(msg);return confirmar},
@@ -107,3 +107,5 @@ assert.match(erro.el('manageWorksFeedback').textContent,/Cancelamento negado pel
 assert.equal(erro.el('manageWorksDelete').disabled,false,'Erro deve permitir corrigir e tentar novamente');
 
 console.log('OK v46.14: motivo vazio/curto mostra alerta e foca, motivo válido confirma, bloqueio de servidor preservado.');
+
+const semFlag=setup({flag:false});semFlag.el('manageWorksReason').value='Motivo suficiente';await semFlag.click();assert.equal(semFlag.requests.length,0);assert.equal(semFlag.confirms.length,0);
