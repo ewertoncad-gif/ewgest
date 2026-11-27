@@ -251,7 +251,7 @@
     .romaneioTransportChoice button{white-space:nowrap;padding:11px}
     .romaneioSearch{margin:7px 0 5px}
     .romaneioCancel{border-color:#ae6e66;color:#ffd7cf}
-    .romaneioRow .romaneioKind{max-width:340px}
+    .romaneioRow .romaneioKind{width:100%;max-width:none}
     .romaneioCancelPrint{background:#f4cbcb;border:2px solid #a11;color:#a11;font-size:19px;
        font-weight:900;text-align:center;letter-spacing:5px;padding:3mm;margin:4mm 0}
     .romaneioRow .romaneioRowFields label{margin-top:9px}
@@ -260,7 +260,9 @@
     #typologyAbbrevText,#romaneioNotes{width:100%;min-height:76px;resize:vertical;white-space:pre-wrap}
     @media(max-width:640px){.abbrevPanelGrid{grid-template-columns:minmax(0,1fr)}}
     .romaneioRow textarea[data-rom-field="descricao_romaneio"]{width:100%;min-height:66px;resize:vertical;white-space:pre-wrap;margin-top:5px}
-    .romaneioRowSummary{font-size:12px;color:#c4dbea;margin:9px 0;line-height:1.55}
+    .romaneioRowSummary{font-size:12px;color:inherit;margin:9px 0;line-height:1.55}
+    .romaneioRow [data-rom-qty-saldo]{display:block;margin-top:5px}
+    .romaneioRow [data-rom-qty-total]{color:inherit;font-weight:600}
     .romaneioRow .romaneioRemove{padding:7px 10px}
     .romaneioCreateButtons{display:flex;flex-wrap:wrap;gap:9px;margin:15px 0}
     .romaneioHistoryRow{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid #36516a;font-size:13px}
@@ -2366,7 +2368,7 @@
         <button type="button" id="romaneioAddEsquadria" class="btn secondary">+ Adicionar esquadria</button>
         <button type="button" id="romaneioAddMaterial" class="btn secondary" disabled>+ Adicionar material do estoque</button>
       </div>
-      <p class="hint">Esquadrias: selecione completa, marco ou folhas. Perfis em barras e acessórios são selecionados pelo saldo da obra e do galpão. <strong>A emissão efetua uma única baixa real desses materiais e os vincula ao romaneio.</strong> Essa baixa não altera o percentual de fabricação da esquadria.</p>
+      <p class="hint">Esquadrias: selecione primeiro a esquadria e depois a saída completa ou o componente com saldo disponível. Perfis em barras e acessórios são selecionados pelo saldo da obra e do galpão. <strong>A emissão efetua uma única baixa real desses materiais e os vincula ao romaneio.</strong> Essa baixa não altera o percentual de fabricação da esquadria.</p>
       <label for="romaneioNotes">Observações da entrega (opcional)</label>
       <textarea id="romaneioNotes" rows="3" maxlength="1000" placeholder="Ex.: materiais conferidos, responsável pelo recebimento, ressalvas sobre a entrega"></textarea>
       <p class="hint">As observações aparecerão no final do comprovante, antes das assinaturas.</p>
@@ -3688,7 +3690,8 @@ function opcoesExpedicaoRomaneio(item,estado,folhas){
     add('completo','completo','','Esquadria completa',estado.completas_disponiveis,1,'esquadrias');
     for(const p of estado.partes){
       const eq=Number(p.peso)/(10000*Number(p.quantidade));
-      add('parte:'+p.id,'componente',p.id,p.nome,p.saldo,eq,p.nome);
+      const unidade=/^marco$/i.test(p.nome)?'marcos':/^folha$/i.test(p.nome)?'folhas':p.nome;
+      add('parte:'+p.id,'componente',p.id,p.nome,p.saldo,eq,unidade);
     }
   }else{
     const stats=shipmentStats(item);
