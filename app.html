@@ -5745,8 +5745,6 @@ function gruposTipologiaPendente(){
 function abrirPendenciasObra(obraId='',mensagem=''){
   if(!modoObrasPermitido('pending')){setView('dashboard');return;}
   const select=node('workPendingFilter');
-  select.replaceChildren();
-  const todos=document.createElement('option');todos.value='';todos.textContent='Todas as obras';select.append(todos);
   const ids=new Set([...gruposTipologiaPendente().map(g=>g.item.obra_id),...obrasComEsquadriasAtivas().map(w=>w.id)]);
   const lista=works.filter(w=>ids.has(w.id)||w.id===obraId);
   preencherSeletorObras(select,lista,obraId,'Todas as obras');
@@ -11578,7 +11576,8 @@ function obrasParaGerenciamento(){
 }
 function abrirEstornoObra(){
  if(!modoObrasPermitido('workUndo')||workDeleteSubmitting)return;
- const anterior=!node('detail').classList.contains('hidden')?selectedWork?.id:'';
+ const anterior=!node('detail').classList.contains('hidden')?selectedWork?.id:
+  manageWorksUndoMode&&!node('manageWorks').classList.contains('hidden')?node('manageWorksSelect').value:'';
  manageWorksUndoMode=true;
  preencherSeletorObras(node('manageWorksSelect'),obrasParaGerenciamento(),anterior);
  abrirGerenciamentoObras();
@@ -11665,7 +11664,7 @@ function atualizarEstadoExclusaoObra(){
 }
 async function inspecionarExclusaoObra(id){
  if(!canAdministrate()||!temPermissao('obras.estornar')||!works.some(w=>w.id===id))return;
- const seq=++workDeleteRequestId;
+ const seq=++workDeleteRequestId,empresa=currentCompany?.id;
  workDeleteInspection=null;workDeleteOperationId=null;
  node('manageWorksReview').classList.add('hidden');
  node('manageWorksFeedback').textContent='Verificando registros operacionais da obra…';
@@ -11674,7 +11673,7 @@ async function inspecionarExclusaoObra(id){
   const check=await request('/rest/v1/rpc/ew_inspecionar_reversao_obra',{
    method:'POST',token:session.access_token,body:{p_obra_id:id},timeoutMs:30000
   });
-  if(seq!==workDeleteRequestId)return;
+  if(seq!==workDeleteRequestId||currentCompany?.id!==empresa||(manageWorksUndoMode&&node('manageWorksSelect').value!==id))return;
   if(!check||check.obra_id!==id)throw new Error('Verificação não corresponde à obra.');
   workDeleteInspection=check;workDeleteOperationId=crypto.randomUUID();
   node('manageWorksReviewTitle').textContent='Obra: '+check.nome+' · '+(check.codigo||'sem código');
@@ -11712,11 +11711,12 @@ async function inspecionarExclusaoObra(id){
 }
 node('manageWorksReason').addEventListener('input',atualizarEstadoExclusaoObra);
 node('manageWorksRefresh').addEventListener('click',async()=>{
- if(!temPermissao('cadastros.consultar'))return;
+ if(!temPermissao('cadastros.consultar')||workDeleteSubmitting)return;
  node('manageWorksFeedback').textContent='Atualizando obras…';
  try{
   await loadPanel();abrirGerenciamentoObras();
-  node('manageWorksFeedback').textContent='Obras atualizadas.';
+  if(manageWorksUndoMode&&node('manageWorksSelect').value)await inspecionarExclusaoObra(node('manageWorksSelect').value);
+  else node('manageWorksFeedback').textContent='Obras atualizadas.';
  }catch(err){node('manageWorksFeedback').textContent='Falha ao atualizar: '+err.message;}
 });
 
@@ -11728,7 +11728,7 @@ function motivoDeReversao(){
 }
 async function executarReversaoObra(tipo){
  const obra=workDeleteInspection;
- if(!obra?.obra_id||!works.some(w=>w.id===obra.obra_id)||!canAdministrate())return;
+ if(workDeleteSubmitting||!obra?.obra_id||!works.some(w=>w.id===obra.obra_id)||!canAdministrate()||!temPermissao('obras.estornar'))return;
  const btn=node(tipo==='saidas'?'manageWorksCancelShipments':'manageWorksReverseStock');
  const estado=node('manageWorksUndoStatus');
  let motivo;
@@ -11779,7 +11779,7 @@ node('manageWorksCancelShipments').addEventListener('click',()=>executarReversao
 node('manageWorksReverseStock').addEventListener('click',()=>executarReversaoObra('estoque'));
 
 node('manageWorksDelete').addEventListener('click',async()=>{
- if(!canAdministrate()||!workDeleteInspection?.permitido||!workDeleteOperationId||workDeleteSubmitting)return;
+ if(!canAdministrate()||!temPermissao('obras.estornar')||!workDeleteInspection?.permitido||!workDeleteOperationId||workDeleteSubmitting)return;
  atualizarEstadoExclusaoObra();
  const btn=node('manageWorksDelete');
  if(btn.disabled)return;
