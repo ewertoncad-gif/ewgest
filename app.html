@@ -251,7 +251,7 @@
     .romaneioTransportChoice button{white-space:nowrap;padding:11px}
     .romaneioSearch{margin:7px 0 5px}
     .romaneioCancel{border-color:#ae6e66;color:#ffd7cf}
-    .romaneioRow .romaneioKind{max-width:340px}
+    .romaneioRow .romaneioKind{width:100%;max-width:none}
     .romaneioCancelPrint{background:#f4cbcb;border:2px solid #a11;color:#a11;font-size:19px;
        font-weight:900;text-align:center;letter-spacing:5px;padding:3mm;margin:4mm 0}
     .romaneioRow .romaneioRowFields label{margin-top:9px}
@@ -260,7 +260,9 @@
     #typologyAbbrevText,#romaneioNotes{width:100%;min-height:76px;resize:vertical;white-space:pre-wrap}
     @media(max-width:640px){.abbrevPanelGrid{grid-template-columns:minmax(0,1fr)}}
     .romaneioRow textarea[data-rom-field="descricao_romaneio"]{width:100%;min-height:66px;resize:vertical;white-space:pre-wrap;margin-top:5px}
-    .romaneioRowSummary{font-size:12px;color:#c4dbea;margin:9px 0;line-height:1.55}
+    .romaneioRowSummary{font-size:12px;color:inherit;margin:9px 0;line-height:1.55}
+    .romaneioRow [data-rom-qty-saldo]{display:block;margin-top:5px}
+    .romaneioRow [data-rom-qty-total]{color:inherit;font-weight:600}
     .romaneioRow .romaneioRemove{padding:7px 10px}
     .romaneioCreateButtons{display:flex;flex-wrap:wrap;gap:9px;margin:15px 0}
     .romaneioHistoryRow{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid #36516a;font-size:13px}
@@ -822,7 +824,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.32</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.33</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -843,7 +845,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.32</div>
+        <div class="build">EWGEST • v46.29.33</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -2366,7 +2368,7 @@
         <button type="button" id="romaneioAddEsquadria" class="btn secondary">+ Adicionar esquadria</button>
         <button type="button" id="romaneioAddMaterial" class="btn secondary" disabled>+ Adicionar material do estoque</button>
       </div>
-      <p class="hint">Esquadrias: selecione completa, marco ou folhas. Perfis em barras e acessórios são selecionados pelo saldo da obra e do galpão. <strong>A emissão efetua uma única baixa real desses materiais e os vincula ao romaneio.</strong> Essa baixa não altera o percentual de fabricação da esquadria.</p>
+      <p class="hint">Esquadrias: selecione primeiro a esquadria e depois a saída completa ou o componente com saldo disponível. Perfis em barras e acessórios são selecionados pelo saldo da obra e do galpão. <strong>A emissão efetua uma única baixa real desses materiais e os vincula ao romaneio.</strong> Essa baixa não altera o percentual de fabricação da esquadria.</p>
       <label for="romaneioNotes">Observações da entrega (opcional)</label>
       <textarea id="romaneioNotes" rows="3" maxlength="1000" placeholder="Ex.: materiais conferidos, responsável pelo recebimento, ressalvas sobre a entrega"></textarea>
       <p class="hint">As observações aparecerão no final do comprovante, antes das assinaturas.</p>
@@ -3559,7 +3561,7 @@ async function abrirEmissaoRomaneio(preselectId){
   if(typeof preselectId==='string'){
     const row=node('romaneioRows').querySelector('.romaneioRow');
     const estado=romaneioComposicoes.get(preselectId);
-    if(row&&estado){row.querySelector('[data-rom-field="tipo_saida"]').value='componente';buscarEsquadriasRomaneio(row);row.querySelector('[data-rom-field="esquadria_id"]').value=preselectId;atualizarLinhaRomaneio(row);}
+    if(row&&estado){row.querySelector('[data-rom-field="esquadria_id"]').value=preselectId;atualizarLinhaRomaneio(row);}
   }
   node('romaneioDriver').focus();
   void carregarMateriaisDisponiveisRomaneio();
@@ -3652,7 +3654,6 @@ function mensagemSemSaldoRomaneio(tipo,candidatos){
 function buscarEsquadriasRomaneio(row){
   const busca=row.querySelector('[data-rom-field="esquadria_search"]');
   const combo=row.querySelector('[data-rom-field="esquadria_id"]');
-  const tipo=row.querySelector('[data-rom-field="tipo_saida"]').value;
   const termo=String(busca.value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .toLocaleUpperCase('pt-BR').trim();
   const antigo=combo.value;
@@ -3663,13 +3664,13 @@ function buscarEsquadriasRomaneio(row){
   });
   const disponiveis=candidatos.filter(x=>{
     const estado=romaneioComposicoes.get(x.id);
-    if(estado)return tipo==='completo'?Number(estado.completas_disponiveis)>0:tipo==='componente'&&estado.partes.some(p=>Number(p.saldo)>0);
-    return tipo!=='componente'&&Number(x.qtd_liberada)>0&&(tipo==='completo'||!ehMaximArRomaneio(x))&&romaneioSaldoPorTipo(x,tipo,1)>0;
+    if(estado)return Number(estado.completas_disponiveis)>0||estado.partes.some(p=>Number(p.saldo)>0);
+    return Number(x.qtd_liberada)>0&&opcoesExpedicaoRomaneio(x,null).length>0;
   }).sort((x,y)=>x.codigo.localeCompare(y.codigo,'pt-BR',{numeric:true}));
-  row.dataset.mensagemSemSaldo=disponiveis.length?'':mensagemSemSaldoRomaneio(tipo,candidatos);
+  row.dataset.mensagemSemSaldo=disponiveis.length?'':(candidatos.length?'Nenhuma esquadria com saldo de expedição. Confira as liberações e as saídas anteriores.':mensagemSemSaldoRomaneio('completo',candidatos));
   combo.replaceChildren();
   const placeholder=document.createElement('option');placeholder.value='';
-  placeholder.textContent=disponiveis.length?'Selecione a esquadria':(tipo==='folha'?'Nenhuma folha disponível para expedição':'Nenhuma esquadria com saldo disponível');
+  placeholder.textContent=disponiveis.length?'Selecione a esquadria':'Nenhuma esquadria com saldo disponível';
   combo.append(placeholder);
   for(const item of disponiveis){
     const option=document.createElement('option');option.value=item.id;
@@ -3679,90 +3680,92 @@ function buscarEsquadriasRomaneio(row){
   combo.value=disponiveis.some(x=>x.id===antigo)?antigo:'';
   atualizarLinhaRomaneio(row);
 }
+function opcoesExpedicaoRomaneio(item,estado,folhas){
+  if(!item)return [];
+  const options=[];
+  const add=(value,tipo,id,nome,saldo,eq,unidade)=>{
+    if(Number(saldo)>0)options.push({value,tipo,id,nome,saldo:Number(saldo),eq,unidade});
+  };
+  if(estado){
+    add('completo','completo','','Esquadria completa',estado.completas_disponiveis,1,'esquadrias');
+    for(const p of estado.partes){
+      const eq=Number(p.peso)/(10000*Number(p.quantidade));
+      const unidade=/^marco$/i.test(p.nome)?'marcos':/^folha$/i.test(p.nome)?'folhas':p.nome;
+      add('parte:'+p.id,'componente',p.id,p.nome,p.saldo,eq,unidade);
+    }
+  }else{
+    const stats=shipmentStats(item);
+    const per=stats.per||Number(folhas)||suggestedLeaves(item)||1;
+    add('completo','completo','','Esquadria completa',romaneioSaldoPorTipo(item,'completo',per),1,'esquadrias');
+    if(!ehMaximArRomaneio(item)){
+      add('marco','marco','','Marco',romaneioSaldoPorTipo(item,'marco',per),.5,'marcos');
+      add('folha','folha','','Folhas físicas (pode enviar uma de cada vez)',romaneioSaldoPorTipo(item,'folha',per),.5/per,'folhas');
+    }
+  }
+  return options;
+}
+function atualizarQuantidadeRomaneio(el){
+  const info=el._romaneioOpcao;
+  const qty=el.querySelector('[data-rom-field="quantidade"]');
+  const label=el.querySelector('[data-rom-qty-label]');
+  const saldoLabel=el.querySelector('[data-rom-qty-saldo]');
+  const total=el.querySelector('[data-rom-qty-total]');
+  label.textContent=info?'Quantidade de '+String(info.unidade).toLocaleLowerCase('pt-BR'):'Quantidade';
+  saldoLabel.textContent=info?'de '+info.saldo+' disponíveis':'';
+  const n=Number(qty.value);
+  total.textContent=!info?'':!Number.isSafeInteger(n)||n<1||n>info.saldo?'Informe uma quantidade inteira de 1 a '+info.saldo+'.':
+    'Equivalente a '+(n*info.eq*100).toLocaleString('pt-BR',{maximumFractionDigits:4})+'% de uma esquadria · '+amount(area(info.item,n*info.eq))+' m²';
+}
 function atualizarLinhaRomaneio(el){
   if(el.dataset.natureza!=='esquadria')return;
   const id=el.querySelector('[data-rom-field="esquadria_id"]').value;
   const item=elements.find(x=>x.id===id&&x.obra_id===selectedWork?.id);
-  const tipo=el.querySelector('[data-rom-field="tipo_saida"]').value;
   const summary=el.querySelector('.romaneioRowSummary');
   const qty=el.querySelector('[data-rom-field="quantidade"]');
   const leaves=el.querySelector('[data-rom-field="folhas_por_unidade"]');
-  const kinds=el.querySelector('[data-rom-field="tipo_saida"]');
+  const kinds=el.querySelector('[data-rom-choice]');
+  const tipo=el.querySelector('[data-rom-field="tipo_saida"]');
+  const comp=el.querySelector('[data-rom-field="componente_id"]');
   const campoDescricao=el.querySelector('[data-rom-field="descricao_romaneio"]');
   const estado=item?romaneioComposicoes.get(item.id):null;
-  const comp=el.querySelector('[data-rom-field="componente_id"]');
-  if(estado){
-    kinds.disabled=false;
-    for(const opt of kinds.options)opt.disabled=!['completo','componente'].includes(opt.value);
-    const modo=kinds.value==='completo'?'completo':'componente';kinds.value=modo;
-    leaves.closest('label').classList.add('hidden');leaves.required=false;leaves.disabled=true;
-    el.querySelector('[data-rom-maxim-note]').classList.add('hidden');el.querySelector('[data-rom-hint-folhas]').classList.add('hidden');
-    comp.closest('label').classList.toggle('hidden',modo!=='componente');comp.required=modo==='componente';comp.disabled=modo!=='componente';
-    const anterior=el.dataset.expCompItem===item.id?comp.value:'';
-    el.dataset.expCompItem=item.id;comp.replaceChildren();
-    const vazio=document.createElement('option');vazio.value='';vazio.textContent='Selecione o componente';comp.append(vazio);
-    for(const p of estado.partes.filter(p=>Number(p.saldo)>0)){
-      const opt=document.createElement('option');opt.value=p.id;
-      opt.textContent=p.nome+' · '+p.saldo+' disponíveis · '+(p.peso/100/p.quantidade).toLocaleString('pt-BR',{maximumFractionDigits:4})+'% por peça';comp.append(opt);
-    }
-    comp.value=[...comp.options].some(x=>x.value===anterior)?anterior:'';
-    const parte=estado.partes.find(x=>x.id===comp.value);
-    const saldo=modo==='completo'?Number(estado.completas_disponiveis):Number(parte?.saldo||0);
-    const nome=modo==='completo'?'Esquadria completa':parte?.nome||'Selecione o componente';
-    const chave=item.id+'|'+modo+'|'+(parte?.id||'');
-    if(el.dataset.romaneioDescricaoChave!==chave){
-      campoDescricao.value=descricaoPadraoRomaneio(item,'completo').replace(/\\s*\\(COMPLETA\\)\\s*$/i,'')+' ('+nome+')';
-      el.dataset.romaneioDescricaoChave=chave;
-    }
-    qty.max=String(saldo);
-    if(!Number.isSafeInteger(Number(qty.value))||Number(qty.value)<1||Number(qty.value)>saldo)qty.value=saldo>0?'1':'';
-    const eq=modo==='completo'?1:parte?Number(parte.peso)/(10000*Number(parte.quantidade)):0;
-    const areaP=area(item,eq);
-    summary.textContent=item.codigo+' · '+nome+' · '+saldo+' disponíveis · '+amount(areaP)+' m² por peça · Revisão '+estado.revisao;
-    return;
+  const mudou=el.dataset.expCompItem!==id;
+  const anterior=mudou?'':kinds.value;
+  el.dataset.expCompItem=id;
+  if(mudou)leaves.value='';
+  const stats=item&&!estado?shipmentStats(item):null;
+  if(stats?.per!==null&&stats?.per!==undefined){leaves.value=stats.per;leaves.readOnly=true;}
+  else {leaves.readOnly=false;if(item&&!estado&&!leaves.value)leaves.value=suggestedLeaves(item)||'';}
+  const options=opcoesExpedicaoRomaneio(item,estado,leaves.value);
+  kinds.replaceChildren();
+  const vazio=document.createElement('option');vazio.value='';vazio.textContent='Selecione o que será enviado';kinds.append(vazio);
+  for(const op of options){
+    const opt=document.createElement('option');opt.value=op.value;
+    opt.textContent=op.nome+' · '+(op.eq*100).toLocaleString('pt-BR',{maximumFractionDigits:4})+'% por peça · '+op.saldo+' disponíveis';kinds.append(opt);
   }
-  comp.closest('label').classList.add('hidden');comp.required=false;comp.disabled=true;comp.replaceChildren();el.dataset.expCompItem='';
-  const max=Boolean(item&&ehMaximArRomaneio(item));
-  kinds.disabled=max;
-  for(const opt of kinds.options)if(opt.value!=='completo')opt.disabled=max||(!!item&&opt.value==='componente');
-  if(max&&kinds.value!=='completo')kinds.value='completo';
-  const modo=kinds.value;
-  const stats=item?shipmentStats(item):null;
-  // A composição de folhas não é exigida nem registrada quando a saída é completa.
-  const perguntaFolhas=Boolean(item&&modo!=='completo'&&stats?.per===null);
-  leaves.closest('label').classList.toggle('hidden',!perguntaFolhas);
-  leaves.required=perguntaFolhas;
-  leaves.disabled=!perguntaFolhas;
-  el.querySelector('[data-rom-maxim-note]').classList.toggle('hidden',!max);
-  el.querySelector('[data-rom-hint-folhas]').classList.toggle('hidden',modo!=='folha');
-  if(!item){
-    summary.textContent=el.dataset.mensagemSemSaldo||'Busque pelo código ou descrição e selecione uma esquadria liberada.';
-    qty.max='';qty.value='';leaves.value='';
-    campoDescricao.value='';
-    el.dataset.romaneioDescricaoChave='';
-    return;
+  kinds.value=options.some(x=>x.value===anterior)?anterior:(mudou&&options.some(x=>x.value==='completo')?'completo':'');
+  kinds.disabled=!item||!options.length;
+  const opcao=options.find(x=>x.value===kinds.value);
+  tipo.value=opcao?.tipo||'';comp.value=opcao?.id||'';
+  el._romaneioOpcao=opcao?{...opcao,item}:null;
+  const perguntaFolhas=Boolean(item&&!estado&&opcao&&opcao.tipo!=='completo'&&stats?.per===null);
+  leaves.closest('label').classList.toggle('hidden',!perguntaFolhas);leaves.required=perguntaFolhas;leaves.disabled=!perguntaFolhas;
+  el.querySelector('[data-rom-maxim-note]').classList.toggle('hidden',!item||!!estado||!ehMaximArRomaneio(item));
+  el.querySelector('[data-rom-hint-folhas]').classList.toggle('hidden',!!estado||opcao?.tipo!=='folha');
+  if(!item||!opcao){
+    summary.textContent=el.dataset.mensagemSemSaldo||(item?'Selecione o que será enviado.':'Busque pelo código ou descrição e selecione uma esquadria liberada.');
+    qty.max='';qty.value='';qty.disabled=true;campoDescricao.value='';el.dataset.romaneioDescricaoChave='';
+    atualizarQuantidadeRomaneio(el);return;
   }
-  // Trocar item/modalidade atualiza o texto. Editar quantidade não apaga texto manual.
-  const chaveDescricao=item.id+'|'+modo;
-  if(el.dataset.romaneioDescricaoChave!==chaveDescricao){
-    campoDescricao.value=descricaoPadraoRomaneio(item,modo);
-    el.dataset.romaneioDescricaoChave=chaveDescricao;
+  const chave=item.id+'|'+opcao.value;
+  if(el.dataset.romaneioDescricaoChave!==chave){
+    campoDescricao.value=estado?descricaoPadraoRomaneio(item,'completo').replace(/\s*\(COMPLETA\)\s*$/i,'')+' ('+(opcao.tipo==='completo'?'COMPLETA':opcao.nome)+')':descricaoPadraoRomaneio(item,opcao.tipo);
+    el.dataset.romaneioDescricaoChave=chave;
+    qty.value='1';
   }
-  if(stats.per!==null){leaves.value=stats.per;leaves.readOnly=true;}
-  else if(modo!=='completo'){
-    leaves.readOnly=false;
-    if(!leaves.value)leaves.value=suggestedLeaves(item)||'';
-  }else{leaves.value='';}
-  const saldo=romaneioSaldoPorTipo(item,modo,leaves.value);
-  qty.max=saldo?String(saldo):'';
-  if(!Number.isSafeInteger(Number(qty.value))||Number(qty.value)<1||
-      (saldo!==null&&Number(qty.value)>saldo)){
-    qty.value=saldo>0?'1':'';
-  }
-  const tipoTxt=modo==='marco'?'marco(s)':modo==='folha'?'folha(s) físicas':'esquadria(s) completas';
-  summary.textContent=item.codigo+' · '+(item.localizacao||'Sem localização')+
-    ' · '+saldo+' '+tipoTxt+' disponíveis · '+amount(item.largura_mm)+' × '+
-    amount(item.altura_mm)+' mm · '+(item.descricao||'');
+  qty.disabled=false;qty.max=String(opcao.saldo);
+  if(!Number.isSafeInteger(Number(qty.value))||Number(qty.value)<1||Number(qty.value)>opcao.saldo)qty.value='1';
+  summary.textContent=item.codigo+' · '+opcao.nome+' · '+opcao.saldo+' disponíveis · '+amount(area(item,opcao.eq))+' m² por peça'+(estado?' · Revisão '+estado.revisao:'');
+  atualizarQuantidadeRomaneio(el);
 }
 function adicionarLinhaRomaneio(natureza){
   if(node('romaneioRows').children.length>=60){
@@ -3773,31 +3776,27 @@ function adicionarLinhaRomaneio(natureza){
   const removable='<button type="button" class="btn secondary romaneioRemove" data-remove-rom>Remover</button>';
   if(natureza==='esquadria'){
     row.innerHTML='<div class="itemline"><strong>Esquadria</strong>'+removable+'</div>'+
-      '<label>O que será enviado?</label>'+
-      '<select class="romaneioKind" data-rom-field="tipo_saida">'+
-      '<option value="completo">Esquadria completa</option>'+
-      '<option value="marco">Somente o marco</option>'+
-      '<option value="folha">Folhas físicas (pode enviar uma de cada vez)</option>'+
-      '<option value="componente">Componente cadastrado na tipologia</option></select>'+
-      '<p class="hint hidden" data-rom-maxim-note>MAXIM-AR é expedido somente completo.</p>'+
       '<label>Buscar esquadria pelo código ou descrição</label>'+
       '<input class="romaneioSearch" type="search" data-rom-field="esquadria_search" placeholder="Ex.: EA14, JCR, veneziana">'+
       '<select data-rom-field="esquadria_id" required><option value="">Selecione uma esquadria</option></select>'+
-      '<label class="hidden">Componente físico<select data-rom-field="componente_id" disabled></select></label>'+
+      '<label>O que será enviado?</label>'+
+      '<select class="romaneioKind" data-rom-choice required disabled><option value="">Selecione a esquadria primeiro</option></select>'+
+      '<input type="hidden" data-rom-field="tipo_saida"><input type="hidden" data-rom-field="componente_id">'+
+      '<p class="hint hidden" data-rom-maxim-note>MAXIM-AR é expedido somente completo.</p>'+
       '<div class="romaneioRowSummary">Selecione uma esquadria com saldo.</div>'+
       '<label>Descrição no romaneio (editável)</label>'+
       '<textarea data-rom-field="descricao_romaneio" rows="2" maxlength="350" '+
         'placeholder="A descrição curta aparecerá aqui" required></textarea>'+
       '<p class="hint">Você pode editar este texto. A descrição técnica original não será alterada.</p>'+
       '<div class="romaneioRowFields">'+
-      '<label>Quantidade<input data-rom-field="quantidade" type="number" min="1" step="1" required></label>'+
+      '<label><span data-rom-qty-label>Quantidade</span><input data-rom-field="quantidade" type="number" min="1" step="1" required disabled><span class="hint" data-rom-qty-saldo></span></label>'+
       '<label class="hidden">Folhas por esquadria<input data-rom-field="folhas_por_unidade" type="number" min="1" max="12" step="1" placeholder="Confirmar"></label>'+
-      '</div><p class="hint hidden" data-rom-hint-folhas>Informe a quantidade de folhas físicas expedidas. Não precisa enviar todas juntas: para janela 2F, cada folha equivale a 25% da área da esquadria. Marco e folhas podem constar em linhas separadas deste mesmo romaneio.</p>';
-    row.querySelector('[data-rom-field="tipo_saida"]').addEventListener('change',()=>buscarEsquadriasRomaneio(row));
+      '</div><p class="hint" data-rom-qty-total aria-live="polite"></p><p class="hint hidden" data-rom-hint-folhas>Informe a quantidade de folhas físicas expedidas. Não precisa enviar todas juntas: para janela 2F, cada folha equivale a 25% da área da esquadria. Marco e folhas podem constar em linhas separadas deste mesmo romaneio.</p>';
+    row.querySelector('[data-rom-choice]').addEventListener('change',()=>atualizarLinhaRomaneio(row));
     row.querySelector('[data-rom-field="esquadria_search"]').addEventListener('input',()=>buscarEsquadriasRomaneio(row));
     row.querySelector('[data-rom-field="esquadria_id"]').addEventListener('change',()=>atualizarLinhaRomaneio(row));
     row.querySelector('[data-rom-field="folhas_por_unidade"]').addEventListener('input',()=>atualizarLinhaRomaneio(row));
-    row.querySelector('[data-rom-field="componente_id"]').addEventListener('change',()=>atualizarLinhaRomaneio(row));
+    row.querySelector('[data-rom-field="quantidade"]').addEventListener('input',()=>atualizarQuantidadeRomaneio(row));
   }else{
     if(!(isFullAdminUser()||isAlmoxarife())||!romaneioStockRows.length){
       node('romaneioError').textContent='Materiais diretos exigem permissão de ADM ou almoxarife e saldo físico disponível.';
