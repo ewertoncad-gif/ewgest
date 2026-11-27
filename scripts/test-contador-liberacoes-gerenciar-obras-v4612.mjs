@@ -7,7 +7,10 @@ const html=readFileSync(fileURLToPath(new URL('../app.html',import.meta.url)),'u
 const start=html.indexOf('function renderGerenciamentoObras(){');
 const end=html.indexOf('function abrirGerenciamentoObras(){',start);
 assert.ok(start>0&&end>start,'Localizar renderizador de gerenciamento de obras');
-const render=html.slice(start,end);
+const helperStart=html.indexOf('function obrasParaGerenciamento(){');
+const helperEnd=html.indexOf('function abrirEstornoObra(){',helperStart);
+assert.ok(helperStart>0&&helperEnd>helperStart);
+const render=html.slice(helperStart,helperEnd)+html.slice(start,end);
 
 assert.match(html,/cancelado_em:'is.null'/,'O histórico é carregado somente com liberações ativas');
 assert.match(render,/const liberacoesAtivas=releaseHistory\.filter\(h=>ids\.has\(h\.esquadria_id\)\)\.length/);
@@ -19,6 +22,7 @@ const root={
  querySelectorAll:()=>[],
 };
 const context={
+ manageWorksUndoMode:false,
  works:[
   {id:'obra-zero',nome:'OBRA SEM LIBERAÇÕES',codigo:'CEM-ZERO'},
   {id:'obra-uma',nome:'OBRA UMA LIBERAÇÃO',codigo:'CEM-UM'},
@@ -90,3 +94,11 @@ assert.doesNotMatch(zero.attrs,/\bdisabled\b/);
 assert.equal(inspect('OBRA UMA LIBERAÇÃO').label,'Cancelar liberações (0)');
 
 console.log('OK v46.12: contador 0/1/2 por obra, disabled somente com zero e recálculo após refresh.');
+
+// O modo de estorno restringe o renderizador à obra explicitamente selecionada.
+context.manageWorksUndoMode=true;
+root.value='obra-uma';context.renderGerenciamentoObras();
+assert.equal(root.innerHTML.split('<div class="manufacturerLine" style="gap:14px">').length-1,1);
+assert.ok(root.innerHTML.includes('OBRA UMA LIBERAÇÃO'));
+assert.ok(!root.innerHTML.includes('OBRA SEM LIBERAÇÕES'));
+root.value='';context.renderGerenciamentoObras();assert.ok(root.innerHTML.includes('Selecione a obra'));
