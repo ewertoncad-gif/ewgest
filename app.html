@@ -9314,12 +9314,12 @@ function finPlanoCompensacao(state,tipo){
  if(saldo<pendentes.length||(!pendentes.length&&saldo!==0))throw Error('Saldo incompatível com as áreas restantes. Confira o histórico antes de faturar.');
  const peso=pendentes.reduce((n,r)=>n+BigInt(r.peso),0n);
  const nominal=pendentes.reduce((n,r)=>n+r.nominal,0);
- const livre=saldo-pendentes.length;let acumulado=0n,anterior=0;
+ const livre=saldo-pendentes.length,semAjuste=saldo===nominal&&pendentes.every(x=>x.nominal>0);let acumulado=0n,anterior=0;
  const porId=new Map();
  for(const r of pendentes){
   acumulado+=BigInt(r.peso);
   const rateado=finArredondarRazao(BigInt(livre)*acumulado,peso);
-  const alvo=saldo===nominal&&pendentes.every(x=>x.nominal>0)?r.nominal:1+rateado-anterior;
+  const alvo=semAjuste?r.nominal:1+rateado-anterior;
   anterior=rateado;porId.set(r.id,{...r,alvo});
  }
  return {saldo,nominal,ajuste:saldo-nominal,porId};
@@ -9334,7 +9334,7 @@ function finSugestaoCompensada(plano,id,areaNova){
 function finPrecoCompensado(plano,id,areaNova){
  const cents=finSugestaoCompensada(plano,id,areaNova);
  if(cents===null||cents<=0)return null;
- const p=Math.round(cents/Number(areaNova)*100)/10000;
+ const p=finArredondarRazao(BigInt(cents)*100000000n,BigInt(Math.round(Number(areaNova)*1e6)))/10000;
  return Number.isFinite(p)&&p>0&&p<=100000000?p:null;
 }
 function finValorManualCentavos(qtd,preco){
@@ -9381,7 +9381,7 @@ function finRenderFaturaveis(){
   '<th>Faturar</th><th>Esquadria</th><th>Categoria da obra</th><th>Expedido (m²)</th><th>Já faturado ('+
   (tipo==='fabricacao'?'fab.':'inst.')+') (m²)</th><th>Disponível (m²)</th><th>Área a faturar (m²)</th><th>Preço (R$/m²)</th><th align="right">Valor a faturar (R$)</th></tr></thead><tbody>'+
  rows.map(r=>'<tr class="finInvoiceRow" data-esq="'+escapeHTML(r.e.id)+
-  '" data-max="'+r.areaMax+'" data-equivalent-max="'+r.disponivel+'" data-area-unit="'+r.areaUnit+'" data-auto-price="'+(r.sugestao!==null?'1':'0')+'">'+
+  '" data-max="'+r.areaMax+'" data-equivalent-max="'+r.disponivel+'" data-area-unit="'+r.areaUnit+'" data-auto-price="'+(plano?.porId.has(r.e.id)?'1':'0')+'">'+
   '<td class="finRowCheck"><input class="finSelected" type="checkbox"'+(r.areaMax===0?' disabled':'')+'></td>'+
   '<td><strong>'+escapeHTML(r.e.codigo)+'</strong><div class="hint">'+escapeHTML(r.e.descricao||'')+'</div></td>'+
   '<td>'+escapeHTML(r.precificacao?.categoria_nome_snapshot||'—')+'</td>'+
@@ -9438,7 +9438,7 @@ function finAtualizarSomaFatura(){
  try{plano=finPlanoCompensacao(finState,tipo);}catch(e){node('finBillingSum').textContent=e.message;return;}
  for(const row of node('finBillingRows').querySelectorAll('.finInvoiceRow')){
   const valor=finPrecoValor(row.querySelector('.finPrice').value);
-  const qtd=Number(row.querySelector('.finQty').value||0),linha=finState?.precoPorEsquadria.get(row.dataset.esq);
+  const qtd=Number(row.querySelector('.finQty').value||0);
   const a=Number(row.dataset.areaUnit),max=Number(row.dataset.max);
   const valida=Number.isFinite(qtd)&&qtd>0&&qtd<=max+1e-9&&
    Math.abs(qtd*1000000-Math.round(qtd*1000000))<=0.00001&&
@@ -9602,9 +9602,8 @@ async function finRegistrarFaturamento(event){
   const equivalente=Math.round(qtd/a*1000000)/1000000;
   const precoIntegral=Math.round(preco*a*10000)/10000;
   if(!(a>0)||!(equivalente>0)||!(precoIntegral>0)){node('finBillingMessage').textContent='Área ou preço insuficiente para faturamento.';return;}
-  const linha=finState.precoPorEsquadria.get(row.dataset.esq);
   const cents=finValorFaturamentoLinha(plano,row,qtd,preco);
-  if(cents===null||cents<=0){node('finBillingMessage').textContent='Área sem valor positivo disponível. Confira o saldo e a precificação.';return;}
+  if(!Number.isSafeInteger(cents)||cents<=0){node('finBillingMessage').textContent='Área sem valor positivo disponível. Confira o saldo e a precificação.';return;}
   valueCentavos+=cents;
   itens.push({esquadria_id:row.dataset.esq,quantidade:equivalente,valor_unitario:precoIntegral,area_m2:qtd,preco_m2:preco,
    ...(plano?{modo_preco:row.dataset.autoPrice==='1'?'auto':'manual',valor_centavos:cents,saldo_antes_centavos:plano.saldo}:{})});
