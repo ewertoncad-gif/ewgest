@@ -114,4 +114,24 @@ BEGIN
 END $$;
 REVOKE EXECUTE ON FUNCTION public.ew_industrial_cadastrar(uuid,uuid,text,jsonb),public.ew_industrial_depreciar(uuid,uuid,uuid,date),public.ew_industrial_cadastros_consultar(uuid,date,date) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.ew_industrial_cadastrar(uuid,uuid,text,jsonb),public.ew_industrial_depreciar(uuid,uuid,uuid,date),public.ew_industrial_cadastros_consultar(uuid,date,date) TO authenticated;
+CREATE FUNCTION public.ew_industrial_estornar_folha(p_empresa_id uuid,p_operacao_id uuid,p_folha_id uuid,p_motivo text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+DECLARE f ew_financeiro_interna.folhas_industriais%ROWTYPE;
+BEGIN
+ PERFORM ew_financeiro_interna.exigir_pessoal(p_empresa_id,true);
+ PERFORM ew_financeiro_interna.exigir_resultado(p_empresa_id,true,true);
+ IF auth.uid() IS NULL OR p_operacao_id IS NULL OR length(btrim(coalesce(p_motivo,''))) NOT BETWEEN 5 AND 300 THEN RAISE EXCEPTION 'Justificativa inválida.';END IF;
+ PERFORM pg_advisory_xact_lock(hashtextextended(p_empresa_id::text||'|FOLHA_ESTORNO|'||p_operacao_id::text,0));
+ SELECT * INTO f FROM ew_financeiro_interna.folhas_industriais WHERE empresa_id=p_empresa_id AND estorno_id=p_operacao_id;
+ IF FOUND THEN
+  IF f.id IS DISTINCT FROM p_folha_id OR f.estorno_motivo IS DISTINCT FROM btrim(p_motivo) THEN RAISE EXCEPTION 'Operação já utilizada.';END IF;
+  RETURN jsonb_build_object('repetido',true);
+ END IF;
+ UPDATE ew_financeiro_interna.folhas_industriais SET estornado_em=now(),estornado_por=auth.uid(),estorno_id=p_operacao_id,estorno_motivo=btrim(p_motivo) WHERE empresa_id=p_empresa_id AND id=p_folha_id AND estornado_em IS NULL;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Folha ativa indisponível.';END IF;
+ RETURN jsonb_build_object('repetido',false);
+END $$;
+REVOKE EXECUTE ON FUNCTION public.ew_industrial_estornar_folha(uuid,uuid,uuid,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.ew_industrial_estornar_folha(uuid,uuid,uuid,text) TO authenticated;
+
 COMMIT;
