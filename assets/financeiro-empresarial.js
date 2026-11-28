@@ -117,6 +117,16 @@ function rateioValidar(r){
  if(!Number.isSafeInteger(contribuicao))throw Error('Contribuição fora do limite.');
  return {receita,material,industrial,rateado,pend,saldo:industrial-rateado,contribuicao,itensTotal,titulosTotal};
 }
+function distribuirRateioPorQuantidade(total,liberacoes){
+ const t=cents(total);if(t<=0||!liberacoes.length||new Set(liberacoes.map(l=>l.id)).size!==liberacoes.length)throw Error('Selecione liberações distintas e saldo positivo.');
+ const rows=liberacoes.map(l=>{const q=Number(l.quantidade);if(!Number.isSafeInteger(q)||q<=0)throw Error('Quantidade de liberação inválida.');return {id:l.id,q:BigInt(q)};});
+ const sum=rows.reduce((a,r)=>a+r.q,0n),value=BigInt(t);
+ for(const r of rows){r.centavos=value*r.q/sum;r.resto=value*r.q%sum;}
+ let extra=value-rows.reduce((a,r)=>a+r.centavos,0n);
+ const rank=[...rows].sort((a,b)=>a.resto>b.resto?-1:a.resto<b.resto?1:String(a.id).localeCompare(String(b.id)));
+ for(const r of rank){if(extra===0n)break;r.centavos++;extra--;}
+ return rows.map(r=>({id:r.id,centavos:Number(r.centavos)}));
+}
 function renderRateio(r){
  if(!r)return '<div class="section panel"><h2>Custos industriais e rentabilidade</h2><p class="hint">Consulta indisponível neste momento.</p></div>';
  const d=rateioValidar(r),edit=dreEditar(),titles=r.titulos.filter(t=>cents(t.valor_centavos)>cents(t.usado_centavos));
@@ -136,7 +146,7 @@ function renderRateio(r){
  }))+
  '<h3>Ratear mão de obra e despesas industriais</h3><p class="hint">Classifique antes o título na DRE como mão de obra, custo indireto ou serviço. Selecione a liberação completa de uma esquadria e informe somente a parcela efetivamente apropriada. O saldo do título limita a soma dos rateios. A lista apresenta até 500 liberações recentes compatíveis com o mês da competência.</p>'+
  (d.titulosTotal>r.titulos.length?'<p class="hint">Lista de títulos limitada a 500 registros. Reduza o período para localizar outros.</p>':'')+
- (edit&&titles.length?'<form id="rateioForm"><div class="finFormRows"><label>Título de custo<select id="rateioTitulo">'+option('','Selecione')+titles.map(t=>option(t.id,t.descricao+' · '+t.centro_custo+' · '+t.competencia+' · saldo '+money(cents(t.valor_centavos)-cents(t.usado_centavos)))).join('')+'</select></label><label>Liberação<select id="rateioLiberacao" required><option value="">Selecione o título</option></select></label><label>Valor (R$)<input id="rateioValor" inputmode="decimal" required></label><label>Critério / justificativa<input id="rateioMotivo" minlength="5" maxlength="400" required placeholder="Ex.: horas trabalhadas nesta liberação"></label></div><button id="rateioSubmit" class="btn primary" type="submit">Registrar rateio</button></form>':'<p class="hint">Nenhum título com saldo disponível para rateio, ou acesso somente consulta.</p>')+
+ (edit&&titles.length?'<form id="rateioForm"><div class="finFormRows"><label>Título de custo<select id="rateioTitulo">'+option('','Selecione')+titles.map(t=>option(t.id,t.descricao+' · '+t.centro_custo+' · '+t.competencia+' · saldo '+money(cents(t.valor_centavos)-cents(t.usado_centavos)))).join('')+'</select></label><label>Liberação<select id="rateioLiberacao" required><option value="">Selecione o título</option></select></label><label>Valor (R$)<input id="rateioValor" inputmode="decimal" required></label><label>Critério / justificativa<input id="rateioMotivo" minlength="5" maxlength="400" required placeholder="Ex.: horas trabalhadas nesta liberação"></label></div><button id="rateioSubmit" class="btn primary" type="submit">Registrar rateio</button></form><details><summary>Simular rateio proporcional por quantidade</summary><p class="hint">Selecione explicitamente as liberações do título. Distribuição pelo número de unidades, não por horas ou m². A simulação não grava valores nem movimenta a DRE.</p><div id="rateioSimLista"></div><button type="button" id="rateioSimular" class="btn secondary">Calcular distribuição do saldo</button><div id="rateioSimResultado" role="status"></div></details>':'<p class="hint">Nenhum título com saldo disponível para rateio, ou acesso somente consulta.</p>')+
  '<h3>Histórico de rateios ativos</h3>'+table(['Obra','Esquadria','Fábrica','Competência','Classe','Valor','Situação / critério','Ação'],r.rateios.map(x=>'<tr>'+[x.obra||'Histórico',x.codigo||'Histórico',x.fabrica,x.competencia,dreClasses[x.classe]||x.classe,money(x.valor_centavos),(x.valido?'Apropriado':'Em conferência')+' · '+x.motivo].map(v=>'<td>'+esc(v)+'</td>').join('')+'<td>'+(temPermissao('financeiro.cancelar_despesas')?'<button type="button" class="btn secondary" data-rateio-reverse="'+esc(x.id)+'">Estornar</button>':'')+'</td></tr>'))+'</div>';
 }
 function bindRateio(){
@@ -148,7 +158,10 @@ function bindRateio(){
    const t=r.titulos.find(x=>x.id===el('rateioTitulo').value);
    el('rateioLiberacao').innerHTML=option('','Selecione')+(t?elegiveis(t).map(l=>option(l.id,l.obra+' · '+l.codigo+' · '+l.fabrica+' · '+l.quantidade+' un. · '+l.data_liberacao)).join(''):'');
    el('rateioValor').value='';
+   el('rateioSimResultado').replaceChildren();el('rateioSimLista').innerHTML=t?elegiveis(t).map(l=>'<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-rateio-sim="'+esc(l.id)+'" style="width:16px;height:16px"> '+esc(l.obra+' · '+l.codigo+' · '+l.fabrica+' · '+l.quantidade+' un.')+'</label>').join(''):'Escolha um título acima.';
   });
+  el('rateioSimLista').addEventListener('change',()=>el('rateioSimResultado').replaceChildren());
+  el('rateioSimular').addEventListener('click',()=>{const out=el('rateioSimResultado');try{const t=r.titulos.find(x=>x.id===el('rateioTitulo').value);if(!dreEditar()||!t)throw Error('Escolha um título de custo.');const ids=new Set([...el('rateioSimLista').querySelectorAll('[data-rateio-sim]:checked')].map(b=>b.dataset.rateioSim));const ls=elegiveis(t).filter(l=>ids.has(l.id));const result=distribuirRateioPorQuantidade(cents(t.valor_centavos)-cents(t.usado_centavos),ls);out.innerHTML=table(['Obra','Código','Fábrica','Quantidade','Valor sugerido'],result.map(x=>{const l=ls.find(y=>y.id===x.id);return cells([l.obra,l.codigo,l.fabrica,l.quantidade,money(x.centavos)]);}));}catch(e){out.textContent=e.message;}});
   el('rateioForm').addEventListener('submit',ev=>{ev.preventDefault();try{
    const t=r.titulos.find(x=>x.id===el('rateioTitulo').value),l=el('rateioLiberacao').value,n=parseMoney(el('rateioValor').value),m=el('rateioMotivo').value.trim();
    if(!dreEditar()||!t||!elegiveis(t).some(x=>x.id===l)||n>cents(t.valor_centavos)-cents(t.usado_centavos)||m.length<5)throw Error('Confira título, liberação, saldo e justificativa.');

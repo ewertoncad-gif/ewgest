@@ -816,6 +816,7 @@
       <button id="comprasTabCotacao" type="button" class="workspaceLink workspaceSublink">Cotação</button>
       <button id="comprasTabAprovacao" type="button" class="workspaceLink workspaceSublink">Aprovação de cotações</button>
       <button id="comprasTabPedido" type="button" class="workspaceLink workspaceSublink">Pedidos de compra</button>
+      <button id="comprasTabHistorico" type="button" class="workspaceLink workspaceSublink">Histórico de preços</button>
     </div>
     <button id="navRecebimento" class="workspaceLink hidden" type="button" aria-expanded="false" aria-controls="navRecebimentoSubmenu"><span class="navSymbol">▧</span> Recebimento <span class="comprasNavChevron" aria-hidden="true">▾</span></button>
     <div id="navRecebimentoSubmenu" class="workspaceSubnav hidden" role="group" aria-label="Operações de recebimento">
@@ -839,7 +840,7 @@
     <div class="workspaceNavCaption workspaceNavCaptionSecond">CONFIGURAÇÕES</div>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.45</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.46</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -860,7 +861,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.45</div>
+        <div class="build">EWGEST • v46.29.46</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -2800,7 +2801,7 @@ function setView(view){
   if(view!=='compras'){
     node('navComprasSubmenu').classList.add('hidden');
     node('navCompras').setAttribute('aria-expanded','false');
-    for(const id of ['comprasTabSolicitacao','comprasTabCotacao','comprasTabAprovacao','comprasTabPedido']){node(id).classList.remove('active');node(id).removeAttribute('aria-current');}
+    for(const id of ['comprasTabSolicitacao','comprasTabCotacao','comprasTabAprovacao','comprasTabPedido','comprasTabHistorico']){node(id).classList.remove('active');node(id).removeAttribute('aria-current');}
   }
   if(view!=='recebimento'){
     node('navRecebimentoSubmenu').classList.add('hidden');
@@ -2987,6 +2988,7 @@ async function loadPanel(){
   setNavPermission('navRecebimento',temPermissao('estoque.receber'));
   if(!temPermissao('estoque.receber')){node('navRecebimentoSubmenu').classList.add('hidden');node('navRecebimento').setAttribute('aria-expanded','false');}
    setNavPermission('navCompras',temPermissao('compras.consultar'));
+   node('comprasTabHistorico').classList.toggle('hidden',!temPermissao('compras.consultar')||!temPermissao('compras.consultar_valores'));
    if(!temPermissao('compras.consultar')){node('navComprasSubmenu').classList.add('hidden');node('navCompras').setAttribute('aria-expanded','false');}
    node('stockCreateCompanyLocal').classList.toggle('hidden',!temPermissao('estoque.gerenciar_locais'));
    node('stockTransferBetweenLocations').classList.toggle('hidden',!temPermissao('estoque.transferir_obras'));
@@ -12042,11 +12044,11 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/romaneios-transferencia.js?v=20261125a"></script>
 <script src="/assets/relatorios-custos-empresa.js?v=20261124a"></script>
 <script src="/assets/painel-gerencial.js?v=20261128c"></script>
-<script src="/assets/financeiro-empresarial.js?v=20261128d"></script>
+<script src="/assets/financeiro-empresarial.js?v=20261128g"></script>
 <script src="/assets/relatorios-obras.js?v=20261125c"></script>
 <script src="/assets/unidades-medida.js?v=20261125a"></script>
 <script src="/assets/niveis-acesso.js?v=20261124c"></script>
-<script src="/assets/compras-estoque.js?v=20261128f"></script>
+<script src="/assets/compras-estoque.js?v=20261128g"></script>
 <script src="/assets/compras-comprovante-transferencia.js?v=20261124a"></script>
 <script src="/assets/compras-conciliacao-nfe.js?v=20261124b"></script>
 <script src="/assets/compras-nota-empresa.js?v=20261124a"></script>

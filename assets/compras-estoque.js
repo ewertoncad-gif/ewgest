@@ -235,15 +235,41 @@ function bindCancelButtons(){
  $('comprasConteudo').querySelectorAll('[data-compras-cancel]').forEach(b=>
   b.addEventListener('click',()=>void cancelarRegistro(b.dataset.comprasTipo,b.dataset.comprasCancel)));
 }
+function saldosReaproveitaveis(rows,necessidades,locais){
+ const ativos=new Set(locais.filter(l=>l.ativo).map(l=>l.id)),keys=new Set(necessidades.map(chavePreco)),saldo=new Map();
+ for(const r of rows){if(!ativos.has(r.local_empresa_id)||!keys.has(chavePreco(r)))continue;
+  const k=JSON.stringify([r.local_empresa_id,r.galpao,chavePreco(r)]),delta=Number(r.quantidade_delta),m=Math.round(delta*1000);
+  if(!Number.isSafeInteger(m)||Math.abs(m-delta*1000)>1e-6)throw Error('Saldo físico inválido.');
+  const old=saldo.get(k)||{...r,milli:0};old.milli+=m;if(!Number.isSafeInteger(old.milli))throw Error('Saldo físico fora do limite.');saldo.set(k,old);
+ }
+ return [...saldo.values()].filter(r=>r.milli>0).map(r=>({...r,quantidade:r.milli/1000}));
+}
+async function consultarReaproveitamento(){
+ const form=$('comprasSolicitarForm'),pane=$('comprasReaproveitamento'),btn=$('comprasConsultarEstoque');
+ if(!form||!pane||!btn||!permission('estoque.consultar')||!permission('compras.solicitar'))return;
+ const empresa=currentCompany.id,dest=$('comprasDestino').value,revision=form.dataset.stockRevision||'';
+ if(!dest.startsWith('obra:')){pane.textContent='Selecione uma obra de destino.';return;}
+ const itens=[...form.querySelectorAll('[data-buy-line]')].map(row=>{const v=requestOptions(true).find(v=>v.key===row.querySelector('[data-buy="variation"]').value);return v?{variacao_id:v.id,unidade:v.unidade,comprimento_mm:v.unidade==='BARRA'?Number(row.querySelector('[data-buy="length"]').value):null}:null;}).filter(Boolean);
+ if(!itens.length){pane.textContent='Selecione pelo menos um material.';return;}
+ btn.disabled=true;pane.textContent='Consultando estoque próprio…';
+ try{
+  const rows=await readAllRows('ew_compras_estoque_empresa',{select:'id,local_empresa_id,variacao_id,unidade,comprimento_mm,quantidade_delta,galpao',empresa_id:'eq.'+empresa});
+  if(!form.isConnected||currentCompany?.id!==empresa||!session||!permission('estoque.consultar')||$('comprasDestino').value!==dest||(form.dataset.stockRevision||'')!==revision)return;
+  const saldos=saldosReaproveitaveis(rows,itens,locals);
+  pane.innerHTML='<p class="hint">Posição consultiva dos materiais selecionados no estoque próprio da empresa. Não reserva, não transfere e não reduz a solicitação. Confira o saldo novamente no módulo Estoque antes de transferir.</p>'+
+  (saldos.length?'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Material</th><th>Local da empresa</th><th>Galpão</th><th>Saldo físico</th></tr></thead><tbody>'+saldos.map(r=>'<tr><td>'+esc(materialPreco(r))+'</td><td>'+esc(locals.find(l=>l.id===r.local_empresa_id)?.nome||'Local')+'</td><td>'+esc(r.galpao)+'</td><td>'+number(r.quantidade)+' '+esc(r.unidade)+'</td></tr>').join('')+'</tbody></table></div>':'<p class="hint">Nenhum saldo positivo compatível encontrado no estoque próprio.</p>');
+ }catch(e){if(form.isConnected&&currentCompany?.id===empresa)pane.textContent='Consulta indisponível: '+e.message;}
+ finally{if(btn.isConnected)btn.disabled=false;}
+}
 function renderRequest(){
  const editable=permission('compras.solicitar');
  $('comprasConteudo').innerHTML='<h2>Solicitação de materiais</h2>'+
  (editable?'<form id="comprasSolicitarForm" class="ewComprasForm"><label>Local de estoque de destino<select id="comprasDestino" required>'+option('','Escolha o local')+destinoOptions()+'</select></label>'+
  '<label>Observações<textarea id="comprasObservacoes" rows="2" maxlength="600"></textarea></label>'+
- '<h3>Materiais solicitados</h3><div class="ewComprasActions" style="align-items:end;flex-wrap:wrap"><label>Categoria<select id="comprasCategoria"><option value="">Todos os materiais</option><option value="perfil">Perfis</option><option value="acessorio">Acessórios</option></select></label><label>Buscar material<input id="comprasBuscaMaterial" type="search" placeholder="Código, descrição ou cor"></label><label style="display:flex;align-items:center;gap:8px"><input id="comprasExtras" type="checkbox" style="width:16px;height:16px"> Mostrar materiais extras e já atendidos</label></div><p id="comprasMateriaisStatus" class="hint" role="status"></p><div id="comprasLinhas"></div><div class="ewComprasActions"><button class="btn secondary" id="comprasAddLine" type="button">+ Adicionar material</button><button class="btn primary" type="submit">Criar solicitação</button></div></form>':'')+
+ '<h3>Materiais solicitados</h3><div class="ewComprasActions" style="align-items:end;flex-wrap:wrap"><label>Categoria<select id="comprasCategoria"><option value="">Todos os materiais</option><option value="perfil">Perfis</option><option value="acessorio">Acessórios</option></select></label><label>Buscar material<input id="comprasBuscaMaterial" type="search" placeholder="Código, descrição ou cor"></label><label style="display:flex;align-items:center;gap:8px"><input id="comprasExtras" type="checkbox" style="width:16px;height:16px"> Mostrar materiais extras e já atendidos</label></div><p id="comprasMateriaisStatus" class="hint" role="status"></p><div id="comprasLinhas"></div>'+(permission('estoque.consultar')?'<button type="button" class="btn secondary" id="comprasConsultarEstoque">Consultar reaproveitamento de estoque</button><div id="comprasReaproveitamento" role="status"></div>':'')+'<div class="ewComprasActions"><button class="btn secondary" id="comprasAddLine" type="button">+ Adicionar material</button><button class="btn primary" type="submit">Criar solicitação</button></div></form>':'')+
  '<h3>Solicitações registradas</h3>'+filtrosLista()+'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Data</th><th>Destino</th><th>Itens</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+
  sols.map(s=>'<tr'+filtroRow(s,s.status,titleLocal(s)+' '+buscaMateriais(s)+' '+(s.observacoes||'')+' '+(s.numero||''))+'><td>'+esc(String(s.criado_em||'').slice(0,10).split('-').reverse().join('/'))+'</td><td>'+esc(titleLocal(s))+'</td><td>'+number((s.itens||[]).length)+'</td><td>'+esc(s.status)+cancelDetails(s)+'</td><td>'+(editable&&s.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===s.id)?'<button type="button" class="btn secondary" data-compras-tipo="solicitacao" data-compras-cancel="'+esc(s.id)+'">Cancelar</button>':'—')+'</td></tr>').join('')+
- '</tbody></table></div>';bindCancelButtons();bindFiltrosLista();if(editable){requestNeeds=[];requestNeedsReady=false;makeLine();$('comprasAddLine').onclick=makeLine;
+ '</tbody></table></div>';bindCancelButtons();bindFiltrosLista();if(editable){if($('comprasConsultarEstoque')){$('comprasConsultarEstoque').onclick=()=>void consultarReaproveitamento();const form=$('comprasSolicitarForm');const clear=()=>{form.dataset.stockRevision=String(Number(form.dataset.stockRevision||0)+1);$('comprasReaproveitamento').replaceChildren();};form.addEventListener('change',clear);form.addEventListener('input',clear);form.addEventListener('click',e=>{if(e.target.closest('[data-buy-remove],#comprasAddLine'))clear();});}requestNeeds=[];requestNeedsReady=false;makeLine();$('comprasAddLine').onclick=makeLine;
  $('comprasDestino').onchange=loadRequestNeeds;$('comprasCategoria').onchange=()=>updateRequestRows();$('comprasBuscaMaterial').oninput=()=>updateRequestRows();$('comprasExtras').onchange=()=>updateRequestRows();void loadRequestNeeds();
  $('comprasSolicitarForm').onsubmit=async e=>{e.preventDefault();const value=$('comprasDestino').value;
  const lines=[...document.querySelectorAll('#comprasLinhas .ewComprasLine')].map((row,i)=>{
@@ -470,11 +496,47 @@ function renderQuote(){
  pendingOps.delete('cotar');await reload();renderQuote();say('comprasMensagem','Cotação registrada.');
  }catch(err){say('comprasMensagem','Erro: '+err.message)}};
  }}
+function linhasPreco(q){
+ if(!Array.isArray(q.itens)||!q.itens.length)return [];
+ const out=[],keys=new Set();
+ for(const i of q.itens){
+  const p=Number(i.preco_unitario_centavos),n=Number(i.quantidade),key=String(i.chave??'');
+  if(!key||keys.has(key)||!i.variacao_id||!i.unidade||i.preco_unitario_centavos==null||i.preco_unitario_centavos===''||!Number.isSafeInteger(p)||p<0||!Number.isFinite(n)||n<=0)return [];
+  const milli=Math.round(n*1000);if(!Number.isSafeInteger(milli)||Math.abs(milli-n*1000)>1e-6)return [];
+  const subtotal=Number((BigInt(milli)*BigInt(p)+500n)/1000n);if(!Number.isSafeInteger(subtotal))return [];
+  keys.add(key);out.push({...i,chave:key,preco:p,quantidade:n,subtotal});
+ }
+ const total=out.reduce((a,i)=>a+i.subtotal,0);
+ return Number.isSafeInteger(total)&&total===Number(q.total_centavos)?out:[];
+}
+function chavePreco(i){return JSON.stringify([i.variacao_id,i.unidade,i.comprimento_mm==null?null:Number(i.comprimento_mm)]);}
+function materialPreco(i){return productLabel(variations.find(v=>v.id===i.variacao_id)||{nome:i.variacao_id})+(i.comprimento_mm?' · '+number(i.comprimento_mm)+' mm':'');}
+function compararPrecos(sol,lista){
+ if(!permission('compras.consultar_valores')||!sol?.itens?.length)return '';
+ const validas=lista.map(q=>({q,linhas:linhasPreco(q)})).filter(x=>x.linhas.length===sol.itens.length&&sol.itens.every(i=>x.linhas.some(l=>l.chave===String(i.chave)&&chavePreco(l)===chavePreco(i)&&l.quantidade===Number(i.quantidade))));
+ if(!validas.length)return '<p class="hint">Detalhamento por material indisponível ou sem conciliação com a solicitação.</p>';
+ const linhas=sol.itens.map(i=>{const ps=validas.map(x=>x.linhas.find(l=>l.chave===String(i.chave)).preco),min=Math.min(...ps);
+  return '<tr><td>'+esc(materialPreco(i))+'</td><td>'+number(i.quantidade)+' '+esc(i.unidade)+'</td>'+ps.map(p=>'<td>'+money(p)+(ps.length>1&&p===min?' <strong>· menor</strong>':'')+'</td>').join('')+'</tr>';}).join('');
+ return '<details><summary>Comparar preços unitários por material</summary><p class="hint">Propostas conciliadas da solicitação inteira; menor preço por item não significa melhor condição comercial. Não gera pedido por item.'+(validas.length!==lista.length?' Algumas propostas sem detalhamento conciliado foram omitidas.':'')+'</p><div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Material</th><th>Quantidade</th>'+validas.map(x=>'<th>'+esc(compraFornecedor(x.q))+'</th>').join('')+'</tr></thead><tbody>'+linhas+'</tbody></table></div></details>';
+}
+function renderHistoricoPrecos(){
+ if(!permission('compras.consultar_valores')){$('comprasConteudo').textContent='Valores restritos conforme as permissões.';return;}
+ const records=[];let omitidas=0;
+ for(const q of quotes){const linhas=linhasPreco(q);if(!linhas.length){omitidas++;continue;}
+  const sol=sols.find(s=>s.id===q.solicitacao_id),ped=orders.filter(p=>p.cotacao_id===q.id),status=q.status==='CANCELADA'?'Cotação cancelada':ped.some(p=>p.status!=='CANCELADO')?'Pedido gerado':ped.length?'Pedido cancelado':'Cotado';
+  for(const i of linhas)records.push({q,i,sol,status});
+ }
+ $('comprasConteudo').innerHTML='<h2>Histórico de preços cotados</h2><p class="hint">Valores unitários históricos por fornecedor, material, unidade e comprimento. Pedido gerado indica preço contratado, não necessariamente preço fiscal ou pago. Não altera o orçamento nem o cadastro.</p>'+
+ (omitidas?'<p class="hint">'+number(omitidas)+' cotação(ões) sem detalhamento conciliado.</p>':'')+filtrosLista()+
+ '<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Data da cotação</th><th>Material</th><th>Unidade</th><th>Fornecedor</th><th>Destino</th><th>Preço unitário</th><th>Situação</th></tr></thead><tbody>'+
+ records.map(({q,i,sol,status})=>'<tr'+filtroRow(q,status,materialPreco(i)+' '+compraFornecedor(q)+' '+(sol?titleLocal(sol):''))+'><td>'+esc(comprasData(q).split('-').reverse().join('/'))+'</td><td>'+esc(materialPreco(i))+'</td><td>'+esc(i.unidade)+'</td><td>'+esc(compraFornecedor(q))+'</td><td>'+esc(sol?titleLocal(sol):'Local histórico')+'</td><td>'+money(i.preco)+'</td><td>'+esc(status)+'</td></tr>').join('')+'</tbody></table></div>';
+ bindFiltrosLista();
+}
 function renderOrder(aprovacao=false){
  const editable=permission('compras.pedir')&&permission('compras.aprovar_pedido')&&permission('compras.consultar_valores');
  const pending=quotes.filter(q=>q.status!=='CANCELADA'&&sols.some(s=>s.id===q.solicitacao_id&&s.status==='ABERTA')&&!orders.some(p=>p.solicitacao_id===q.solicitacao_id));
  const grupos=new Map();for(const q of pending){if(!grupos.has(q.solicitacao_id))grupos.set(q.solicitacao_id,[]);grupos.get(q.solicitacao_id).push(q);}
- const comparativo=Array.from(grupos,([id,lista])=>{const sol=sols.find(x=>x.id===id);return '<section class="section panel" data-compra-grupo><h3>'+esc(sol?quoteLabel(sol):'Solicitação')+'</h3><div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Fornecedor</th><th>Valor cotado</th><th>Ação</th></tr></thead><tbody>'+[...lista].sort((a,b)=>Number(a.total_centavos)-Number(b.total_centavos)).map(q=>'<tr'+filtroRow(q,'Em avaliação',(sol?titleLocal(sol)+' '+buscaMateriais(sol):'')+' '+compraFornecedor(q))+'><td>'+esc(compraFornecedor(q))+'</td><td>'+money(q.total_centavos)+'</td><td>'+(editable?'<button type="button" class="btn secondary" data-aprovar-cotacao="'+esc(q.id)+'">Selecionar</button>':'—')+'</td></tr>').join('')+'</tbody></table></div></section>';}).join('');
+ const comparativo=Array.from(grupos,([id,lista])=>{const sol=sols.find(x=>x.id===id);return '<section class="section panel" data-compra-grupo><h3>'+esc(sol?quoteLabel(sol):'Solicitação')+'</h3><div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Fornecedor</th><th>Valor cotado</th><th>Ação</th></tr></thead><tbody>'+[...lista].sort((a,b)=>Number(a.total_centavos)-Number(b.total_centavos)).map(q=>'<tr'+filtroRow(q,'Em avaliação',(sol?titleLocal(sol)+' '+buscaMateriais(sol):'')+' '+compraFornecedor(q))+'><td>'+esc(compraFornecedor(q))+'</td><td>'+money(q.total_centavos)+'</td><td>'+(editable?'<button type="button" class="btn secondary" data-aprovar-cotacao="'+esc(q.id)+'">Selecionar</button>':'—')+'</td></tr>').join('')+'</tbody></table></div>'+compararPrecos(sol,lista)+'</section>';}).join('');
  $('comprasConteudo').innerHTML=aprovacao?'<h2>Aprovação de cotações</h2><p class="hint">Compare propostas da mesma solicitação. O valor exibido é o total registrado; confira também prazo, frete e condições comerciais antes de aprovar. A aprovação gera o pedido e compromete o orçamento, quando vinculado a obra.</p>'+
  (permission('compras.consultar_valores')?(filtrosLista()+(comparativo||'<p class="hint">Nenhuma cotação pendente de aprovação.</p>')):'<p class="hint">Valores restritos conforme as permissões.</p>')+
  (editable&&pending.length?'<form id="comprasPedidoForm" class="ewComprasForm"><label>Cotação selecionada<select id="comprasPedidoCotacao" required>'+option('','Escolha')+
@@ -499,21 +561,22 @@ const etapasCompras={
  solicitacao:{titulo:'Solicitação de compra',descricao:'Registre e consulte as solicitações de materiais.'},
  cotacao:{titulo:'Cotação',descricao:'Compare fornecedores e preços por grupo de compra.'},
  aprovacao:{titulo:'Aprovação de cotações',descricao:'Compare fornecedores e aprove a proposta escolhida.'},
- pedido:{titulo:'Pedidos de compra',descricao:'Acompanhe os pedidos emitidos e os recebimentos.'}
+ pedido:{titulo:'Pedidos de compra',descricao:'Acompanhe os pedidos emitidos e os recebimentos.'},
+ historico:{titulo:'Histórico de preços',descricao:'Consulte preços cotados por fornecedor e material.'}
 };
 function render(){
  const etapa=etapasCompras[tab];
  if($('comprasPaginaTitulo'))$('comprasPaginaTitulo').textContent=etapa.titulo;
  if($('comprasPaginaDescricao'))$('comprasPaginaDescricao').textContent=etapa.descricao;
- for(const [k,id] of [['solicitacao','comprasTabSolicitacao'],['cotacao','comprasTabCotacao'],['aprovacao','comprasTabAprovacao'],['pedido','comprasTabPedido']]){
+ for(const [k,id] of [['solicitacao','comprasTabSolicitacao'],['cotacao','comprasTabCotacao'],['aprovacao','comprasTabAprovacao'],['pedido','comprasTabPedido'],['historico','comprasTabHistorico']]){
   const btn=$(id);if(!btn)continue;btn.classList.toggle('active',k===tab);
   if(k===tab)btn.setAttribute('aria-current','page');else btn.removeAttribute('aria-current');
  }
- if(tab==='solicitacao')renderRequest();else if(tab==='cotacao')renderQuote();else renderOrder(tab==='aprovacao');
+ if(tab==='solicitacao')renderRequest();else if(tab==='cotacao')renderQuote();else if(tab==='historico')renderHistoricoPrecos();else renderOrder(tab==='aprovacao');
 }
 let comprasNavEpoch=0;
 async function abrir(etapa=tab){
- if(!permission('compras.consultar')||!Object.hasOwn(etapasCompras,etapa))return;
+ if(!permission('compras.consultar')||!Object.hasOwn(etapasCompras,etapa)||(etapa==='historico'&&!permission('compras.consultar_valores')))return;
  const seq=++comprasNavEpoch;tab=etapa;setView('compras');
  $('navComprasSubmenu')?.classList.remove('hidden');$('navCompras')?.setAttribute('aria-expanded','true');
  if($('comprasPaginaTitulo'))$('comprasPaginaTitulo').textContent=etapasCompras[tab].titulo;
@@ -531,7 +594,7 @@ for(const id of ['stockTransferPickLocal','stockTransferPickWork','stockManageLo
   say('stockMessage','Transferências e estornos do local da empresa dependem da rotina específica de estoque; não use uma obra fictícia.');
  },true);
 }
-for(const [tabValue,id] of [['solicitacao','comprasTabSolicitacao'],['cotacao','comprasTabCotacao'],['aprovacao','comprasTabAprovacao'],['pedido','comprasTabPedido']])
+for(const [tabValue,id] of [['solicitacao','comprasTabSolicitacao'],['cotacao','comprasTabCotacao'],['aprovacao','comprasTabAprovacao'],['pedido','comprasTabPedido'],['historico','comprasTabHistorico']])
  $(id)?.addEventListener('click',()=>{if(permission('compras.consultar'))void abrir(tabValue);});
 async function carregarLocaisRecebimento(select){
  if(!permission('compras.receber')||!currentCompany)return;

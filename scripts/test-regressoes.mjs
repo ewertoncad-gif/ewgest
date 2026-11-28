@@ -129,7 +129,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.45',
+ 'EWGEST • v46.29.46',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2135,7 +2135,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.45')&&
+assert.ok(source.includes('v46.29.46')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2371,7 +2371,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.45</strong>'),
+ source.includes('EWGEST <strong>· v46.29.46</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -3463,3 +3463,27 @@ console.log('OK: menu por domínio, controle de recolhimento e reset de sessão.
  assert.ok(code.includes("readAllRows('ew_compras_solicitacoes'")&&code.includes("readAllRows('ew_compras_cotacoes'"));
 }
 console.log('OK: filtros de compras e paginação integral de solicitações e cotações.');
+
+// Preços, reaproveitamento e distribuição consultiva de custos industriais.
+{
+ const code=readFileSync(new URL('../assets/compras-estoque.js',import.meta.url),'utf8');new Function(code);
+ const a=code.indexOf('function linhasPreco('),b=code.indexOf('function materialPreco(',a),c=code.indexOf('function saldosReaproveitaveis('),d=code.indexOf('async function consultarReaproveitamento(',c);
+ const {linhasPreco,saldosReaproveitaveis}=new Function(code.slice(a,b)+code.slice(c,d)+'return {linhasPreco,saldosReaproveitaveis};')();
+ const i={chave:'1',variacao_id:'v',unidade:'KG',quantidade:1.005,preco_unitario_centavos:100};
+ assert.equal(linhasPreco({total_centavos:101,itens:[i]})[0].subtotal,101);
+ assert.equal(linhasPreco({total_centavos:102,itens:[i]}).length,0);
+ assert.equal(linhasPreco({total_centavos:202,itens:[i,i]}).length,0);
+ assert.equal(linhasPreco({total_centavos:0,itens:[{...i,preco_unitario_centavos:null}]}).length,0);
+ const l={local_empresa_id:'l',galpao:'A',variacao_id:'v',unidade:'BARRA',comprimento_mm:6000};
+ const result=saldosReaproveitaveis([{...l,quantidade_delta:4},{...l,quantidade_delta:-1},{...l,comprimento_mm:5000,quantidade_delta:9},{...l,local_empresa_id:'outro',quantidade_delta:8}],[l],[{id:'l',ativo:true}]);
+ assert.equal(result.length,1);assert.equal(result[0].quantidade,3);
+ const fin=readFileSync(new URL('../assets/financeiro-empresarial.js',import.meta.url),'utf8');new Function(fin);
+ const x=fin.indexOf('function distribuirRateioPorQuantidade('),y=fin.indexOf('function renderRateio(',x);
+ const split=new Function('cents',fin.slice(x,y)+'return distribuirRateioPorQuantidade;')(Number);
+ assert.deepEqual(split(100,[{id:'a',quantidade:1},{id:'b',quantidade:2}]),[{id:'a',centavos:33},{id:'b',centavos:67}]);
+ assert.deepEqual(split(1,[{id:'b',quantidade:1},{id:'a',quantidade:1}]),[{id:'b',centavos:0},{id:'a',centavos:1}]);
+ for(let total=1;total<=100;total++){const r=split(total,[{id:'a',quantidade:7},{id:'b',quantidade:11},{id:'c',quantidade:19}]);assert.equal(r.reduce((s,l)=>s+l.centavos,0),total);}
+ assert.throws(()=>split(100,[{id:'a',quantidade:0}]));assert.throws(()=>split(100,[{id:'a',quantidade:1},{id:'a',quantidade:2}]));
+ assert.ok(source.includes('id="comprasTabHistorico"')&&code.includes("etapa==='historico'&&!permission('compras.consultar_valores')"));
+}
+console.log('OK: preços conciliados, estoque compatível e simulação exata em 100 distribuições.');
