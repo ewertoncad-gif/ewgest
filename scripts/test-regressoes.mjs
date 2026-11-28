@@ -129,7 +129,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.38',
+ 'EWGEST • v46.29.39',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2135,7 +2135,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.38')&&
+assert.ok(source.includes('v46.29.39')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2371,7 +2371,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.38</strong>'),
+ source.includes('EWGEST <strong>· v46.29.39</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -3083,7 +3083,7 @@ import './test-obras-modos.mjs';
 
 import './test-reconhecimento-cem.mjs';
 
-// v46.29.38 — compactação restrita à lista de liberação, sem fontes menores.
+// v46.29.39 — compactação restrita à lista de liberação, sem fontes menores.
 assert.ok(source.includes("node('items').classList.toggle('releaseCompact',detailMode==='release')"));
 const compactCss=source.slice(source.indexOf('/* Lista de liberação compacta:'),source.indexOf('.catalogFilters{',source.indexOf('/* Lista de liberação compacta:')));
 assert.ok(compactCss.includes('#items.releaseCompact .typologyGroup{margin:9px 0;padding:2px 16px 4px}'));
@@ -3153,7 +3153,7 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
  assert.equal(operacional({modulacao_id:'m6',descricao:'GRADIL 6 MÓDULO(S)'}),seis);
  assert.equal(operacional({descricao:'ORIGINAL CEM'}),'ORIGINAL CEM');
 
- // v46.29.38: escolher a família e a quantidade basta; o seletor interno
+ // v46.29.39: escolher a família e a quantidade basta; o seletor interno
  // permanece apenas como contrato com a RPC, sem decisão intermediária.
  {
   const cut=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end,source.indexOf(start)));
@@ -3207,7 +3207,7 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
   assert.equal(origin.descricao,'GRADIL 6 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO');
   assert.equal(catalog[0].descricao,oito);
  }
- console.log('OK v46.29.38: modulação automática, reuso, criação, exceções e bloqueios.');
+ console.log('OK v46.29.39: modulação automática, reuso, criação, exceções e bloqueios.');
 
  // Reaproveita a descrição exata do CEM somente na família selecionada.
  {
@@ -3226,7 +3226,7 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
   assert.equal(legado.descricao,origem);
  }
 
-// v46.29.38: composição independente e atalho sem reiniciar a liberação.
+// v46.29.39: composição independente e atalho sem reiniciar a liberação.
 {
  const cut=(a,b)=>source.slice(source.indexOf(a),source.indexOf(b,source.indexOf(a)));
  const ns=new Map();const n=id=>{if(!ns.has(id)){const flags=new Set();ns.set(id,{value:'',disabled:false,textContent:'',focus(){},classList:{toggle(k,v){v?flags.add(k):flags.delete(k)},add(k){flags.add(k)},remove(k){flags.delete(k)},contains(k){return flags.has(k)}}});}return ns.get(id);};
@@ -3251,9 +3251,9 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
  assert.ok(source.includes("void expCompOpen(source.id,true)"));
  assert.ok(source.includes("node('expCompClose').textContent=fromRelease?'Voltar à liberação':'Voltar'"));
 }
-console.log('OK v46.29.38: fechar edição sem mudanças, permissões e retorno à liberação.');
+console.log('OK v46.29.39: fechar edição sem mudanças, permissões e retorno à liberação.');
 
-// v46.29.38 — sem seletor; escopo completo fixo e saldo respeitado.
+// v46.29.39 — sem seletor; escopo completo fixo e saldo respeitado.
 {
  const start=source.indexOf("node('releaseForm').addEventListener('submit'");
  const end=source.indexOf("p_componente:componente",start);
@@ -3272,9 +3272,9 @@ console.log('OK v46.29.38: fechar edição sem mudanças, permissões e retorno 
  fields.get('releaseQty').value='2';update();assert.equal(fields.get('releaseQty').value,'2');
  parts.saldoCompleto=0;update();assert.equal(fields.get('releaseQty').value,'');assert.equal(fields.get('releaseQty').max,'0');
 }
-console.log('OK v46.29.38: liberação completa sem seletor, saldo e aviso de expedição.');
+console.log('OK v46.29.39: liberação completa sem seletor, saldo e aviso de expedição.');
 
-// v46.29.38: apenas opções disponíveis da composição, sem duplicar marco/folha legados.
+// v46.29.39: apenas opções disponíveis da composição, sem duplicar marco/folha legados.
 {
  const i=source.indexOf('function opcoesExpedicaoRomaneio('),j=source.indexOf('function atualizarQuantidadeRomaneio(',i);
  assert.ok(i>=0&&j>i);
@@ -3285,9 +3285,9 @@ console.log('OK v46.29.38: liberação completa sem seletor, saldo e aviso de ex
  assert.deepEqual(options(e,null).map(x=>x.tipo),['completo','marco','folha']);
  assert.ok(source.includes('data-rom-choice required disabled')&&!source.includes('Componente cadastrado na tipologia</option>'));
 }
-console.log('OK v46.29.38: opções diretas por composição, saldo e equivalência por peça.');
+console.log('OK v46.29.39: opções diretas por composição, saldo e equivalência por peça.');
 
-// v46.29.38: valor por linha, inclusive desmarcada, usa centavos da emissão.
+// v46.29.39: valor por linha, inclusive desmarcada, usa centavos da emissão.
 {
  const i=source.indexOf('function finValorLinhaCentavos('),j=source.indexOf('function finXMLValor(',i);
  const k=source.indexOf('function finValorPrecificadoCentavos('),l=source.indexOf('function finRenderFaturaveis(){',k);
@@ -3307,9 +3307,9 @@ console.log('OK v46.29.38: opções diretas por composição, saldo e equivalên
  rows[0].fields['.finQty'].value='0.346';update();assert.equal(rows[0].fields['.finInvoiceValue'].textContent,'—');assert.ok(sum.textContent.includes(money(25)));assert.ok(sum.textContent.includes('1 item(ns)'));
  assert.ok(source.includes('Valor a faturar (R$)')&&source.includes('const cents=finValorFaturamentoLinha(plano,row,qtd,preco)'));
 }
-console.log('OK v46.29.38: valor por linha, seleção, saldo e centavos residuais.');
+console.log('OK v46.29.39: valor por linha, seleção, saldo e centavos residuais.');
 
-// v46.29.38: seleção direta de obras sem abandonar a subdivisão e estorno protegido.
+// v46.29.39: seleção direta de obras sem abandonar a subdivisão e estorno protegido.
 {
  const i=source.indexOf('function preencherSeletorObras('),j=source.indexOf('function mostrarListaDeObras(){',i);
  assert.ok(i>=0&&j>i);
@@ -3330,7 +3330,7 @@ console.log('OK v46.29.38: valor por linha, seleção, saldo e centavos residuai
  assert.ok(source.includes("manageWorksUndoMode&&node('manageWorksSelect').value!==id")&&source.includes("workDeleteSubmitting=true;node('manageWorksSelect').disabled=true"));
  assert.ok(source.includes("ew_inspecionar_reversao_obra")&&source.includes("ew_arquivar_obra_reconciliada"));
 }
-console.log('OK v46.29.38: seletores, troca de obra e estorno com autorização preservada.');
+console.log('OK v46.29.39: seletores, troca de obra e estorno com autorização preservada.');
 
 // Painel gerencial: documentos ativos, centavos, período e ausência de falsos lucros.
 {
@@ -3349,7 +3349,7 @@ console.log('OK v46.29.38: seletores, troca de obra e estorno com autorização 
 }
 console.log('OK: painel gerencial — centavos, documentos cancelados, período e permissões.');
 
-// v46.29.38: compensação contratual independente por categoria e acerto final.
+// v46.29.39: compensação contratual independente por categoria e acerto final.
 {
  const i=source.indexOf('function finArredondarRazao('),j=source.indexOf('function finRenderFaturaveis(){',i);
  const {finPlanoCompensacao:plano,finSugestaoCompensada:sug,finPrecoCompensado:preco,finValorManualCentavos:manual,finValidaFechamentoCompensado:valida}=new Function(source.slice(i,j)+'return {finPlanoCompensacao,finSugestaoCompensada,finPrecoCompensado,finValorManualCentavos,finValidaFechamentoCompensado};')();
@@ -3381,3 +3381,20 @@ console.log('OK: compensação por categoria, antecipação, estorno, saldo fina
  assert.ok(code.includes("if(!temPermissao('estoque.consultar'))return '';")&&code.includes('ew_estoque_valorizado_resumo'));
 }
 console.log('OK: estoque valorizado mostra posição atual, pendências e subtotal comprovado.');
+
+// Financeiro empresarial: parsing exato, validação de saldo, permissões e consulta sem duplicar caixa.
+{
+ const code=readFileSync(new URL('../assets/financeiro-empresarial.js',import.meta.url),'utf8');
+ new Function(code); // sintaxe do módulo real
+ const i=code.indexOf('function parseMoney('),j=code.indexOf('let seq=',i);
+ const parse=new Function(code.slice(i,j)+'return parseMoney;')();
+ assert.equal(parse('1,01'),101);assert.equal(parse('0.01'),1);assert.equal(parse('1200.10'),120010);
+ for(const v of ['0','-1','1,001','1.000,00','Infinity','1e3'])assert.throws(()=>parse(v));
+ assert.ok(code.includes("temPermissao('financeiro.consultar')&&temPermissao('relatorios.financeiros')"));
+ assert.ok(code.includes("o!=='NOTA_ESTOQUE'||temPermissao('compras.consultar_valores')"));
+ assert.ok(code.includes('n===seq&&live()&&currentCompany.id===id&&currentUser?.id===uid'));
+ for(const rpc of ['ew_fin_empresa_consultar','ew_fin_empresa_criar_titulo','ew_fin_empresa_baixar','ew_fin_empresa_cancelar_titulo','ew_fin_empresa_estornar_baixa'])assert.ok(code.includes(rpc));
+ assert.ok(code.includes('não saldo bancário nem lucro')&&code.includes('Documentos ainda não programados não entram'));
+ assert.ok(source.includes('id="navFinanceiroEmpresa"')&&source.includes("window.ewFinanceiroEmpresa?.limpar()")&&source.includes("window.ewFinanceiroEmpresa?.abrir()"));
+}
+console.log('OK: financeiro empresarial — centavos, tela, permissões, sessão e identificação de caixa.');
