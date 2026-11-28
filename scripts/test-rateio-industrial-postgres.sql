@@ -132,3 +132,36 @@ BEGIN
  IF NOT negado THEN RAISE EXCEPTION 'permissao indevida';END IF;
 END $$;
 SELECT 'OK: peso registrado, estimado, pendências, estorno e área atribuída' AS resultado;
+
+\ir ../database/proposals/20261128_peso_historico_v462950.sql
+SET test.perm='yes';
+DO $$
+DECLARE e uuid:='00000000-0000-0000-0000-000000000001'; o uuid; a uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); la uuid:=gen_random_uuid(); lb uuid:=gen_random_uuid(); m uuid:=gen_random_uuid(); v uuid:=gen_random_uuid(); p uuid:=gen_random_uuid(); t uuid:=gen_random_uuid(); op uuid:=gen_random_uuid(); sel jsonb; r jsonb; negado boolean;
+BEGIN
+ SELECT id INTO o FROM public.obras WHERE empresa_id=e LIMIT 1;
+ INSERT INTO public.esquadrias VALUES(a,e,o,'H1',1000,1000),(b,e,o,'H2',1000,1000);
+ INSERT INTO public.liberacoes_corte VALUES(la,a,NULL,'AFOGADOS',1,'completo','2026-11-10'),(lb,b,NULL,'IMBIRIBEIRA',1,'completo','2026-11-10');
+ INSERT INTO public.ew_perfis VALUES(p,e,0.5);
+ INSERT INTO public.ew_materiais_variacoes VALUES(v,e,'perfil',p);
+ INSERT INTO public.ew_estoque_obras_movimentos(id,empresa_id,obra_id,origem,quantidade_delta,liberacao_id,criado_em,variacao_id,unidade,comprimento_mm)
+ VALUES(m,e,o,'PLANO_CORTE',-2,la,'2026-11-10T10:00:00Z',v,'BARRA',6000),
+ (gen_random_uuid(),e,o,'PLANO_CORTE',-3,lb,'2026-11-10T10:00:00Z',v,'KG',NULL);
+ UPDATE public.ew_perfis SET peso_kg_m=1 WHERE id=p;
+ IF ew_compras_interna.peso_liberacao(e,la,'2026-11-30') IS DISTINCT FROM 6::numeric OR ew_compras_interna.peso_liberacao(e,lb,'2026-11-30') IS DISTINCT FROM 3::numeric THEN RAISE EXCEPTION 'peso histórico alterado';END IF;
+ INSERT INTO ew_financeiro_interna.titulos VALUES(t,e,'PAGAR','MANUAL',NULL,'2026-11-30','Energia','GERAL',101,'Energia peso',NULL);
+ PERFORM public.ew_dre_classificar_titulo(e,t,gen_random_uuid(),0,'CUSTO_INDIRETO','Energia reconhecida');
+ sel:=jsonb_build_array(jsonb_build_object('id',la,'peso_kg',null),jsonb_build_object('id',lb,'peso_kg',null));
+ r:=public.ew_rateio_industrial_lote(e,t,1,op,'PESO_CONSUMO',sel,'Peso histórico',false,NULL);
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'linhas') x WHERE (x->>'id')::uuid=la AND (x->>'centavos')::int=67) THEN RAISE EXCEPTION 'rateio por consumo incorreto %',r;END IF;
+ INSERT INTO public.ew_estoque_obras_movimentos(id,empresa_id,obra_id,origem,quantidade_delta,estorno_de_id,criado_em) VALUES(gen_random_uuid(),e,o,'ESTORNO',1,m,'2026-11-11T10:00:00Z');
+ IF ew_compras_interna.peso_liberacao(e,la,'2026-11-30') IS DISTINCT FROM 3::numeric THEN RAISE EXCEPTION 'peso não estornado';END IF;
+ negado:=false;BEGIN PERFORM public.ew_rateio_industrial_lote(e,t,1,op,'PESO_CONSUMO',sel,'Peso histórico',true,r->'linhas');EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Saldo ou critérios%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'prévia antiga aceita';END IF;
+ r:=public.ew_rateio_industrial_lote(e,t,1,op,'PESO_CONSUMO',sel,'Peso histórico',false,NULL);
+ PERFORM public.ew_rateio_industrial_lote(e,t,1,op,'PESO_CONSUMO',sel,'Peso histórico',true,r->'linhas');
+ IF (SELECT sum(valor_centavos) FROM ew_financeiro_interna.rateios_industriais WHERE titulo_id=t)<>101 THEN RAISE EXCEPTION 'rateio não fecha';END IF;
+ r:=public.ew_indicadores_industriais(e,'2026-11-01','2026-11-30');
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'fabrica') x WHERE x->>'fabrica'='AFOGADOS' AND (x->>'kg_historico')::numeric=3) THEN RAISE EXCEPTION 'indicador histórico incorreto %',r;END IF;
+ IF has_table_privilege('authenticated','ew_compras_interna.pesos_consumo','SELECT') THEN RAISE EXCEPTION 'acesso direto indevido';END IF;
+END $$;
+SELECT 'OK: histórico congelado, estorno, rateio por consumo e prévia invalidada' AS resultado;
