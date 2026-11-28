@@ -129,7 +129,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.54',
+ 'EWGEST • v46.29.55',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2135,7 +2135,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.54')&&
+assert.ok(source.includes('v46.29.55')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2371,7 +2371,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.54</strong>'),
+ source.includes('EWGEST <strong>· v46.29.55</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -3578,3 +3578,13 @@ console.log('OK: cadastro industrial, privacidade, valores exatos e base fiscal 
  assert.ok(code.includes('Não fecha nem bloqueia a competência'));
 }
 console.log('OK: integração de movimentações industriais e conferência mensal consultiva.');
+
+{
+ const code=readFileSync(new URL('../assets/rh-ferramentas.js',import.meta.url),'utf8');new Function(code);
+ assert.ok(source.includes("if(view==='rhPage')return temPermissao('rh.consultar')")&&source.includes("if(view==='toolsPage')return temPermissao('ferramentas.consultar')"));
+ assert.ok(source.includes('rh-ferramentas.js?v=20261128p'));
+ assert.ok(code.includes('ew_rh_consultar')&&code.includes('ew_ferramenta_entregar')&&code.includes('ew_ferramenta_devolver')&&code.includes('ew_ferramenta_compor_maleta'));
+ assert.ok(code.includes('Assinatura do funcionário — recebimento')&&code.includes('Assinatura do almoxarife — recebimento da devolução'));
+ assert.ok(code.includes('x.pendentes.includes(i.id)'));
+}
+console.log('OK: setores RH e ferramentas, permissões de navegação, impressão e devolução parcial.');
