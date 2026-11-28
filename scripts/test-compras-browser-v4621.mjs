@@ -335,7 +335,7 @@ try{
 
  // v46.28: tela real de cotação — agrupamento, fornecedores e preços independentes.
  const quoting=await browser.newPage({viewport:{width:1280,height:800}});
- await quoting.setContent('<!doctype html><html><body><button id="cadastroJumpFornecedores" hidden></button><aside><button id="navCompras" aria-expanded="false"></button><div id="navComprasSubmenu"><button id="comprasTabSolicitacao">Solicitação</button><button id="comprasTabCotacao">Cotação</button><button id="comprasTabPedido">Compra</button></div></aside><h1 id="comprasPaginaTitulo"></h1><p id="comprasPaginaDescricao"></p><div id="comprasMensagem"></div><main id="comprasConteudo"></main></body></html>');
+ await quoting.setContent('<!doctype html><html><body><button id="cadastroJumpFornecedores" hidden></button><aside><button id="navCompras" aria-expanded="false"></button><div id="navComprasSubmenu"><button id="comprasTabSolicitacao">Solicitação</button><button id="comprasTabCotacao">Cotação</button><button id="comprasTabAprovacao">Aprovação de cotações</button><button id="comprasTabPedido">Pedidos de compra</button></div></aside><h1 id="comprasPaginaTitulo"></h1><p id="comprasPaginaDescricao"></p><div id="comprasMensagem"></div><main id="comprasConteudo"></main></body></html>');
  await quoting.evaluate(()=>{
   window.escapeHTML=v=>String(v??'').replace(/[&<>"]/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[x]));
   window.currentCompany={id:'empresa-teste'};window.session={access_token:'MOCK'};window.ensureSession=async()=>{};
@@ -480,10 +480,16 @@ try{
  assert.equal(await quoting.locator('#comprasCotacaoSolic').inputValue(),'grupo-perfis');
  assert.equal(await quoting.locator('[data-quote-key="1"] input').inputValue(),'');
  console.log('PASS Chromium v46.28: agrupamento por obra, fornecedores em lote, preços independentes e registro da cotação.');
- await quoting.locator('#comprasTabPedido').click();
+ await quoting.locator('#comprasTabAprovacao').click();
  await quoting.locator('#comprasPedidoForm').waitFor();
- assert.equal(await quoting.locator('#comprasPaginaTitulo').innerText(),'Compra');
- assert.equal(await quoting.locator('#comprasTabPedido').getAttribute('aria-current'),'page');
+ assert.equal(await quoting.locator('#comprasPaginaTitulo').innerText(),'Aprovação de cotações');
+ assert.equal(await quoting.locator('#comprasTabAprovacao').getAttribute('aria-current'),'page');
+ await quoting.locator('[data-aprovar-cotacao="q1"]').click();
+ assert.equal(await quoting.locator('#comprasPedidoCotacao').inputValue(),'q1');
+ await quoting.locator('#comprasTabPedido').click();
+ await quoting.waitForFunction(()=>document.querySelector('#comprasTabPedido')?.getAttribute('aria-current')==='page');
+ assert.equal(await quoting.locator('#comprasPaginaTitulo').innerText(),'Pedidos de compra');
+ assert.equal(await quoting.locator('#comprasPedidoForm').count(),0);
  assert.equal(await quoting.locator('#comprasCotacaoSolic').count(),0);
  await quoting.locator('#comprasTabSolicitacao').click();
  await quoting.waitForFunction(()=>document.querySelector('#comprasTabSolicitacao')?.getAttribute('aria-current')==='page');
