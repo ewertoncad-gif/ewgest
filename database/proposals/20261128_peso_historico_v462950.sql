@@ -53,7 +53,7 @@ RETURNS numeric LANGUAGE sql STABLE SET search_path TO '' AS $$
 $$;
 REVOKE ALL ON FUNCTION ew_compras_interna.peso_liberacao(uuid,uuid,date) FROM PUBLIC,anon,authenticated;
 CREATE OR REPLACE FUNCTION public.ew_rateio_industrial_lote(p_empresa_id uuid,p_titulo_id uuid,p_versao int,p_operacao_id uuid,p_criterio text,p_selecao jsonb,p_motivo text,p_confirmar boolean,p_previa jsonb)
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
 DECLARE t ew_financeiro_interna.titulos%ROWTYPE; c ew_financeiro_interna.classificacao_atual%ROWTYPE;
  lote ew_financeiro_interna.rateios_lotes%ROWTYPE; x record; v_plano jsonb; v_entrada jsonb; v_resultado jsonb;
  v_saldo bigint; v_ids uuid[]; v_count int; v_rows int;
@@ -110,12 +110,12 @@ BEGIN
  END LOOP;
  INSERT INTO ew_financeiro_interna.rateios_lotes(empresa_id,operacao_id,titulo_id,entrada,resultado,criado_por) VALUES(p_empresa_id,p_operacao_id,t.id,v_entrada,v_resultado,auth.uid());
  RETURN v_resultado;
-END $;
+END $$;
 REVOKE EXECUTE ON FUNCTION public.ew_rateio_industrial_lote(uuid,uuid,int,uuid,text,jsonb,text,boolean,jsonb) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.ew_rateio_industrial_lote(uuid,uuid,int,uuid,text,jsonb,text,boolean,jsonb) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.ew_indicadores_industriais(p_empresa_id uuid,p_inicio date,p_fim date)
-RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$
 DECLARE resultado jsonb; financeiro jsonb;
 BEGIN
  PERFORM public.ew_exigir_sessao_atual();
@@ -190,7 +190,7 @@ BEGIN
  'peso_pendente',coalesce(sum(p.peso_pendente),0)) INTO resultado
  FROM chaves k LEFT JOIN fin f ON f.fabrica IS NOT DISTINCT FROM k.fabrica LEFT JOIN areas a ON a.fabrica IS NOT DISTINCT FROM k.fabrica LEFT JOIN por_fabrica p ON p.fabrica IS NOT DISTINCT FROM k.fabrica;
  RETURN resultado;
-END $;
+END $$;
 REVOKE EXECUTE ON FUNCTION public.ew_indicadores_industriais(uuid,date,date) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.ew_indicadores_industriais(uuid,date,date) TO authenticated;
 
