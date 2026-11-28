@@ -129,7 +129,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.49',
+ 'EWGEST • v46.29.50',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2135,7 +2135,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.49')&&
+assert.ok(source.includes('v46.29.50')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2371,7 +2371,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.49</strong>'),
+ source.includes('EWGEST <strong>· v46.29.50</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -3489,7 +3489,7 @@ console.log('OK: filtros de compras e paginação integral de solicitações e c
 console.log('OK: preços conciliados, estoque compatível e simulação exata em 100 distribuições.');
 
 assert.ok(readFileSync(new URL('../assets/financeiro-empresarial.js',import.meta.url),'utf8').includes("p_confirmar:true,p_previa:p.linhas"));
-assert.ok(source.includes('financeiro-empresarial.js?v=20261128j'));
+assert.ok(source.includes('financeiro-empresarial.js?v=20261128k'));
 
 {
  const code=readFileSync(new URL('../assets/compras-estoque.js',import.meta.url),'utf8');
@@ -3519,3 +3519,20 @@ console.log('OK: abatimento do rascunho somente por material compatível e trans
  assert.equal(calc({receita_centavos:10000,material_centavos:2000,rateio_centavos:3000,area_m2:null}).custoM2,null);
 }
 console.log('OK: previsão de entrega, saldo contratual, margem parcial e área conciliada.');
+
+{
+ const code=readFileSync(new URL('../assets/financeiro-empresarial.js',import.meta.url),'utf8');new Function(code);
+ const a=code.indexOf('function previsaoTitulos('),b=code.indexOf('function renderPrevisaoTitulos(',a);
+ const calc=new Function('cents',code.slice(a,b)+'return previsaoTitulos;')(Number);
+ const r={a_pagar_centavos:100,a_receber_centavos:250,titulos_total:4,titulos:[
+ {tipo:'PAGAR',origem_valida:true,vencimento:'2026-12-01',saldo_centavos:100},
+ {tipo:'RECEBER',origem_valida:true,vencimento:'2026-12-02',saldo_centavos:250},
+ {tipo:'PAGAR',origem_valida:false,vencimento:'2026-12-01',saldo_centavos:999},
+ {tipo:'PAGAR',origem_valida:true,cancelado_em:'2026-11-28',saldo_centavos:999}]};
+ assert.deepEqual(calc(r),{linhas:[{mes:'2026-12',pagar:100,receber:250}],pagar:100,receber:250,completa:true});
+ assert.equal(calc({...r,titulos_total:5}).completa,false);
+ assert.throws(()=>calc({...r,a_pagar_centavos:99}));
+ assert.throws(()=>calc({...r,a_pagar_centavos:101}));
+ assert.ok(code.includes('value="PESO_CONSUMO"'));
+}
+console.log('OK: previsão conciliada por vencimento, exclusão de origens inválidas e sinalização de lista parcial.');
