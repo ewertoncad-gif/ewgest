@@ -134,3 +134,32 @@ BEGIN
  IF jsonb_array_length(r)<>2 OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r) x WHERE x->>'estorno_motivo'='Corrigir vínculo') THEN RAISE EXCEPTION 'histórico perdido';END IF;
 END $$;
 SELECT 'OK: prévia de frete em centavos, estorno e novo vínculo preservando baixa' AS resultado;
+
+CREATE SCHEMA ew_compras_interna;
+CREATE TABLE public.ew_compras_recebimentos(id uuid PRIMARY KEY,empresa_id uuid,pedido_id uuid,itens jsonb,estornado_em timestamptz);
+CREATE TABLE public.ew_compras_recebimentos_movimentos(empresa_id uuid,recebimento_id uuid,chave text,movimento_obra_id uuid,movimento_empresa_id uuid);
+CREATE TABLE ew_compras_interna.lotes_aquisicao_evidencias(empresa_id uuid,recebimento_id uuid,movimento_id uuid,fonte text,item_fiscal_id uuid,quantidade numeric,custo_centavos bigint);
+CREATE TABLE ew_compras_interna.custo_lotes(empresa_id uuid,lote_id uuid,fonte text,item_fiscal_id uuid,movimento_id uuid,quantidade numeric,custo_centavos bigint,cancelado_em timestamptz);
+CREATE FUNCTION ew_financeiro_interna.exigir_resultado(uuid,boolean,boolean) RETURNS void LANGUAGE plpgsql SET search_path TO '' AS $$ BEGIN PERFORM ew_financeiro_interna.exigir($1);IF NOT public.ew_pode($1,'compras.consultar_valores') OR NOT public.ew_pode($1,'estoque.consultar') THEN RAISE EXCEPTION 'Sem acesso';END IF;END $$;
+\ir ../database/proposals/20261128_frete_base_fiscal_v462953.sql
+SET test.compra='yes';
+SET test.write='yes';
+DO $$
+DECLARE e uuid:='00000000-0000-0000-0000-000000000001';f ew_financeiro_interna.fretes_pedidos%ROWTYPE;rec uuid:=gen_random_uuid();m1 uuid:=gen_random_uuid();m2 uuid:=gen_random_uuid();i1 uuid:=gen_random_uuid();i2 uuid:=gen_random_uuid();l1 uuid:=gen_random_uuid();l2 uuid:=gen_random_uuid();r jsonb;negado boolean;
+BEGIN
+ SELECT * INTO f FROM ew_financeiro_interna.fretes_pedidos WHERE empresa_id=e AND estornado_em IS NULL LIMIT 1;
+ UPDATE public.ew_compras_pedidos SET status='CONCLUIDO' WHERE id=f.pedido_id;
+ INSERT INTO public.ew_compras_recebimentos VALUES(rec,e,f.pedido_id,'[{"chave":"1","quantidade":2},{"chave":"2","quantidade":1}]',NULL);
+ INSERT INTO public.ew_compras_recebimentos_movimentos VALUES(e,rec,'1',m1,NULL),(e,rec,'2',m2,NULL);
+ INSERT INTO ew_compras_interna.lotes_aquisicao_evidencias VALUES(e,rec,m1,'PEDIDO_OBRA',i1,2,600),(e,rec,m2,'PEDIDO_OBRA',i2,1,400);
+ INSERT INTO ew_compras_interna.custo_lotes VALUES(e,l1,'PEDIDO_OBRA',i1,m1,2,600,NULL);
+ negado:=false;BEGIN PERFORM public.ew_fin_frete_previa_fiscal(e,f.operacao_id);EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Existem recebimentos%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'aceitou lote incompleto';END IF;
+ INSERT INTO ew_compras_interna.custo_lotes VALUES(e,l2,'PEDIDO_OBRA',i2,m2,1,400,NULL);
+ r:=public.ew_fin_frete_previa_fiscal(e,f.operacao_id);
+ IF (r->>'material_centavos')::bigint<>1000 OR (SELECT sum((x->>'frete_centavos')::bigint) FROM jsonb_array_elements(r->'itens') x)<>1000 OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'itens') x WHERE x->>'lote_id'=l1::text AND (x->>'frete_centavos')::bigint=600) THEN RAISE EXCEPTION 'base fiscal incorreta %',r;END IF;
+ UPDATE ew_compras_interna.custo_lotes SET cancelado_em=now() WHERE lote_id=l2;
+ negado:=false;BEGIN PERFORM public.ew_fin_frete_previa_fiscal(e,f.operacao_id);EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Existem recebimentos%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'aceitou lote cancelado';END IF;
+END $$;
+SELECT 'OK: base fiscal, lotes ativos e frete em centavos' AS resultado;
