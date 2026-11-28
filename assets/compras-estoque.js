@@ -291,7 +291,7 @@ function bindReaproveitamento(form,pane,saldos,empresa,dest,revision){
   let confirmado=false;
   try{await ensureSession();if(!atual())throw Error('Empresa, sessão ou rascunho alterado.');
    await rpc('ew_compras_transferir_locais',{...payload,p_operacao_id:operationToken('reuso_rascunho',payload)});confirmado=true;pendingOps.delete('reuso_rascunho');
-   if(!atual()){if(form.isConnected)say('comprasMensagem','Transferência registrada. Reconfira o rascunho antes de comprar.');return;}
+   if(!atual()){if(form.isConnected&&currentCompany?.id===empresa&&$('comprasDestino').value===dest){requestNeedsReady=false;say('comprasMensagem','Transferência registrada. Atualize a solicitação antes de comprar.');}return;}
    for(const a of ajustes){if(a.quantidade===0)a.linha.row.remove();else a.linha.row.querySelector('[data-buy="qty"]').value=String(a.quantidade);}
    form.dataset.stockRevision=String(Number(form.dataset.stockRevision||0)+1);pane.replaceChildren();
    if(!$('comprasLinhas').children.length)makeLine();
@@ -301,7 +301,7 @@ function bindReaproveitamento(form,pane,saldos,empresa,dest,revision){
    if(!Array.isArray(needs))throw Error('Necessidades indisponíveis.');
    requestNeeds=needs;requestNeedsReady=true;updateRequestRows();
    say('comprasMensagem','Transferência confirmada. Rascunho reduzido; confira as quantidades restantes antes de solicitar.');
-  }catch(e){if(form.isConnected&&currentCompany?.id===empresa)say('comprasMensagem',confirmado?'Transferência registrada, mas a atualização do rascunho precisa ser conferida. Atualize a tela.':'Transferência não confirmada: '+e.message+'. Confira o histórico antes de repetir.');}
+  }catch(e){if(form.isConnected&&currentCompany?.id===empresa&&$('comprasDestino').value===dest){requestNeedsReady=false;say('comprasMensagem',confirmado?'Transferência registrada, mas a atualização do rascunho precisa ser conferida. Atualize a tela.':'Transferência não confirmada: '+e.message+'. Confira o histórico e atualize antes de repetir.');}}
   finally{if(btn.isConnected)btn.disabled=false;if(submit.isConnected)submit.disabled=!requestNeedsReady||!requestOptions(true).length;}
  };
 }
