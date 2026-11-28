@@ -129,7 +129,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.47',
+ 'EWGEST • v46.29.48',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2135,7 +2135,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.47')&&
+assert.ok(source.includes('v46.29.48')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2371,7 +2371,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.47</strong>'),
+ source.includes('EWGEST <strong>· v46.29.48</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -3490,3 +3490,16 @@ console.log('OK: preços conciliados, estoque compatível e simulação exata em
 
 assert.ok(readFileSync(new URL('../assets/financeiro-empresarial.js',import.meta.url),'utf8').includes("p_confirmar:true,p_previa:p.linhas"));
 assert.ok(source.includes('financeiro-empresarial.js?v=20261128h'));
+
+{
+ const code=readFileSync(new URL('../assets/compras-estoque.js',import.meta.url),'utf8');
+ const a=code.indexOf('function chavePreco('),b=code.indexOf('function materialPreco(',a),c=code.indexOf('function abatimentoRascunho('),d=code.indexOf('async function consultarReaproveitamento(',c);
+ const abater=new Function(code.slice(a,b)+code.slice(c,d)+'return abatimentoRascunho;')();
+ const x={variacao_id:'v',unidade:'BARRA',comprimento_mm:6000};
+ const rows=[{...x,quantidade:2},{...x,quantidade:3},{...x,comprimento_mm:5000,quantidade:4}];
+ assert.deepEqual(abater(rows,x,4).map(y=>y.quantidade),[0,1]);
+ assert.throws(()=>abater(rows,x,6));
+ assert.equal(abater([{...x,unidade:'KG',quantidade:1.005}],{...x,unidade:'KG'},0.005)[0].quantidade,1);
+ assert.ok(code.includes("await rpc('ew_compras_transferir_locais',{...payload")&&code.includes("confirmado=true;pendingOps.delete('reuso_rascunho')"));
+}
+console.log('OK: abatimento do rascunho somente por material compatível e transferência confirmada.');
