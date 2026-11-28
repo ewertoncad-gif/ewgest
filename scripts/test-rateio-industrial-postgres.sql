@@ -208,3 +208,43 @@ BEGIN
  IF NOT negado THEN RAISE EXCEPTION 'permissão indevida';END IF;
 END $$;
 SELECT 'OK: horas agregadas, estorno, idempotência e permissões' AS resultado;
+
+\ir ../database/proposals/20261128_pessoal_patrimonio_v462953.sql
+CREATE OR REPLACE FUNCTION public.ew_pode(uuid,text) RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT $1='00000000-0000-0000-0000-000000000001' AND current_setting('test.perm',true)='yes' AND ($2<>'usuarios.gerenciar' OR current_setting('test.rh',true)='yes') $$;
+SET test.perm='yes';
+SET test.rh='yes';
+DO $$
+DECLARE e uuid:='00000000-0000-0000-0000-000000000001';g uuid;emp uuid:=gen_random_uuid();folha uuid:=gen_random_uuid();ativo uuid:=gen_random_uuid();dep uuid:=gen_random_uuid();rev uuid:=gen_random_uuid();dados jsonb;r jsonb;negado boolean;
+BEGIN
+ SELECT id INTO g FROM public.ew_locais_fisicos WHERE empresa_id=e LIMIT 1;
+ dados:=jsonb_build_object('galpao_id',g,'codigo','F001','nome','Funcionário teste','funcao','Operador','data','2026-09-01');
+ PERFORM public.ew_industrial_cadastrar(e,emp,'FUNCIONARIO',dados);
+ r:=public.ew_industrial_cadastrar(e,emp,'FUNCIONARIO',dados);
+ IF NOT (r->>'repetido')::boolean THEN RAISE EXCEPTION 'cadastro duplicado';END IF;
+ dados:=jsonb_build_object('galpao_id',g,'data','2026-11-01','salarios',10000,'encargos',3000,'beneficios',2000,'referencia','Folha teste');
+ PERFORM public.ew_industrial_cadastrar(e,folha,'FOLHA',dados);
+ negado:=false;BEGIN PERFORM public.ew_industrial_cadastrar(e,gen_random_uuid(),'FOLHA',dados);EXCEPTION WHEN unique_violation THEN negado:=true;END;
+ IF NOT negado THEN RAISE EXCEPTION 'folha duplicada';END IF;
+ PERFORM public.ew_industrial_estornar_folha(e,rev,folha,'Correção da folha');
+ r:=public.ew_industrial_estornar_folha(e,rev,folha,'Correção da folha');
+ IF NOT (r->>'repetido')::boolean THEN RAISE EXCEPTION 'estorno repetido';END IF;
+ PERFORM public.ew_industrial_cadastrar(e,gen_random_uuid(),'FOLHA',dados||'{"salarios":12000}');
+ dados:=jsonb_build_object('galpao_id',g,'codigo','MAQ-1','nome','Máquina teste','data','2026-09-01','valor',111,'residual',10,'vida',3);
+ PERFORM public.ew_industrial_cadastrar(e,ativo,'ATIVO',dados);
+ negado:=false;BEGIN PERFORM public.ew_industrial_depreciar(e,gen_random_uuid(),ativo,'2026-10-01');EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Registre as competências%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'pulou competência';END IF;
+ PERFORM public.ew_industrial_depreciar(e,dep,ativo,'2026-09-01');
+ r:=public.ew_industrial_depreciar(e,dep,ativo,'2026-09-01');
+ IF NOT (r->>'repetido')::boolean OR (r->>'valor_centavos')::bigint<>34 THEN RAISE EXCEPTION 'primeira depreciação incorreta %',r;END IF;
+ PERFORM public.ew_industrial_depreciar(e,gen_random_uuid(),ativo,'2026-10-01');
+ PERFORM public.ew_industrial_depreciar(e,gen_random_uuid(),ativo,'2026-11-01');
+ IF (SELECT sum(valor_centavos) FROM ew_financeiro_interna.depreciacoes_industriais WHERE ativo_id=ativo)<>101 THEN RAISE EXCEPTION 'depreciação não fecha';END IF;
+ r:=public.ew_industrial_cadastros_consultar(e,'2026-09-01','2026-11-30');
+ IF jsonb_array_length(r->'funcionarios')<>1 OR jsonb_array_length(r->'folhas')<>2 OR jsonb_array_length(r->'depreciacoes')<>3 THEN RAISE EXCEPTION 'histórico incorreto %',r;END IF;
+ SET LOCAL test.rh='no';
+ r:=public.ew_industrial_cadastros_consultar(e,'2026-09-01','2026-11-30');
+ IF (r->>'pessoal_permitido')::boolean OR jsonb_array_length(r->'funcionarios')<>0 OR jsonb_array_length(r->'folhas')<>0 OR jsonb_array_length(r->'ativos')<>1 THEN RAISE EXCEPTION 'dados de pessoal expostos';END IF;
+ negado:=false;BEGIN PERFORM public.ew_industrial_cadastrar(e,gen_random_uuid(),'FOLHA',jsonb_build_object('galpao_id',g,'data','2026-11-01'));EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Sem acesso à gestão%';END;
+ IF NOT negado OR has_table_privilege('authenticated','ew_financeiro_interna.funcionarios_industriais','SELECT') OR has_function_privilege('anon','public.ew_industrial_cadastros_consultar(uuid,date,date)','EXECUTE') THEN RAISE EXCEPTION 'acesso indevido';END IF;
+END $$;
+SELECT 'OK: folha, depreciação, centavos e restrição de dados de pessoal' AS resultado;
