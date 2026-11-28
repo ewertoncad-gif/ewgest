@@ -282,3 +282,51 @@ BEGIN
  IF NOT negado OR has_function_privilege('anon','public.ew_industrial_movimentos_consultar(uuid)','EXECUTE') THEN RAISE EXCEPTION 'acesso indevido';END IF;
 END $$;
 SELECT 'OK: transferências, desligamento, histórico de depreciação, conferência mensal e privacidade' AS resultado;
+
+CREATE TABLE public.ew_permissoes_catalogo(chave text PRIMARY KEY,grupo text,descricao text,ordem smallint);
+CREATE TABLE public.ew_niveis_acesso(empresa_id uuid,nivel smallint,nome text,PRIMARY KEY(empresa_id,nivel));
+CREATE TABLE public.ew_niveis_permissoes(empresa_id uuid,nivel smallint,chave text,permitido boolean,PRIMARY KEY(empresa_id,nivel,chave));
+CREATE TABLE public.usuarios_empresas(empresa_id uuid,nivel_acesso smallint);
+INSERT INTO public.ew_niveis_acesso SELECT '00000000-0000-0000-0000-000000000001',i,'Nível '||i FROM generate_series(1,8)i;
+\ir ../database/proposals/20261128_rh_permissoes_v462955.sql
+\ir ../database/proposals/20261128_ferramentas_custodia_v462955.sql
+CREATE OR REPLACE FUNCTION public.ew_pode(uuid,text) RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT $1='00000000-0000-0000-0000-000000000001' AND CASE WHEN $2 LIKE 'rh.%' THEN current_setting('test.rh',true)='yes' WHEN $2 LIKE 'ferramentas.%' THEN current_setting('test.tools',true)='yes' ELSE current_setting('test.perm',true)='yes' END $$;
+SET test.perm='no';
+SET test.rh='yes';
+SET test.tools='no';
+DO $$
+DECLARE e uuid:='00000000-0000-0000-0000-000000000001';g uuid;emp uuid:=gen_random_uuid();f uuid:=gen_random_uuid();b uuid:=gen_random_uuid();c uuid:=gen_random_uuid();m uuid:=gen_random_uuid();op uuid:=gen_random_uuid();dv uuid:=gen_random_uuid();r jsonb;negado boolean;
+BEGIN
+ IF (SELECT count(*) FROM public.ew_niveis_permissoes WHERE nivel=8 AND permitido AND chave LIKE 'rh.%')<>6 OR EXISTS(SELECT 1 FROM public.ew_niveis_permissoes WHERE nivel=8 AND permitido AND chave LIKE 'ferramentas.%') THEN RAISE EXCEPTION 'permissões RH incorretas';END IF;
+ SELECT id INTO g FROM public.ew_locais_fisicos WHERE empresa_id=e LIMIT 1;
+ PERFORM public.ew_industrial_cadastrar(e,emp,'FUNCIONARIO',jsonb_build_object('galpao_id',g,'codigo','F002','nome','Operador teste','funcao','Operador','data','2026-11-01'));
+ PERFORM public.ew_industrial_registrar_horas(e,gen_random_uuid(),g,'2026-11-22',120,'Apontamento RH');
+ r:=public.ew_rh_consultar(e,'2026-11-01','2026-11-30');
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'funcionarios') x WHERE x->>'id'=emp::text) OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'horas') x WHERE x->>'data'='2026-11-22' AND (x->>'minutos')::int=120) THEN RAISE EXCEPTION 'RH sem acesso independente';END IF;
+ negado:=false;BEGIN PERFORM public.ew_ferramentas_consultar(e);EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Sem acesso às ferramentas%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'RH acessou ferramentas';END IF;
+ SET LOCAL test.rh='no';SET LOCAL test.tools='yes';
+ PERFORM public.ew_ferramenta_cadastrar(e,f,'FUR-1','Furadeira','FERRAMENTA',g);
+ PERFORM public.ew_ferramenta_cadastrar(e,b,'BAT-1','Bateria','BATERIA',g);
+ PERFORM public.ew_ferramenta_cadastrar(e,c,'CAR-1','Carregador','CARREGADOR',g);
+ PERFORM public.ew_ferramenta_cadastrar(e,m,'MAL-1','Maleta','MALETA',g);
+ PERFORM public.ew_ferramenta_compor_maleta(e,m,ARRAY[f,b,c]);
+ PERFORM public.ew_ferramenta_entregar(e,op,emp,ARRAY[f,b],'Entrega parcial do kit');
+ r:=public.ew_ferramenta_entregar(e,op,emp,ARRAY[b,f],'Entrega parcial do kit');
+ IF NOT (r->>'repetido')::boolean THEN RAISE EXCEPTION 'entrega duplicada';END IF;
+ negado:=false;BEGIN PERFORM public.ew_ferramenta_entregar(e,gen_random_uuid(),emp,ARRAY[f],'Tentativa duplicada');EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Item indisponível%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'dupla custódia';END IF;
+ r:=public.ew_ferramentas_consultar(e);
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'entregas') x WHERE x->>'id'=op::text AND jsonb_array_length(x->'itens')=2 AND jsonb_array_length(x->'pendentes')=2) OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'itens') x WHERE x->>'id'=c::text AND x->>'entrega_id' IS NULL) THEN RAISE EXCEPTION 'kit parcial incorreto';END IF;
+ PERFORM public.ew_ferramenta_devolver(e,dv,op,jsonb_build_array(jsonb_build_object('id',f,'condicao','Em bom estado')));
+ r:=public.ew_ferramenta_devolver(e,dv,op,jsonb_build_array(jsonb_build_object('id',f,'condicao','Em bom estado')));
+ IF NOT (r->>'repetido')::boolean THEN RAISE EXCEPTION 'devolução duplicada';END IF;
+ negado:=false;BEGIN PERFORM public.ew_ferramenta_devolver(e,gen_random_uuid(),op,jsonb_build_array(jsonb_build_object('id',c,'condicao','Em bom estado')));EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Item não pertence%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'devolveu item não entregue';END IF;
+ r:=public.ew_ferramentas_consultar(e);
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'entregas') x WHERE x->>'id'=op::text AND x->'pendentes'=jsonb_build_array(b)) THEN RAISE EXCEPTION 'bateria pendente perdida';END IF;
+ negado:=false;BEGIN PERFORM public.ew_rh_consultar(e,'2026-11-01','2026-11-30');EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Sem acesso ao RH%';END;
+ IF NOT negado OR has_table_privilege('authenticated','ew_financeiro_interna.ferramentas_custodia','SELECT') OR has_function_privilege('anon','public.ew_ferramentas_consultar(uuid)','EXECUTE') THEN RAISE EXCEPTION 'acesso indevido';END IF;
+END $$;
+SET test.perm='yes';
+SELECT 'OK: RH independente, kit parcial, custódia única, devolução parcial e permissões' AS resultado;
