@@ -76,3 +76,38 @@ BEGIN
  IF NOT negado THEN RAISE EXCEPTION 'acesso cruzado';END IF;
 END $$;
 SELECT 'OK: títulos, fontes, baixas, estornos, centros de custo e segurança' AS resultado;
+
+CREATE TABLE public.ew_compras_pedidos(id uuid PRIMARY KEY,empresa_id uuid,numero bigint,status text,cancelado_em timestamptz);
+CREATE TABLE public.ew_compras_nfe_conciliacoes(empresa_id uuid,despesa_id uuid,pedido_id uuid,desvinculado_em timestamptz);
+ALTER TABLE public.ew_compras_notas_empresa ADD COLUMN pedido_id uuid;
+\ir ../database/proposals/20261128_frete_previsao_v462951.sql
+SET test.compra='yes';
+SET test.write='yes';
+DO $$
+DECLARE e uuid:='00000000-0000-0000-0000-000000000001';p uuid:=gen_random_uuid();p2 uuid:=gen_random_uuid();d uuid;nota uuid;t uuid;op uuid:=gen_random_uuid();r jsonb;negado boolean;
+BEGIN
+ SELECT id INTO d FROM public.ew_obra_despesas WHERE empresa_id=e LIMIT 1;
+ SELECT id INTO nota FROM public.ew_compras_notas_empresa WHERE empresa_id=e LIMIT 1;
+ INSERT INTO public.ew_compras_pedidos VALUES(p,e,1,'ABERTO',NULL),(p2,e,2,'ABERTO',NULL);
+ INSERT INTO public.ew_compras_nfe_conciliacoes VALUES(e,d,p,NULL),(e,d,p2,NULL);
+ UPDATE public.ew_compras_notas_empresa SET pedido_id=p WHERE id=nota;
+ r:=public.ew_fin_compras_previsao(e);
+ IF (r->>'total')::int<>2 OR (r->>'saldo_programado_centavos')::bigint<>7000 THEN RAISE EXCEPTION 'previsão duplicada: %',r;END IF;
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'linhas') x WHERE x->>'origem_tipo'='DESPESA_OBRA' AND jsonb_array_length(x->'pedidos')=2) THEN RAISE EXCEPTION 'documento compartilhado perdido';END IF;
+ r:=public.ew_fin_empresa_criar_titulo(e,gen_random_uuid(),jsonb_build_object('tipo','PAGAR','origem_tipo','MANUAL','descricao','Frete externo','contraparte','Transportadora','numero_documento','CTE-1','categoria','Frete','centro','GERAL','competencia',current_date,'vencimento',current_date+15,'valor_centavos',1000));t:=(r->>'id')::uuid;
+ PERFORM public.ew_fin_vincular_frete(e,t,p,op,'Frete separado');
+ r:=public.ew_fin_vincular_frete(e,t,p,op,'Frete separado');
+ IF NOT (r->>'repetido')::boolean THEN RAISE EXCEPTION 'repetição perdeu idempotência';END IF;
+ negado:=false;BEGIN PERFORM public.ew_fin_vincular_frete(e,t,p2,gen_random_uuid(),'Outro pedido');EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Título de frete já vinculado%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'frete duplicado';END IF;
+ PERFORM public.ew_fin_empresa_baixar(e,t,gen_random_uuid(),300,current_date,'Pix','');
+ r:=public.ew_fin_compras_previsao(e);
+ IF (r->>'total')::int<>3 OR (r->>'saldo_programado_centavos')::bigint<>7700 THEN RAISE EXCEPTION 'saldo frete incorreto: %',r;END IF;
+ UPDATE public.ew_compras_pedidos SET cancelado_em=now(),status='CANCELADO' WHERE id=p2;
+ r:=public.ew_fin_compras_previsao(e);
+ IF (r->>'pendencias')::int<>1 OR (r->>'saldo_programado_centavos')::bigint<>2700 THEN RAISE EXCEPTION 'cancelamento sem conferência: %',r;END IF;
+ SET LOCAL test.compra='no';
+ negado:=false;BEGIN PERFORM public.ew_fin_compras_previsao(e);EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Sem acesso%';END;
+ IF NOT negado OR has_table_privilege('authenticated','ew_financeiro_interna.fretes_pedidos','SELECT') OR has_function_privilege('anon','public.ew_fin_compras_previsao(uuid)','EXECUTE') THEN RAISE EXCEPTION 'acesso indevido';END IF;
+END $$;
+SELECT 'OK: pagamentos documentais, frete único, baixa parcial e origem pendente' AS resultado;
