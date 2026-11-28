@@ -382,8 +382,8 @@ try{
     m.invites=body.p_fornecedores.map(id=>({fornecedor_id:id,fornecedor:id==='f1'?'Fornecedor 1':'Fornecedor 2',status:'AGUARDANDO',ativo:true}));
     return {ok:true};
    }
-   if(fn==='ew_compras_criar_cotacao'){
-    m.quotes.push({id:'q1',solicitacao_id:body.p_solicitacao_id,fornecedor_id:body.p_fornecedor_id,status:'ABERTA',criado_em:'2026-11-25',itens:m.sols.find(s=>s.id===body.p_solicitacao_id).itens.map(i=>({...i,preco_unitario_centavos:body.p_precos.find(p=>p.chave===i.chave).preco_unitario_centavos})),total_centavos:50000});
+   if(fn==='ew_compras_cotar_com_condicoes'){
+    m.quotes.push({id:'q1',solicitacao_id:body.p_solicitacao_id,fornecedor_id:body.p_fornecedor_id,status:'ABERTA',criado_em:'2026-11-25',condicoes_comerciais:body.p_condicoes,itens:m.sols.find(s=>s.id===body.p_solicitacao_id).itens.map(i=>({...i,preco_unitario_centavos:body.p_precos.find(p=>p.chave===i.chave).preco_unitario_centavos})),total_centavos:50000});
     return {id:'q1'};
    }
    throw Error('RPC inesperada: '+fn);
@@ -476,6 +476,8 @@ try{
  assert.deepEqual(qcalls[2].body.p_fornecedores,['f1','f2']);
  assert.equal(qcalls[3].body.p_fornecedor_id,'f2');
  assert.deepEqual(qcalls[3].body.p_precos,[{chave:'1',preco_unitario_centavos:12500}]);
+ assert.equal(qcalls[3].fn,'ew_compras_cotar_com_condicoes');
+ assert.equal(qcalls[3].body.p_condicoes.frete,'NAO_INFORMADO');
  await quoting.locator('[data-cotacao-replicar]').click();
  assert.equal(await quoting.locator('#comprasCotacaoSolic').inputValue(),'grupo-perfis');
  assert.equal(await quoting.locator('[data-quote-key="1"] input').inputValue(),'');
