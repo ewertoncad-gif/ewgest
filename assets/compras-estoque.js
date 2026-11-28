@@ -244,22 +244,66 @@ function saldosReaproveitaveis(rows,necessidades,locais){
  }
  return [...saldo.values()].filter(r=>r.milli>0).map(r=>({...r,quantidade:r.milli/1000}));
 }
+function linhasRascunhoEstoque(form){
+ return [...form.querySelectorAll('[data-buy-line]')].map(row=>{const v=requestOptions(true).find(v=>v.key===row.querySelector('[data-buy="variation"]').value);return v?{row,variacao_id:v.id,unidade:v.unidade,comprimento_mm:v.unidade==='BARRA'?Number(row.querySelector('[data-buy="length"]').value):null,quantidade:Number(row.querySelector('[data-buy="qty"]').value)}:null;}).filter(Boolean);
+}
+function abatimentoRascunho(linhas,material,quantidade){
+ let falta=Math.round(quantidade*1000);const result=[];
+ for(const l of linhas){if(chavePreco(l)!==chavePreco(material))continue;
+  const q=Math.round(l.quantidade*1000),abater=Math.min(falta,q);if(abater>0){result.push({linha:l,quantidade:(q-abater)/1000});falta-=abater;}
+ }
+ if(falta!==0)throw Error('Quantidade superior ao rascunho.');
+ return result;
+}
 async function consultarReaproveitamento(){
  const form=$('comprasSolicitarForm'),pane=$('comprasReaproveitamento'),btn=$('comprasConsultarEstoque');
  if(!form||!pane||!btn||!permission('estoque.consultar')||!permission('compras.solicitar'))return;
  const empresa=currentCompany.id,dest=$('comprasDestino').value,revision=form.dataset.stockRevision||'';
  if(!dest.startsWith('obra:')){pane.textContent='Selecione uma obra de destino.';return;}
- const itens=[...form.querySelectorAll('[data-buy-line]')].map(row=>{const v=requestOptions(true).find(v=>v.key===row.querySelector('[data-buy="variation"]').value);return v?{variacao_id:v.id,unidade:v.unidade,comprimento_mm:v.unidade==='BARRA'?Number(row.querySelector('[data-buy="length"]').value):null}:null;}).filter(Boolean);
+ const itens=linhasRascunhoEstoque(form).filter(i=>validQty(i.quantidade,i.unidade));
  if(!itens.length){pane.textContent='Selecione pelo menos um material.';return;}
  btn.disabled=true;pane.textContent='Consultando estoque próprio…';
  try{
   const rows=await readAllRows('ew_compras_estoque_empresa',{select:'id,local_empresa_id,variacao_id,unidade,comprimento_mm,quantidade_delta,galpao',empresa_id:'eq.'+empresa});
   if(!form.isConnected||currentCompany?.id!==empresa||!session||!permission('estoque.consultar')||$('comprasDestino').value!==dest||(form.dataset.stockRevision||'')!==revision)return;
   const saldos=saldosReaproveitaveis(rows,itens,locals);
-  pane.innerHTML='<p class="hint">Posição consultiva dos materiais selecionados no estoque próprio da empresa. Não reserva, não transfere e não reduz a solicitação. Confira o saldo novamente no módulo Estoque antes de transferir.</p>'+
+  pane.innerHTML='<p class="hint">Saldo físico compatível. Para reaproveitar, selecione uma origem, galpão de destino e quantidade. Somente uma transferência confirmada pelo servidor abate o rascunho; nenhuma nova compra é registrada.</p>'+
   (saldos.length?'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Material</th><th>Local da empresa</th><th>Galpão</th><th>Saldo físico</th></tr></thead><tbody>'+saldos.map(r=>'<tr><td>'+esc(materialPreco(r))+'</td><td>'+esc(locals.find(l=>l.id===r.local_empresa_id)?.nome||'Local')+'</td><td>'+esc(r.galpao)+'</td><td>'+number(r.quantidade)+' '+esc(r.unidade)+'</td></tr>').join('')+'</tbody></table></div>':'<p class="hint">Nenhum saldo positivo compatível encontrado no estoque próprio.</p>');
+  if(saldos.length&&permission('estoque.transferir_obras')&&permission('estoque.consultar'))bindReaproveitamento(form,pane,saldos,empresa,dest,revision);
  }catch(e){if(form.isConnected&&currentCompany?.id===empresa)pane.textContent='Consulta indisponível: '+e.message;}
  finally{if(btn.isConnected)btn.disabled=false;}
+}
+function bindReaproveitamento(form,pane,saldos,empresa,dest,revision){
+ const user=currentUser?.id;
+ const box=document.createElement('div');box.className='ewComprasForm';box.innerHTML='<h3>Reaproveitar material no rascunho</h3><label>Origem e material<select id="compraReusoOrigem">'+option('','Selecione')+saldos.map((r,i)=>option(String(i),materialPreco(r)+' · '+(locals.find(l=>l.id===r.local_empresa_id)?.nome||'Local')+' · '+r.galpao+' · '+number(r.quantidade)+' '+r.unidade)).join('')+'</select></label><label>Galpão de destino<select id="compraReusoGalpao">'+option('','Selecione')+galpoes.map(g=>option(g,g)).join('')+'</select></label><label>Quantidade a transferir<input id="compraReusoQtd" type="number" min="0.001" step="any"></label><label>Motivo<input id="compraReusoMotivo" maxlength="300" placeholder="Reaproveitamento de material"></label><button type="button" class="btn primary" id="compraReusoConfirmar">Transferir e abater do rascunho</button>';
+ pane.append(box);
+ const origem=$('compraReusoOrigem'),qty=$('compraReusoQtd'),btn=$('compraReusoConfirmar');
+ const atual=()=>form.isConnected&&!$('compras')?.classList.contains('hidden')&&currentCompany?.id===empresa&&currentUser?.id===user&&session&&$('comprasDestino').value===dest&&(form.dataset.stockRevision||'')===revision&&permission('compras.solicitar')&&permission('estoque.consultar')&&permission('estoque.transferir_obras');
+ origem.onchange=()=>{const r=origem.value===''?null:saldos[Number(origem.value)];if(!r){qty.value='';return;}const linhas=linhasRascunhoEstoque(form).filter(l=>chavePreco(l)===chavePreco(r)&&validQty(l.quantidade,l.unidade));const demanda=linhas.reduce((a,l)=>a+Math.round(l.quantidade*1000),0)/1000;qty.value=String(Math.min(demanda,r.quantidade));};
+ btn.onclick=async()=>{
+  if(!atual()||btn.disabled)return;
+  const r=origem.value===''?null:saldos[Number(origem.value)],q=Number(qty.value),galpao=$('compraReusoGalpao').value,motivo=$('compraReusoMotivo').value.trim();
+  if(!r||!validQty(q,r.unidade)||q>r.quantidade||!galpoes.includes(galpao)||motivo.length<5){say('comprasMensagem','Confira origem, quantidade, galpão e justificativa.');return;}
+  let ajustes;try{ajustes=abatimentoRascunho(linhasRascunhoEstoque(form).filter(l=>validQty(l.quantidade,l.unidade)),r,q);}catch(e){say('comprasMensagem',e.message);return;}
+  if(!window.confirm('Confirmar transferência física de '+number(q)+' '+r.unidade+' para a obra selecionada e reduzir o rascunho?'))return;
+  const payload={p_empresa_id:empresa,p_origem_tipo:'EMPRESA',p_origem_id:r.local_empresa_id,p_destino_tipo:'OBRA',p_destino_id:dest.slice(5),p_variacao_id:r.variacao_id,p_comprimento_mm:r.comprimento_mm,p_unidade:r.unidade,p_quantidade:q,p_origem_galpao:r.galpao,p_destino_galpao:galpao,p_motivo:motivo};
+  btn.disabled=true;const submit=form.querySelector('[type=submit]');submit.disabled=true;
+  let confirmado=false;
+  try{await ensureSession();if(!atual())throw Error('Empresa, sessão ou rascunho alterado.');
+   await rpc('ew_compras_transferir_locais',{...payload,p_operacao_id:operationToken('reuso_rascunho',payload)});confirmado=true;pendingOps.delete('reuso_rascunho');
+   if(!atual()){if(form.isConnected)say('comprasMensagem','Transferência registrada. Reconfira o rascunho antes de comprar.');return;}
+   for(const a of ajustes){if(a.quantidade===0)a.linha.row.remove();else a.linha.row.querySelector('[data-buy="qty"]').value=String(a.quantidade);}
+   form.dataset.stockRevision=String(Number(form.dataset.stockRevision||0)+1);pane.replaceChildren();
+   if(!$('comprasLinhas').children.length)makeLine();
+   requestNeedsReady=false;
+   const needs=await rpc('ew_compras_necessidades_obra',{p_empresa_id:empresa,p_obra_id:dest.slice(5)});
+   if(!form.isConnected||currentCompany?.id!==empresa||currentUser?.id!==user||$('comprasDestino').value!==dest)return;
+   if(!Array.isArray(needs))throw Error('Necessidades indisponíveis.');
+   requestNeeds=needs;requestNeedsReady=true;updateRequestRows();
+   say('comprasMensagem','Transferência confirmada. Rascunho reduzido; confira as quantidades restantes antes de solicitar.');
+  }catch(e){if(form.isConnected&&currentCompany?.id===empresa)say('comprasMensagem',confirmado?'Transferência registrada, mas a atualização do rascunho precisa ser conferida. Atualize a tela.':'Transferência não confirmada: '+e.message+'. Confira o histórico antes de repetir.');}
+  finally{if(btn.isConnected)btn.disabled=false;if(submit.isConnected)submit.disabled=!requestNeedsReady||!requestOptions(true).length;}
+ };
 }
 function renderRequest(){
  const editable=permission('compras.solicitar');
@@ -269,7 +313,7 @@ function renderRequest(){
  '<h3>Materiais solicitados</h3><div class="ewComprasActions" style="align-items:end;flex-wrap:wrap"><label>Categoria<select id="comprasCategoria"><option value="">Todos os materiais</option><option value="perfil">Perfis</option><option value="acessorio">Acessórios</option></select></label><label>Buscar material<input id="comprasBuscaMaterial" type="search" placeholder="Código, descrição ou cor"></label><label style="display:flex;align-items:center;gap:8px"><input id="comprasExtras" type="checkbox" style="width:16px;height:16px"> Mostrar materiais extras e já atendidos</label></div><p id="comprasMateriaisStatus" class="hint" role="status"></p><div id="comprasLinhas"></div>'+(permission('estoque.consultar')?'<button type="button" class="btn secondary" id="comprasConsultarEstoque">Consultar reaproveitamento de estoque</button><div id="comprasReaproveitamento" role="status"></div>':'')+'<div class="ewComprasActions"><button class="btn secondary" id="comprasAddLine" type="button">+ Adicionar material</button><button class="btn primary" type="submit">Criar solicitação</button></div></form>':'')+
  '<h3>Solicitações registradas</h3>'+filtrosLista()+'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Data</th><th>Destino</th><th>Itens</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+
  sols.map(s=>'<tr'+filtroRow(s,s.status,titleLocal(s)+' '+buscaMateriais(s)+' '+(s.observacoes||'')+' '+(s.numero||''))+'><td>'+esc(String(s.criado_em||'').slice(0,10).split('-').reverse().join('/'))+'</td><td>'+esc(titleLocal(s))+'</td><td>'+number((s.itens||[]).length)+'</td><td>'+esc(s.status)+cancelDetails(s)+'</td><td>'+(editable&&s.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===s.id)?'<button type="button" class="btn secondary" data-compras-tipo="solicitacao" data-compras-cancel="'+esc(s.id)+'">Cancelar</button>':'—')+'</td></tr>').join('')+
- '</tbody></table></div>';bindCancelButtons();bindFiltrosLista();if(editable){if($('comprasConsultarEstoque')){$('comprasConsultarEstoque').onclick=()=>void consultarReaproveitamento();const form=$('comprasSolicitarForm');const clear=()=>{form.dataset.stockRevision=String(Number(form.dataset.stockRevision||0)+1);$('comprasReaproveitamento').replaceChildren();};form.addEventListener('change',clear);form.addEventListener('input',clear);form.addEventListener('click',e=>{if(e.target.closest('[data-buy-remove],#comprasAddLine'))clear();});}requestNeeds=[];requestNeedsReady=false;makeLine();$('comprasAddLine').onclick=makeLine;
+ '</tbody></table></div>';bindCancelButtons();bindFiltrosLista();if(editable){if($('comprasConsultarEstoque')){$('comprasConsultarEstoque').onclick=()=>void consultarReaproveitamento();const form=$('comprasSolicitarForm');const clear=e=>{if(e?.target?.closest('#comprasReaproveitamento'))return;form.dataset.stockRevision=String(Number(form.dataset.stockRevision||0)+1);$('comprasReaproveitamento').replaceChildren();};form.addEventListener('change',clear);form.addEventListener('input',clear);form.addEventListener('click',e=>{if(e.target.closest('[data-buy-remove],#comprasAddLine'))clear();});}requestNeeds=[];requestNeedsReady=false;makeLine();$('comprasAddLine').onclick=makeLine;
  $('comprasDestino').onchange=loadRequestNeeds;$('comprasCategoria').onchange=()=>updateRequestRows();$('comprasBuscaMaterial').oninput=()=>updateRequestRows();$('comprasExtras').onchange=()=>updateRequestRows();void loadRequestNeeds();
  $('comprasSolicitarForm').onsubmit=async e=>{e.preventDefault();const value=$('comprasDestino').value;
  const lines=[...document.querySelectorAll('#comprasLinhas .ewComprasLine')].map((row,i)=>{
