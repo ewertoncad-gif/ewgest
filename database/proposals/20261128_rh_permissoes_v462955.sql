@@ -15,6 +15,7 @@ SELECT n.empresa_id,n.nivel,c.chave,
  n.nivel=1 OR (n.nivel=4 AND c.chave LIKE 'ferramentas.%') OR (n.nivel=8 AND c.chave LIKE 'rh.%' AND NOT EXISTS(SELECT 1 FROM public.usuarios_empresas u WHERE u.empresa_id=n.empresa_id AND u.nivel_acesso=8))
 FROM public.ew_niveis_acesso n CROSS JOIN public.ew_permissoes_catalogo c WHERE c.chave LIKE 'rh.%' OR c.chave LIKE 'ferramentas.%'
 ON CONFLICT(empresa_id,nivel,chave) DO NOTHING;
+UPDATE public.ew_niveis_acesso SET nome='RH' WHERE nivel=8 AND NOT EXISTS(SELECT 1 FROM public.usuarios_empresas u WHERE u.empresa_id=ew_niveis_acesso.empresa_id AND u.nivel_acesso=8);
 CREATE FUNCTION ew_financeiro_interna.exigir_rh(p_empresa uuid,p_flag text)
 RETURNS void LANGUAGE plpgsql SET search_path TO '' AS $$
 BEGIN
