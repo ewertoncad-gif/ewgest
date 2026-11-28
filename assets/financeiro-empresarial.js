@@ -293,6 +293,25 @@ function bindHoras(){
  const f=el('corpHorasForm');if(!f)return;
  f.onsubmit=ev=>{ev.preventDefault();if(!dreEditar())return;const id=el('corpHorasLocal').value,d=el('corpHorasData').value,h=Number(el('corpHorasValor').value),m=el('corpHorasMotivo').value.trim(),min=Math.round(h*60);if(!state?.centros.some(c=>c.id===id)||!d||d>todayLocal()||el('corpHorasValor').value===''||!Number.isSafeInteger(min)||min<0||min>10000000||m.length<5||m.length>300)return;void gravar('ew_industrial_registrar_horas',{p_galpao_id:id,p_data:d,p_minutos:min,p_motivo:m},f.querySelector('button[type=submit]'),'Horas registradas.');};
 }
+function simularCustoIntegral(d){
+ const vals=['materiais','folha','encargos','beneficios','energia','manutencao','frete','outros','ativo','residual'].map(k=>cents(d[k]));
+ const [materiais,folha,encargos,beneficios,energia,manutencao,frete,outros,ativo,residual]=vals,vida=Number(d.vida),area=Number(d.area),horas=Number(d.horas);
+ if(residual>ativo||!Number.isSafeInteger(vida)||vida<1||vida>1200||!Number.isFinite(area)||area<=0||!Number.isFinite(horas)||horas<0)throw Error('Confira área, horas, vida útil e valor residual.');
+ const depreciacao=Math.round((ativo-residual)/vida),pessoal=folha+encargos+beneficios,total=materiais+pessoal+energia+manutencao+frete+outros+depreciacao;
+ if(!Number.isSafeInteger(total)||!Number.isSafeInteger(pessoal))throw Error('Total fora do limite.');
+ return {depreciacao,pessoal,total,porM2:Math.round(total/area),porHora:horas>0?Math.round(total/horas):null};
+}
+function renderSimCusto(){
+ const campos=[['materiais','Materiais consumidos'],['folha','Salários brutos'],['encargos','Encargos e provisões'],['beneficios','Benefícios'],['energia','Água e energia'],['manutencao','Manutenção'],['frete','Frete ainda não incluído nos materiais'],['outros','Outros custos industriais'],['ativo','Valor de aquisição do ativo'],['residual','Valor residual']];
+ return '<div class="section panel"><h2>Simulação mensal de custo integral</h2><p class="notice">Simulação não persistida de uma fábrica e um mês, com valores informados pelo operador. Não é folha de pagamento, cálculo trabalhista ou escrituração contábil. Não incluir novamente frete ou custos já considerados em outra linha. Depreciação linear gerencial, sem lançamento financeiro.</p><form id="corpSimCusto"><div class="finFormRows">'+campos.map(([id,l])=>'<label>'+esc(l)+' (R$)<input id="simCusto_'+id+'" type="number" min="0" step="0.01" value="0" required></label>').join('')+
+ '<label>Vida útil restante da base (meses)<input id="simCusto_vida" type="number" min="1" max="1200" step="1" value="60" required></label><label>Área de referência (m²)<input id="simCusto_area" type="number" min="0.001" step="0.001" required></label><label>Horas-homem<input id="simCusto_horas" type="number" min="0" step="0.01" value="0" required></label></div><button type="submit" class="btn secondary">Simular custo</button></form><div id="corpSimResultado" role="status"></div></div>';
+}
+function bindSimCusto(){
+ const f=el('corpSimCusto');if(!f)return;
+ f.addEventListener('input',()=>el('corpSimResultado').replaceChildren());
+ f.onsubmit=e=>{e.preventDefault();if(!drePermitido())return;try{const d={};for(const k of ['materiais','folha','encargos','beneficios','energia','manutencao','frete','outros','ativo','residual']){const v=el('simCusto_'+k).value;if(!/^\d{1,12}(?:\.\d{1,2})?$/.test(v))throw Error('Valor inválido.');const [a,b='']=v.split('.');d[k]=Number(a)*100+Number(b.padEnd(2,'0'));}for(const k of ['vida','area','horas'])d[k]=Number(el('simCusto_'+k).value);
+ const r=simularCustoIntegral(d);el('corpSimResultado').innerHTML=table(['Componente','Simulação'],[cells(['Mão de obra total',money(r.pessoal)]),cells(['Depreciação mensal',money(r.depreciacao)]),cells(['Custo mensal simulado',money(r.total)]),cells(['Custo/m²',money(r.porM2)]),cells(['Custo/hora-homem',r.porHora===null?'—':money(r.porHora)])]);}catch(e){el('corpSimResultado').textContent=e.message;}};
+}
 function render(){
  const r=state,entradas=cents(r.entradas_centavos),saidas=cents(r.saidas_centavos);
  const tipos=['PAGAR','RECEBER'].filter(t=>can(t));
@@ -324,13 +343,13 @@ function render(){
  '<div class="section panel"><h2>Movimentos de caixa por centro de custo</h2>'+table(['Centro','Recebimentos','Pagamentos'],r.caixa_centros.map(c=>cells([c.centro_custo,money(c.entradas_centavos),money(c.saidas_centavos)])))+
  '<p class="hint">Movimentos pagos/recebidos, não rentabilidade nem custo industrial. Documentos de obra são inicialmente classificados no centro Geral.</p></div>'+
  (comprasFinanceiro()?renderComprasFinanceiro(r.comprasFinanceiro)+renderFretesHistorico(r.fretesHistorico):'')+
- (drePermitido()?'<div id="corpDre">'+renderDre(r.dre)+'</div><div id="corpRateio">'+renderRateio(r.rateio)+'</div>'+renderIndicadores(r.indicadores)+renderCoberturaIndustrial(r)+renderProdutividade(r.produtividade)+renderHoras(r.horas,r.produtividade,r.centros):'');
+ (drePermitido()?'<div id="corpDre">'+renderDre(r.dre)+'</div><div id="corpRateio">'+renderRateio(r.rateio)+'</div>'+renderIndicadores(r.indicadores)+renderCoberturaIndustrial(r)+renderProdutividade(r.produtividade)+renderHoras(r.horas,r.produtividade,r.centros)+renderSimCusto():'');
  if(el('corpForm')){
   el('corpOrigem').addEventListener('change',mudarOrigem);
   el('corpForm').addEventListener('submit',criar);
  }
  for(const id of ['corpFiltroTipo','corpFiltroSituacao'])el(id).addEventListener('change',renderTitulos);
- renderTitulos();if(comprasFinanceiro())bindFrete();if(drePermitido()){bindDre();bindRateio();bindHoras();}bindEstornos();
+ renderTitulos();if(comprasFinanceiro())bindFrete();if(drePermitido()){bindDre();bindRateio();bindHoras();bindSimCusto();}bindEstornos();
 }
 function mudarOrigem(){
  const f=el('corpOrigem').value,manual=f==='MANUAL',d=state.documentos.find(x=>x.origem_tipo+'|'+x.origem_id===f);
