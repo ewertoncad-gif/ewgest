@@ -129,7 +129,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.36',
+ 'EWGEST • v46.29.37',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2135,7 +2135,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.36')&&
+assert.ok(source.includes('v46.29.37')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2371,7 +2371,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.36</strong>'),
+ source.includes('EWGEST <strong>· v46.29.37</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -3067,7 +3067,7 @@ assert.ok(!source.includes("'/rest/v1/rpc/ew_importar_saldo_obra_cem'"));
  assert.equal(calc(linha,'instalacao',2,2,4667),null);
  assert.equal(calc({area_m2:0.123456,instalacao_centavos:10001},'instalacao',0.123456,0,0),10001);
  assert.equal(calc({area_m2:1,instalacao_centavos:1},'instalacao',0.1,0,0),0);
- assert.ok(source.includes("(r.precificacao?' readonly':'')"));
+ assert.ok(!source.includes("(r.precificacao?' readonly':'')")&&source.includes('finPrecoCompensado'));
  assert.ok(source.includes("finMoney(Number(data.valor_total??value))"));
 }
 
@@ -3083,7 +3083,7 @@ import './test-obras-modos.mjs';
 
 import './test-reconhecimento-cem.mjs';
 
-// v46.29.36 — compactação restrita à lista de liberação, sem fontes menores.
+// v46.29.37 — compactação restrita à lista de liberação, sem fontes menores.
 assert.ok(source.includes("node('items').classList.toggle('releaseCompact',detailMode==='release')"));
 const compactCss=source.slice(source.indexOf('/* Lista de liberação compacta:'),source.indexOf('.catalogFilters{',source.indexOf('/* Lista de liberação compacta:')));
 assert.ok(compactCss.includes('#items.releaseCompact .typologyGroup{margin:9px 0;padding:2px 16px 4px}'));
@@ -3153,7 +3153,7 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
  assert.equal(operacional({modulacao_id:'m6',descricao:'GRADIL 6 MÓDULO(S)'}),seis);
  assert.equal(operacional({descricao:'ORIGINAL CEM'}),'ORIGINAL CEM');
 
- // v46.29.36: escolher a família e a quantidade basta; o seletor interno
+ // v46.29.37: escolher a família e a quantidade basta; o seletor interno
  // permanece apenas como contrato com a RPC, sem decisão intermediária.
  {
   const cut=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end,source.indexOf(start)));
@@ -3207,7 +3207,7 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
   assert.equal(origin.descricao,'GRADIL 6 MODULO(S) - COM VIDRO - UNIVERSAL - HYDRO');
   assert.equal(catalog[0].descricao,oito);
  }
- console.log('OK v46.29.36: modulação automática, reuso, criação, exceções e bloqueios.');
+ console.log('OK v46.29.37: modulação automática, reuso, criação, exceções e bloqueios.');
 
  // Reaproveita a descrição exata do CEM somente na família selecionada.
  {
@@ -3226,7 +3226,7 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
   assert.equal(legado.descricao,origem);
  }
 
-// v46.29.36: composição independente e atalho sem reiniciar a liberação.
+// v46.29.37: composição independente e atalho sem reiniciar a liberação.
 {
  const cut=(a,b)=>source.slice(source.indexOf(a),source.indexOf(b,source.indexOf(a)));
  const ns=new Map();const n=id=>{if(!ns.has(id)){const flags=new Set();ns.set(id,{value:'',disabled:false,textContent:'',focus(){},classList:{toggle(k,v){v?flags.add(k):flags.delete(k)},add(k){flags.add(k)},remove(k){flags.delete(k)},contains(k){return flags.has(k)}}});}return ns.get(id);};
@@ -3251,9 +3251,9 @@ assert.ok(source.includes("renderListaDescritiva('recognitionTarget',rows,node('
  assert.ok(source.includes("void expCompOpen(source.id,true)"));
  assert.ok(source.includes("node('expCompClose').textContent=fromRelease?'Voltar à liberação':'Voltar'"));
 }
-console.log('OK v46.29.36: fechar edição sem mudanças, permissões e retorno à liberação.');
+console.log('OK v46.29.37: fechar edição sem mudanças, permissões e retorno à liberação.');
 
-// v46.29.36 — sem seletor; escopo completo fixo e saldo respeitado.
+// v46.29.37 — sem seletor; escopo completo fixo e saldo respeitado.
 {
  const start=source.indexOf("node('releaseForm').addEventListener('submit'");
  const end=source.indexOf("p_componente:componente",start);
@@ -3272,9 +3272,9 @@ console.log('OK v46.29.36: fechar edição sem mudanças, permissões e retorno 
  fields.get('releaseQty').value='2';update();assert.equal(fields.get('releaseQty').value,'2');
  parts.saldoCompleto=0;update();assert.equal(fields.get('releaseQty').value,'');assert.equal(fields.get('releaseQty').max,'0');
 }
-console.log('OK v46.29.36: liberação completa sem seletor, saldo e aviso de expedição.');
+console.log('OK v46.29.37: liberação completa sem seletor, saldo e aviso de expedição.');
 
-// v46.29.36: apenas opções disponíveis da composição, sem duplicar marco/folha legados.
+// v46.29.37: apenas opções disponíveis da composição, sem duplicar marco/folha legados.
 {
  const i=source.indexOf('function opcoesExpedicaoRomaneio('),j=source.indexOf('function atualizarQuantidadeRomaneio(',i);
  assert.ok(i>=0&&j>i);
@@ -3285,19 +3285,19 @@ console.log('OK v46.29.36: liberação completa sem seletor, saldo e aviso de ex
  assert.deepEqual(options(e,null).map(x=>x.tipo),['completo','marco','folha']);
  assert.ok(source.includes('data-rom-choice required disabled')&&!source.includes('Componente cadastrado na tipologia</option>'));
 }
-console.log('OK v46.29.36: opções diretas por composição, saldo e equivalência por peça.');
+console.log('OK v46.29.37: opções diretas por composição, saldo e equivalência por peça.');
 
-// v46.29.36: valor por linha, inclusive desmarcada, usa centavos da emissão.
+// v46.29.37: valor por linha, inclusive desmarcada, usa centavos da emissão.
 {
  const i=source.indexOf('function finValorLinhaCentavos('),j=source.indexOf('function finXMLValor(',i);
  const k=source.indexOf('function finValorPrecificadoCentavos('),l=source.indexOf('function finRenderFaturaveis(){',k);
  assert.ok(i>=0&&j>i&&k>=0&&l>k);
- const fakeRow=(id,qty,price,max,checked)=>{
+ const fakeRow=(id,qty,price,max,checked,auto='1')=>{
   const fields={'.finPrice':{value:price},'.finQty':{value:qty},'.finSelected':{checked},'.finInvoiceValue':{textContent:''}};
-  return {dataset:{esq:id,max:String(max),areaUnit:'1.38'},querySelector:key=>fields[key],fields};
+  return {dataset:{esq:id,max:String(max),areaUnit:'1.38',autoPrice:auto},querySelector:key=>fields[key],fields};
  };
- const rows=[fakeRow('ea2','0.345','280',.345,true),fakeRow('manual','0.5','100',1,false),fakeRow('zero','','',0,false),fakeRow('residual','0.1','100',.1,false)];
- const state={precoPorEsquadria:new Map([['ea2',{area_m2:1.38,fabricacao_centavos:38640}],['residual',{area_m2:.3,fabricacao_centavos:1000}]]),billedAreas:{fabricacao:new Map([['residual',.2]])},billedValues:{fabricacao:new Map([['residual',667]])}};
+ const rows=[fakeRow('ea2','0.345','280',.345,true),fakeRow('manual','0.5','100',1,false,'0'),fakeRow('zero','','',0,false,'0'),fakeRow('residual','0.1','33.3',.1,false)];
+ const state={precificacao:{fabricacao_distribuida_centavos:49640},faturas:[{status:'emitido',categoria:'fabricacao',valor_total:6.67}],precoPorEsquadria:new Map([['ea2',{area_m2:1.38,fabricacao_centavos:38640}],['manual',{area_m2:1,fabricacao_centavos:10000}],['residual',{area_m2:.3,fabricacao_centavos:1000}]]),billedAreas:{fabricacao:new Map([['residual',.2]])},billedValues:{fabricacao:new Map([['residual',667]])}};
  const sum={textContent:''};
  const nodes={finBillingCategory:{value:'fabricacao'},finBillingRows:{querySelectorAll:()=>rows},finBillingSum:sum};
  const money=v=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -3305,11 +3305,11 @@ console.log('OK v46.29.36: opções diretas por composição, saldo e equivalên
  update();assert.equal(rows[0].fields['.finInvoiceValue'].textContent,money(96.6));assert.equal(rows[1].fields['.finInvoiceValue'].textContent,money(50));assert.equal(rows[2].fields['.finInvoiceValue'].textContent,money(0));assert.equal(rows[3].fields['.finInvoiceValue'].textContent,money(3.33));assert.ok(sum.textContent.includes(money(96.6)));
  rows[1].fields['.finSelected'].checked=true;rows[1].fields['.finQty'].value='0.25';update();assert.equal(rows[1].fields['.finInvoiceValue'].textContent,money(25));assert.ok(sum.textContent.includes(money(121.6)));
  rows[0].fields['.finQty'].value='0.346';update();assert.equal(rows[0].fields['.finInvoiceValue'].textContent,'—');assert.ok(sum.textContent.includes(money(25)));assert.ok(sum.textContent.includes('1 item(ns)'));
- assert.ok(source.includes('Valor a faturar (R$)')&&source.includes('const cents=finValorLinhaCentavos(linha,tipo,qtd,preco,'));
+ assert.ok(source.includes('Valor a faturar (R$)')&&source.includes('const cents=finValorFaturamentoLinha(plano,row,qtd,preco)'));
 }
-console.log('OK v46.29.36: valor por linha, seleção, saldo e centavos residuais.');
+console.log('OK v46.29.37: valor por linha, seleção, saldo e centavos residuais.');
 
-// v46.29.36: seleção direta de obras sem abandonar a subdivisão e estorno protegido.
+// v46.29.37: seleção direta de obras sem abandonar a subdivisão e estorno protegido.
 {
  const i=source.indexOf('function preencherSeletorObras('),j=source.indexOf('function mostrarListaDeObras(){',i);
  assert.ok(i>=0&&j>i);
@@ -3330,7 +3330,7 @@ console.log('OK v46.29.36: valor por linha, seleção, saldo e centavos residuai
  assert.ok(source.includes("manageWorksUndoMode&&node('manageWorksSelect').value!==id")&&source.includes("workDeleteSubmitting=true;node('manageWorksSelect').disabled=true"));
  assert.ok(source.includes("ew_inspecionar_reversao_obra")&&source.includes("ew_arquivar_obra_reconciliada"));
 }
-console.log('OK v46.29.36: seletores, troca de obra e estorno com autorização preservada.');
+console.log('OK v46.29.37: seletores, troca de obra e estorno com autorização preservada.');
 
 // Painel gerencial: documentos ativos, centavos, período e ausência de falsos lucros.
 {
@@ -3348,3 +3348,21 @@ console.log('OK v46.29.36: seletores, troca de obra e estorno com autorização 
  assert.ok(source.includes('id="gerencialPanel"')&&source.includes('window.ewGerencial?.limpar()'));
 }
 console.log('OK: painel gerencial — centavos, documentos cancelados, período e permissões.');
+
+// v46.29.37: compensação contratual independente por categoria e acerto final.
+{
+ const i=source.indexOf('function finArredondarRazao('),j=source.indexOf('function finRenderFaturaveis(){',i);
+ const {finPlanoCompensacao:plano,finSugestaoCompensada:sug,finPrecoCompensado:preco,finValorManualCentavos:manual,finValidaFechamentoCompensado:valida}=new Function(source.slice(i,j)+'return {finPlanoCompensacao,finSugestaoCompensada,finPrecoCompensado,finValorManualCentavos,finValidaFechamentoCompensado};')();
+ const state={precificacao:{fabricacao_distribuida_centavos:100000,instalacao_distribuida_centavos:20000},faturas:[],precoPorEsquadria:new Map([['a',{area_m2:1,fabricacao_centavos:50000,instalacao_centavos:10000}],['b',{area_m2:1,fabricacao_centavos:50000,instalacao_centavos:10000}]]),billedAreas:{fabricacao:new Map(),instalacao:new Map()}};
+ let p=plano(state,'fabricacao');assert.equal(sug(p,'a',.25),12500);assert.equal(manual(.25,800),20000);assert.equal(valida(p,[{esquadria_id:'a',area_m2:.25}],20000),'');
+ state.billedAreas.fabricacao.set('a',.25);state.faturas.push({status:'emitido',categoria:'fabricacao',valor_total:200});p=plano(state,'fabricacao');assert.equal(p.saldo,80000);assert.equal(p.ajuste,-7500);assert.equal(sug(p,'a',.75),34286);assert.equal(sug(p,'b',1),45714);assert.equal(preco(p,'a',.75),457.1467);assert.equal(sug(plano(state,'instalacao'),'a',1),10000);
+ assert.notEqual(valida(p,[{esquadria_id:'b',area_m2:1}],80000),'');assert.notEqual(valida(p,[{esquadria_id:'b',area_m2:1},{esquadria_id:'a',area_m2:.75}],79999),'');assert.equal(valida(p,[{esquadria_id:'b',area_m2:1},{esquadria_id:'a',area_m2:.75}],80000),'');
+ state.billedAreas.fabricacao.set('b',1);state.faturas.push({status:'emitido',categoria:'fabricacao',valor_total:457.14});p=plano(state,'fabricacao');assert.equal(sug(p,'a',.75),34286);
+ state.faturas[1].status='cancelado';state.billedAreas.fabricacao.delete('b');assert.equal(plano(state,'fabricacao').saldo,80000);
+ for(let n=1;n<=100;n++){
+  const st={precificacao:{fabricacao_distribuida_centavos:n+300},faturas:[{status:'emitido',categoria:'fabricacao',valor_total:1}],precoPorEsquadria:new Map([['a',{area_m2:1,fabricacao_centavos:n+100}],['b',{area_m2:2,fabricacao_centavos:200}]]),billedAreas:{fabricacao:new Map([['a',.25]])}};
+  const pp=plano(st,'fabricacao');assert.equal([...pp.porId.values()].reduce((a,x)=>a+x.alvo,0),pp.saldo);assert.ok([...pp.porId.values()].every(x=>x.alvo>=1));
+ }
+ assert.equal(manual(.345,350),12075);assert.equal(manual(.005,1),1);
+}
+console.log('OK: compensação por categoria, antecipação, estorno, saldo final e 100 cenários de rateio.');
