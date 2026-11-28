@@ -235,15 +235,41 @@ function bindCancelButtons(){
  $('comprasConteudo').querySelectorAll('[data-compras-cancel]').forEach(b=>
   b.addEventListener('click',()=>void cancelarRegistro(b.dataset.comprasTipo,b.dataset.comprasCancel)));
 }
+function saldosReaproveitaveis(rows,necessidades,locais){
+ const ativos=new Set(locais.filter(l=>l.ativo).map(l=>l.id)),keys=new Set(necessidades.map(chavePreco)),saldo=new Map();
+ for(const r of rows){if(!ativos.has(r.local_empresa_id)||!keys.has(chavePreco(r)))continue;
+  const k=JSON.stringify([r.local_empresa_id,r.galpao,chavePreco(r)]),delta=Number(r.quantidade_delta),m=Math.round(delta*1000);
+  if(!Number.isSafeInteger(m)||Math.abs(m-delta*1000)>1e-6)throw Error('Saldo físico inválido.');
+  const old=saldo.get(k)||{...r,milli:0};old.milli+=m;if(!Number.isSafeInteger(old.milli))throw Error('Saldo físico fora do limite.');saldo.set(k,old);
+ }
+ return [...saldo.values()].filter(r=>r.milli>0).map(r=>({...r,quantidade:r.milli/1000}));
+}
+async function consultarReaproveitamento(){
+ const form=$('comprasSolicitarForm'),pane=$('comprasReaproveitamento'),btn=$('comprasConsultarEstoque');
+ if(!form||!pane||!btn||!permission('estoque.consultar')||!permission('compras.solicitar'))return;
+ const empresa=currentCompany.id,dest=$('comprasDestino').value;
+ if(!dest.startsWith('obra:')){pane.textContent='Selecione uma obra de destino.';return;}
+ const itens=[...form.querySelectorAll('[data-buy-line]')].map(row=>{const v=requestOptions(true).find(v=>v.key===row.querySelector('[data-buy="variation"]').value);return v?{variacao_id:v.id,unidade:v.unidade,comprimento_mm:v.unidade==='BARRA'?Number(row.querySelector('[data-buy="length"]').value):null}:null;}).filter(Boolean);
+ if(!itens.length){pane.textContent='Selecione pelo menos um material.';return;}
+ btn.disabled=true;pane.textContent='Consultando estoque próprio…';
+ try{
+  const rows=await readAllRows('ew_compras_estoque_empresa',{select:'id,local_empresa_id,variacao_id,unidade,comprimento_mm,quantidade_delta,galpao',empresa_id:'eq.'+empresa});
+  if(!form.isConnected||currentCompany?.id!==empresa||!session||!permission('estoque.consultar')||$('comprasDestino').value!==dest)return;
+  const saldos=saldosReaproveitaveis(rows,itens,locals);
+  pane.innerHTML='<p class="hint">Posição consultiva dos materiais selecionados no estoque próprio da empresa. Não reserva, não transfere e não reduz a solicitação. Confira o saldo novamente no módulo Estoque antes de transferir.</p>'+
+  (saldos.length?'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Material</th><th>Local da empresa</th><th>Galpão</th><th>Saldo físico</th></tr></thead><tbody>'+saldos.map(r=>'<tr><td>'+esc(materialPreco(r))+'</td><td>'+esc(locals.find(l=>l.id===r.local_empresa_id)?.nome||'Local')+'</td><td>'+esc(r.galpao)+'</td><td>'+number(r.quantidade)+' '+esc(r.unidade)+'</td></tr>').join('')+'</tbody></table></div>':'<p class="hint">Nenhum saldo positivo compatível encontrado no estoque próprio.</p>');
+ }catch(e){if(form.isConnected&&currentCompany?.id===empresa)pane.textContent='Consulta indisponível: '+e.message;}
+ finally{if(btn.isConnected)btn.disabled=false;}
+}
 function renderRequest(){
  const editable=permission('compras.solicitar');
  $('comprasConteudo').innerHTML='<h2>Solicitação de materiais</h2>'+
  (editable?'<form id="comprasSolicitarForm" class="ewComprasForm"><label>Local de estoque de destino<select id="comprasDestino" required>'+option('','Escolha o local')+destinoOptions()+'</select></label>'+
  '<label>Observações<textarea id="comprasObservacoes" rows="2" maxlength="600"></textarea></label>'+
- '<h3>Materiais solicitados</h3><div class="ewComprasActions" style="align-items:end;flex-wrap:wrap"><label>Categoria<select id="comprasCategoria"><option value="">Todos os materiais</option><option value="perfil">Perfis</option><option value="acessorio">Acessórios</option></select></label><label>Buscar material<input id="comprasBuscaMaterial" type="search" placeholder="Código, descrição ou cor"></label><label style="display:flex;align-items:center;gap:8px"><input id="comprasExtras" type="checkbox" style="width:16px;height:16px"> Mostrar materiais extras e já atendidos</label></div><p id="comprasMateriaisStatus" class="hint" role="status"></p><div id="comprasLinhas"></div><div class="ewComprasActions"><button class="btn secondary" id="comprasAddLine" type="button">+ Adicionar material</button><button class="btn primary" type="submit">Criar solicitação</button></div></form>':'')+
+ '<h3>Materiais solicitados</h3><div class="ewComprasActions" style="align-items:end;flex-wrap:wrap"><label>Categoria<select id="comprasCategoria"><option value="">Todos os materiais</option><option value="perfil">Perfis</option><option value="acessorio">Acessórios</option></select></label><label>Buscar material<input id="comprasBuscaMaterial" type="search" placeholder="Código, descrição ou cor"></label><label style="display:flex;align-items:center;gap:8px"><input id="comprasExtras" type="checkbox" style="width:16px;height:16px"> Mostrar materiais extras e já atendidos</label></div><p id="comprasMateriaisStatus" class="hint" role="status"></p><div id="comprasLinhas"></div>'+(permission('estoque.consultar')?'<button type="button" class="btn secondary" id="comprasConsultarEstoque">Consultar reaproveitamento de estoque</button><div id="comprasReaproveitamento" role="status"></div>':'')+'<div class="ewComprasActions"><button class="btn secondary" id="comprasAddLine" type="button">+ Adicionar material</button><button class="btn primary" type="submit">Criar solicitação</button></div></form>':'')+
  '<h3>Solicitações registradas</h3>'+filtrosLista()+'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Data</th><th>Destino</th><th>Itens</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+
  sols.map(s=>'<tr'+filtroRow(s,s.status,titleLocal(s)+' '+buscaMateriais(s)+' '+(s.observacoes||'')+' '+(s.numero||''))+'><td>'+esc(String(s.criado_em||'').slice(0,10).split('-').reverse().join('/'))+'</td><td>'+esc(titleLocal(s))+'</td><td>'+number((s.itens||[]).length)+'</td><td>'+esc(s.status)+cancelDetails(s)+'</td><td>'+(editable&&s.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===s.id)?'<button type="button" class="btn secondary" data-compras-tipo="solicitacao" data-compras-cancel="'+esc(s.id)+'">Cancelar</button>':'—')+'</td></tr>').join('')+
- '</tbody></table></div>';bindCancelButtons();bindFiltrosLista();if(editable){requestNeeds=[];requestNeedsReady=false;makeLine();$('comprasAddLine').onclick=makeLine;
+ '</tbody></table></div>';bindCancelButtons();bindFiltrosLista();if(editable){if($('comprasConsultarEstoque')){$('comprasConsultarEstoque').onclick=()=>void consultarReaproveitamento();const form=$('comprasSolicitarForm');form.addEventListener('change',()=>{$('comprasReaproveitamento').replaceChildren();});form.addEventListener('input',()=>{$('comprasReaproveitamento').replaceChildren();});}requestNeeds=[];requestNeedsReady=false;makeLine();$('comprasAddLine').onclick=makeLine;
  $('comprasDestino').onchange=loadRequestNeeds;$('comprasCategoria').onchange=()=>updateRequestRows();$('comprasBuscaMaterial').oninput=()=>updateRequestRows();$('comprasExtras').onchange=()=>updateRequestRows();void loadRequestNeeds();
  $('comprasSolicitarForm').onsubmit=async e=>{e.preventDefault();const value=$('comprasDestino').value;
  const lines=[...document.querySelectorAll('#comprasLinhas .ewComprasLine')].map((row,i)=>{
