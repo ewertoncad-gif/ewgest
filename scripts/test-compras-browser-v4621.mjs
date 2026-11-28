@@ -484,6 +484,10 @@ try{
  await quoting.locator('#comprasPedidoForm').waitFor();
  assert.equal(await quoting.locator('#comprasPaginaTitulo').innerText(),'Aprovação de cotações');
  assert.equal(await quoting.locator('#comprasTabAprovacao').getAttribute('aria-current'),'page');
+ await quoting.locator('#comprasFiltroBusca').fill('fornecedor inexistente');
+ assert.equal(await quoting.locator('[data-aprovar-cotacao="q1"]').isVisible(),false);
+ await quoting.locator('#comprasFiltroLimpar').click();
+ assert.equal(await quoting.locator('[data-aprovar-cotacao="q1"]').isVisible(),true);
  await quoting.locator('[data-aprovar-cotacao="q1"]').click();
  assert.equal(await quoting.locator('#comprasPedidoCotacao').inputValue(),'q1');
  await quoting.locator('#comprasTabPedido').click();
