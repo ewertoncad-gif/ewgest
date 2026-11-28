@@ -244,22 +244,66 @@ function saldosReaproveitaveis(rows,necessidades,locais){
  }
  return [...saldo.values()].filter(r=>r.milli>0).map(r=>({...r,quantidade:r.milli/1000}));
 }
+function linhasRascunhoEstoque(form){
+ return [...form.querySelectorAll('[data-buy-line]')].map(row=>{const v=requestOptions(true).find(v=>v.key===row.querySelector('[data-buy="variation"]').value);return v?{row,variacao_id:v.id,unidade:v.unidade,comprimento_mm:v.unidade==='BARRA'?Number(row.querySelector('[data-buy="length"]').value):null,quantidade:Number(row.querySelector('[data-buy="qty"]').value)}:null;}).filter(Boolean);
+}
+function abatimentoRascunho(linhas,material,quantidade){
+ let falta=Math.round(quantidade*1000);const result=[];
+ for(const l of linhas){if(chavePreco(l)!==chavePreco(material))continue;
+  const q=Math.round(l.quantidade*1000),abater=Math.min(falta,q);if(abater>0){result.push({linha:l,quantidade:(q-abater)/1000});falta-=abater;}
+ }
+ if(falta!==0)throw Error('Quantidade superior ao rascunho.');
+ return result;
+}
 async function consultarReaproveitamento(){
  const form=$('comprasSolicitarForm'),pane=$('comprasReaproveitamento'),btn=$('comprasConsultarEstoque');
  if(!form||!pane||!btn||!permission('estoque.consultar')||!permission('compras.solicitar'))return;
  const empresa=currentCompany.id,dest=$('comprasDestino').value,revision=form.dataset.stockRevision||'';
  if(!dest.startsWith('obra:')){pane.textContent='Selecione uma obra de destino.';return;}
- const itens=[...form.querySelectorAll('[data-buy-line]')].map(row=>{const v=requestOptions(true).find(v=>v.key===row.querySelector('[data-buy="variation"]').value);return v?{variacao_id:v.id,unidade:v.unidade,comprimento_mm:v.unidade==='BARRA'?Number(row.querySelector('[data-buy="length"]').value):null}:null;}).filter(Boolean);
+ const itens=linhasRascunhoEstoque(form).filter(i=>validQty(i.quantidade,i.unidade));
  if(!itens.length){pane.textContent='Selecione pelo menos um material.';return;}
  btn.disabled=true;pane.textContent='Consultando estoque próprio…';
  try{
   const rows=await readAllRows('ew_compras_estoque_empresa',{select:'id,local_empresa_id,variacao_id,unidade,comprimento_mm,quantidade_delta,galpao',empresa_id:'eq.'+empresa});
   if(!form.isConnected||currentCompany?.id!==empresa||!session||!permission('estoque.consultar')||$('comprasDestino').value!==dest||(form.dataset.stockRevision||'')!==revision)return;
   const saldos=saldosReaproveitaveis(rows,itens,locals);
-  pane.innerHTML='<p class="hint">Posição consultiva dos materiais selecionados no estoque próprio da empresa. Não reserva, não transfere e não reduz a solicitação. Confira o saldo novamente no módulo Estoque antes de transferir.</p>'+
+  pane.innerHTML='<p class="hint">Saldo físico compatível. Para reaproveitar, selecione uma origem, galpão de destino e quantidade. Somente uma transferência confirmada pelo servidor abate o rascunho; nenhuma nova compra é registrada.</p>'+
   (saldos.length?'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Material</th><th>Local da empresa</th><th>Galpão</th><th>Saldo físico</th></tr></thead><tbody>'+saldos.map(r=>'<tr><td>'+esc(materialPreco(r))+'</td><td>'+esc(locals.find(l=>l.id===r.local_empresa_id)?.nome||'Local')+'</td><td>'+esc(r.galpao)+'</td><td>'+number(r.quantidade)+' '+esc(r.unidade)+'</td></tr>').join('')+'</tbody></table></div>':'<p class="hint">Nenhum saldo positivo compatível encontrado no estoque próprio.</p>');
+  if(saldos.length&&permission('estoque.transferir_obras')&&permission('estoque.consultar'))bindReaproveitamento(form,pane,saldos,empresa,dest,revision);
  }catch(e){if(form.isConnected&&currentCompany?.id===empresa)pane.textContent='Consulta indisponível: '+e.message;}
  finally{if(btn.isConnected)btn.disabled=false;}
+}
+function bindReaproveitamento(form,pane,saldos,empresa,dest,revision){
+ const user=currentUser?.id;
+ const box=document.createElement('div');box.className='ewComprasForm';box.innerHTML='<h3>Reaproveitar material no rascunho</h3><label>Origem e material<select id="compraReusoOrigem">'+option('','Selecione')+saldos.map((r,i)=>option(String(i),materialPreco(r)+' · '+(locals.find(l=>l.id===r.local_empresa_id)?.nome||'Local')+' · '+r.galpao+' · '+number(r.quantidade)+' '+r.unidade)).join('')+'</select></label><label>Galpão de destino<select id="compraReusoGalpao">'+option('','Selecione')+galpoes.map(g=>option(g,g)).join('')+'</select></label><label>Quantidade a transferir<input id="compraReusoQtd" type="number" min="0.001" step="any"></label><label>Motivo<input id="compraReusoMotivo" maxlength="300" placeholder="Reaproveitamento de material"></label><button type="button" class="btn primary" id="compraReusoConfirmar">Transferir e abater do rascunho</button>';
+ pane.append(box);
+ const origem=$('compraReusoOrigem'),qty=$('compraReusoQtd'),btn=$('compraReusoConfirmar');
+ const atual=()=>form.isConnected&&!$('compras')?.classList.contains('hidden')&&currentCompany?.id===empresa&&currentUser?.id===user&&session&&$('comprasDestino').value===dest&&(form.dataset.stockRevision||'')===revision&&permission('compras.solicitar')&&permission('estoque.consultar')&&permission('estoque.transferir_obras');
+ origem.onchange=()=>{const r=origem.value===''?null:saldos[Number(origem.value)];if(!r){qty.value='';return;}const linhas=linhasRascunhoEstoque(form).filter(l=>chavePreco(l)===chavePreco(r)&&validQty(l.quantidade,l.unidade));const demanda=linhas.reduce((a,l)=>a+Math.round(l.quantidade*1000),0)/1000;qty.value=String(Math.min(demanda,r.quantidade));};
+ btn.onclick=async()=>{
+  if(!atual()||btn.disabled)return;
+  const r=origem.value===''?null:saldos[Number(origem.value)],q=Number(qty.value),galpao=$('compraReusoGalpao').value,motivo=$('compraReusoMotivo').value.trim();
+  if(!r||!validQty(q,r.unidade)||q>r.quantidade||!galpoes.includes(galpao)||motivo.length<5){say('comprasMensagem','Confira origem, quantidade, galpão e justificativa.');return;}
+  let ajustes;try{ajustes=abatimentoRascunho(linhasRascunhoEstoque(form).filter(l=>validQty(l.quantidade,l.unidade)),r,q);}catch(e){say('comprasMensagem',e.message);return;}
+  if(!window.confirm('Confirmar transferência física de '+number(q)+' '+r.unidade+' para a obra selecionada e reduzir o rascunho?'))return;
+  const payload={p_empresa_id:empresa,p_origem_tipo:'EMPRESA',p_origem_id:r.local_empresa_id,p_destino_tipo:'OBRA',p_destino_id:dest.slice(5),p_variacao_id:r.variacao_id,p_comprimento_mm:r.comprimento_mm,p_unidade:r.unidade,p_quantidade:q,p_origem_galpao:r.galpao,p_destino_galpao:galpao,p_motivo:motivo};
+  btn.disabled=true;const submit=form.querySelector('[type=submit]');submit.disabled=true;
+  let confirmado=false;
+  try{await ensureSession();if(!atual())throw Error('Empresa, sessão ou rascunho alterado.');
+   await rpc('ew_compras_transferir_locais',{...payload,p_operacao_id:operationToken('reuso_rascunho',payload)});confirmado=true;pendingOps.delete('reuso_rascunho');
+   if(!atual()){if(form.isConnected&&currentCompany?.id===empresa&&$('comprasDestino').value===dest){requestNeedsReady=false;say('comprasMensagem','Transferência registrada. Atualize a solicitação antes de comprar.');}return;}
+   for(const a of ajustes){if(a.quantidade===0)a.linha.row.remove();else a.linha.row.querySelector('[data-buy="qty"]').value=String(a.quantidade);}
+   form.dataset.stockRevision=String(Number(form.dataset.stockRevision||0)+1);pane.replaceChildren();
+   if(!$('comprasLinhas').children.length)makeLine();
+   requestNeedsReady=false;
+   const needs=await rpc('ew_compras_necessidades_obra',{p_empresa_id:empresa,p_obra_id:dest.slice(5)});
+   if(!form.isConnected||currentCompany?.id!==empresa||currentUser?.id!==user||$('comprasDestino').value!==dest)return;
+   if(!Array.isArray(needs))throw Error('Necessidades indisponíveis.');
+   requestNeeds=needs;requestNeedsReady=true;updateRequestRows();
+   say('comprasMensagem','Transferência confirmada. Rascunho reduzido; confira as quantidades restantes antes de solicitar.');
+  }catch(e){if(form.isConnected&&currentCompany?.id===empresa&&$('comprasDestino').value===dest){requestNeedsReady=false;say('comprasMensagem',confirmado?'Transferência registrada, mas a atualização do rascunho precisa ser conferida. Atualize a tela.':'Transferência não confirmada: '+e.message+'. Confira o histórico e atualize antes de repetir.');}}
+  finally{if(btn.isConnected)btn.disabled=false;if(submit.isConnected)submit.disabled=!requestNeedsReady||!requestOptions(true).length;}
+ };
 }
 function renderRequest(){
  const editable=permission('compras.solicitar');
@@ -269,7 +313,7 @@ function renderRequest(){
  '<h3>Materiais solicitados</h3><div class="ewComprasActions" style="align-items:end;flex-wrap:wrap"><label>Categoria<select id="comprasCategoria"><option value="">Todos os materiais</option><option value="perfil">Perfis</option><option value="acessorio">Acessórios</option></select></label><label>Buscar material<input id="comprasBuscaMaterial" type="search" placeholder="Código, descrição ou cor"></label><label style="display:flex;align-items:center;gap:8px"><input id="comprasExtras" type="checkbox" style="width:16px;height:16px"> Mostrar materiais extras e já atendidos</label></div><p id="comprasMateriaisStatus" class="hint" role="status"></p><div id="comprasLinhas"></div>'+(permission('estoque.consultar')?'<button type="button" class="btn secondary" id="comprasConsultarEstoque">Consultar reaproveitamento de estoque</button><div id="comprasReaproveitamento" role="status"></div>':'')+'<div class="ewComprasActions"><button class="btn secondary" id="comprasAddLine" type="button">+ Adicionar material</button><button class="btn primary" type="submit">Criar solicitação</button></div></form>':'')+
  '<h3>Solicitações registradas</h3>'+filtrosLista()+'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Data</th><th>Destino</th><th>Itens</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+
  sols.map(s=>'<tr'+filtroRow(s,s.status,titleLocal(s)+' '+buscaMateriais(s)+' '+(s.observacoes||'')+' '+(s.numero||''))+'><td>'+esc(String(s.criado_em||'').slice(0,10).split('-').reverse().join('/'))+'</td><td>'+esc(titleLocal(s))+'</td><td>'+number((s.itens||[]).length)+'</td><td>'+esc(s.status)+cancelDetails(s)+'</td><td>'+(editable&&s.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===s.id)?'<button type="button" class="btn secondary" data-compras-tipo="solicitacao" data-compras-cancel="'+esc(s.id)+'">Cancelar</button>':'—')+'</td></tr>').join('')+
- '</tbody></table></div>';bindCancelButtons();bindFiltrosLista();if(editable){if($('comprasConsultarEstoque')){$('comprasConsultarEstoque').onclick=()=>void consultarReaproveitamento();const form=$('comprasSolicitarForm');const clear=()=>{form.dataset.stockRevision=String(Number(form.dataset.stockRevision||0)+1);$('comprasReaproveitamento').replaceChildren();};form.addEventListener('change',clear);form.addEventListener('input',clear);form.addEventListener('click',e=>{if(e.target.closest('[data-buy-remove],#comprasAddLine'))clear();});}requestNeeds=[];requestNeedsReady=false;makeLine();$('comprasAddLine').onclick=makeLine;
+ '</tbody></table></div>';bindCancelButtons();bindFiltrosLista();if(editable){if($('comprasConsultarEstoque')){$('comprasConsultarEstoque').onclick=()=>void consultarReaproveitamento();const form=$('comprasSolicitarForm');const clear=e=>{if(e?.target?.closest('#comprasReaproveitamento'))return;form.dataset.stockRevision=String(Number(form.dataset.stockRevision||0)+1);$('comprasReaproveitamento').replaceChildren();};form.addEventListener('change',clear);form.addEventListener('input',clear);form.addEventListener('click',e=>{if(e.target.closest('[data-buy-remove],#comprasAddLine'))clear();});}requestNeeds=[];requestNeedsReady=false;makeLine();$('comprasAddLine').onclick=makeLine;
  $('comprasDestino').onchange=loadRequestNeeds;$('comprasCategoria').onchange=()=>updateRequestRows();$('comprasBuscaMaterial').oninput=()=>updateRequestRows();$('comprasExtras').onchange=()=>updateRequestRows();void loadRequestNeeds();
  $('comprasSolicitarForm').onsubmit=async e=>{e.preventDefault();const value=$('comprasDestino').value;
  const lines=[...document.querySelectorAll('#comprasLinhas .ewComprasLine')].map((row,i)=>{
@@ -451,6 +495,20 @@ function bindQuoteExcel(){
   }catch(e){say('comprasMensagem','Importação bloqueada: '+e.message);}finally{file.value='';}
  };
 }
+const freteLabels={NAO_INFORMADO:'Não informado',INCLUSO:'Incluso nos preços',RETIRADA:'Retirada pela empresa',A_COMBINAR:'A combinar / fora do valor cotado'};
+function condicoesTexto(q){
+ const c=q?.condicoes_comerciais;if(!c||typeof c!=='object')return 'Condições não registradas';
+ return ['Prazo: '+(c.prazo_dias==null?'não informado':number(c.prazo_dias)+' dias'),'Validade: '+(c.validade||'não informada'),'Pagamento: '+(c.pagamento||'não informado'),'Frete: '+(freteLabels[c.frete]||'não informado'),c.observacao||''].filter(Boolean).join(' · ');
+}
+function condicoesInputs(){
+ return '<fieldset><legend>Condições comerciais</legend><div class="ewComprasActions" style="flex-wrap:wrap;align-items:end"><label>Prazo de entrega (dias)<input id="cotPrazo" type="number" min="0" max="3650" step="1"></label><label>Validade da proposta<input id="cotValidade" type="date"></label><label>Pagamento<input id="cotPagamento" maxlength="200" placeholder="Ex.: 30/60 dias"></label><label>Frete<select id="cotFrete">'+Object.entries(freteLabels).map(([v,l])=>option(v,l)).join('')+'</select></label></div><label>Observações comerciais<textarea id="cotObsComercial" maxlength="400" rows="2"></textarea></label><p class="hint">Frete não incluído nos preços não compõe o valor do pedido; confira o compromisso financeiro antes de aprovar.</p></fieldset>';
+}
+function limparCondicoes(){for(const id of ['cotPrazo','cotValidade','cotPagamento','cotObsComercial'])$(id).value='';$('cotFrete').value='NAO_INFORMADO';}
+function lerCondicoes(){
+ const prazo=$('cotPrazo').value,frete=$('cotFrete').value;
+ if(prazo!==''&&(!/^\d+$/.test(prazo)||Number(prazo)>3650)||!Object.hasOwn(freteLabels,frete))throw Error('Condições comerciais inválidas.');
+ return {prazo_dias:prazo===''?null:Number(prazo),validade:$('cotValidade').value||null,pagamento:$('cotPagamento').value.trim()||null,frete,observacao:$('cotObsComercial').value.trim()||null};
+}
 function renderQuote(){
  if(!permission('compras.consultar_valores')){
   $('comprasConteudo').innerHTML='<h2>Cotações</h2><p class="hint">Os valores dos fornecedores são restritos aos níveis com permissão para consultar preços.</p>';return;
@@ -462,15 +520,15 @@ function renderQuote(){
  (editable?groupingHtml(list.filter(s=>s.status==='ABERTA'))+'<form id="comprasCotarForm" class="ewComprasForm"><label>Solicitação<select id="comprasCotacaoSolic" required>'+option('','Escolha')+list.map(s=>option(s.id,quoteLabel(s))).join('')+'</select></label>'+
  '<div id="comprasGruposPrevia"></div><div id="comprasGrupoEditor" hidden><label>Fornecedor<select id="comprasCotacaoFornecedor" required>'+option('','Escolha')+'</select></label><div id="comprasCotacaoItens"></div><div id="comprasConvites"></div>'+
  (permission('compras.cotacao_excel')?'<div class="ewComprasActions" style="flex-wrap:wrap"><button type="button" class="btn secondary" id="comprasCotacaoExportar">Exportar Excel para fornecedor</button><label>Importar Excel preenchido<input id="comprasCotacaoArquivo" type="file" accept=".xlsx"></label></div>':'')+
- '<button class="btn primary" type="submit">Registrar cotação</button></div></form>':'')+
- '<h3>Cotações registradas</h3>'+filtrosLista()+'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Fornecedor</th><th>Destino</th><th>Total</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+
- quotes.map(q=>{const s=sols.find(x=>x.id===q.solicitacao_id);return '<tr'+filtroRow(q,q.status==='CANCELADA'?'Cancelada':orders.some(p=>p.cotacao_id===q.id)?'Pedido gerado':'Em avaliação',(s?titleLocal(s)+' '+buscaMateriais(s):'')+' '+compraFornecedor(q))+'><td>'+esc(compraFornecedor(q))+'</td><td>'+esc(s?titleLocal(s):'-')+'</td><td>'+money(q.total_centavos)+'</td><td>'+esc(q.status==='CANCELADA'?'Cancelada':orders.some(p=>p.cotacao_id===q.id)?'Pedido gerado':'Em avaliação')+cancelDetails(q)+'</td><td>'+(editable&&q.status!=='CANCELADA'&&s?.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===q.solicitacao_id)?'<button type="button" class="btn secondary" data-compras-tipo="cotacao" data-compras-cancel="'+esc(q.id)+'">Cancelar</button>':'—')+(editable&&permission('compras.replicar_cotacao')&&s?.status==='ABERTA'&&q.status!=='CANCELADA'?'<button class="btn secondary" type="button" data-cotacao-replicar="'+esc(q.solicitacao_id)+'">Replicar lista</button>':'')+'</td></tr>'}).join('')+'</tbody></table></div>';bindCancelButtons();bindFiltrosLista();
+ condicoesInputs()+'<button class="btn primary" type="submit">Registrar cotação</button></div></form>':'')+
+ '<h3>Cotações registradas</h3>'+filtrosLista()+'<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Fornecedor</th><th>Destino</th><th>Total</th><th>Condições comerciais</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+
+ quotes.map(q=>{const s=sols.find(x=>x.id===q.solicitacao_id);return '<tr'+filtroRow(q,q.status==='CANCELADA'?'Cancelada':orders.some(p=>p.cotacao_id===q.id)?'Pedido gerado':'Em avaliação',(s?titleLocal(s)+' '+buscaMateriais(s):'')+' '+compraFornecedor(q))+'><td>'+esc(compraFornecedor(q))+'</td><td>'+esc(s?titleLocal(s):'-')+'</td><td>'+money(q.total_centavos)+'</td><td>'+esc(condicoesTexto(q))+'</td><td>'+esc(q.status==='CANCELADA'?'Cancelada':orders.some(p=>p.cotacao_id===q.id)?'Pedido gerado':'Em avaliação')+cancelDetails(q)+'</td><td>'+(editable&&q.status!=='CANCELADA'&&s?.status==='ABERTA'&&!orders.some(p=>p.solicitacao_id===q.solicitacao_id)?'<button type="button" class="btn secondary" data-compras-tipo="cotacao" data-compras-cancel="'+esc(q.id)+'">Cancelar</button>':'—')+(editable&&permission('compras.replicar_cotacao')&&s?.status==='ABERTA'&&q.status!=='CANCELADA'?'<button class="btn secondary" type="button" data-cotacao-replicar="'+esc(q.solicitacao_id)+'">Replicar lista</button>':'')+'</td></tr>'}).join('')+'</tbody></table></div>';bindCancelButtons();bindFiltrosLista();
  bindGrouping(list.filter(s=>s.status==='ABERTA'));bindQuoteExcel();const renderConvites=bindReplicarFornecedores();
  $('comprasConteudo').querySelectorAll('[data-cotacao-replicar]').forEach(b=>b.onclick=()=>{quotePreferredSolic=b.dataset.cotacaoReplicar;renderQuote();$('comprasCotacaoFornecedor').focus();say('comprasMensagem','Lista replicada. Selecione outro fornecedor e exporte o Excel; preços anteriores não foram copiados.');});
  if(editable){$('comprasCotacaoSolic').onchange=()=>{
   const s=sols.find(x=>x.id===$('comprasCotacaoSolic').value),editor=$('comprasGrupoEditor'),supplier=$('comprasCotacaoFornecedor'),preview=$('comprasGruposPrevia');
   const isGroup=s&&(linkFor(s.id)||groupCatalog.legados?.includes(s.id));
-  editor.hidden=!isGroup;supplier.disabled=!isGroup;preview.replaceChildren();
+  editor.hidden=!isGroup;supplier.disabled=!isGroup;preview.replaceChildren();limparCondicoes();
   supplier.innerHTML=option('','Escolha')+(isGroup?eligibleSuppliers(s.id).map(x=>option(x.id,x.nome)).join(''):'');
   $('comprasCotarForm').querySelector('[type=submit]').disabled=!isGroup||!eligibleSuppliers(s.id).length;
   if(!isGroup){$('comprasCotacaoItens').replaceChildren();$('comprasConvites').replaceChildren();if(s)void previewQuoteGroups(s,preview,$('comprasCotarForm'),currentCompany.id);return;}
@@ -487,14 +545,15 @@ function renderQuote(){
   bindQuoteMoney();
  };
  if(quotePreferredSolic&&list.some(s=>s.id===quotePreferredSolic)){$('comprasCotacaoSolic').value=quotePreferredSolic;$('comprasCotacaoSolic').onchange();}quotePreferredSolic='';
- $('comprasCotacaoFornecedor').onchange=()=>{$('comprasCotacaoItens').querySelectorAll('input').forEach(i=>i.value='');};
+ $('comprasCotacaoFornecedor').onchange=()=>{$('comprasCotacaoItens').querySelectorAll('input').forEach(i=>i.value='');limparCondicoes();};
  $('comprasCotarForm').onsubmit=async e=>{e.preventDefault();const s=sols.find(x=>x.id===$('comprasCotacaoSolic').value);
  const precos=[...document.querySelectorAll('[data-quote-key]')].map(row=>({chave:row.dataset.quoteKey,preco_unitario_centavos:parseMoney(row.querySelector('input').value)}));
  if(!s||!eligibleSuppliers(s.id).some(f=>f.id===$('comprasCotacaoFornecedor').value)||precos.some(x=>x.preco_unitario_centavos===null)){say('comprasMensagem','Valores inválidos.');return;}
- try{await rpc('ew_compras_criar_cotacao',{p_solicitacao_id:s.id,p_fornecedor_id:$('comprasCotacaoFornecedor').value,
- p_precos:precos,p_operacao_id:operationToken('cotar',{id:s.id,fornecedor:$('comprasCotacaoFornecedor').value,precos})});
- pendingOps.delete('cotar');await reload();renderQuote();say('comprasMensagem','Cotação registrada.');
- }catch(err){say('comprasMensagem','Erro: '+err.message)}};
+ const submit=$('comprasCotarForm').querySelector('[type=submit]');if(submit.disabled)return;submit.disabled=true;
+ try{const condicoes=lerCondicoes();await rpc('ew_compras_cotar_com_condicoes',{p_empresa_id:currentCompany.id,p_solicitacao_id:s.id,p_fornecedor_id:$('comprasCotacaoFornecedor').value,
+ p_precos:precos,p_condicoes:condicoes,p_operacao_id:operationToken('cotar',{id:s.id,fornecedor:$('comprasCotacaoFornecedor').value,precos,condicoes})});
+ pendingOps.delete('cotar');await reload();if(tab==='cotacao'&&!$('compras')?.classList.contains('hidden')){renderQuote();say('comprasMensagem','Cotação registrada.');}
+ }catch(err){say('comprasMensagem','Erro: '+err.message)}finally{if(submit.isConnected)submit.disabled=false;}};
  }}
 function linhasPreco(q){
  if(!Array.isArray(q.itens)||!q.itens.length)return [];
@@ -536,7 +595,7 @@ function renderOrder(aprovacao=false){
  const editable=permission('compras.pedir')&&permission('compras.aprovar_pedido')&&permission('compras.consultar_valores');
  const pending=quotes.filter(q=>q.status!=='CANCELADA'&&sols.some(s=>s.id===q.solicitacao_id&&s.status==='ABERTA')&&!orders.some(p=>p.solicitacao_id===q.solicitacao_id));
  const grupos=new Map();for(const q of pending){if(!grupos.has(q.solicitacao_id))grupos.set(q.solicitacao_id,[]);grupos.get(q.solicitacao_id).push(q);}
- const comparativo=Array.from(grupos,([id,lista])=>{const sol=sols.find(x=>x.id===id);return '<section class="section panel" data-compra-grupo><h3>'+esc(sol?quoteLabel(sol):'Solicitação')+'</h3><div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Fornecedor</th><th>Valor cotado</th><th>Ação</th></tr></thead><tbody>'+[...lista].sort((a,b)=>Number(a.total_centavos)-Number(b.total_centavos)).map(q=>'<tr'+filtroRow(q,'Em avaliação',(sol?titleLocal(sol)+' '+buscaMateriais(sol):'')+' '+compraFornecedor(q))+'><td>'+esc(compraFornecedor(q))+'</td><td>'+money(q.total_centavos)+'</td><td>'+(editable?'<button type="button" class="btn secondary" data-aprovar-cotacao="'+esc(q.id)+'">Selecionar</button>':'—')+'</td></tr>').join('')+'</tbody></table></div>'+compararPrecos(sol,lista)+'</section>';}).join('');
+ const comparativo=Array.from(grupos,([id,lista])=>{const sol=sols.find(x=>x.id===id);return '<section class="section panel" data-compra-grupo><h3>'+esc(sol?quoteLabel(sol):'Solicitação')+'</h3><div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Fornecedor</th><th>Valor cotado</th><th>Condições comerciais</th><th>Ação</th></tr></thead><tbody>'+[...lista].sort((a,b)=>Number(a.total_centavos)-Number(b.total_centavos)).map(q=>'<tr'+filtroRow(q,'Em avaliação',(sol?titleLocal(sol)+' '+buscaMateriais(sol):'')+' '+compraFornecedor(q))+'><td>'+esc(compraFornecedor(q))+'</td><td>'+money(q.total_centavos)+'</td><td>'+esc(condicoesTexto(q))+'</td><td>'+(editable?'<button type="button" class="btn secondary" data-aprovar-cotacao="'+esc(q.id)+'">Selecionar</button>':'—')+'</td></tr>').join('')+'</tbody></table></div>'+compararPrecos(sol,lista)+'</section>';}).join('');
  $('comprasConteudo').innerHTML=aprovacao?'<h2>Aprovação de cotações</h2><p class="hint">Compare propostas da mesma solicitação. O valor exibido é o total registrado; confira também prazo, frete e condições comerciais antes de aprovar. A aprovação gera o pedido e compromete o orçamento, quando vinculado a obra.</p>'+
  (permission('compras.consultar_valores')?(filtrosLista()+(comparativo||'<p class="hint">Nenhuma cotação pendente de aprovação.</p>')):'<p class="hint">Valores restritos conforme as permissões.</p>')+
  (editable&&pending.length?'<form id="comprasPedidoForm" class="ewComprasForm"><label>Cotação selecionada<select id="comprasPedidoCotacao" required>'+option('','Escolha')+
@@ -547,7 +606,7 @@ function renderOrder(aprovacao=false){
  if(aprovacao)document.querySelectorAll('[data-aprovar-cotacao]').forEach(b=>b.onclick=()=>{if(!editable||!pending.some(q=>q.id===b.dataset.aprovarCotacao))return;const select=$('comprasPedidoCotacao');if(select){select.value=b.dataset.aprovarCotacao;select.focus();}});
  if(aprovacao&&editable&&$('comprasPedidoForm'))$('comprasPedidoForm').onsubmit=async e=>{e.preventDefault();const id=$('comprasPedidoCotacao').value;
  const q=pending.find(x=>x.id===id);if(!q||!permission('compras.pedir')||!permission('compras.aprovar_pedido')||!permission('compras.consultar_valores'))return;
- if(!window.confirm('Aprovar o pedido de '+money(q.total_centavos)+'? O valor será comprometido no orçamento se for compra para obra.'))return;
+ if(!window.confirm('Aprovar o pedido de '+money(q.total_centavos)+'? O valor será comprometido no orçamento se for compra para obra.\n'+condicoesTexto(q)+'\nFrete fora dos preços não está incluído no compromisso. Confira antes de aprovar.'))return;
  const btn=$('comprasPedidoForm').querySelector('button[type=submit]');if(btn.disabled)return;btn.disabled=true;
  try{await rpc('ew_compras_criar_pedido',{p_cotacao_id:id,p_operacao_id:operationToken('pedir',{id})});
  pendingOps.delete('pedir');await reload();if(tab==='aprovacao'&&!$('compras')?.classList.contains('hidden')){renderOrder(true);say('comprasMensagem','Pedido aprovado, disponível para recebimento.');}
