@@ -1,0 +1,52 @@
+name: Verificar DRE gerencial no PostgreSQL
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  dre-classificacao-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: teste
+          POSTGRES_DB: ewgest_teste
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ewgest_teste"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: teste
+      PGDATABASE: ewgest_teste
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar cliente PostgreSQL
+        run: |
+          command -v psql || (sudo apt-get update && sudo apt-get install -y postgresql-client)
+      - name: Validar classificação, reconhecimento, DRE e permissões
+        run: psql -X -v ON_ERROR_STOP=1 -f scripts/test-dre-classificacao-postgres.sql
+      - name: Validar reconhecimento concorrente sem duplicar custo
+        shell: bash
+        run: |
+          set +e
+          Q="SET test.uid='00000000-0000-0000-0000-000000000099'; SET test.perm='yes'; SELECT public.ew_dre_reconhecer_material('00000000-0000-0000-0000-000000000001',(SELECT movimento_id FROM public.test_race),(SELECT faturamento_id FROM public.test_race),gen_random_uuid(),1500,'Reconhecimento concorrente');"
+          psql -X -v ON_ERROR_STOP=1 -c "$Q" >/tmp/dre-a.log 2>&1 &
+          A=$!
+          psql -X -v ON_ERROR_STOP=1 -c "$Q" >/tmp/dre-b.log 2>&1 &
+          B=$!
+          wait "$A"; RA=$?
+          wait "$B"; RB=$?
+          set -e
+          cat /tmp/dre-a.log /tmp/dre-b.log
+          if [ "$RA" = 0 ]; then [ "$RB" != 0 ]; grep -q 'Reconhecimento supera custo' /tmp/dre-b.log
+          else [ "$RB" = 0 ]; grep -q 'Reconhecimento supera custo' /tmp/dre-a.log; fi
+          [ "$(psql -X -At -v ON_ERROR_STOP=1 -c "SELECT sum(valor_centavos) FROM ew_financeiro_interna.reconhecimento_material WHERE estornado_em IS NULL;")" = "1500" ]
