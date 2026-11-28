@@ -163,7 +163,7 @@ function renderRateio(r){
  }))+
  '<h3>Ratear mão de obra e despesas industriais</h3><p class="hint">Classifique antes o título na DRE como mão de obra, custo indireto ou serviço. Selecione a liberação completa de uma esquadria e informe somente a parcela efetivamente apropriada. O saldo do título limita a soma dos rateios. A lista apresenta até 500 liberações recentes compatíveis com o mês da competência.</p>'+
  (d.titulosTotal>r.titulos.length?'<p class="hint">Lista de títulos limitada a 500 registros. Reduza o período para localizar outros.</p>':'')+
- (edit&&titles.length?'<form id="rateioForm"><div class="finFormRows"><label>Título de custo<select id="rateioTitulo">'+option('','Selecione')+titles.map(t=>option(t.id,t.descricao+' · '+t.centro_custo+' · '+t.competencia+' · saldo '+money(cents(t.valor_centavos)-cents(t.usado_centavos)))).join('')+'</select></label><label>Liberação<select id="rateioLiberacao" required><option value="">Selecione o título</option></select></label><label>Valor (R$)<input id="rateioValor" inputmode="decimal" required></label><label>Critério / justificativa<input id="rateioMotivo" minlength="5" maxlength="400" required placeholder="Ex.: horas trabalhadas nesta liberação"></label></div><button id="rateioSubmit" class="btn primary" type="submit">Registrar rateio</button></form><details><summary>Rateio proporcional em lote</summary><p class="hint">Escolha até 100 liberações completas. Área = largura × altura × unidades liberadas. Peso informado = kg totais de cada liberação, conferidos pelo operador; não é peso apurado pelo estoque. A prévia não grava valores.</p><label>Critério<select id="rateioSimCriterio"><option value="QUANTIDADE">Quantidade de esquadrias</option><option value="AREA">Área liberada (m²)</option><option value="PESO_INFORMADO">Peso informado (kg)</option></select></label><label>Justificativa do lote<input id="rateioSimMotivo" maxlength="300" minlength="5"></label><div id="rateioSimLista"></div><button type="button" id="rateioSimular" class="btn secondary">Calcular prévia do saldo</button><div id="rateioSimResultado" role="status"></div><button type="button" id="rateioSimConfirmar" class="btn primary" disabled>Registrar lote</button></details>':'<p class="hint">Nenhum título com saldo disponível para rateio, ou acesso somente consulta.</p>')+
+ (edit&&titles.length?'<form id="rateioForm"><div class="finFormRows"><label>Título de custo<select id="rateioTitulo">'+option('','Selecione')+titles.map(t=>option(t.id,t.descricao+' · '+t.centro_custo+' · '+t.competencia+' · saldo '+money(cents(t.valor_centavos)-cents(t.usado_centavos)))).join('')+'</select></label><label>Liberação<select id="rateioLiberacao" required><option value="">Selecione o título</option></select></label><label>Valor (R$)<input id="rateioValor" inputmode="decimal" required></label><label>Critério / justificativa<input id="rateioMotivo" minlength="5" maxlength="400" required placeholder="Ex.: horas trabalhadas nesta liberação"></label></div><button id="rateioSubmit" class="btn primary" type="submit">Registrar rateio</button></form><details><summary>Rateio proporcional em lote</summary><p class="hint">Escolha até 100 liberações completas. Área = largura × altura × unidades liberadas. Peso informado = kg totais de cada liberação, conferidos pelo operador; não é peso apurado pelo estoque. Peso histórico consumido utiliza registros novos de consumo individual; sem base completa, o lote é recusado. A prévia não grava valores.</p><label>Critério<select id="rateioSimCriterio"><option value="QUANTIDADE">Quantidade de esquadrias</option><option value="AREA">Área liberada (m²)</option><option value="PESO_INFORMADO">Peso informado (kg)</option><option value="PESO_CONSUMO">Peso histórico consumido (kg)</option></select></label><label>Justificativa do lote<input id="rateioSimMotivo" maxlength="300" minlength="5"></label><div id="rateioSimLista"></div><button type="button" id="rateioSimular" class="btn secondary">Calcular prévia do saldo</button><div id="rateioSimResultado" role="status"></div><button type="button" id="rateioSimConfirmar" class="btn primary" disabled>Registrar lote</button></details>':'<p class="hint">Nenhum título com saldo disponível para rateio, ou acesso somente consulta.</p>')+
  '<h3>Histórico de rateios ativos</h3>'+table(['Obra','Esquadria','Fábrica','Competência','Classe','Valor','Situação / critério','Ação'],r.rateios.map(x=>'<tr>'+[x.obra||'Histórico',x.codigo||'Histórico',x.fabrica,x.competencia,dreClasses[x.classe]||x.classe,money(x.valor_centavos),(x.valido?'Apropriado':'Em conferência')+' · '+x.motivo].map(v=>'<td>'+esc(v)+'</td>').join('')+'<td>'+(temPermissao('financeiro.cancelar_despesas')?'<button type="button" class="btn secondary" data-rateio-reverse="'+esc(x.id)+'">Estornar</button>':'')+'</td></tr>'))+'</div>';
 }
 function bindRateio(){
@@ -216,6 +216,26 @@ function bindRateio(){
   if(window.confirm('Estornar somente a atribuição de custo? O título e a DRE permanecem inalterados.'))void gravar('ew_rateio_industrial_estornar',{p_id:b.dataset.rateioReverse,p_motivo:m.trim()},b,'Rateio estornado.');
  });
 }
+function previsaoTitulos(r){
+ const map=new Map();let pagar=0,receber=0;
+ for(const t of r.titulos){
+  if(t.cancelado_em||!t.origem_valida)continue;
+  const n=cents(t.saldo_centavos);if(!n)continue;
+  const data=String(t.vencimento||'');if(!/^\d{4}-\d{2}-\d{2}$/.test(data))throw Error('Vencimento inválido.');
+  const mes=data.slice(0,7),x=map.get(mes)||{mes,pagar:0,receber:0};
+  if(t.tipo==='PAGAR'){x.pagar+=n;pagar+=n;}else{x.receber+=n;receber+=n;}map.set(mes,x);
+ }
+ if(!Number.isSafeInteger(pagar)||!Number.isSafeInteger(receber)||pagar>cents(r.a_pagar_centavos)||receber>cents(r.a_receber_centavos))throw Error('Previsão não conciliada.');
+ const completa=r.titulos.length===cents(r.titulos_total);
+ if(completa&&(pagar!==cents(r.a_pagar_centavos)||receber!==cents(r.a_receber_centavos)))throw Error('Saldos não conciliados.');
+ return {linhas:[...map.values()].sort((a,b)=>a.mes.localeCompare(b.mes)),pagar,receber,completa};
+}
+function renderPrevisaoTitulos(r){
+ try{const p=previsaoTitulos(r);
+ return '<div class="section panel"><h2>Previsão de pagamentos e recebimentos</h2><p class="hint">Por vencimento dos títulos programados e ativos, descontadas as baixas. Valores vencidos permanecem no mês original. Não inclui compromissos sem título, frete sem documento ou saldo bancário. '+(p.completa?'':'Lista parcial de títulos; confira os indicadores globais. ') +(!r.escopo_completo?'Visão restrita pelas permissões.':'')+'</p>'+
+ table(['Mês de vencimento','A pagar','A receber','Fluxo previsto líquido'],p.linhas.map(x=>cells([x.mes,money(x.pagar),money(x.receber),signed(x.receber-x.pagar)])))+'</div>';
+ }catch(e){return '<div class="section panel"><h2>Previsão de pagamentos e recebimentos</h2><p class="hint">Consulta não conciliada: '+esc(e.message)+'</p></div>';}
+}
 function render(){
  const r=state,entradas=cents(r.entradas_centavos),saidas=cents(r.saidas_centavos);
  const tipos=['PAGAR','RECEBER'].filter(t=>can(t));
@@ -243,6 +263,7 @@ function render(){
  '<div class="section panel"><h2>Contas programadas</h2><div class="finFormRows"><label>Tipo<select id="corpFiltroTipo">'+option('','Todas')+option('PAGAR','A pagar')+option('RECEBER','A receber')+'</select></label><label>Situação<select id="corpFiltroSituacao">'+option('ativas','Abertas, parciais e pendentes')+option('','Todas')+option('LIQUIDADO','Liquidadas')+option('CANCELADO','Canceladas')+'</select></label></div>'+
  (r.titulos_total>r.titulos.length?'<p class="hint">Lista limitada aos primeiros 500 registros; indicadores consideram todos os registros autorizados.</p>':'')+
  '<div id="corpTabela"></div><div id="corpBaixaForm"></div></div>'+
+ renderPrevisaoTitulos(r)+
  '<div class="section panel"><h2>Movimentos de caixa por centro de custo</h2>'+table(['Centro','Recebimentos','Pagamentos'],r.caixa_centros.map(c=>cells([c.centro_custo,money(c.entradas_centavos),money(c.saidas_centavos)])))+
  '<p class="hint">Movimentos pagos/recebidos, não rentabilidade nem custo industrial. Documentos de obra são inicialmente classificados no centro Geral.</p></div>'+
  (drePermitido()?'<div id="corpDre">'+renderDre(r.dre)+'</div><div id="corpRateio">'+renderRateio(r.rateio)+'</div>'+renderIndicadores(r.indicadores):'');
