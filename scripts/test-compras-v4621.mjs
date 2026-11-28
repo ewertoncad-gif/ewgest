@@ -12,10 +12,12 @@ for(const id of ['navCompras','compras','comprasConteudo','comprasTabSolicitacao
  assert.match(html,new RegExp('id="'+id+'"'),'ID da interface ausente: '+id);
 }
 for(const script of ['compras-estoque.js','compras-estoque.css'])assert.ok(html.includes(script));
-for(const call of ['ew_compras_criar_solicitacao','ew_compras_criar_cotacao','ew_compras_criar_pedido',
+for(const call of ['ew_compras_criar_solicitacao','ew_compras_criar_pedido',
 'ew_compras_receber_pedido','ew_compras_criar_local_empresa']) {
  assert.ok(js.includes(call)&&sql.includes(call),'RPC não vinculada à UI: '+call);
 }
+const comercialSQL=readFileSync(new URL('../database/proposals/20261128_condicoes_cotacao_v462948.sql',import.meta.url),'utf8');
+assert.ok(js.includes('ew_compras_cotar_com_condicoes')&&comercialSQL.includes('ew_compras_cotar_com_condicoes')&&comercialSQL.includes('public.ew_compras_criar_cotacao(')&&sql.includes('ew_compras_criar_cotacao'),'Cotação deve chamar a nova RPC que preserva a criação original.');
 for(const guard of ['ew_exigir_sessao_atual','ew_pode','for update','on conflict','quantidade','operacao_id'])
  assert.ok(sql.toLowerCase().includes(guard.toLowerCase()),'Guarda esperada: '+guard);
 assert.match(sql,/row level security/);
