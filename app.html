@@ -834,13 +834,15 @@
     </div>
     <div class="workspaceNavCaption workspaceNavCaptionSecond">FINANÇAS E RELATÓRIOS</div>
     <button id="navFinanceiro" class="workspaceLink hidden" type="button"><span class="navSymbol">◈</span> Financeiro das obras</button>
+    <button id="navRH" class="workspaceLink hidden" type="button"><span class="navSymbol">◈</span> RH</button>
+    <button id="navFerramentas" class="workspaceLink hidden" type="button"><span class="navSymbol">◈</span> Ferramentas e máquinas</button>
     <button id="navFinanceiroEmpresa" class="workspaceLink hidden" type="button"><span class="navSymbol">◈</span> Financeiro empresarial</button>
     <button id="navRelatorios" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Relatórios</button>
 
     <div class="workspaceNavCaption workspaceNavCaptionSecond">CONFIGURAÇÕES</div>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.54</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.55</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -861,7 +863,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.54</div>
+        <div class="build">EWGEST • v46.29.55</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -1013,6 +1015,8 @@
             <p id="finCostMessage" class="feedback" role="status"></p>
           </div>
     </section>
+    <section id="rhPage" class="hidden"><div class="head"><div><h1>Recursos humanos</h1><p class="muted">Funcionários, horas-homem e folha gerencial.</p></div></div><div class="section panel"><div class="finFormRows"><label>De <input id="rhInicio" type="date"></label><label>Até <input id="rhFim" type="date"></label><button id="rhRefresh" type="button" class="btn secondary">Atualizar</button></div><p id="rhStatus" role="status" class="feedback"></p><div id="rhConteudo"></div></div></section>
+    <section id="toolsPage" class="hidden"><div class="head"><div><h1>Ferramentas e máquinas</h1><p class="muted">Cadastros, maletas, custódia e romaneios de entrega e devolução.</p></div><button id="toolRefresh" type="button" class="btn secondary">Atualizar</button></div><div class="section panel"><p id="toolStatus" role="status" class="feedback"></p><div id="toolConteudo"></div></div></section>
     <section id="financeiroEmpresa" class="hidden">
       <div class="head"><div><h1>Financeiro empresarial</h1><p class="muted">Contas, vencimentos, pagamentos e recebimentos efetivos.</p></div></div>
       <div class="section panel">
@@ -1355,7 +1359,7 @@
               <select id="createUserLevel" required><option value="1">01 — Administrador</option><option value="2">02 — Gerência</option>
                 <option value="3" selected>03 — Técnico</option><option value="4">04 — Almoxarifado</option>
                 <option value="5">05 — Financeiro</option><option value="6">06 — Consulta completa</option>
-                <option value="7">07 — Consulta sem financeiro</option><option value="8">08 — Sem permissões</option></select></div>
+                <option value="7">07 — Consulta sem financeiro</option><option value="8">08 — RH</option></select></div>
             <div class="hidden"><label for="createUserRole">Perfil interno de compatibilidade</label>
               <select id="createUserRole" required>
                 <option value="tecnico">Técnico</option>
@@ -2660,7 +2664,7 @@
       <select id="userEditLevel" required><option value="1">01 — Administrador</option><option value="2">02 — Gerência</option>
                 <option value="3" selected>03 — Técnico</option><option value="4">04 — Almoxarifado</option>
                 <option value="5">05 — Financeiro</option><option value="6">06 — Consulta completa</option>
-                <option value="7">07 — Consulta sem financeiro</option><option value="8">08 — Sem permissões</option></select>
+                <option value="7">07 — Consulta sem financeiro</option><option value="8">08 — RH</option></select>
       <label for="userEditRole" class="hidden">Perfil interno</label>
       <select id="userEditRole" class="hidden">
         <option value="gerenciador">Gerenciador — não altera ADM</option>
@@ -2717,6 +2721,8 @@ function permissaoParaTela(view){
   cemImport:'obras.importar',users:'usuarios.gerenciar'};
  if(view==='workPendingPage')return modoObrasPermitido('pending');
  if(view==='manageWorks'&&manageWorksUndoMode)return modoObrasPermitido('workUndo');
+ if(view==='rhPage')return temPermissao('rh.consultar');
+ if(view==='toolsPage')return temPermissao('ferramentas.consultar');
  if(view==='financeiroEmpresa')return temPermissao('financeiro.consultar')&&temPermissao('relatorios.financeiros');
  if(view==='relatorios')return podeVerRelatorios();
  if(view==='accessLevels')return currentAccessLevel===1&&temPermissao('niveis.gerenciar');
@@ -2783,13 +2789,14 @@ function setView(view){
   node('startup').classList.add('hidden');
   if(view!=='login'&&view!=='dashboard'&&view!=='myPassword'&&accessReady&&!permissaoParaTela(view))
     view='dashboard';
-  for(const id of ['login','dashboard','worksPage','detail','workPendingPage','manageWorks','romaneiosPage','compras','recebimento','almoxNotas','cadastros','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','typologies','manufacturers','materials','stock','financeiro','financeiroEmpresa','relatorios','cemImport','users','accessLevels','cadastroLocaisEstoque','myPassword'])
+  for(const id of ['login','dashboard','worksPage','detail','workPendingPage','manageWorks','romaneiosPage','compras','recebimento','almoxNotas','cadastros','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','typologies','manufacturers','materials','stock','financeiro','financeiroEmpresa','rhPage','toolsPage','relatorios','cemImport','users','accessLevels','cadastroLocaisEstoque','myPassword'])
     node(id).classList.toggle('hidden',id!==view);
   node('logout').classList.toggle('hidden',view==='login');
   node('myPasswordHeader').classList.toggle('hidden',view==='login');
   const autenticado=view!=='login';
   if(view!=='dashboard')window.ewGerencial?.limpar();
   if(view!=='financeiroEmpresa')window.ewFinanceiroEmpresa?.limpar();
+ if(!['rhPage','toolsPage'].includes(view))window.ewSetoresIndustriais?.limpar();
   if(!autenticado){expCompSeq++;expCompCtx=null;romaneioComposicaoSeq++;romaneioComposicoes=new Map();expedicaoAtivaMap=new Map();node('expCompOverlay').classList.add('hidden');node('expCompPicker').classList.add('hidden');node('expCompRows').replaceChildren();node('expCompSimilar').replaceChildren();node('romaneioModal').classList.add('hidden');node('typologyEditOverlay').classList.add('hidden');}
   node('workspaceNav').classList.toggle('hidden',!autenticado);
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
@@ -2815,7 +2822,7 @@ function setView(view){
   }
   const ativo=view==='detail'||view==='workPendingPage'||(view==='manageWorks'&&manageWorksUndoMode)?'worksPage':view;
   for(const [id,target] of [['navHome','dashboard'],['navWorks','worksPage'],['navRomaneios','romaneiosPage'],['navCompras','compras'],['navRecebimento','recebimento'],['navEnviarNotas','almoxNotas'],['navCadastros','cadastros'],
-      ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navFinanceiroEmpresa','financeiroEmpresa'],['navRelatorios','relatorios'],['navCem','cemImport'],['navUsers','users'],['navAccessLevels','accessLevels']]){
+      ['navTypologies','typologies'],['navManufacturers','manufacturers'],['navMaterials','materials'],['navStock','stock'],['navFinanceiro','financeiro'],['navFinanceiroEmpresa','financeiroEmpresa'],['navRH','rhPage'],['navFerramentas','toolsPage'],['navRelatorios','relatorios'],['navCem','cemImport'],['navUsers','users'],['navAccessLevels','accessLevels']]){
     const button=node(id);
     const selecionado=!button.disabled&&(ativo===target||(id==='navCadastros'&&
       ['materials','typologies','manufacturers','users','fornecedoresPage','galpoesPage','insumosPage','unidadesPage','cadastroLocaisEstoque','manageWorks'].includes(ativo)));
@@ -2824,6 +2831,7 @@ function setView(view){
   }
   if(view==='dashboard')void window.ewGerencial?.abrir();
   if(view==='financeiroEmpresa')void window.ewFinanceiroEmpresa?.abrir();
+ if(['rhPage','toolsPage'].includes(view))void window.ewSetoresIndustriais?.abrir(view);
 }
 function invalidateAppSession(reason){
   cemDescartarRascunho();
@@ -3007,6 +3015,7 @@ async function loadPanel(){
     else node(id).classList.toggle('hidden',!temPermissao(flag));
   }
   setNavPermission('navFinanceiroEmpresa',temPermissao('financeiro.consultar')&&temPermissao('relatorios.financeiros'));
+  setNavPermission('navRH',temPermissao('rh.consultar'));setNavPermission('navFerramentas',temPermissao('ferramentas.consultar'));
   setNavPermission('navRelatorios',podeVerRelatorios());
   setNavPermission('navAccessLevels',currentAccessLevel===1&&temPermissao('niveis.gerenciar'));
   node('cadastroJumpLocaisEstoque').disabled=!temPermissao('estoque.gerenciar_locais');
@@ -5141,7 +5150,7 @@ let managedAccounts=[];
 let editingManagedAccount=null;
 function canManageUsers(){return temPermissao('usuarios.gerenciar');}
 function levelLabel(value){return ({1:'Administrador',2:'Gerência',3:'Técnico',4:'Almoxarifado',
- 5:'Financeiro',6:'Consulta completa',7:'Consulta sem financeiro',8:'Sem permissões'})[Number(value)]||'Sem nível';}
+ 5:'Financeiro',6:'Consulta completa',7:'Consulta sem financeiro',8:'RH'})[Number(value)]||'Sem nível';}
 function roleLabel(value){
   return ({administrador:'Administrador',gerenciador:'Gerenciador',supervisor:'Supervisor',tecnico:'Técnico',almoxarife:'Almoxarife',consulta:'Consulta'})[value]||value;
 }
@@ -9751,6 +9760,8 @@ node('almoxNotaForm').addEventListener('submit',almoxNotaEnviar);
 
 node('navFinanceiro').addEventListener('click',()=>abrirFinanceiro());
 node('navFinanceiroEmpresa').addEventListener('click',()=>{if(permissaoParaTela('financeiroEmpresa'))setView('financeiroEmpresa');});
+node('navRH').addEventListener('click',()=>{if(permissaoParaTela('rhPage'))setView('rhPage');});
+node('navFerramentas').addEventListener('click',()=>{if(permissaoParaTela('toolsPage'))setView('toolsPage');});
 node('navRecebimento').addEventListener('click',()=>{
  if(!temPermissao('estoque.receber'))return;
  const submenu=node('navRecebimentoSubmenu'),expanded=submenu.classList.contains('hidden');
@@ -12045,6 +12056,7 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/relatorios-custos-empresa.js?v=20261124a"></script>
 <script src="/assets/painel-gerencial.js?v=20261128c"></script>
 <script src="/assets/financeiro-empresarial.js?v=20261128o"></script>
+<script src="/assets/rh-ferramentas.js?v=20261128p"></script>
 <script src="/assets/relatorios-obras.js?v=20261125c"></script>
 <script src="/assets/unidades-medida.js?v=20261125a"></script>
 <script src="/assets/niveis-acesso.js?v=20261124c"></script>
