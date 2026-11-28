@@ -136,12 +136,12 @@ function indicadorFabrica(x){
 function renderIndicadores(r){
  if(!r||!Array.isArray(r.fabrica))return '<div class="panel section"><h2>Indicadores industriais por fábrica</h2><p class="hint">Consulta indisponível.</p></div>';
  try{const fmt=n=>Number(n).toLocaleString('pt-BR',{maximumFractionDigits:3});
- const rows=r.fabrica.map(x=>{const d=indicadorFabrica(x),kg=Number(x.kg_registrado),estimado=Number(x.kg_estimado),pend=cents(x.peso_pendente),base=cents(x.peso_com_base);
- if(!Number.isFinite(kg)||kg<0||!Number.isFinite(estimado)||estimado<0)throw Error('Peso inválido.');
- return cells([x.fabrica||'A atribuir',money(d.receita),d.area===null?'—':fmt(d.area),money(d.custo),d.custoM2===null?'—':money(d.custoM2),signed(d.contribuicao),d.margem===null?'—':fmt(d.margem)+'%',base?fmt(kg):'—',base?fmt(estimado):'—',String(pend)]);
+ const rows=r.fabrica.map(x=>{const d=indicadorFabrica(x),kg=Number(x.kg_registrado),estimado=Number(x.kg_estimado),historico=Number(x.kg_historico),pend=cents(x.peso_pendente),base=cents(x.peso_com_base);
+ if(!Number.isFinite(kg)||kg<0||!Number.isFinite(estimado)||estimado<0||!Number.isFinite(historico)||historico<0)throw Error('Peso inválido.');
+ return cells([x.fabrica||'A atribuir',money(d.receita),d.area===null?'—':fmt(d.area),money(d.custo),d.custoM2===null?'—':money(d.custoM2),signed(d.contribuicao),d.margem===null?'—':fmt(d.margem)+'%',base?fmt(kg):'—',base?fmt(historico):'—',base?fmt(estimado):'—',String(pend)]);
  });
- return '<div class="panel section"><h2>Indicadores industriais por fábrica</h2><p class="notice">Custo reconhecido/m² faturado e margem de contribuição são parciais, não custo integral de fabricação nem lucro líquido. A área exige atribuição conciliada à receita da fábrica. Peso em kg registrado refere-se a movimentos em kg; peso estimado usa comprimento e peso linear atual do cadastro. Não equivale a pesagem nem a peso líquido da esquadria. Movimentos de lote não são divididos entre itens.</p>'+
- table(['Fábrica','Receita fabricação','Área faturada (m²)','Custo reconhecido','Custo parcial/m²','Contribuição parcial','Margem parcial','Kg registrados','Kg estimados','Pendências peso'],rows)+'</div>';
+ return '<div class="panel section"><h2>Indicadores industriais por fábrica</h2><p class="notice">Custo reconhecido/m² faturado e margem de contribuição são parciais, não custo integral de fabricação nem lucro líquido. A área exige atribuição conciliada à receita da fábrica. Peso em kg registrado refere-se a movimentos em kg; peso histórico congela o peso linear no momento do consumo; estimativa retroativa usa o cadastro atual. Não equivale a pesagem nem a peso líquido da esquadria. Movimentos de lote não são divididos entre itens.</p>'+
+ table(['Fábrica','Receita fabricação','Área faturada (m²)','Custo reconhecido','Custo parcial/m²','Contribuição parcial','Margem parcial','Kg registrados','Kg históricos','Kg estimados retroativos','Pendências peso'],rows)+'</div>';
  }catch(e){return '<div class="panel section"><h2>Indicadores industriais por fábrica</h2><p class="hint">Dados não conciliados: '+esc(e.message)+'</p></div>';}
 }
 function renderRateio(r){
