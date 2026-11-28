@@ -468,6 +468,9 @@ try{
  assert.equal(await quoting.locator('#comprasMensagem').innerText(),'Valores inválidos.');
  assert.equal(await quoting.evaluate(()=>window._q.calls.length),3);
  await quoting.locator('[data-quote-key="1"] input').fill('125,00');
+ await quoting.locator('#cotPrazo').fill('15');
+ await quoting.locator('#cotPagamento').fill('30/60 dias');
+ await quoting.locator('#cotFrete').selectOption('INCLUSO');
  await quoting.locator('#comprasCotarForm button[type="submit"]').click();
  await quoting.waitForFunction(()=>document.querySelector('#comprasMensagem').textContent==='Cotação registrada.');
  const qcalls=await quoting.evaluate(()=>window._q.calls);
@@ -477,7 +480,9 @@ try{
  assert.equal(qcalls[3].body.p_fornecedor_id,'f2');
  assert.deepEqual(qcalls[3].body.p_precos,[{chave:'1',preco_unitario_centavos:12500}]);
  assert.equal(qcalls[3].fn,'ew_compras_cotar_com_condicoes');
- assert.equal(qcalls[3].body.p_condicoes.frete,'NAO_INFORMADO');
+ assert.equal(qcalls[3].body.p_condicoes.frete,'INCLUSO');
+ assert.equal(qcalls[3].body.p_condicoes.prazo_dias,15);
+ assert.equal(qcalls[3].body.p_condicoes.pagamento,'30/60 dias');
  await quoting.locator('[data-cotacao-replicar]').click();
  assert.equal(await quoting.locator('#comprasCotacaoSolic').inputValue(),'grupo-perfis');
  assert.equal(await quoting.locator('[data-quote-key="1"] input').inputValue(),'');
