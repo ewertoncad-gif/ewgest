@@ -27,7 +27,7 @@ BEGIN
  IF p_tipo='FUNCIONARIO' THEN
   SELECT galpao_id,admissao INTO g,inicio FROM ew_financeiro_interna.funcionarios_industriais WHERE empresa_id=p_empresa_id AND id=p_entidade_id FOR UPDATE;
  ELSE
-  SELECT galpao_id,inicio INTO g,inicio FROM ew_financeiro_interna.ativos_industriais WHERE empresa_id=p_empresa_id AND id=p_entidade_id FOR UPDATE;
+  SELECT a.galpao_id,a.inicio INTO g,inicio FROM ew_financeiro_interna.ativos_industriais a WHERE a.empresa_id=p_empresa_id AND a.id=p_entidade_id FOR UPDATE;
  END IF;
  IF NOT FOUND OR p_data<inicio THEN RAISE EXCEPTION 'Cadastro ou data indisponível.';END IF;
  SELECT * INTO m FROM ew_financeiro_interna.movimentacoes_industriais WHERE empresa_id=p_empresa_id AND tipo=p_tipo AND entidade_id=p_entidade_id ORDER BY data_evento DESC LIMIT 1;
