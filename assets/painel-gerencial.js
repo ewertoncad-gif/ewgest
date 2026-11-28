@@ -57,6 +57,36 @@ async function pages(table,params,valid){
 function table(headers,rows){
  return rows.length?'<div class="finTableWrap"><table class="finTable"><thead><tr>'+headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(v=>'<td>'+esc(v)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>':'<p class="hint">Nenhum registro ativo no período.</p>';
 }
+function renderEstoque(r){
+ if(!r||!Array.isArray(r.galpoes))throw Error('Resposta de estoque valorizado incompleta.');
+ const fisicas=integer(r.linhas_fisicas),conciliadas=integer(r.linhas_conciliadas),pend=integer(r.pendencias),semEvid=integer(r.fragmentos_sem_evidencia),provado=integer(r.valor_comprovado_centavos);
+ const total=r.total_centavos===null?null:integer(r.total_centavos);
+ const colunas=['Galpão','Local de estoque','Itens com saldo','Itens conciliados','Alertas','Valor comprovado'];
+ const dados=r.galpoes.map(g=>{
+  const f=integer(g.linhas_fisicas),c=integer(g.linhas_conciliadas),p=integer(g.pendencias),e=integer(g.fragmentos_sem_evidencia),v=integer(g.valor_comprovado_centavos);
+  if(c>f||(!c&&v!==0)||!['OBRA','EMPRESA'].includes(g.tipo))throw Error('Dados de estoque inconsistentes.');
+  return {f,c,p,e,v,row:[g.galpao,g.tipo==='OBRA'?'Obras':'Estoque próprio',String(f),String(c),String(p+e),c?brl(v):'—']};
+ });
+ const soma=k=>dados.reduce((a,g)=>a+g[k],0);
+ if(soma('f')!==fisicas||soma('c')!==conciliadas||soma('p')!==pend||soma('e')!==semEvid||soma('v')!==provado||conciliadas>fisicas||
+  (pend+semEvid===0?total!==provado:total!==null))throw Error('Totais de estoque não conciliam.');
+ return '<div class="section" style="margin:18px 0"><h3>Estoque valorizado · posição atual</h3>'+
+ '<div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))">'+
+ '<div class="stat"><div class="label">Valor total do estoque</div><div class="number" style="font-size:clamp(16px,2vw,23px)">'+(total===null?'A apurar':esc(brl(total)))+'</div></div>'+
+ '<div class="stat"><div class="label">Subtotal comprovado</div><div class="number" style="font-size:clamp(16px,2vw,23px)">'+(conciliadas||total!==null?esc(brl(provado)):'—')+'</div></div>'+
+ '<div class="stat"><div class="label">Itens com custo conciliado</div><div class="number">'+conciliadas+' / '+fisicas+'</div></div>'+
+ '<div class="stat"><div class="label">Alertas de conciliação</div><div class="number">'+(pend+semEvid)+'</div></div></div>'+
+ '<p class="hint">Saldo físico de agora, independente do período financeiro. O valor total só é mostrado quando quantidades e custos fiscais de aquisição estão conciliados. Transferências não são novas compras. Materiais já destinados à produção não integram este estoque.</p>'+
+ table(colunas,dados.map(g=>g.row))+'</div>';
+}
+async function carregarEstoque(valid){
+ if(!temPermissao('estoque.consultar'))return '';
+ try{
+  const r=await request('/rest/v1/rpc/ew_estoque_valorizado_resumo',{method:'POST',token:session.access_token,timeoutMs:30000,body:{p_empresa_id:currentCompany.id}});
+  if(!valid()||!temPermissao('estoque.consultar'))return '';
+  return renderEstoque(r);
+ }catch(e){return valid()&&temPermissao('estoque.consultar')?'<h3>Estoque valorizado · posição atual</h3><p class="hint">Não foi possível conciliar o estoque agora. '+esc(e.message)+'</p>':'';}
+}
 function render(r){
  const kpi=(label,value)=>'<div class="stat"><div class="label">'+esc(label)+'</div><div class="number" style="font-size:clamp(16px,2vw,23px);overflow-wrap:anywhere">'+esc(value)+'</div></div>';
  return '<div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))">'+
@@ -83,15 +113,16 @@ async function abrir(){
  el('gerencialStatus').textContent='Consultando documentos do período…';
  try{
   await ensureSession();if(!valid())return;
-  const [f,d,c,o]=await Promise.all([
+  const [f,d,c,o,estoque]=await Promise.all([
    pages('ew_obra_faturamentos',{...filter('data_faturamento'),select:'id,obra_id,categoria,data_faturamento,valor_total,status'},valid),
    pages('ew_obra_despesas',{...filter('data_documento'),select:'id,obra_id,data_documento,valor,status'},valid),
    pages('ew_compras_notas_empresa',{...filter('data_documento'),select:'id,data_documento,valor_centavos,status'},valid),
-   pages('obras',{empresa_id:'eq.'+id,select:'id,nome,codigo'},valid)
+   pages('obras',{empresa_id:'eq.'+id,select:'id,nome,codigo'},valid),
+   carregarEstoque(valid)
   ]);
   if(!valid())return;
   const r=calc(f,d,c,o,ini,end);
-  el('gerencialConteudo').innerHTML=render(r);
+  el('gerencialConteudo').innerHTML=render(r)+(temPermissao('estoque.consultar')?estoque:'');
   for(const [a,b] of [['gerencialIrFinanceiro','navFinanceiro'],['gerencialIrRelatorios','navRelatorios'],['gerencialIrEstoque','navStock']]){
    const target=el(b),button=el(a);button.disabled=target.disabled;button.addEventListener('click',()=>target.click());
   }
