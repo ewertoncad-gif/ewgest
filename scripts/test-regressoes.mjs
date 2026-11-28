@@ -129,7 +129,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.53',
+ 'EWGEST • v46.29.54',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2135,7 +2135,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.53')&&
+assert.ok(source.includes('v46.29.54')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2371,7 +2371,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.53</strong>'),
+ source.includes('EWGEST <strong>· v46.29.54</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -3489,7 +3489,7 @@ console.log('OK: filtros de compras e paginação integral de solicitações e c
 console.log('OK: preços conciliados, estoque compatível e simulação exata em 100 distribuições.');
 
 assert.ok(readFileSync(new URL('../assets/financeiro-empresarial.js',import.meta.url),'utf8').includes("p_confirmar:true,p_previa:p.linhas"));
-assert.ok(source.includes('financeiro-empresarial.js?v=20261128n'));
+assert.ok(source.includes('financeiro-empresarial.js?v=20261128o'));
 
 {
  const code=readFileSync(new URL('../assets/compras-estoque.js',import.meta.url),'utf8');
@@ -3570,3 +3570,11 @@ console.log('OK: cálculo simulado de custo integral e integração de frete/hor
  assert.equal(calc('123.45'),12345);assert.equal(calc('0'),0);assert.throws(()=>calc('-1'));assert.throws(()=>calc('1.001'));
 }
 console.log('OK: cadastro industrial, privacidade, valores exatos e base fiscal de frete.');
+
+{
+ const code=readFileSync(new URL('../assets/financeiro-empresarial.js',import.meta.url),'utf8');new Function(code);
+ assert.ok(code.includes('ew_industrial_movimentar')&&code.includes('ew_industrial_movimentos_consultar')&&code.includes('ew_industrial_conferencia_mes'));
+ assert.ok(code.includes("!x.desligado_em")&&code.includes("!pessoalPermitido()")&&code.includes("!d.endsWith('-01')"));
+ assert.ok(code.includes('Não fecha nem bloqueia a competência'));
+}
+console.log('OK: integração de movimentações industriais e conferência mensal consultiva.');
