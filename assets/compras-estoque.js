@@ -438,23 +438,27 @@ function renderQuote(){
  pendingOps.delete('cotar');await reload();renderQuote();say('comprasMensagem','Cotação registrada.');
  }catch(err){say('comprasMensagem','Erro: '+err.message)}};
  }}
-function renderOrder(){
+function renderOrder(aprovacao=false){
  const editable=permission('compras.pedir')&&permission('compras.aprovar_pedido')&&permission('compras.consultar_valores');
  const pending=quotes.filter(q=>q.status!=='CANCELADA'&&sols.some(s=>s.id===q.solicitacao_id&&s.status==='ABERTA')&&!orders.some(p=>p.solicitacao_id===q.solicitacao_id));
- $('comprasConteudo').innerHTML='<h2>Pedidos de compra</h2><p class="hint">A aprovação compromete o orçamento da obra imediatamente. O recebimento físico acontece exclusivamente no setor Recebimento.</p>'+
- (editable?'<form id="comprasPedidoForm" class="ewComprasForm"><label>Cotação aprovada<select id="comprasPedidoCotacao" required>'+option('','Escolha')+
+ const grupos=new Map();for(const q of pending){if(!grupos.has(q.solicitacao_id))grupos.set(q.solicitacao_id,[]);grupos.get(q.solicitacao_id).push(q);}
+ const comparativo=Array.from(grupos,([id,lista])=>{const sol=sols.find(x=>x.id===id);return '<section class="section panel"><h3>'+esc(sol?quoteLabel(sol):'Solicitação')+'</h3><div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Fornecedor</th><th>Valor cotado</th><th>Ação</th></tr></thead><tbody>'+[...lista].sort((a,b)=>Number(a.total_centavos)-Number(b.total_centavos)).map(q=>'<tr><td>'+esc(suppliersAll.find(f=>f.id===q.fornecedor_id)?.nome||'Fornecedor')+'</td><td>'+money(q.total_centavos)+'</td><td>'+(editable?'<button type="button" class="btn secondary" data-aprovar-cotacao="'+esc(q.id)+'">Selecionar</button>':'—')+'</td></tr>').join('')+'</tbody></table></div></section>';}).join('');
+ $('comprasConteudo').innerHTML=aprovacao?'<h2>Aprovação de cotações</h2><p class="hint">Compare propostas da mesma solicitação. O valor exibido é o total registrado; confira também prazo, frete e condições comerciais antes de aprovar. A aprovação gera o pedido e compromete o orçamento, quando vinculado a obra.</p>'+
+ (permission('compras.consultar_valores')?(comparativo||'<p class="hint">Nenhuma cotação pendente de aprovação.</p>'):'<p class="hint">Valores restritos conforme as permissões.</p>')+
+ (editable&&pending.length?'<form id="comprasPedidoForm" class="ewComprasForm"><label>Cotação selecionada<select id="comprasPedidoCotacao" required>'+option('','Escolha')+
  pending.map(q=>{const s=sols.find(x=>x.id===q.solicitacao_id);return option(q.id,(s?titleLocal(s):'Solicitação')+' · '+(suppliersAll.find(f=>f.id===q.fornecedor_id)?.nome||'Fornecedor')+' · '+money(q.total_centavos))}).join('')+
- '</select></label><button class="btn primary" type="submit">Aprovar cotação e gerar pedido</button></form>':'')+
+ '</select></label><button class="btn primary" type="submit">Aprovar cotação e gerar pedido</button></form>':''):'<h2>Pedidos de compra</h2><p class="hint">Acompanhe pedidos emitidos e seus recebimentos. O recebimento físico acontece exclusivamente no setor Recebimento.</p>'+
  '<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Pedido</th><th>Destino</th><th>Valor</th><th>Recebimento</th><th>Ação</th></tr></thead><tbody>'+
  orders.map(p=>'<tr><td>#'+number(p.numero)+'</td><td>'+esc(titleLocal(p))+'</td><td>'+(permission('compras.consultar_valores')?money(p.total_centavos):'Restrito')+'</td><td>'+esc(orderStatus(p))+cancelDetails(p)+'</td><td>'+(editable&&p.status==='ABERTO'&&!receipts.some(r=>r.pedido_id===p.id&&!r.estornado_em)?'<button type="button" class="btn secondary" data-compras-tipo="pedido" data-compras-cancel="'+esc(p.id)+'">Cancelar</button>':'—')+'</td></tr>').join('')+'</tbody></table></div>';bindCancelButtons();
- if(editable)$('comprasPedidoForm').onsubmit=async e=>{e.preventDefault();const id=$('comprasPedidoCotacao').value;
+ if(aprovacao)document.querySelectorAll('[data-aprovar-cotacao]').forEach(b=>b.onclick=()=>{if(!editable||!pending.some(q=>q.id===b.dataset.aprovarCotacao))return;const select=$('comprasPedidoCotacao');if(select){select.value=b.dataset.aprovarCotacao;select.focus();}});
+ if(aprovacao&&editable&&$('comprasPedidoForm'))$('comprasPedidoForm').onsubmit=async e=>{e.preventDefault();const id=$('comprasPedidoCotacao').value;
  const q=pending.find(x=>x.id===id);if(!q||!permission('compras.pedir')||!permission('compras.aprovar_pedido')||!permission('compras.consultar_valores'))return;
  if(!window.confirm('Aprovar o pedido de '+money(q.total_centavos)+'? O valor será comprometido no orçamento se for compra para obra.'))return;
  const btn=$('comprasPedidoForm').querySelector('button[type=submit]');if(btn.disabled)return;btn.disabled=true;
  try{await rpc('ew_compras_criar_pedido',{p_cotacao_id:id,p_operacao_id:operationToken('pedir',{id})});
- pendingOps.delete('pedir');await reload();renderOrder();say('comprasMensagem','Pedido aprovado, disponível para recebimento.');
+ pendingOps.delete('pedir');await reload();if(tab==='aprovacao'&&!$('compras')?.classList.contains('hidden')){renderOrder(true);say('comprasMensagem','Pedido aprovado, disponível para recebimento.');}
  }catch(err){say('comprasMensagem','Erro: '+err.message)}finally{btn.disabled=false;}};
- if(permission('financeiro.despesas')&&permission('compras.consultar_valores')){
+ if(!aprovacao&&permission('financeiro.despesas')&&permission('compras.consultar_valores')){
   const box=document.createElement('section');box.id='ewComprasConciliacao';box.className='section panel';
   $('comprasConteudo').appendChild(box);void window.ewComprasNfe?.render(box,contextoConciliacao());
  }
@@ -462,17 +466,18 @@ function renderOrder(){
 const etapasCompras={
  solicitacao:{titulo:'Solicitação de compra',descricao:'Registre e consulte as solicitações de materiais.'},
  cotacao:{titulo:'Cotação',descricao:'Compare fornecedores e preços por grupo de compra.'},
- pedido:{titulo:'Compra',descricao:'Aprove cotações, gere pedidos e acompanhe os recebimentos.'}
+ aprovacao:{titulo:'Aprovação de cotações',descricao:'Compare fornecedores e aprove a proposta escolhida.'},
+ pedido:{titulo:'Pedidos de compra',descricao:'Acompanhe os pedidos emitidos e os recebimentos.'}
 };
 function render(){
  const etapa=etapasCompras[tab];
  if($('comprasPaginaTitulo'))$('comprasPaginaTitulo').textContent=etapa.titulo;
  if($('comprasPaginaDescricao'))$('comprasPaginaDescricao').textContent=etapa.descricao;
- for(const [k,id] of [['solicitacao','comprasTabSolicitacao'],['cotacao','comprasTabCotacao'],['pedido','comprasTabPedido']]){
+ for(const [k,id] of [['solicitacao','comprasTabSolicitacao'],['cotacao','comprasTabCotacao'],['aprovacao','comprasTabAprovacao'],['pedido','comprasTabPedido']]){
   const btn=$(id);if(!btn)continue;btn.classList.toggle('active',k===tab);
   if(k===tab)btn.setAttribute('aria-current','page');else btn.removeAttribute('aria-current');
  }
- if(tab==='solicitacao')renderRequest();else if(tab==='cotacao')renderQuote();else renderOrder();
+ if(tab==='solicitacao')renderRequest();else if(tab==='cotacao')renderQuote();else renderOrder(tab==='aprovacao');
 }
 let comprasNavEpoch=0;
 async function abrir(etapa=tab){
@@ -494,7 +499,7 @@ for(const id of ['stockTransferPickLocal','stockTransferPickWork','stockManageLo
   say('stockMessage','Transferências e estornos do local da empresa dependem da rotina específica de estoque; não use uma obra fictícia.');
  },true);
 }
-for(const [tabValue,id] of [['solicitacao','comprasTabSolicitacao'],['cotacao','comprasTabCotacao'],['pedido','comprasTabPedido']])
+for(const [tabValue,id] of [['solicitacao','comprasTabSolicitacao'],['cotacao','comprasTabCotacao'],['aprovacao','comprasTabAprovacao'],['pedido','comprasTabPedido']])
  $(id)?.addEventListener('click',()=>{if(permission('compras.consultar'))void abrir(tabValue);});
 async function carregarLocaisRecebimento(select){
  if(!permission('compras.receber')||!currentCompany)return;

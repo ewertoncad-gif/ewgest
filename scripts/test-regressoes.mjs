@@ -129,7 +129,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.43',
+ 'EWGEST • v46.29.44',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2055,7 +2055,7 @@ assert.ok(/cadastros-hub\.js\?v=\d{8}[a-z]/.test(source)&&
 assert.ok(source.includes('id="cadastroJumpGruposCompra"')&&source.includes('id="cadastroGruposCompra"')&&cadastroHubJS.includes('ew_compras_salvar_grupos_fornecedor'),'Cadastro central inclui os grupos de compra e vínculos por fornecedor');
 const comprasNav=source.slice(source.indexOf('id="navCompras"'),source.indexOf('id="navRecebimento"'));
 const comprasPanel=source.slice(source.indexOf('<section id="compras"'),source.indexOf('<section id="recebimento"'));
-assert.ok(comprasNav.includes('id="navComprasSubmenu"')&&comprasNav.includes('id="comprasTabSolicitacao"')&&comprasNav.includes('id="comprasTabCotacao"')&&comprasNav.includes('id="comprasTabPedido"')&&comprasNav.includes('>Compra</button>')&&!comprasPanel.includes('comprasTabSolicitacao')&&!comprasPanel.includes('comprasTabCotacao')&&!comprasPanel.includes('comprasTabPedido'),'Compras possui as três etapas no menu lateral, sem abas duplicadas no painel');
+assert.ok(comprasNav.includes('id="navComprasSubmenu"')&&comprasNav.includes('id="comprasTabSolicitacao"')&&comprasNav.includes('id="comprasTabCotacao"')&&comprasNav.includes('id="comprasTabPedido"')&&comprasNav.includes('id="comprasTabAprovacao"')&&comprasNav.includes('>Pedidos de compra</button>')&&!comprasPanel.includes('comprasTabAprovacao')&&!comprasPanel.includes('comprasTabSolicitacao')&&!comprasPanel.includes('comprasTabCotacao')&&!comprasPanel.includes('comprasTabPedido'),'Compras possui as quatro etapas no menu lateral, sem abas duplicadas no painel');
 const recebimentoPanel=source.slice(source.indexOf('<section id="recebimento"'),source.indexOf('<section id="financeiro"'));
 const recebimentoNav=source.slice(source.indexOf('id="navRecebimento"'),source.indexOf('id="navEnviarNotas"'));
 assert.ok(recebimentoNav.includes('id="navRecebimentoSubmenu"')&&['manual','pedido','historico'].every(m=>recebimentoNav.includes('data-recebimento-modo="'+m+'"'))&&!recebimentoPanel.includes('data-recebimento-modo=')&&recebimentoPanel.includes('id="recebimentoHistoricoNotas"'),'Recebimento separa as três operações no submenu lateral, sem botões duplicados no painel');
@@ -2135,7 +2135,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.43')&&
+assert.ok(source.includes('v46.29.44')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2371,7 +2371,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.43</strong>'),
+ source.includes('EWGEST <strong>· v46.29.44</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -3445,3 +3445,8 @@ console.log('OK: DRE parcial, receitas, custos reconhecidos, despesas e prejuíz
  assert.ok(code.includes('ew_rateio_industrial_criar')&&code.includes('ew_rateio_industrial_estornar'));
 }
 console.log('OK: custos industriais e contribuição parcial sem duplicar valores da DRE.');
+
+// Navegação por domínio e recolhimento sem perda da página.
+assert.ok(['OBRAS E PRODUÇÃO','COMPRAS E ESTOQUE','FINANÇAS E RELATÓRIOS','CONFIGURAÇÕES'].every(x=>source.includes(x))&&!source.includes('ESPAÇO DE TRABALHO'));
+assert.ok(source.includes('aria-controls="workspaceNav"')&&source.includes("wrap.classList.toggle('workspaceNavCollapsed')")&&source.includes(".wrap.workspaceOpen.workspaceNavCollapsed>main{margin-left:0}")&&source.includes("if(!autenticado)wrap.classList.remove('workspaceNavCollapsed')"));
+console.log('OK: menu por domínio, controle de recolhimento e reset de sessão.');

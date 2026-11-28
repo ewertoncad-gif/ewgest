@@ -489,6 +489,15 @@
     }
 
 
+    #workspaceNavToggle{flex:none;margin-right:auto;white-space:nowrap;display:inline-flex;align-items:center;gap:7px}
+    #workspaceNavToggle>span:first-child{font-size:24px;line-height:16px;font-weight:800}
+    .workspaceNavCaptionSecond{margin-top:8px}
+    .wrap.workspaceOpen.workspaceNavCollapsed>.workspaceNav{display:none!important}
+    @media(min-width:761px){
+      .wrap.workspaceOpen.workspaceNavCollapsed>.top{margin-left:0;width:100%}
+      .wrap.workspaceOpen.workspaceNavCollapsed>main{margin-left:0}
+    }
+    @media(max-width:760px){#workspaceNavToggleText{display:none}}
     /* Módulo de materiais — versão inicial, sem controle de saldos */
     .materialsSummary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
     .materialTabs{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:20px;padding-bottom:17px;border-bottom:1px solid #e4ebf2}
@@ -780,15 +789,15 @@
 <div class="wrap">
   <header class="top">
     <div class="brandBlock"><div class="brand">EW<span>GEST</span></div><span class="brandSub">Gestão técnica de esquadrias</span></div>
-    <div class="topactions"><span class="tag" id="topTag">Gestão de obras · liberações e saídas</span><button id="myPasswordHeader" class="btn secondary hidden" type="button">Minha senha</button><button id="logout" class="btn secondary hidden" type="button">Sair</button></div>
+    <button id="workspaceNavToggle" type="button" class="btn secondary hidden" aria-controls="workspaceNav" aria-expanded="true" aria-label="Ocultar menu lateral" title="Ocultar menu lateral"><span aria-hidden="true">⋯</span> <span id="workspaceNavToggleText">Ocultar menu</span></button><div class="topactions"><span class="tag" id="topTag">Gestão de obras · liberações e saídas</span><button id="myPasswordHeader" class="btn secondary hidden" type="button">Minha senha</button><button id="logout" class="btn secondary hidden" type="button">Sair</button></div>
   </header>
   <aside id="workspaceNav" class="workspaceNav hidden" aria-label="Navegação principal">
     <div class="workspaceNavBrand" aria-hidden="true">
       <div class="brand">EW<span>GEST</span></div>
       <div class="workspaceNavSubtitle">Gestão técnica de esquadrias</div>
     </div>
-    <div class="workspaceNavCaption">ESPAÇO DE TRABALHO</div>
     <button id="navHome" class="workspaceLink" type="button"><span class="navSymbol">⌂</span> Tela inicial</button>
+    <div class="workspaceNavCaption">OBRAS E PRODUÇÃO</div>
     <button id="navWorks" class="workspaceLink" type="button" aria-expanded="false" aria-controls="navWorksSubmenu"><span class="navSymbol">▦</span> Obras <span class="comprasNavChevron" aria-hidden="true">▾</span></button>
     <div id="navWorksSubmenu" class="workspaceSubnav hidden" role="group" aria-label="Operações da obra">
       <button type="button" class="workspaceLink workspaceSublink" data-works-modo="release">Liberação para corte</button>
@@ -799,11 +808,14 @@
       <button type="button" class="workspaceLink workspaceSublink" data-works-modo="workUndo">Estorno da obra</button>
     </div>
     <button id="navRomaneios" class="workspaceLink" type="button"><span class="navSymbol">▤</span> Romaneios e expedição</button>
+    <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
+    <div class="workspaceNavCaption workspaceNavCaptionSecond">COMPRAS E ESTOQUE</div>
     <button id="navCompras" class="workspaceLink hidden" type="button" aria-expanded="false" aria-controls="navComprasSubmenu"><span class="navSymbol">▧</span> Compras <span class="comprasNavChevron" aria-hidden="true">▾</span></button>
     <div id="navComprasSubmenu" class="workspaceSubnav hidden" role="group" aria-label="Etapas de compras">
       <button id="comprasTabSolicitacao" type="button" class="workspaceLink workspaceSublink">Solicitação</button>
       <button id="comprasTabCotacao" type="button" class="workspaceLink workspaceSublink">Cotação</button>
-      <button id="comprasTabPedido" type="button" class="workspaceLink workspaceSublink">Compra</button>
+      <button id="comprasTabAprovacao" type="button" class="workspaceLink workspaceSublink">Aprovação de cotações</button>
+      <button id="comprasTabPedido" type="button" class="workspaceLink workspaceSublink">Pedidos de compra</button>
     </div>
     <button id="navRecebimento" class="workspaceLink hidden" type="button" aria-expanded="false" aria-controls="navRecebimentoSubmenu"><span class="navSymbol">▧</span> Recebimento <span class="comprasNavChevron" aria-hidden="true">▾</span></button>
     <div id="navRecebimentoSubmenu" class="workspaceSubnav hidden" role="group" aria-label="Operações de recebimento">
@@ -812,7 +824,6 @@
       <button type="button" class="workspaceLink workspaceSublink" data-recebimento-modo="historico">Histórico e estornos</button>
     </div>
     <button id="navEnviarNotas" class="workspaceLink hidden" type="button"><span class="navSymbol">▧</span> Enviar notas fiscais</button>
-    <div class="workspaceNavCaption workspaceNavCaptionSecond">ADMINISTRAÇÃO</div>
     <button id="navStock" class="workspaceLink hidden" type="button" aria-expanded="false" aria-controls="navStockSubmenu"><span class="navSymbol">▣</span> Estoque <span class="comprasNavChevron" aria-hidden="true">▾</span></button>
     <div id="navStockSubmenu" class="workspaceSubnav hidden" role="group" aria-label="Operações de estoque">
       <button type="button" class="workspaceLink workspaceSublink" data-stock-modo="consulta">Consulta de estoque</button>
@@ -820,14 +831,15 @@
       <button type="button" class="workspaceLink workspaceSublink" data-stock-modo="producao">Entrega à produção</button>
       <button type="button" class="workspaceLink workspaceSublink" data-stock-modo="historico">Histórico e estornos</button>
     </div>
+    <div class="workspaceNavCaption workspaceNavCaptionSecond">FINANÇAS E RELATÓRIOS</div>
     <button id="navFinanceiro" class="workspaceLink hidden" type="button"><span class="navSymbol">◈</span> Financeiro das obras</button>
     <button id="navFinanceiroEmpresa" class="workspaceLink hidden" type="button"><span class="navSymbol">◈</span> Financeiro empresarial</button>
     <button id="navRelatorios" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Relatórios</button>
 
-    <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
+    <div class="workspaceNavCaption workspaceNavCaptionSecond">CONFIGURAÇÕES</div>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.43</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.44</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -848,7 +860,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.43</div>
+        <div class="build">EWGEST • v46.29.44</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -2758,6 +2770,14 @@ function setNavPermission(id,allowed){
  button.title=allowed?'':'Seu nível de acesso não possui permissão para este módulo.';
  if(!allowed){button.classList.remove('active');button.removeAttribute('aria-current');}
 }
+function ajustarMenuLateral(autenticado){
+ const wrap=document.querySelector('.wrap'),btn=node('workspaceNavToggle');
+ if(!autenticado)wrap.classList.remove('workspaceNavCollapsed');
+ const aberto=!wrap.classList.contains('workspaceNavCollapsed');
+ btn.classList.toggle('hidden',!autenticado);btn.setAttribute('aria-expanded',String(aberto));
+ const texto=aberto?'Ocultar menu':'Mostrar menu';
+ node('workspaceNavToggleText').textContent=texto;btn.title=texto+' lateral';btn.setAttribute('aria-label',texto+' lateral');
+}
 function setView(view){
   node('startup').classList.add('hidden');
   if(view!=='login'&&view!=='dashboard'&&view!=='myPassword'&&accessReady&&!permissaoParaTela(view))
@@ -2772,6 +2792,7 @@ function setView(view){
   if(!autenticado){expCompSeq++;expCompCtx=null;romaneioComposicaoSeq++;romaneioComposicoes=new Map();expedicaoAtivaMap=new Map();node('expCompOverlay').classList.add('hidden');node('expCompPicker').classList.add('hidden');node('expCompRows').replaceChildren();node('expCompSimilar').replaceChildren();node('romaneioModal').classList.add('hidden');node('typologyEditOverlay').classList.add('hidden');}
   node('workspaceNav').classList.toggle('hidden',!autenticado);
   document.querySelector('.wrap').classList.toggle('workspaceOpen',autenticado);
+  ajustarMenuLateral(autenticado);
   if(view!=='detail'&&view!=='worksPage'&&view!=='workPendingPage'&&!(view==='manageWorks'&&manageWorksUndoMode)){
     node('navWorksSubmenu').classList.add('hidden');node('navWorks').setAttribute('aria-expanded','false');
     node('navWorksSubmenu').querySelectorAll('[data-works-modo]').forEach(b=>{b.classList.remove('active');b.removeAttribute('aria-current');});
@@ -2779,7 +2800,7 @@ function setView(view){
   if(view!=='compras'){
     node('navComprasSubmenu').classList.add('hidden');
     node('navCompras').setAttribute('aria-expanded','false');
-    for(const id of ['comprasTabSolicitacao','comprasTabCotacao','comprasTabPedido']){node(id).classList.remove('active');node(id).removeAttribute('aria-current');}
+    for(const id of ['comprasTabSolicitacao','comprasTabCotacao','comprasTabAprovacao','comprasTabPedido']){node(id).classList.remove('active');node(id).removeAttribute('aria-current');}
   }
   if(view!=='recebimento'){
     node('navRecebimentoSubmenu').classList.add('hidden');
@@ -9733,6 +9754,10 @@ node('navRecebimento').addEventListener('click',()=>{
  const submenu=node('navRecebimentoSubmenu'),expanded=submenu.classList.contains('hidden');
  submenu.classList.toggle('hidden',!expanded);node('navRecebimento').setAttribute('aria-expanded',String(expanded));
 });
+ node('workspaceNavToggle').addEventListener('click',()=>{
+ const wrap=document.querySelector('.wrap');if(!wrap.classList.contains('workspaceOpen'))return;
+ wrap.classList.toggle('workspaceNavCollapsed');ajustarMenuLateral(true);
+});
  node('navCompras').addEventListener('click',()=>{
    if(!temPermissao('compras.consultar'))return;
    const submenu=node('navComprasSubmenu'),expanded=submenu.classList.contains('hidden');
@@ -12021,7 +12046,7 @@ restaurarSessaoSalva().catch(e=>{
 <script src="/assets/relatorios-obras.js?v=20261125c"></script>
 <script src="/assets/unidades-medida.js?v=20261125a"></script>
 <script src="/assets/niveis-acesso.js?v=20261124c"></script>
-<script src="/assets/compras-estoque.js?v=20261125l"></script>
+<script src="/assets/compras-estoque.js?v=20261128e"></script>
 <script src="/assets/compras-comprovante-transferencia.js?v=20261124a"></script>
 <script src="/assets/compras-conciliacao-nfe.js?v=20261124b"></script>
 <script src="/assets/compras-nota-empresa.js?v=20261124a"></script>
