@@ -27,6 +27,7 @@ BEGIN PERFORM public.ew_exigir_sessao_atual(); IF NOT public.ew_pode(p_empresa,'
 \ir ../database/proposals/20261128_resultados_gerenciais_v462940.sql
 \ir ../database/proposals/20261128_dre_classificacao_v462941.sql
 \ir ../database/proposals/20261128_rateio_industrial_v462942.sql
+\ir ../database/proposals/20261128_rateio_lote_v462947.sql
 SET test.uid='00000000-0000-0000-0000-000000000099';
 SET test.perm='yes';
 CREATE TABLE public.test_rateio_race(titulo_id uuid,liberacao_id uuid,versao int);
@@ -72,3 +73,35 @@ BEGIN
  IF NOT negado THEN RAISE EXCEPTION 'acesso cruzado';END IF;
 END $$;
 SELECT 'OK: rateio por liberação, classificação, centro de custo, contribuição e DRE sem duplicidade' AS resultado;
+
+DO $$
+DECLARE e uuid:='00000000-0000-0000-0000-000000000001';t uuid:=gen_random_uuid();a uuid;b uuid;op uuid:=gen_random_uuid();sel jsonb;p jsonb;r jsonb;negado boolean;
+BEGIN
+ SELECT id INTO a FROM public.liberacoes_corte WHERE fabrica='AFOGADOS' LIMIT 1;
+ SELECT id INTO b FROM public.liberacoes_corte WHERE fabrica='IMBIRIBEIRA' LIMIT 1;
+ UPDATE public.esquadrias SET largura_mm=2000 WHERE id=(SELECT esquadria_id FROM public.liberacoes_corte WHERE id=b);
+ INSERT INTO ew_financeiro_interna.titulos VALUES(t,e,'PAGAR','MANUAL',NULL,'2026-11-30','Energia','GERAL',101,'Energia lote',NULL);
+ PERFORM public.ew_dre_classificar_titulo(e,t,gen_random_uuid(),0,'CUSTO_INDIRETO','Energia reconhecida');
+ sel:=jsonb_build_array(jsonb_build_object('id',a,'peso_kg',1),jsonb_build_object('id',b,'peso_kg',3));
+ IF has_function_privilege('anon','public.ew_rateio_industrial_lote(uuid,uuid,int,uuid,text,jsonb,text,boolean,jsonb)','EXECUTE') OR has_table_privilege('authenticated','ew_financeiro_interna.rateios_lotes','SELECT') THEN RAISE EXCEPTION 'acesso direto indevido';END IF;
+ p:=public.ew_rateio_industrial_lote(e,t,1,op,'PESO_INFORMADO',sel,'Peso informado',false,NULL);
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(p->'linhas') x WHERE (x->>'id')::uuid=b AND (x->>'centavos')::int=76) THEN RAISE EXCEPTION 'peso incorreto %',p;END IF;
+ p:=public.ew_rateio_industrial_lote(e,t,1,op,'QUANTIDADE',sel,'Quantidade',false,NULL);
+ IF (SELECT sum((x->>'centavos')::int) FROM jsonb_array_elements(p->'linhas') x)<>101 THEN RAISE EXCEPTION 'centavos';END IF;
+ p:=public.ew_rateio_industrial_lote(e,t,1,op,'AREA',sel,'Área liberada',false,NULL);
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(p->'linhas') x WHERE (x->>'id')::uuid=b AND (x->>'centavos')::int=67) THEN RAISE EXCEPTION 'area incorreta %',p;END IF;
+ IF EXISTS(SELECT 1 FROM ew_financeiro_interna.rateios_industriais WHERE titulo_id=t) THEN RAISE EXCEPTION 'previa gravou';END IF;
+ negado:=false;BEGIN PERFORM public.ew_rateio_industrial_lote(e,t,1,op,'AREA',sel,'Área liberada',true,'[]');EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Saldo ou critérios%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'previa divergente aceita';END IF;
+ r:=public.ew_rateio_industrial_lote(e,t,1,op,'AREA',sel,'Área liberada',true,p->'linhas');
+ IF (SELECT sum(valor_centavos) FROM ew_financeiro_interna.rateios_industriais WHERE titulo_id=t)<>101 THEN RAISE EXCEPTION 'lote não fecha';END IF;
+ r:=public.ew_rateio_industrial_lote(e,t,1,op,'AREA',sel,'Área liberada',true,p->'linhas');
+ IF NOT (r->>'repetido')::boolean OR (SELECT count(*) FROM ew_financeiro_interna.rateios_industriais WHERE titulo_id=t)<>2 THEN RAISE EXCEPTION 'repetição duplicou';END IF;
+ negado:=false;BEGIN PERFORM public.ew_rateio_industrial_lote(e,t,1,op,'AREA',sel,'Outra justificativa',true,p->'linhas');EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Identificador do lote%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'reuso de lote alterado';END IF;
+ SET LOCAL test.perm='no';
+ negado:=false;BEGIN PERFORM public.ew_rateio_industrial_lote(e,t,1,op,'AREA',sel,'Área liberada',true,p->'linhas');EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Sem acesso%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'permissao indevida';END IF;
+ SET LOCAL test.perm='yes';
+END $$;
+SELECT 'OK: lote atomico, area, peso informado, previa, centavos e idempotencia' AS resultado;
