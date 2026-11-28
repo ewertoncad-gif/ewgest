@@ -87,16 +87,51 @@ async function carregarEstoque(valid){
   return renderEstoque(r);
  }catch(e){return valid()&&temPermissao('estoque.consultar')?'<h3>Estoque valorizado · posição atual</h3><p class="hint">Não foi possível conciliar o estoque agora. '+esc(e.message)+'</p>':'';}
 }
+function renderResultados(r){
+ if(!r||!['fabrica','obras','itens','manuais'].every(k=>Array.isArray(r[k])))throw Error('Resultado gerencial incompleto.');
+ const fab=integer(r.fabricacao_centavos),inst=integer(r.instalacao_centavos),material=integer(r.material_centavos),n=integer(r.consumos),pend=integer(r.consumos_pendentes);
+ const manualP=integer(r.manuais_pagar_centavos),manualR=integer(r.manuais_receber_centavos),itensTotal=integer(r.itens_total),semItem=integer(r.material_sem_item_centavos);
+ if(pend>n||semItem>material||itensTotal<r.itens.length)throw Error('Indicadores inconsistentes.');
+ const soma=(arr,k)=>arr.reduce((a,x)=>a+integer(x[k]),0);
+ if(soma(r.fabrica,'faturamento_centavos')!==fab||soma(r.obras,'faturamento_centavos')!==fab+inst||soma(r.fabrica,'material_centavos')!==material||soma(r.obras,'material_centavos')!==material||soma(r.fabrica,'consumos')!==n||soma(r.obras,'consumos')!==n||soma(r.fabrica,'consumos_pendentes')!==pend||soma(r.obras,'consumos_pendentes')!==pend||
+ soma(r.manuais.filter(x=>x.tipo==='PAGAR'),'valor_centavos')!==manualP||soma(r.manuais.filter(x=>x.tipo==='RECEBER'),'valor_centavos')!==manualR)throw Error('Totais gerenciais não conciliam.');
+ const mat=(v,total,pendentes)=>{v=integer(v);total=integer(total);pendentes=integer(pendentes);if(pendentes>total||(!total&&v))throw Error('Consumo inconsistente.');return total===0?'Sem registro':total===pendentes?'A apurar':brl(v)+(pendentes?' · parcial':'');};
+ const area=v=>{const a=Number(v);if(!Number.isFinite(a)||a<0)throw Error('Área inválida.');return a.toLocaleString('pt-BR',{maximumFractionDigits:3});};
+ const fabRows=[...r.fabrica].sort((a,b)=>Number(b.faturamento_centavos)-Number(a.faturamento_centavos)).map(g=>[g.fabrica||'A atribuir',brl(integer(g.faturamento_centavos)),area(g.area_expedida_m2)+(integer(g.areas_pendentes)?' · parcial':''),mat(g.material_centavos,g.consumos,g.consumos_pendentes),String(g.consumos_pendentes),'A apurar']);
+ return '<div class="section" style="margin:18px 0"><h2>Resultados de fabricação e gestão</h2>'+
+ '<h3>Desempenho por fábrica</h3><p class="hint">Receita de fabricação atribuída apenas quando os romaneios válidos anteriores ao faturamento identificam uma única fábrica e cobrem a área faturada. Histórico ambíguo fica em A atribuir. Instalação é separada. Área expedida e material entregue no período podem corresponder a receitas de outros períodos.</p>'+
+ table(['Fábrica','Faturamento de fabricação','Área expedida (m²)','Material consumido comprovado','Consumos pendentes','Rentabilidade'],fabRows)+
+ '<h3>Custos de materiais por obra</h3>'+table(['Obra','Faturamento total','Material consumido comprovado','Consumos pendentes','Rentabilidade'],r.obras.map(o=>[o.nome+' · '+o.codigo,brl(integer(o.faturamento_centavos)),mat(o.material_centavos,o.consumos,o.consumos_pendentes),String(o.consumos_pendentes),'A apurar']))+
+ '<h3>Custos de materiais por código de esquadria</h3><p class="hint">Custo efetivo de materiais entregues à produção e conciliados com aquisição fiscal. Não é custo unitário completo nem custo da mercadoria vendida. Lotes sem vínculo individual permanecem separados, sem rateio arbitrário.</p>'+
+ (itensTotal>r.itens.length?'<p class="hint">Mostrando até 500 códigos/grupos; totais incluem todos.</p>':'')+
+ table(['Obra','Código','Material comprovado','Consumos pendentes'],r.itens.map(i=>[i.obra,i.codigo||'Lote / sem vínculo individual',mat(i.material_centavos,i.n,i.pendencias),String(i.pendencias)]))+
+ '<p class="hint">Material comprovado sem vínculo individual: '+esc(brl(semItem))+'.</p>'+
+ '<h3>DRE gerencial · base de apuração</h3><p class="notice">Resultado líquido e margens ainda não disponíveis: faltam classificação por competência, impostos, mão de obra, custos indiretos e apropriação dos custos aos itens efetivamente vendidos. Compras de estoque não são automaticamente despesas do resultado.</p>'+
+ table(['Componente','Valor / situação'],[
+ ['Receita de fabricação registrada',brl(fab)],['Receita de instalação registrada',brl(inst)],['Receita faturada total',brl(fab+inst)],
+ ['Material entregue à produção (não deduzido automaticamente)',mat(material,n,pend)],
+ ['Contas manuais a pagar por competência (a classificar)',brl(manualP)],['Contas manuais a receber por competência (a classificar)',brl(manualR)],
+ ['Impostos e deduções','A apurar'],['Custo dos itens vendidos','A apurar'],['Mão de obra e custos indiretos','A apurar'],['Despesas administrativas','A classificar'],['Lucro / prejuízo e margem','A apurar']].map(x=>x))+
+ '<h3>Contas manuais por categoria e centro de custo</h3>'+table(['Tipo','Categoria','Centro de custo','Valor por competência'],r.manuais.map(m=>[m.tipo==='PAGAR'?'A pagar':'A receber',m.categoria,m.centro_custo,brl(integer(m.valor_centavos))]))+'</div>';
+}
+async function carregarResultados(valid,inicio,fim){
+ if(!temPermissao('estoque.consultar'))return '';
+ try{
+  const r=await request('/rest/v1/rpc/ew_resultados_gerenciais',{method:'POST',token:session.access_token,timeoutMs:45000,body:{p_empresa_id:currentCompany.id,p_inicio:inicio,p_fim:fim}});
+  if(!valid()||!temPermissao('estoque.consultar'))return '';
+  return renderResultados(r);
+ }catch(e){return valid()&&temPermissao('estoque.consultar')?'<h3>Resultados de fabricação e gestão</h3><p class="hint">Não foi possível apurar os resultados: '+esc(e.message)+'</p>':'';}
+}
 function render(r){
  const kpi=(label,value)=>'<div class="stat"><div class="label">'+esc(label)+'</div><div class="number" style="font-size:clamp(16px,2vw,23px);overflow-wrap:anywhere">'+esc(value)+'</div></div>';
  return '<div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))">'+
  kpi('Faturamento registrado',brl(r.fab+r.inst))+kpi('Fabricação',brl(r.fab))+kpi('Instalação',brl(r.inst))+
  kpi('Despesas aprovadas de obras',brl(r.desp))+kpi('Compras de estoque próprio',brl(r.empresa))+
  kpi('Notas de obras em conferência',String(r.pendentes))+'</div>'+
- '<p class="hint">Documentos ativos no período de emissão. Valores de compras e despesas são exibidos separadamente: podem representar estoque, não consumo. Faturamento não equivale a recebimento. Lucro, caixa e custos industriais ainda não são apurados neste painel.</p>'+
+ '<p class="hint">Documentos ativos no período de emissão. Valores de compras e despesas são exibidos separadamente: podem representar estoque, não consumo. Faturamento não equivale a recebimento. Lucro, caixa e custos industriais ainda não são apurados integralmente. Consulte os indicadores de custos e a base da DRE abaixo.</p>'+
  '<h3>Evolução mensal</h3>'+table(['Mês','Faturamento','Despesas de obras','Compras estoque próprio'],r.meses.map(m=>[m.mes.split('-').reverse().join('/'),brl(m.faturado),brl(m.comprasObras),brl(m.comprasEmpresa)]))+
  '<h3>Desempenho documental por obra</h3>'+table(['Obra','Fabricação','Instalação','Total faturado','Despesas aprovadas'],r.grupos.map(g=>[g.nome,brl(g.fab),brl(g.inst),brl(g.fab+g.inst),brl(g.despesas)]))+
- '<div class="topactions"><button type="button" class="btn secondary" id="gerencialIrFinanceiro">Financeiro das obras</button><button type="button" class="btn secondary" id="gerencialIrRelatorios">Relatórios</button><button type="button" class="btn secondary" id="gerencialIrEstoque">Estoque</button></div>';
+ '<div class="topactions"><button type="button" class="btn secondary" id="gerencialIrFinanceiro">Financeiro das obras</button><button type="button" class="btn secondary" id="gerencialIrEmpresa">Financeiro empresarial</button><button type="button" class="btn secondary" id="gerencialIrRelatorios">Relatórios</button><button type="button" class="btn secondary" id="gerencialIrEstoque">Estoque</button></div>';
 }
 function limpar(){seq++;el('gerencialPanel').classList.add('hidden');el('gerencialConteudo').replaceChildren();el('gerencialStatus').textContent='';}
 async function abrir(){
@@ -113,17 +148,17 @@ async function abrir(){
  el('gerencialStatus').textContent='Consultando documentos do período…';
  try{
   await ensureSession();if(!valid())return;
-  const [f,d,c,o,estoque]=await Promise.all([
+  const [f,d,c,o,estoque,resultados]=await Promise.all([
    pages('ew_obra_faturamentos',{...filter('data_faturamento'),select:'id,obra_id,categoria,data_faturamento,valor_total,status'},valid),
    pages('ew_obra_despesas',{...filter('data_documento'),select:'id,obra_id,data_documento,valor,status'},valid),
    pages('ew_compras_notas_empresa',{...filter('data_documento'),select:'id,data_documento,valor_centavos,status'},valid),
    pages('obras',{empresa_id:'eq.'+id,select:'id,nome,codigo'},valid),
-   carregarEstoque(valid)
+   carregarEstoque(valid),carregarResultados(valid,ini,end)
   ]);
   if(!valid())return;
   const r=calc(f,d,c,o,ini,end);
-  el('gerencialConteudo').innerHTML=render(r)+(temPermissao('estoque.consultar')?estoque:'');
-  for(const [a,b] of [['gerencialIrFinanceiro','navFinanceiro'],['gerencialIrRelatorios','navRelatorios'],['gerencialIrEstoque','navStock']]){
+  el('gerencialConteudo').innerHTML=render(r)+(temPermissao('estoque.consultar')?estoque+resultados:'');
+  for(const [a,b] of [['gerencialIrFinanceiro','navFinanceiro'],['gerencialIrEmpresa','navFinanceiroEmpresa'],['gerencialIrRelatorios','navRelatorios'],['gerencialIrEstoque','navStock']]){
    const target=el(b),button=el(a);button.disabled=target.disabled;button.addEventListener('click',()=>target.click());
   }
   el('gerencialStatus').textContent=r.docs+' documento(s) de faturamento ativo(s) · Consulta concluída.';
