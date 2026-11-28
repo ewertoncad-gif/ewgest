@@ -3595,3 +3595,14 @@ console.log('OK: setores RH e ferramentas, permissões de navegação, impressã
  assert.ok(code.includes('ferramentas_pendentes')&&code.includes('data-return-state')&&code.includes('if(!show)b.checked=false'));
 }
 console.log('OK: filtros de disponibilidade, ocorrências e pendências RH.');
+
+{
+ const qr=readFileSync(new URL('../assets/tool-qr.js',import.meta.url),'utf8'),w={};new Function('window',qr)(w);
+ const id='00000000-0000-0000-0000-000000000001',m=w.ewToolQR.matrix(id);
+ const {createHash}=await import('node:crypto');
+ assert.equal(createHash('sha256').update(m.flat().map(Number).join('')).digest('hex'),'eb0d2e4c7125a1c6cd8b9cebdf55b349422cc19f9a7ee9adffc191a314b71537');
+ assert.throws(()=>w.ewToolQR.matrix('invalid'));
+ assert.ok(w.ewToolQR.svg(id).includes('viewBox="0 0 37 37"'));
+ assert.ok(source.includes('tool-qr.js?v=20261128q'));
+}
+console.log('OK: QR local conforme matriz de referência independente.');
