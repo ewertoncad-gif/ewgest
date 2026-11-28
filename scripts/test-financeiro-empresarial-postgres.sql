@@ -111,3 +111,26 @@ BEGIN
  IF NOT negado OR has_table_privilege('authenticated','ew_financeiro_interna.fretes_pedidos','SELECT') OR has_function_privilege('anon','public.ew_fin_compras_previsao(uuid)','EXECUTE') THEN RAISE EXCEPTION 'acesso indevido';END IF;
 END $$;
 SELECT 'OK: pagamentos documentais, frete único, baixa parcial e origem pendente' AS resultado;
+
+ALTER TABLE public.ew_compras_pedidos ADD COLUMN itens jsonb, ADD COLUMN total_centavos bigint;
+\ir ../database/proposals/20261128_frete_estorno_v462952.sql
+SET test.compra='yes';
+SET test.write='yes';
+DO $$
+DECLARE e uuid:='00000000-0000-0000-0000-000000000001';f ew_financeiro_interna.fretes_pedidos%ROWTYPE;op uuid:=gen_random_uuid();r jsonb;p uuid;
+BEGIN
+ SELECT * INTO f FROM ew_financeiro_interna.fretes_pedidos WHERE empresa_id=e LIMIT 1;
+ UPDATE public.ew_compras_pedidos SET itens='[{"chave":"1","quantidade":2,"preco_unitario_centavos":100},{"chave":"2","quantidade":1,"preco_unitario_centavos":100}]',total_centavos=300 WHERE id=f.pedido_id;
+ r:=public.ew_fin_frete_previa(e,f.operacao_id);
+ IF (r->>'frete_centavos')::bigint<>1000 OR (SELECT sum((x->>'frete_centavos')::bigint) FROM jsonb_array_elements(r->'itens') x)<>1000 OR (r->'itens'->0->>'frete_centavos')::bigint<>667 THEN RAISE EXCEPTION 'rateio incorreto %',r;END IF;
+ PERFORM public.ew_fin_estornar_vinculo_frete(e,f.titulo_id,f.operacao_id,op,'Corrigir vínculo');
+ r:=public.ew_fin_estornar_vinculo_frete(e,f.titulo_id,f.operacao_id,op,'Corrigir vínculo');
+ IF NOT (r->>'repetido')::boolean THEN RAISE EXCEPTION 'estorno repetido';END IF;
+ r:=public.ew_fin_compras_previsao(e);
+ IF (r->>'saldo_programado_centavos')::bigint<>2000 OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'fretes_disponiveis') x WHERE x->>'id'=f.titulo_id::text) THEN RAISE EXCEPTION 'desvinculação incorreta %',r;END IF;
+ IF (SELECT sum(valor_centavos) FROM ew_financeiro_interna.baixas WHERE titulo_id=f.titulo_id AND estornado_em IS NULL)<>300 THEN RAISE EXCEPTION 'baixa alterada';END IF;
+ PERFORM public.ew_fin_vincular_frete(e,f.titulo_id,f.pedido_id,gen_random_uuid(),'Vincular novamente');
+ r:=public.ew_fin_fretes_historico(e);
+ IF jsonb_array_length(r)<>2 OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r) x WHERE x->>'estorno_motivo'='Corrigir vínculo') THEN RAISE EXCEPTION 'histórico perdido';END IF;
+END $$;
+SELECT 'OK: prévia de frete em centavos, estorno e novo vínculo preservando baixa' AS resultado;

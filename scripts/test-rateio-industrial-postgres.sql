@@ -183,3 +183,28 @@ BEGIN
  IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'fabrica') x WHERE x->>'fabrica'='TESTE-PROD' AND (x->>'area_expedida')::numeric=0) THEN RAISE EXCEPTION 'cancelamento ignorado';END IF;
 END $$;
 SELECT 'OK: produtividade por fábrica, período, dimensões e cancelamentos' AS resultado;
+
+CREATE TABLE public.ew_locais_fisicos(id uuid PRIMARY KEY,empresa_id uuid,nome text,ativo boolean);
+\ir ../database/proposals/20261128_horas_industriais_v462952.sql
+SET test.perm='yes';
+DO $$
+DECLARE e uuid:='00000000-0000-0000-0000-000000000001';g uuid:=gen_random_uuid();op uuid:=gen_random_uuid();rev uuid:=gen_random_uuid();r jsonb;negado boolean;
+BEGIN
+ INSERT INTO public.ew_locais_fisicos VALUES(g,e,'AFOGADOS',true);
+ PERFORM public.ew_industrial_registrar_horas(e,op,g,'2026-11-20',480,'Apontamento diário');
+ r:=public.ew_industrial_registrar_horas(e,op,g,'2026-11-20',480,'Apontamento diário');
+ IF NOT (r->>'repetido')::boolean THEN RAISE EXCEPTION 'duplicidade';END IF;
+ negado:=false;BEGIN PERFORM public.ew_industrial_registrar_horas(e,gen_random_uuid(),g,'2026-11-20',480,'Outro registro');EXCEPTION WHEN unique_violation THEN negado:=true;END;
+ IF NOT negado THEN RAISE EXCEPTION 'dia duplicado';END IF;
+ PERFORM public.ew_industrial_estornar_horas(e,rev,op,'Corrigir apontamento');
+ r:=public.ew_industrial_estornar_horas(e,rev,op,'Corrigir apontamento');
+ IF NOT (r->>'repetido')::boolean THEN RAISE EXCEPTION 'estorno não idempotente';END IF;
+ PERFORM public.ew_industrial_registrar_horas(e,gen_random_uuid(),g,'2026-11-20',600,'Registro corrigido');
+ PERFORM public.ew_industrial_registrar_horas(e,gen_random_uuid(),g,'2026-11-21',0,'Sem trabalho');
+ r:=public.ew_industrial_horas_consultar(e,'2026-11-20','2026-11-21');
+ IF (r->>'total')::int<>3 OR (r->'totais'->0->>'minutos')::bigint<>600 OR (r->'totais'->0->>'dias_informados')::int<>2 THEN RAISE EXCEPTION 'total incorreto %',r;END IF;
+ IF has_table_privilege('authenticated','ew_financeiro_interna.horas_industriais','SELECT') OR has_function_privilege('anon','public.ew_industrial_horas_consultar(uuid,date,date)','EXECUTE') THEN RAISE EXCEPTION 'acesso indevido';END IF;
+ SET LOCAL test.perm='no';negado:=false;BEGIN PERFORM public.ew_industrial_horas_consultar(e,'2026-11-20','2026-11-21');EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Sem acesso%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'permissão indevida';END IF;
+END $$;
+SELECT 'OK: horas agregadas, estorno, idempotência e permissões' AS resultado;

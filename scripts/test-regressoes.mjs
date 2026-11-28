@@ -129,7 +129,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.51',
+ 'EWGEST • v46.29.52',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2135,7 +2135,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.51')&&
+assert.ok(source.includes('v46.29.52')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2371,7 +2371,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.51</strong>'),
+ source.includes('EWGEST <strong>· v46.29.52</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -3489,7 +3489,7 @@ console.log('OK: filtros de compras e paginação integral de solicitações e c
 console.log('OK: preços conciliados, estoque compatível e simulação exata em 100 distribuições.');
 
 assert.ok(readFileSync(new URL('../assets/financeiro-empresarial.js',import.meta.url),'utf8').includes("p_confirmar:true,p_previa:p.linhas"));
-assert.ok(source.includes('financeiro-empresarial.js?v=20261128l'));
+assert.ok(source.includes('financeiro-empresarial.js?v=20261128m'));
 
 {
  const code=readFileSync(new URL('../assets/compras-estoque.js',import.meta.url),'utf8');
@@ -3548,3 +3548,15 @@ console.log('OK: previsão conciliada por vencimento, exclusão de origens invá
  assert.ok(code.includes('ew_fin_vincular_frete')&&code.includes('ew_industrial_produtividade'));
 }
 console.log('OK: previsão vinculada às compras e proteção contra documentos duplicados.');
+
+{
+ const code=readFileSync(new URL('../assets/financeiro-empresarial.js',import.meta.url),'utf8');new Function(code);
+ const a=code.indexOf('function simularCustoIntegral('),b=code.indexOf('function renderSimCusto(',a);
+ const calc=new Function('cents',code.slice(a,b)+'return simularCustoIntegral;')(n=>{if(!Number.isSafeInteger(n)||n<0)throw Error('valor');return n;});
+ const d={materiais:100000,folha:200000,encargos:50000,beneficios:10000,energia:20000,manutencao:10000,frete:5000,outros:0,ativo:120000,residual:0,vida:12,area:100,horas:200};
+ assert.deepEqual(calc(d),{depreciacao:10000,pessoal:260000,total:405000,porM2:4050,porHora:2025});
+ assert.equal(calc({...d,horas:0}).porHora,null);
+ assert.throws(()=>calc({...d,residual:120001}));assert.throws(()=>calc({...d,area:0}));assert.throws(()=>calc({...d,vida:0}));
+ assert.ok(code.includes('ew_fin_estornar_vinculo_frete')&&code.includes('ew_fin_frete_previa')&&code.includes('ew_industrial_registrar_horas'));
+}
+console.log('OK: cálculo simulado de custo integral e integração de frete/horas.');
