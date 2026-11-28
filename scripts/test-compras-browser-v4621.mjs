@@ -335,7 +335,7 @@ try{
 
  // v46.28: tela real de cotação — agrupamento, fornecedores e preços independentes.
  const quoting=await browser.newPage({viewport:{width:1280,height:800}});
- await quoting.setContent('<!doctype html><html><body><button id="cadastroJumpFornecedores" hidden></button><aside><button id="navCompras" aria-expanded="false"></button><div id="navComprasSubmenu"><button id="comprasTabSolicitacao">Solicitação</button><button id="comprasTabCotacao">Cotação</button><button id="comprasTabAprovacao">Aprovação de cotações</button><button id="comprasTabPedido">Pedidos de compra</button></div></aside><h1 id="comprasPaginaTitulo"></h1><p id="comprasPaginaDescricao"></p><div id="comprasMensagem"></div><main id="comprasConteudo"></main></body></html>');
+ await quoting.setContent('<!doctype html><html><body><button id="cadastroJumpFornecedores" hidden></button><aside><button id="navCompras" aria-expanded="false"></button><div id="navComprasSubmenu"><button id="comprasTabSolicitacao">Solicitação</button><button id="comprasTabCotacao">Cotação</button><button id="comprasTabAprovacao">Aprovação de cotações</button><button id="comprasTabPedido">Pedidos de compra</button><button id="comprasTabHistorico">Histórico de preços</button></div></aside><h1 id="comprasPaginaTitulo"></h1><p id="comprasPaginaDescricao"></p><div id="comprasMensagem"></div><main id="comprasConteudo"></main></body></html>');
  await quoting.evaluate(()=>{
   window.escapeHTML=v=>String(v??'').replace(/[&<>"]/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[x]));
   window.currentCompany={id:'empresa-teste'};window.session={access_token:'MOCK'};window.ensureSession=async()=>{};
@@ -383,7 +383,7 @@ try{
     return {ok:true};
    }
    if(fn==='ew_compras_criar_cotacao'){
-    m.quotes.push({id:'q1',solicitacao_id:body.p_solicitacao_id,fornecedor_id:body.p_fornecedor_id,status:'ABERTA',total_centavos:50000});
+    m.quotes.push({id:'q1',solicitacao_id:body.p_solicitacao_id,fornecedor_id:body.p_fornecedor_id,status:'ABERTA',criado_em:'2026-11-25',itens:m.sols.find(s=>s.id===body.p_solicitacao_id).itens.map(i=>({...i,preco_unitario_centavos:body.p_precos.find(p=>p.chave===i.chave).preco_unitario_centavos})),total_centavos:50000});
     return {id:'q1'};
    }
    throw Error('RPC inesperada: '+fn);
@@ -495,6 +495,13 @@ try{
  assert.equal(await quoting.locator('#comprasPaginaTitulo').innerText(),'Pedidos de compra');
  assert.equal(await quoting.locator('#comprasPedidoForm').count(),0);
  assert.equal(await quoting.locator('#comprasCotacaoSolic').count(),0);
+ await quoting.locator('#comprasTabHistorico').click();
+ await quoting.waitForFunction(()=>document.querySelector('#comprasTabHistorico')?.getAttribute('aria-current')==='page');
+ assert.equal(await quoting.locator('#comprasPaginaTitulo').innerText(),'Histórico de preços');
+ assert.equal(await quoting.locator('[data-compra-lista]').count(),1);
+ assert.ok((await quoting.locator('[data-compra-lista]').innerText()).includes('Fornecedor 2'));
+ await quoting.locator('#comprasFiltroBusca').fill('fornecedor inexistente');
+ assert.equal(await quoting.locator('[data-compra-lista]').isVisible(),false);
  await quoting.locator('#comprasTabSolicitacao').click();
  await quoting.waitForFunction(()=>document.querySelector('#comprasTabSolicitacao')?.getAttribute('aria-current')==='page');
  assert.equal(await quoting.locator('#comprasPaginaTitulo').innerText(),'Solicitação de compra');
