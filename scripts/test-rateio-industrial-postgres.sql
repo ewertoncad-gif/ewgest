@@ -1,0 +1,74 @@
+-- Banco descartável com estrutura mínima das fontes de relatório.
+CREATE ROLE anon NOLOGIN;
+CREATE ROLE authenticated NOLOGIN;
+CREATE SCHEMA auth;
+CREATE SCHEMA ew_compras_interna;
+CREATE SCHEMA ew_financeiro_interna;
+CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('test.uid',true),'')::uuid $$;
+CREATE FUNCTION public.ew_exigir_sessao_atual() RETURNS void LANGUAGE plpgsql AS $$ BEGIN IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Sessão inválida';END IF;END $$;
+CREATE FUNCTION public.ew_pode(uuid,text) RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT $1='00000000-0000-0000-0000-000000000001' AND current_setting('test.perm',true)='yes' $$;
+CREATE TABLE public.obras(id uuid PRIMARY KEY,empresa_id uuid,nome text,codigo text);
+CREATE TABLE public.esquadrias(id uuid PRIMARY KEY,empresa_id uuid,obra_id uuid,codigo text,largura_mm numeric,altura_mm numeric);
+CREATE TABLE public.ew_obra_faturamentos(id uuid PRIMARY KEY,empresa_id uuid,obra_id uuid,categoria text,valor_total numeric,status text,cancelado_em timestamptz,data_faturamento date,criado_em timestamptz,numero_documento text);
+CREATE TABLE public.ew_obra_faturamentos_itens(faturamento_id uuid,empresa_id uuid,esquadria_id uuid,quantidade numeric,valor_total numeric,area_m2 numeric);
+CREATE TABLE public.romaneios(id uuid PRIMARY KEY,empresa_id uuid,obra_id uuid,status text,cancelado_em timestamptz,data_saida date,criado_em timestamptz);
+CREATE TABLE public.romaneios_itens(romaneio_id uuid,natureza text,esquadria_id uuid,fabrica text,area_m2 numeric);
+CREATE TABLE public.liberacoes_corte(id uuid PRIMARY KEY,esquadria_id uuid,cancelado_em timestamptz,fabrica text,quantidade int,tipo_componente text,data_liberacao date);
+CREATE TABLE public.ew_liberacoes_lotes(id uuid PRIMARY KEY,empresa_id uuid,obra_id uuid,cancelado_em timestamptz,fabrica text);
+CREATE TABLE public.ew_estoque_obras_movimentos(id uuid PRIMARY KEY,empresa_id uuid,obra_id uuid,origem text,quantidade_delta numeric,liberacao_id uuid,lote_id uuid,local_estoque text,estorno_de_id uuid,criado_em timestamptz);
+CREATE TABLE public.ew_estornos_parcelas(empresa_id uuid,movimento_original_id uuid,movimento_estorno_id uuid,quantidade numeric);
+CREATE TABLE ew_compras_interna.custo_consumos_integrados(empresa_id uuid,movimento_id uuid,operacao_custo uuid,quantidade numeric,estornado_em timestamptz);
+CREATE TABLE ew_compras_interna.custo_eventos(empresa_id uuid,lote_id uuid,operacao_id uuid,quantidade numeric,destino_tipo text,destino_id uuid,destino_galpao text,custo_centavos bigint,estornado_em timestamptz);
+CREATE TABLE ew_compras_interna.custo_lotes(empresa_id uuid,lote_id uuid,fonte text,item_fiscal_id uuid,movimento_id uuid,quantidade numeric,custo_centavos bigint,categoria text,cancelado_em timestamptz);
+CREATE TABLE ew_compras_interna.lotes_aquisicao_evidencias(empresa_id uuid,fonte text,item_fiscal_id uuid,movimento_id uuid,quantidade numeric,custo_centavos bigint,categoria text);
+CREATE TABLE ew_financeiro_interna.titulos(id uuid PRIMARY KEY,empresa_id uuid,tipo text,origem_tipo text,cancelado_em timestamptz,competencia date,categoria text,centro_custo text,valor_centavos bigint,descricao text,galpao_id uuid,UNIQUE(empresa_id,id));
+CREATE FUNCTION ew_financeiro_interna.exigir(p_empresa uuid) RETURNS void LANGUAGE plpgsql SET search_path TO '' AS $$
+BEGIN PERFORM public.ew_exigir_sessao_atual(); IF NOT public.ew_pode(p_empresa,'financeiro.consultar') OR NOT public.ew_pode(p_empresa,'relatorios.financeiros') THEN RAISE EXCEPTION 'Sem acesso'; END IF; END $$;
+\ir ../database/proposals/20261128_resultados_gerenciais_v462940.sql
+\ir ../database/proposals/20261128_dre_classificacao_v462941.sql
+\ir ../database/proposals/20261128_rateio_industrial_v462942.sql
+SET test.uid='00000000-0000-0000-0000-000000000099';
+SET test.perm='yes';
+CREATE TABLE public.test_rateio_race(titulo_id uuid,liberacao_id uuid,versao int);
+DO $$
+DECLARE e uuid:='00000000-0000-0000-0000-000000000001';e2 uuid:=gen_random_uuid();o uuid:=gen_random_uuid();a uuid:=gen_random_uuid();b uuid:=gen_random_uuid();l uuid:=gen_random_uuid();l2 uuid:=gen_random_uuid();t uuid:=gen_random_uuid();t2 uuid:=gen_random_uuid();g uuid:=gen_random_uuid();f uuid:=gen_random_uuid();rom uuid:=gen_random_uuid();m uuid:=gen_random_uuid();op uuid:=gen_random_uuid();lt uuid:=gen_random_uuid();item uuid:=gen_random_uuid();orig uuid:=gen_random_uuid();op_id uuid:=gen_random_uuid();rid uuid;r jsonb;negado boolean;
+BEGIN
+ IF has_function_privilege('anon','public.ew_rateio_industrial_consultar(uuid,date,date)','EXECUTE') OR has_table_privilege('authenticated','ew_financeiro_interna.rateios_industriais','SELECT') THEN RAISE EXCEPTION 'acesso direto indevido';END IF;
+ INSERT INTO public.obras VALUES(o,e,'Obra A','A');
+ INSERT INTO public.esquadrias VALUES(a,e,o,'EA',1000,1000),(b,e,o,'EB',1000,1000);
+ INSERT INTO public.liberacoes_corte VALUES(l,a,NULL,'AFOGADOS',1,'completo','2026-11-01'),(l2,b,NULL,'IMBIRIBEIRA',1,'completo','2026-11-01');
+ INSERT INTO public.romaneios VALUES(rom,e,o,'emitido',NULL,'2026-11-09','2026-11-09T10:00:00Z');
+ INSERT INTO public.romaneios_itens VALUES(rom,'esquadria',a,'AFOGADOS',1);
+ INSERT INTO public.ew_obra_faturamentos VALUES(f,e,o,'fabricacao',100,'emitido',NULL,'2026-11-10','2026-11-10T10:00:00Z','001');
+ INSERT INTO public.ew_obra_faturamentos_itens VALUES(f,e,a,1,100,1);
+ INSERT INTO public.ew_estoque_obras_movimentos VALUES(m,e,o,'PLANO_CORTE',-2,l,NULL,'ESTOQUE CENTRAL',NULL,'2026-11-05T10:00:00Z');
+ INSERT INTO ew_compras_interna.custo_consumos_integrados VALUES(e,m,op,2,NULL);
+ INSERT INTO ew_compras_interna.custo_lotes VALUES(e,lt,'NFE_DIRETA',item,orig,10,10000,'aluminio',NULL);
+ INSERT INTO ew_compras_interna.lotes_aquisicao_evidencias VALUES(e,'NFE_DIRETA',item,orig,10,10000,'aluminio');
+ INSERT INTO ew_compras_interna.custo_eventos VALUES(e,lt,op,2,'PRODUCAO',o,'ESTOQUE CENTRAL',2000,NULL);
+ PERFORM public.ew_dre_reconhecer_material(e,m,f,gen_random_uuid(),2000,'Material vendido');
+ INSERT INTO ew_financeiro_interna.titulos VALUES(t,e,'PAGAR','MANUAL',NULL,'2026-11-30','Salários','AFOGADOS',5000,'Folha industrial',g),(t2,e,'PAGAR','MANUAL',NULL,'2026-11-30','Energia','GERAL',3000,'Energia industrial',NULL);
+ PERFORM public.ew_dre_classificar_titulo(e,t,gen_random_uuid(),0,'CUSTO_MAO_OBRA','Folha reconhecida');
+ PERFORM public.ew_dre_classificar_titulo(e,t2,gen_random_uuid(),0,'CUSTO_INDIRETO','Energia reconhecida');
+ r:=public.ew_rateio_industrial_consultar(e,'2026-11-01','2026-11-30');
+ IF (r->>'receita_centavos')::bigint<>10000 OR (r->>'material_centavos')::bigint<>2000 OR (r->>'industrial_classificado_centavos')::bigint<>8000 OR (r->>'rateado_centavos')::bigint<>0 THEN RAISE EXCEPTION 'base incorreta: %',r;END IF;
+ negado:=false;BEGIN PERFORM public.ew_rateio_industrial_criar(e,t,l2,1,gen_random_uuid(),100,'Fábrica errada');EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'A fábrica não corresponde%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'centro de custo desrespeitado';END IF;
+ r:=public.ew_rateio_industrial_criar(e,t,l,1,op_id,3000,'Horas trabalhadas');rid:=(r->>'id')::uuid;
+ r:=public.ew_rateio_industrial_criar(e,t,l,1,op_id,3000,'Horas trabalhadas');IF NOT (r->>'repetido')::boolean THEN RAISE EXCEPTION 'idempotência';END IF;
+ negado:=false;BEGIN PERFORM public.ew_rateio_industrial_criar(e,t,l,1,gen_random_uuid(),2001,'Acima do saldo');EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Rateio supera%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'rateio excedente';END IF;
+ PERFORM public.ew_rateio_industrial_criar(e,t2,l,1,gen_random_uuid(),1000,'Rateio de energia');
+ r:=public.ew_rateio_industrial_consultar(e,'2026-11-01','2026-11-30');
+ IF (r->>'rateado_centavos')::bigint<>4000 OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'itens') x WHERE x->>'codigo'='EA' AND (x->>'receita_centavos')::bigint=10000 AND (x->>'material_centavos')::bigint=2000 AND (x->>'rateio_centavos')::bigint=4000) THEN RAISE EXCEPTION 'contribuição por código incorreta: %',r;END IF;
+ r:=public.ew_dre_consultar(e,'2026-11-01','2026-11-30');IF (r->'classes'->>'CUSTO_MAO_OBRA')::bigint<>5000 OR (r->'classes'->>'CUSTO_INDIRETO')::bigint<>3000 THEN RAISE EXCEPTION 'rateio duplicou DRE';END IF;
+ PERFORM public.ew_dre_classificar_titulo(e,t,gen_random_uuid(),1,'CUSTO_MAO_OBRA','Revisão de classificação');
+ r:=public.ew_rateio_industrial_consultar(e,'2026-11-01','2026-11-30');IF (r->>'rateios_pendentes')::int<>1 OR (r->>'rateado_centavos')::bigint<>1000 THEN RAISE EXCEPTION 'classificação alterada não sinalizada';END IF;
+ negado:=false;BEGIN PERFORM public.ew_rateio_industrial_criar(e,t,l,2,gen_random_uuid(),100,'Versão revisada');EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Revise e estorne%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'rateio anterior não reservado';END IF;
+ PERFORM public.ew_rateio_industrial_estornar(e,rid,gen_random_uuid(),'Revisão de rateio');
+ INSERT INTO public.test_rateio_race VALUES(t,l,2);
+ negado:=false;BEGIN PERFORM public.ew_rateio_industrial_consultar(e2,'2026-11-01','2026-11-30');EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Sem acesso%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'acesso cruzado';END IF;
+END $$;
+SELECT 'OK: rateio por liberação, classificação, centro de custo, contribuição e DRE sem duplicidade' AS resultado;

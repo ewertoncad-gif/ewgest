@@ -98,6 +98,59 @@ function bindDre(){
   if(window.confirm('Estornar somente o reconhecimento de resultado? Estoque e caixa permanecem inalterados.'))void gravar('ew_dre_estornar_material',{p_id:b.dataset.dreReverse,p_motivo:motivo.trim()},b,'Reconhecimento estornado.');
  });
 }
+function rateioValidar(r){
+ if(!r||!['titulos','liberacoes','rateios','fabrica','obras','itens'].every(k=>Array.isArray(r[k])))throw Error('Rateio incompleto.');
+ const receita=cents(r.receita_centavos),material=cents(r.material_centavos),industrial=cents(r.industrial_classificado_centavos),rateado=cents(r.rateado_centavos),pend=cents(r.rateios_pendentes);
+ if(rateado>industrial||r.rateios.filter(x=>!x.valido).length!==pend||r.rateios.filter(x=>x.valido).reduce((a,x)=>a+cents(x.valor_centavos),0)!==rateado)throw Error('Rateios não conciliam.');
+ for(const lista of [r.fabrica,r.obras]){
+  for(const [k,total] of [['receita_centavos',receita],['material_centavos',material],['rateio_centavos',rateado]])if(lista.reduce((a,x)=>a+cents(x[k]),0)!==total)throw Error('Totais de contribuição não conciliam.');
+ }
+ return {receita,material,industrial,rateado,pend,saldo:industrial-rateado};
+}
+function renderRateio(r){
+ if(!r)return '<div class="section panel"><h2>Custos industriais e rentabilidade</h2><p class="hint">Consulta indisponível neste momento.</p></div>';
+ const d=rateioValidar(r),edit=dreEditar(),titles=r.titulos.filter(t=>cents(t.valor_centavos)>cents(t.usado_centavos));
+ const resultado=x=>cents(x.receita_centavos)-cents(x.material_centavos)-cents(x.rateio_centavos);
+ const vals=x=>[money(x.receita_centavos),money(x.material_centavos),money(x.rateio_centavos),signed(resultado(x))];
+ const headers=['Local','Receita fabricação','Material reconhecido','Custos industriais rateados','Contribuição parcial'];
+ const area=x=>{const n=Number(x);if(!Number.isFinite(n)||n<0)throw Error('Área inválida.');return n.toLocaleString('pt-BR',{maximumFractionDigits:6});};
+ return '<div class="section panel"><h2>Custos industriais e rentabilidade</h2><p class="notice">Contribuição parcial de fabricação = receita de fabricação menos material reconhecido e custos industriais rateados. Não é lucro definitivo e não inclui instalação, impostos, despesas gerais nem custos sem atribuição. Rateio não cria despesa: o título já está na DRE.</p>'+
+ '<div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))">'+kpi('Custos industriais classificados',money(d.industrial))+kpi('Custos industriais rateados',money(d.rateado))+kpi('Custos industriais a atribuir',money(d.saldo))+kpi('Rateios em conferência',String(d.pend))+'</div>'+
+ '<h3>Contribuição por fábrica</h3>'+table(headers,r.fabrica.map(x=>cells([x.fabrica||'A atribuir',...vals(x)])))+
+ '<h3>Contribuição por obra</h3>'+table(headers,r.obras.map(x=>cells([x.obra+' · '+x.codigo,...vals(x)])))+
+ '<h3>Custo reconhecido por código de esquadria</h3><p class="hint">Material e custos industriais apropriados ao resultado no período. O custo por m² faturado é parcial, não custo completo de uma unidade física. Lotes sem identificação permanecem separados.</p>'+
+ (cents(r.itens_total)>r.itens.length?'<p class="hint">Exibindo até 500 códigos; totais abrangem todos.</p>':'')+
+ table(['Obra','Código','Área faturada (m²)','Material reconhecido','Custos rateados','Custo reconhecido total','Custo parcial/m²','Contribuição parcial'],r.itens.map(x=>{
+  const c=cents(x.material_centavos)+cents(x.rateio_centavos),a=Number(x.area_faturada);
+  return cells([x.obra,x.codigo||'Lote / sem código',area(a),money(x.material_centavos),money(x.rateio_centavos),money(c),a>0&&c>0?signed(c/a):'—',signed(resultado(x))]);
+ }))+
+ '<h3>Ratear mão de obra e despesas industriais</h3><p class="hint">Classifique antes o título na DRE como mão de obra, custo indireto ou serviço. Selecione a liberação completa de uma esquadria e informe somente a parcela efetivamente apropriada. O saldo do título limita a soma dos rateios. A lista apresenta até 500 liberações recentes compatíveis com o mês da competência.</p>'+
+ (edit&&titles.length?'<form id="rateioForm"><div class="finFormRows"><label>Título de custo<select id="rateioTitulo">'+option('','Selecione')+titles.map(t=>option(t.id,t.descricao+' · '+t.centro_custo+' · '+t.competencia+' · saldo '+money(cents(t.valor_centavos)-cents(t.usado_centavos)))).join('')+'</select></label><label>Liberação<select id="rateioLiberacao" required><option value="">Selecione o título</option></select></label><label>Valor (R$)<input id="rateioValor" inputmode="decimal" required></label><label>Critério / justificativa<input id="rateioMotivo" minlength="5" maxlength="400" required placeholder="Ex.: horas trabalhadas nesta liberação"></label></div><button id="rateioSubmit" class="btn primary" type="submit">Registrar rateio</button></form>':'<p class="hint">Nenhum título com saldo disponível para rateio, ou acesso somente consulta.</p>')+
+ '<h3>Histórico de rateios ativos</h3>'+table(['Obra','Esquadria','Fábrica','Competência','Classe','Valor','Situação / critério','Ação'],r.rateios.map(x=>'<tr>'+[x.obra||'Histórico',x.codigo||'Histórico',x.fabrica,x.competencia,dreClasses[x.classe]||x.classe,money(x.valor_centavos),(x.valido?'Apropriado':'Em conferência')+' · '+x.motivo].map(v=>'<td>'+esc(v)+'</td>').join('')+'<td>'+(temPermissao('financeiro.cancelar_despesas')?'<button type="button" class="btn secondary" data-rateio-reverse="'+esc(x.id)+'">Estornar</button>':'')+'</td></tr>'))+'</div>';
+}
+function bindRateio(){
+ if(!state?.rateio||!el('corpRateio'))return;
+ const r=state.rateio;
+ if(el('rateioForm')){
+  const elegiveis=t=>r.liberacoes.filter(l=>(!t.galpao_id||t.centro_custo.trim()===l.fabrica.trim())&&l.data_liberacao.slice(0,7)<=t.competencia.slice(0,7));
+  el('rateioTitulo').addEventListener('change',()=>{
+   const t=r.titulos.find(x=>x.id===el('rateioTitulo').value);
+   el('rateioLiberacao').innerHTML=option('','Selecione')+(t?elegiveis(t).map(l=>option(l.id,l.obra+' · '+l.codigo+' · '+l.fabrica+' · '+l.quantidade+' un. · '+l.data_liberacao)).join(''):'');
+   el('rateioValor').value='';
+  });
+  el('rateioForm').addEventListener('submit',ev=>{ev.preventDefault();try{
+   const t=r.titulos.find(x=>x.id===el('rateioTitulo').value),l=el('rateioLiberacao').value,n=parseMoney(el('rateioValor').value),m=el('rateioMotivo').value.trim();
+   if(!dreEditar()||!t||!elegiveis(t).some(x=>x.id===l)||n>cents(t.valor_centavos)-cents(t.usado_centavos)||m.length<5)throw Error('Confira título, liberação, saldo e justificativa.');
+   if(window.confirm('Atribuir '+money(n)+' à liberação escolhida? Não cria uma nova despesa na DRE.'))void gravar('ew_rateio_industrial_criar',{p_titulo_id:t.id,p_liberacao_id:l,p_versao:t.versao,p_valor_centavos:n,p_motivo:m},el('rateioSubmit'),'Rateio registrado.');
+  }catch(e){el('corpStatus').textContent=e.message;}});
+ }
+ for(const b of el('corpRateio').querySelectorAll('[data-rateio-reverse]'))b.addEventListener('click',()=>{
+  if(!temPermissao('financeiro.cancelar_despesas'))return;
+  const m=window.prompt('Motivo do estorno do rateio (5 a 400 caracteres):');if(m===null)return;
+  if(m.trim().length<5||m.length>400){el('corpStatus').textContent='Informe motivo válido.';return;}
+  if(window.confirm('Estornar somente a atribuição de custo? O título e a DRE permanecem inalterados.'))void gravar('ew_rateio_industrial_estornar',{p_id:b.dataset.rateioReverse,p_motivo:m.trim()},b,'Rateio estornado.');
+ });
+}
 function render(){
  const r=state,entradas=cents(r.entradas_centavos),saidas=cents(r.saidas_centavos);
  const tipos=['PAGAR','RECEBER'].filter(t=>can(t));
@@ -127,13 +180,13 @@ function render(){
  '<div id="corpTabela"></div><div id="corpBaixaForm"></div></div>'+
  '<div class="section panel"><h2>Movimentos de caixa por centro de custo</h2>'+table(['Centro','Recebimentos','Pagamentos'],r.caixa_centros.map(c=>cells([c.centro_custo,money(c.entradas_centavos),money(c.saidas_centavos)])))+
  '<p class="hint">Movimentos pagos/recebidos, não rentabilidade nem custo industrial. Documentos de obra são inicialmente classificados no centro Geral.</p></div>'+
- (drePermitido()?'<div id="corpDre">'+renderDre(r.dre)+'</div>':'');
+ (drePermitido()?'<div id="corpDre">'+renderDre(r.dre)+'</div><div id="corpRateio">'+renderRateio(r.rateio)+'</div>':'');
  if(el('corpForm')){
   el('corpOrigem').addEventListener('change',mudarOrigem);
   el('corpForm').addEventListener('submit',criar);
  }
  for(const id of ['corpFiltroTipo','corpFiltroSituacao'])el(id).addEventListener('change',renderTitulos);
- renderTitulos();if(drePermitido())bindDre();
+ renderTitulos();if(drePermitido()){bindDre();bindRateio();}
 }
 function mudarOrigem(){
  const f=el('corpOrigem').value,manual=f==='MANUAL',d=state.documentos.find(x=>x.origem_tipo+'|'+x.origem_id===f);
@@ -169,9 +222,10 @@ async function abrir(){
  scope={id,uid,n};el('corpStatus').textContent='Consultando títulos e baixas…';
  try{await ensureSession();if(!valid(n,id,uid))return;
   const body={p_empresa_id:id,p_inicio:i.value,p_fim:f.value},args={method:'POST',token:session.access_token,timeoutMs:45000,body};
-  const [r,dre]=await Promise.all([request('/rest/v1/rpc/ew_fin_empresa_consultar',args),drePermitido()?request('/rest/v1/rpc/ew_dre_consultar',args).catch(()=>null):null]);
+  const [r,dre,rateio]=await Promise.all([request('/rest/v1/rpc/ew_fin_empresa_consultar',args),drePermitido()?request('/rest/v1/rpc/ew_dre_consultar',args).catch(()=>null):null,drePermitido()?request('/rest/v1/rpc/ew_rateio_industrial_consultar',args).catch(()=>null):null]);
   if(!valid(n,id,uid))return;state=validate(r);state.dre=drePermitido()?dre:null;
   if(state.dre){try{dreCalcular(state.dre);}catch(e){state.dre=null;}}
+  state.rateio=drePermitido()?rateio:null;if(state.rateio){try{rateioValidar(state.rateio);}catch(e){state.rateio=null;}}
   render();el('corpStatus').textContent='Consulta concluída.';
  }catch(e){if(valid(n,id,uid)){state=null;el('corpConteudo').replaceChildren();el('corpStatus').textContent='Não foi possível carregar o financeiro: '+e.message;}}
 }
