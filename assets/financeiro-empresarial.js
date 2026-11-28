@@ -269,6 +269,27 @@ function renderProdutividade(r){
  return '<div class="section panel"><h2>Produtividade industrial</h2><p class="hint">Liberações completas e expedições ativas no período. São etapas distintas; a expedição pode corresponder a liberações de outros meses. Área expedida/dia corrido não representa horas trabalhadas nem produção concluída.</p>'+table(['Fábrica','Un. liberadas','m² liberados','m² expedidos','m² expedidos/dia corrido','Pendências de área'],r.fabrica.map(x=>cells([x.fabrica||'A atribuir',String(cents(x.unidades_liberadas)),fmt(x.area_liberada),fmt(x.area_expedida),fmt(Number(x.area_expedida)/dias),String(cents(x.pendencias_liberacao)+cents(x.pendencias_expedicao))])))+'</div>';
  }catch(e){return '<div class="section panel"><h2>Produtividade industrial</h2><p class="hint">Dados inválidos: '+esc(e.message)+'</p></div>';}
 }
+function renderFretesHistorico(r){
+ if(!Array.isArray(r))return '<p class="hint">Histórico de fretes indisponível.</p>';
+ return '<div class="section panel"><h2>Histórico de vínculos de frete</h2><p class="hint">Estornar desvincula o pedido, mas não cancela o título nem suas baixas. Até 500 registros.</p>'+table(['Pedido','Documento','Valor','Justificativa','Situação','Ação'],r.map(x=>'<tr>'+[x.numero,x.numero_documento,money(x.valor_centavos),x.justificativa,x.estornado_em?'Estornado: '+x.estorno_motivo:'Ativo'].map(v=>'<td>'+esc(v)+'</td>').join('')+'<td>'+(!x.estornado_em&&can('PAGAR',true)?'<button type="button" class="btn secondary" data-frete-estorno="'+esc(x.operacao_id)+'">Estornar vínculo</button>':'')+'</td></tr>'))+'</div>';
+}
+function bindEstornos(){
+ for(const b of el('corpConteudo').querySelectorAll('[data-frete-estorno]'))b.onclick=()=>{const x=state?.fretesHistorico?.find(v=>v.operacao_id===b.dataset.freteEstorno&&!v.estornado_em);if(!x||!comprasFinanceiro()||!can('PAGAR',true))return;const m=window.prompt('Justificativa do estorno do vínculo (a conta e suas baixas serão preservadas):')?.trim();if(m&&m.length>=5&&m.length<=300)void gravar('ew_fin_estornar_vinculo_frete',{p_titulo_id:x.titulo_id,p_vinculo_id:x.operacao_id,p_motivo:m},b,'Vínculo estornado.');};
+ for(const b of el('corpConteudo').querySelectorAll('[data-horas-estorno]'))b.onclick=()=>{const x=state?.horas?.registros?.find(v=>v.operacao_id===b.dataset.horasEstorno&&!v.estornado_em);if(!x||!dreEditar()||!can('PAGAR',true))return;const m=window.prompt('Justificativa para estornar o registro de horas:')?.trim();if(m&&m.length>=5&&m.length<=300)void gravar('ew_industrial_estornar_horas',{p_registro_id:x.operacao_id,p_motivo:m},b,'Horas estornadas.');};
+}
+function renderHoras(r,prod,centros){
+ if(!r||!Array.isArray(r.registros)||!Array.isArray(r.totais))return '<div class="section panel"><h2>Horas de mão de obra industrial</h2><p class="hint">Consulta indisponível.</p></div>';
+ const fmt=n=>Number(n).toLocaleString('pt-BR',{maximumFractionDigits:3});
+ const form=dreEditar()?'<form id="corpHorasForm"><div class="finFormRows"><label>Fábrica / local<select id="corpHorasLocal" required>'+option('','Selecione')+centros.map(c=>option(c.id,c.nome)).join('')+'</select></label><label>Data<input type="date" id="corpHorasData" max="'+esc(todayLocal())+'" value="'+esc(todayLocal())+'" required></label><label>Total de horas-homem<input type="number" id="corpHorasValor" min="0" max="166666" step="0.01" required></label></div><label>Fonte / justificativa<input id="corpHorasMotivo" minlength="5" maxlength="300" required></label><button type="submit" class="btn primary">Registrar horas</button></form>':'';
+ return '<div class="section panel"><h2>Horas de mão de obra industrial</h2><p class="hint">Total diário agregado por local (soma de horas dos trabalhadores, não duração do turno). Um registro ativo por dia. Informe zero quando não houve trabalho. Não cria folha ou despesa. A relação área expedida/hora só é exibida se houver registro para todos os dias do período; não é produtividade individual.</p>'+
+ table(['Local','Horas-homem','Dias informados','m² expedidos/hora-homem'],r.totais.map(x=>{const p=prod?.fabrica?.filter(v=>v.fabrica===x.nome)||[],h=cents(x.minutos)/60,d=cents(x.dias_informados);return cells([x.nome||'Local histórico',fmt(h),String(d),p.length===1&&d===prod.dias&&h>0?fmt(Number(p[0].area_expedida)/h):'—']);}))+form+
+ (r.registros.length<cents(r.total)?'<p class="hint">Histórico limitado a 500 registros.</p>':'')+
+ table(['Local','Data','Horas-homem','Fonte','Situação','Ação'],r.registros.map(x=>'<tr>'+[x.nome,x.data_trabalho,fmt(cents(x.minutos)/60),x.motivo,x.estornado_em?'Estornado: '+x.estorno_motivo:'Ativo'].map(v=>'<td>'+esc(v)+'</td>').join('')+'<td>'+(!x.estornado_em&&dreEditar()&&can('PAGAR',true)?'<button type="button" class="btn secondary" data-horas-estorno="'+esc(x.operacao_id)+'">Estornar</button>':'')+'</td></tr>'))+'</div>';
+}
+function bindHoras(){
+ const f=el('corpHorasForm');if(!f)return;
+ f.onsubmit=ev=>{ev.preventDefault();if(!dreEditar())return;const id=el('corpHorasLocal').value,d=el('corpHorasData').value,h=Number(el('corpHorasValor').value),m=el('corpHorasMotivo').value.trim(),min=Math.round(h*60);if(!state?.centros.some(c=>c.id===id)||!d||d>todayLocal()||el('corpHorasValor').value===''||!Number.isSafeInteger(min)||min<0||min>10000000||m.length<5||m.length>300)return;void gravar('ew_industrial_registrar_horas',{p_galpao_id:id,p_data:d,p_minutos:min,p_motivo:m},f.querySelector('button[type=submit]'),'Horas registradas.');};
+}
 function render(){
  const r=state,entradas=cents(r.entradas_centavos),saidas=cents(r.saidas_centavos);
  const tipos=['PAGAR','RECEBER'].filter(t=>can(t));
@@ -299,14 +320,14 @@ function render(){
  renderPrevisaoTitulos(r)+
  '<div class="section panel"><h2>Movimentos de caixa por centro de custo</h2>'+table(['Centro','Recebimentos','Pagamentos'],r.caixa_centros.map(c=>cells([c.centro_custo,money(c.entradas_centavos),money(c.saidas_centavos)])))+
  '<p class="hint">Movimentos pagos/recebidos, não rentabilidade nem custo industrial. Documentos de obra são inicialmente classificados no centro Geral.</p></div>'+
- (comprasFinanceiro()?renderComprasFinanceiro(r.comprasFinanceiro):'')+
- (drePermitido()?'<div id="corpDre">'+renderDre(r.dre)+'</div><div id="corpRateio">'+renderRateio(r.rateio)+'</div>'+renderIndicadores(r.indicadores)+renderCoberturaIndustrial(r)+renderProdutividade(r.produtividade):'');
+ (comprasFinanceiro()?renderComprasFinanceiro(r.comprasFinanceiro)+renderFretesHistorico(r.fretesHistorico):'')+
+ (drePermitido()?'<div id="corpDre">'+renderDre(r.dre)+'</div><div id="corpRateio">'+renderRateio(r.rateio)+'</div>'+renderIndicadores(r.indicadores)+renderCoberturaIndustrial(r)+renderProdutividade(r.produtividade)+renderHoras(r.horas,r.produtividade,r.centros):'');
  if(el('corpForm')){
   el('corpOrigem').addEventListener('change',mudarOrigem);
   el('corpForm').addEventListener('submit',criar);
  }
  for(const id of ['corpFiltroTipo','corpFiltroSituacao'])el(id).addEventListener('change',renderTitulos);
- renderTitulos();if(comprasFinanceiro())bindFrete();if(drePermitido()){bindDre();bindRateio();}
+ renderTitulos();if(comprasFinanceiro())bindFrete();if(drePermitido()){bindDre();bindRateio();bindHoras();}bindEstornos();
 }
 function mudarOrigem(){
  const f=el('corpOrigem').value,manual=f==='MANUAL',d=state.documentos.find(x=>x.origem_tipo+'|'+x.origem_id===f);
@@ -342,10 +363,10 @@ async function abrir(){
  scope={id,uid,n};el('corpStatus').textContent='Consultando títulos e baixas…';
  try{await ensureSession();if(!valid(n,id,uid))return;
   const body={p_empresa_id:id,p_inicio:i.value,p_fim:f.value},args={method:'POST',token:session.access_token,timeoutMs:45000,body};
-  const [r,dre,rateio,indicadores,compras,produtividade]=await Promise.all([request('/rest/v1/rpc/ew_fin_empresa_consultar',args),drePermitido()?request('/rest/v1/rpc/ew_dre_consultar',args).catch(()=>null):null,drePermitido()?request('/rest/v1/rpc/ew_rateio_industrial_consultar',args).catch(()=>null):null,drePermitido()?request('/rest/v1/rpc/ew_indicadores_industriais',args).catch(()=>null):null,comprasFinanceiro()?request('/rest/v1/rpc/ew_fin_compras_previsao',{...args,body:{p_empresa_id:id}}).catch(()=>null):null,drePermitido()?request('/rest/v1/rpc/ew_industrial_produtividade',args).catch(()=>null):null]);
+  const [r,dre,rateio,indicadores,compras,produtividade,fretes,horas]=await Promise.all([request('/rest/v1/rpc/ew_fin_empresa_consultar',args),drePermitido()?request('/rest/v1/rpc/ew_dre_consultar',args).catch(()=>null):null,drePermitido()?request('/rest/v1/rpc/ew_rateio_industrial_consultar',args).catch(()=>null):null,drePermitido()?request('/rest/v1/rpc/ew_indicadores_industriais',args).catch(()=>null):null,comprasFinanceiro()?request('/rest/v1/rpc/ew_fin_compras_previsao',{...args,body:{p_empresa_id:id}}).catch(()=>null):null,drePermitido()?request('/rest/v1/rpc/ew_industrial_produtividade',args).catch(()=>null):null,comprasFinanceiro()?request('/rest/v1/rpc/ew_fin_fretes_historico',{...args,body:{p_empresa_id:id}}).catch(()=>null):null,drePermitido()?request('/rest/v1/rpc/ew_industrial_horas_consultar',args).catch(()=>null):null]);
   if(!valid(n,id,uid))return;state=validate(r);state.dre=drePermitido()?dre:null;
   if(state.dre){try{dreCalcular(state.dre);}catch(e){state.dre=null;}}
-  state.comprasFinanceiro=comprasFinanceiro()?compras:null;state.produtividade=drePermitido()?produtividade:null;state.indicadores=drePermitido()?indicadores:null;state.rateio=drePermitido()?rateio:null;if(state.rateio){try{rateioValidar(state.rateio);}catch(e){state.rateio=null;}}
+  state.fretesHistorico=comprasFinanceiro()?fretes:null;state.horas=drePermitido()?horas:null;state.comprasFinanceiro=comprasFinanceiro()?compras:null;state.produtividade=drePermitido()?produtividade:null;state.indicadores=drePermitido()?indicadores:null;state.rateio=drePermitido()?rateio:null;if(state.rateio){try{rateioValidar(state.rateio);}catch(e){state.rateio=null;}}
   render();el('corpStatus').textContent='Consulta concluída.';
  }catch(e){if(valid(n,id,uid)){state=null;el('corpConteudo').replaceChildren();el('corpStatus').textContent='Não foi possível carregar o financeiro: '+e.message;}}
 }
