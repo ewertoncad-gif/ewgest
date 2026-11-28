@@ -17,13 +17,13 @@ BEGIN
  LEFT JOIN public.esquadrias e ON e.empresa_id=d.empresa_id AND e.obra_id=d.obra_id AND e.id=i.esquadria_id
 ), docs_ok AS (
  SELECT d.id FROM docs d JOIN linhas l ON l.doc_id=d.id GROUP BY d.id,d.cents
- HAVING sum(l.cents)=d.cents AND bool_and(l.item_ok IS NOT NULL AND l.cents>0 AND l.area>0)
+ HAVING sum(l.cents)=d.cents AND bool_and(l.item_ok IS NOT NULL AND l.cents>0 AND coalesce(l.area,0)>0)
 ), atrib AS (
  SELECT l.obra_id,l.esquadria_id,l.cents,l.area,
-  CASE WHEN a.n>0 AND a.n=a.n_nome AND a.n_fabricas=1 AND a.area>=h.area THEN a.fabrica ELSE NULL END fabrica
+  CASE WHEN a.n>0 AND a.n=a.n_nome AND a.n=a.n_area AND a.n_fabricas=1 AND a.area>=h.area AND h.area>0 THEN a.fabrica ELSE NULL END fabrica
  FROM linhas l JOIN docs_ok k ON k.id=l.doc_id
  LEFT JOIN LATERAL (
-  SELECT count(*) n,count(nullif(btrim(ri.fabrica),'')) n_nome,count(DISTINCT nullif(btrim(ri.fabrica),'')) n_fabricas,
+  SELECT count(*) n,count(nullif(btrim(ri.fabrica),'')) n_nome,count(DISTINCT nullif(btrim(ri.fabrica),'')) n_fabricas,count(*) FILTER(WHERE ri.area_m2>0) n_area,
    min(nullif(btrim(ri.fabrica),'')) fabrica,coalesce(sum(ri.area_m2),0) area
   FROM public.romaneios r JOIN public.romaneios_itens ri ON ri.romaneio_id=r.id AND ri.natureza='esquadria'
   WHERE r.empresa_id=p_empresa_id AND r.obra_id=l.obra_id AND r.status='emitido' AND r.cancelado_em IS NULL
@@ -41,7 +41,7 @@ BEGIN
  SELECT obra_id,fabrica,sum(cents)::bigint valor_centavos,count(*) linhas FROM atrib GROUP BY obra_id,fabrica
  UNION ALL SELECT d.obra_id,NULL,sum(d.cents)::bigint,count(*) FROM docs d WHERE d.categoria='fabricacao' AND NOT EXISTS(SELECT 1 FROM docs_ok k WHERE k.id=d.id) GROUP BY d.obra_id
 ), exped AS (
- SELECT r.obra_id,nullif(btrim(i.fabrica),'') fabrica,sum(i.area_m2) area_m2,count(*) FILTER(WHERE i.area_m2 IS NULL OR i.area_m2<=0) pendencias
+ SELECT r.obra_id,nullif(btrim(i.fabrica),'') fabrica,sum(i.area_m2) FILTER(WHERE i.area_m2>0) area_m2,count(*) FILTER(WHERE i.area_m2 IS NULL OR i.area_m2<=0) pendencias
  FROM public.romaneios r JOIN public.romaneios_itens i ON i.romaneio_id=r.id AND i.natureza='esquadria'
  WHERE r.empresa_id=p_empresa_id AND r.status='emitido' AND r.cancelado_em IS NULL AND r.data_saida BETWEEN p_inicio AND p_fim
  GROUP BY r.obra_id,nullif(btrim(i.fabrica),'')
