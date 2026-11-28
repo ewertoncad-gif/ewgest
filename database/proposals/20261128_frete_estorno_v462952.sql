@@ -101,4 +101,31 @@ BEGIN
 END $$;
 REVOKE EXECUTE ON FUNCTION public.ew_fin_estornar_vinculo_frete(uuid,uuid,uuid,uuid,text),public.ew_fin_fretes_historico(uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.ew_fin_estornar_vinculo_frete(uuid,uuid,uuid,uuid,text),public.ew_fin_fretes_historico(uuid) TO authenticated;
+
+-- Prévia de rateio do frete por valor contratado, sem reavaliar estoque.
+CREATE FUNCTION public.ew_fin_frete_previa(p_empresa_id uuid,p_vinculo_id uuid)
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+DECLARE p public.ew_compras_pedidos%ROWTYPE;t ew_financeiro_interna.titulos%ROWTYPE;f ew_financeiro_interna.fretes_pedidos%ROWTYPE;v jsonb;n int;s numeric;
+BEGIN
+ PERFORM ew_financeiro_interna.exigir(p_empresa_id);
+ IF auth.uid() IS NULL OR NOT public.ew_pode(p_empresa_id,'compras.consultar') OR NOT public.ew_pode(p_empresa_id,'compras.consultar_valores') THEN RAISE EXCEPTION 'Sem acesso aos dados de compras.';END IF;
+ SELECT * INTO f FROM ew_financeiro_interna.fretes_pedidos WHERE empresa_id=p_empresa_id AND operacao_id=p_vinculo_id AND estornado_em IS NULL;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Vínculo indisponível.';END IF;
+ SELECT * INTO t FROM ew_financeiro_interna.titulos WHERE empresa_id=p_empresa_id AND id=f.titulo_id AND cancelado_em IS NULL AND tipo='PAGAR' AND origem_tipo='MANUAL' AND lower(btrim(categoria))='frete';
+ IF NOT FOUND OR t.valor_centavos<=0 THEN RAISE EXCEPTION 'Título indisponível.';END IF;
+ SELECT * INTO p FROM public.ew_compras_pedidos WHERE empresa_id=p_empresa_id AND id=f.pedido_id AND cancelado_em IS NULL AND status<>'CANCELADO';
+ IF NOT FOUND OR p.total_centavos<=0 OR jsonb_typeof(p.itens) IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'Pedido indisponível.';END IF;
+ n:=jsonb_array_length(p.itens);
+ IF n NOT BETWEEN 1 AND 10000 OR EXISTS(SELECT 1 FROM jsonb_to_recordset(p.itens) z(chave text,quantidade numeric,preco_unitario_centavos numeric) WHERE chave IS NULL OR chave='' OR quantidade IS NULL OR quantidade<=0 OR preco_unitario_centavos IS NULL OR preco_unitario_centavos<0 OR preco_unitario_centavos<>trunc(preco_unitario_centavos)) OR (SELECT count(DISTINCT x->>'chave') FROM jsonb_array_elements(p.itens) x)<>n THEN RAISE EXCEPTION 'Itens não conciliados.';END IF;
+ SELECT sum(round(quantidade*preco_unitario_centavos)) INTO s FROM jsonb_to_recordset(p.itens) z(quantidade numeric,preco_unitario_centavos numeric);
+ IF s IS DISTINCT FROM p.total_centavos::numeric THEN RAISE EXCEPTION 'Total de itens divergente.';END IF;
+ WITH itens AS (SELECT chave,quantidade,round(quantidade*preco_unitario_centavos) valor FROM jsonb_to_recordset(p.itens) z(chave text,quantidade numeric,preco_unitario_centavos numeric)),
+ partes AS (SELECT *,div(t.valor_centavos*valor,s) base,mod(t.valor_centavos*valor,s) resto FROM itens),
+ ord AS (SELECT *,sum(base) OVER() soma,row_number() OVER(ORDER BY resto DESC,chave) pos FROM partes)
+ SELECT jsonb_agg(jsonb_build_object('chave',chave,'quantidade',quantidade,'material_centavos',valor,'frete_centavos',base+CASE WHEN pos<=t.valor_centavos-soma THEN 1 ELSE 0 END) ORDER BY chave) INTO v FROM ord;
+ RETURN jsonb_build_object('pedido_id',p.id,'numero',p.numero,'material_centavos',p.total_centavos,'frete_centavos',t.valor_centavos,'itens',v,'consultivo',true);
+END $$;
+REVOKE EXECUTE ON FUNCTION public.ew_fin_frete_previa(uuid,uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.ew_fin_frete_previa(uuid,uuid) TO authenticated;
+
 COMMIT;
