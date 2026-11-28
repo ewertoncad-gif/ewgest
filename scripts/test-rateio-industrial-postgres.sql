@@ -165,3 +165,21 @@ BEGIN
  IF has_table_privilege('authenticated','ew_compras_interna.pesos_consumo','SELECT') THEN RAISE EXCEPTION 'acesso direto indevido';END IF;
 END $$;
 SELECT 'OK: histórico congelado, estorno, rateio por consumo e prévia invalidada' AS resultado;
+
+\ir ../database/proposals/20261128_produtividade_v462951.sql
+SET test.perm='yes';
+DO $$
+DECLARE e uuid:='00000000-0000-0000-0000-000000000001';o uuid;esq uuid:=gen_random_uuid();lib uuid:=gen_random_uuid();rom uuid:=gen_random_uuid();r jsonb;
+BEGIN
+ SELECT id INTO o FROM public.obras WHERE empresa_id=e LIMIT 1;
+ INSERT INTO public.esquadrias VALUES(esq,e,o,'PROD',2000,1500);
+ INSERT INTO public.liberacoes_corte VALUES(lib,esq,NULL,'TESTE-PROD',2,'completo','2026-11-20');
+ INSERT INTO public.romaneios VALUES(rom,e,o,'emitido',NULL,'2026-11-21','2026-11-21T10:00:00Z');
+ INSERT INTO public.romaneios_itens VALUES(rom,'esquadria',esq,'TESTE-PROD',3);
+ r:=public.ew_industrial_produtividade(e,'2026-11-20','2026-11-21');
+ IF (r->>'dias')::int<>2 OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'fabrica') x WHERE x->>'fabrica'='TESTE-PROD' AND (x->>'area_liberada')::numeric=6 AND (x->>'area_expedida')::numeric=3 AND (x->>'unidades_liberadas')::int=2) THEN RAISE EXCEPTION 'produtividade incorreta %',r;END IF;
+ UPDATE public.romaneios SET cancelado_em=now() WHERE id=rom;
+ r:=public.ew_industrial_produtividade(e,'2026-11-20','2026-11-21');
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'fabrica') x WHERE x->>'fabrica'='TESTE-PROD' AND (x->>'area_expedida')::numeric=0) THEN RAISE EXCEPTION 'cancelamento ignorado';END IF;
+END $$;
+SELECT 'OK: produtividade por fábrica, período, dimensões e cancelamentos' AS resultado;
