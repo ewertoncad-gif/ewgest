@@ -236,6 +236,13 @@ function renderPrevisaoTitulos(r){
  table(['Mês de vencimento','A pagar','A receber','Fluxo previsto líquido'],p.linhas.map(x=>cells([x.mes,money(x.pagar),money(x.receber),signed(x.receber-x.pagar)])))+'</div>';
  }catch(e){return '<div class="section panel"><h2>Previsão de pagamentos e recebimentos</h2><p class="hint">Consulta não conciliada: '+esc(e.message)+'</p></div>';}
 }
+function renderCoberturaIndustrial(r){
+ if(!r.dre||!r.rateio)return '';
+ try{const dre=dreCalcular(r.dre),d=rateioValidar(r.rateio);
+ return '<div class="section panel"><h2>Cobertura dos custos de fabricação</h2><p class="hint">Os custos reconhecidos não são necessariamente integrais. Antes de considerar o resultado definitivo, confira as pendências e os custos sem atribuição, inclusive frete não incluído no preço dos materiais. Não somar novamente despesas já reconhecidas na DRE.</p>'+
+ table(['Verificação','Posição'],[cells(['Custos industriais classificados',money(d.industrial)]),cells(['Custos industriais rateados',money(d.rateado)]),cells(['Custos industriais ainda sem rateio',money(d.saldo)]),cells(['Títulos manuais sem classificação',String(dre.p)]),cells(['Reconhecimentos de material pendentes',String(dre.pend)]),cells(['Rateios industriais em conferência',String(d.pend)])])+'</div>';
+ }catch(e){return '<p class="hint">Cobertura de custos não conciliada.</p>';}
+}
 function render(){
  const r=state,entradas=cents(r.entradas_centavos),saidas=cents(r.saidas_centavos);
  const tipos=['PAGAR','RECEBER'].filter(t=>can(t));
@@ -266,7 +273,7 @@ function render(){
  renderPrevisaoTitulos(r)+
  '<div class="section panel"><h2>Movimentos de caixa por centro de custo</h2>'+table(['Centro','Recebimentos','Pagamentos'],r.caixa_centros.map(c=>cells([c.centro_custo,money(c.entradas_centavos),money(c.saidas_centavos)])))+
  '<p class="hint">Movimentos pagos/recebidos, não rentabilidade nem custo industrial. Documentos de obra são inicialmente classificados no centro Geral.</p></div>'+
- (drePermitido()?'<div id="corpDre">'+renderDre(r.dre)+'</div><div id="corpRateio">'+renderRateio(r.rateio)+'</div>'+renderIndicadores(r.indicadores):'');
+ (drePermitido()?'<div id="corpDre">'+renderDre(r.dre)+'</div><div id="corpRateio">'+renderRateio(r.rateio)+'</div>'+renderIndicadores(r.indicadores)+renderCoberturaIndustrial(r):'');
  if(el('corpForm')){
   el('corpOrigem').addEventListener('change',mudarOrigem);
   el('corpForm').addEventListener('submit',criar);
