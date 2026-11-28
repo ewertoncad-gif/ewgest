@@ -1,0 +1,52 @@
+name: Verificar rateio industrial no PostgreSQL
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  rateio-industrial-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: teste
+          POSTGRES_DB: ewgest_teste
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ewgest_teste"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: teste
+      PGDATABASE: ewgest_teste
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar cliente PostgreSQL
+        run: |
+          command -v psql || (sudo apt-get update && sudo apt-get install -y postgresql-client)
+      - name: Validar rateio, centro de custo, contribuição e permissões
+        run: psql -X -v ON_ERROR_STOP=1 -f scripts/test-rateio-industrial-postgres.sql
+      - name: Validar rateios simultâneos sem superar custo do título
+        shell: bash
+        run: |
+          set +e
+          Q="SET test.uid='00000000-0000-0000-0000-000000000099'; SET test.perm='yes'; SELECT public.ew_rateio_industrial_criar('00000000-0000-0000-0000-000000000001',(SELECT titulo_id FROM public.test_rateio_race),(SELECT liberacao_id FROM public.test_rateio_race),(SELECT versao FROM public.test_rateio_race),gen_random_uuid(),3000,'Rateio concorrente');"
+          psql -X -v ON_ERROR_STOP=1 -c "$Q" >/tmp/rateio-a.log 2>&1 &
+          A=$!
+          psql -X -v ON_ERROR_STOP=1 -c "$Q" >/tmp/rateio-b.log 2>&1 &
+          B=$!
+          wait "$A"; RA=$?
+          wait "$B"; RB=$?
+          set -e
+          cat /tmp/rateio-a.log /tmp/rateio-b.log
+          if [ "$RA" = 0 ]; then [ "$RB" != 0 ]; grep -q 'Rateio supera' /tmp/rateio-b.log
+          else [ "$RB" = 0 ]; grep -q 'Rateio supera' /tmp/rateio-a.log; fi
+          [ "$(psql -X -At -v ON_ERROR_STOP=1 -c "SELECT sum(valor_centavos) FROM ew_financeiro_interna.rateios_industriais WHERE estornado_em IS NULL AND titulo_id=(SELECT titulo_id FROM public.test_rateio_race);")" = "3000" ]
