@@ -11,7 +11,7 @@ CREATE FUNCTION public.ew_rateio_industrial_lote(p_empresa_id uuid,p_titulo_id u
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
 DECLARE t ew_financeiro_interna.titulos%ROWTYPE; c ew_financeiro_interna.classificacao_atual%ROWTYPE;
  lote ew_financeiro_interna.rateios_lotes%ROWTYPE; x record; v_plano jsonb; v_entrada jsonb; v_resultado jsonb;
- v_saldo bigint; v_ids uuid[]; v_count int; v_rows int; v_peso numeric;
+ v_saldo bigint; v_ids uuid[]; v_count int; v_rows int;
 BEGIN
  PERFORM ew_financeiro_interna.exigir_resultado(p_empresa_id,true,false);
  IF auth.uid() IS NULL OR p_operacao_id IS NULL OR p_versao IS NULL OR p_confirmar IS NULL OR p_criterio IS NULL OR p_criterio NOT IN ('QUANTIDADE','AREA','PESO_INFORMADO') OR length(btrim(coalesce(p_motivo,''))) NOT BETWEEN 5 AND 300 OR jsonb_typeof(p_selecao) IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'Parâmetros de rateio inválidos.'; END IF;
@@ -39,7 +39,7 @@ BEGIN
  -- Trava as fontes para impedir mudanças de liberação/dimensões durante o cálculo.
  PERFORM l.id FROM public.liberacoes_corte l JOIN public.esquadrias e ON e.id=l.esquadria_id AND e.empresa_id=p_empresa_id WHERE l.id=ANY(v_ids) ORDER BY l.id FOR SHARE OF l,e;
  WITH fontes AS (
- SELECT l.id, CASE p_criterio WHEN 'QUANTIDADE' THEN l.quantidade::numeric WHEN 'AREA' THEN e.largura_mm::numeric*e.altura_mm::numeric*l.quantidade/1000000 ELSE z.peso_kg END peso
+ SELECT l.id, CASE p_criterio WHEN 'QUANTIDADE' THEN l.quantidade::numeric WHEN 'AREA' THEN round(e.largura_mm::numeric*e.altura_mm::numeric*l.quantidade/1000000,6) ELSE z.peso_kg END peso
  FROM jsonb_to_recordset(p_selecao) AS z(id uuid,peso_kg numeric)
  JOIN public.liberacoes_corte l ON l.id=z.id JOIN public.esquadrias e ON e.id=l.esquadria_id AND e.empresa_id=p_empresa_id
  WHERE l.cancelado_em IS NULL AND l.tipo_componente='completo' AND l.quantidade>0 AND nullif(btrim(l.fabrica),'') IS NOT NULL
