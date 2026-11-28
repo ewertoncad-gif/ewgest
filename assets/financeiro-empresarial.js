@@ -243,6 +243,32 @@ function renderCoberturaIndustrial(r){
  table(['Verificação','Posição'],[cells(['Custos industriais classificados',money(d.industrial)]),cells(['Custos industriais rateados',money(d.rateado)]),cells(['Custos industriais ainda sem rateio',money(d.saldo)]),cells(['Títulos manuais sem classificação',String(dre.p)]),cells(['Reconhecimentos de material pendentes',String(dre.pend)]),cells(['Rateios industriais em conferência',String(d.pend)])])+'</div>';
  }catch(e){return '<p class="hint">Cobertura de custos não conciliada.</p>';}
 }
+const comprasFinanceiro=()=>auth()&&temPermissao('compras.consultar')&&temPermissao('compras.consultar_valores');
+function renderComprasFinanceiro(r){
+ if(!r||!['linhas','pedidos','fretes_disponiveis'].every(k=>Array.isArray(r[k])))return '<div class="section panel"><h2>Previsão financeira de compras</h2><p class="hint">Consulta indisponível.</p></div>';
+ try{
+ const total=cents(r.total),saldo=cents(r.saldo_programado_centavos),sem=cents(r.sem_programacao_centavos),pend=cents(r.pendencias);
+ const ids=new Set();let s=0,n=0,p=0;
+ for(const x of r.linhas){const key=x.origem_tipo+'|'+x.origem_id;if(ids.has(key)||!Array.isArray(x.pedidos))throw Error('Documento duplicado ou inválido.');ids.add(key);
+ if(x.situacao==='PROGRAMADO')s+=cents(x.saldo_centavos);else if(x.situacao==='SEM_PROGRAMACAO')n+=cents(x.valor_centavos);else p++;}
+ if(r.linhas.length>total||s>saldo||n>sem||p>pend||(r.linhas.length===total&&(s!==saldo||n!==sem||p!==pend)))throw Error('Previsão não conciliada.');
+ const form=can('PAGAR')&&r.pedidos.length&&r.fretes_disponiveis.length?'<h3>Vincular frete externo já programado</h3><form id="corpFreteForm"><div class="finFormRows"><label>Conta de frete existente<select id="corpFreteTitulo" required>'+option('','Selecione')+r.fretes_disponiveis.map(t=>option(t.id,t.descricao+' · '+t.numero_documento+' · '+money(t.valor_centavos))).join('')+'</select></label><label>Pedido<select id="corpFretePedido" required>'+option('','Selecione')+r.pedidos.map(t=>option(t.id,'Pedido #'+t.numero)).join('')+'</select></label></div><label>Justificativa<input id="corpFreteMotivo" required minlength="5" maxlength="300"></label><p class="hint">Vincule somente frete cobrado em documento separado, não incluído no preço da nota de materiais. Não cria conta ou baixa adicional, nem altera a valorização do estoque. Vínculo único por título.</p><button type="submit" class="btn primary">Vincular frete</button></form>':'';
+ return '<div class="section panel"><h2>Previsão financeira de compras</h2><p class="hint">Documentos fiscais já ligados aos pedidos e fretes externos vinculados. Documento compartilhado aparece uma única vez. Valores são parte das contas empresariais, não somar novamente. Pedido sem documento não gera vencimento automaticamente. '+(r.linhas.length<total?'Lista limitada aos primeiros 500 documentos.':'')+'</p><p><strong>Saldo programado: '+money(saldo)+' · Documentos sem programação: '+money(sem)+' · Pendências: '+pend+'</strong></p>'+
+ table(['Pedido(s)','Natureza','Documento','Fornecedor','Vencimento','Saldo','Situação'],r.linhas.map(x=>cells([x.pedidos.map(n=>'#'+n).join(', '),x.natureza==='FRETE_EXTERNO'?'Frete externo':'Documento de compra',x.numero_documento||'—',x.contraparte||'—',x.vencimento||'—',x.saldo_centavos===null?'—':money(x.saldo_centavos),x.situacao])))+form+'</div>';
+ }catch(e){return '<div class="section panel"><h2>Previsão financeira de compras</h2><p class="hint">Dados não conciliados: '+esc(e.message)+'</p></div>';}
+}
+function bindFrete(){
+ const form=el('corpFreteForm');if(!form)return;
+ form.onsubmit=ev=>{ev.preventDefault();const r=state?.comprasFinanceiro,t=el('corpFreteTitulo').value,p=el('corpFretePedido').value,m=el('corpFreteMotivo').value.trim();if(!comprasFinanceiro()||!can('PAGAR')||!r?.fretes_disponiveis.some(x=>x.id===t)||!r.pedidos.some(x=>x.id===p)||m.length<5||m.length>300)return;
+ if(window.confirm('Vincular o título de frete existente ao pedido? Confirme que o frete não está incluído na nota dos materiais. Não será criada outra conta a pagar.'))void gravar('ew_fin_vincular_frete',{p_titulo_id:t,p_pedido_id:p,p_motivo:m},form.querySelector('button[type=submit]'),'Frete vinculado ao pedido.');};
+}
+function renderProdutividade(r){
+ if(!r||!Array.isArray(r.fabrica))return '<div class="section panel"><h2>Produtividade industrial</h2><p class="hint">Consulta indisponível.</p></div>';
+ try{const dias=cents(r.dias);if(!dias||dias>367)throw Error('Período inválido.');
+ const fmt=x=>{const n=Number(x);if(x==null||!Number.isFinite(n)||n<0)throw Error('Área inválida.');return n.toLocaleString('pt-BR',{maximumFractionDigits:3});};
+ return '<div class="section panel"><h2>Produtividade industrial</h2><p class="hint">Liberações completas e expedições ativas no período. São etapas distintas; a expedição pode corresponder a liberações de outros meses. Área expedida/dia corrido não representa horas trabalhadas nem produção concluída.</p>'+table(['Fábrica','Un. liberadas','m² liberados','m² expedidos','m² expedidos/dia corrido','Pendências de área'],r.fabrica.map(x=>cells([x.fabrica||'A atribuir',String(cents(x.unidades_liberadas)),fmt(x.area_liberada),fmt(x.area_expedida),fmt(Number(x.area_expedida)/dias),String(cents(x.pendencias_liberacao)+cents(x.pendencias_expedicao))])))+'</div>';
+ }catch(e){return '<div class="section panel"><h2>Produtividade industrial</h2><p class="hint">Dados inválidos: '+esc(e.message)+'</p></div>';}
+}
 function render(){
  const r=state,entradas=cents(r.entradas_centavos),saidas=cents(r.saidas_centavos);
  const tipos=['PAGAR','RECEBER'].filter(t=>can(t));
@@ -262,7 +288,7 @@ function render(){
  '<div id="corpManual" class="finFormRows"><label>Tipo<select id="corpTipo">'+tipos.map(t=>option(t,t==='PAGAR'?'Conta a pagar':'Conta a receber')).join('')+'</select></label>'+
  '<label>Descrição<input id="corpDesc" minlength="3" maxlength="200" required placeholder="Ex.: Energia elétrica"></label>'+
  '<label>Fornecedor / cliente<input id="corpContra" maxlength="200" required></label><label>Documento<input id="corpDoc" maxlength="120"></label>'+
- '<label>Categoria<input id="corpCat" maxlength="80" required list="corpCats" placeholder="Selecione ou digite"><datalist id="corpCats">'+['Folha de pagamento','Energia elétrica','Água','Aluguel','Combustível','Impostos','Manutenção','Serviços','Outras despesas','Outras receitas'].map(v=>option(v,v)).join('')+'</datalist></label>'+
+ '<label>Categoria<input id="corpCat" maxlength="80" required list="corpCats" placeholder="Selecione ou digite"><datalist id="corpCats">'+['Folha de pagamento','Energia elétrica','Água','Aluguel','Combustível','Impostos','Manutenção','Serviços','Frete','Outras despesas','Outras receitas'].map(v=>option(v,v)).join('')+'</datalist></label>'+
  '<label>Centro de custo<select id="corpCentro">'+option('GERAL','Geral')+option('ADMINISTRATIVO','Administrativo')+r.centros.map(g=>option(g.id,g.nome)).join('')+'</select></label>'+
  '<label>Competência<input id="corpComp" type="date" required value="'+esc(todayLocal())+'"></label></div>'+
  '<label>Valor (R$)<input id="corpValor" inputmode="decimal" required placeholder="0,00"></label><p id="corpOrigemHint" class="hint">Use lançamento manual somente para uma conta sem documento já registrado no EWGEST.</p>'+
@@ -273,13 +299,14 @@ function render(){
  renderPrevisaoTitulos(r)+
  '<div class="section panel"><h2>Movimentos de caixa por centro de custo</h2>'+table(['Centro','Recebimentos','Pagamentos'],r.caixa_centros.map(c=>cells([c.centro_custo,money(c.entradas_centavos),money(c.saidas_centavos)])))+
  '<p class="hint">Movimentos pagos/recebidos, não rentabilidade nem custo industrial. Documentos de obra são inicialmente classificados no centro Geral.</p></div>'+
- (drePermitido()?'<div id="corpDre">'+renderDre(r.dre)+'</div><div id="corpRateio">'+renderRateio(r.rateio)+'</div>'+renderIndicadores(r.indicadores)+renderCoberturaIndustrial(r):'');
+ (comprasFinanceiro()?renderComprasFinanceiro(r.comprasFinanceiro):'')+
+ (drePermitido()?'<div id="corpDre">'+renderDre(r.dre)+'</div><div id="corpRateio">'+renderRateio(r.rateio)+'</div>'+renderIndicadores(r.indicadores)+renderCoberturaIndustrial(r)+renderProdutividade(r.produtividade):'');
  if(el('corpForm')){
   el('corpOrigem').addEventListener('change',mudarOrigem);
   el('corpForm').addEventListener('submit',criar);
  }
  for(const id of ['corpFiltroTipo','corpFiltroSituacao'])el(id).addEventListener('change',renderTitulos);
- renderTitulos();if(drePermitido()){bindDre();bindRateio();}
+ renderTitulos();if(comprasFinanceiro())bindFrete();if(drePermitido()){bindDre();bindRateio();}
 }
 function mudarOrigem(){
  const f=el('corpOrigem').value,manual=f==='MANUAL',d=state.documentos.find(x=>x.origem_tipo+'|'+x.origem_id===f);
@@ -315,10 +342,10 @@ async function abrir(){
  scope={id,uid,n};el('corpStatus').textContent='Consultando títulos e baixas…';
  try{await ensureSession();if(!valid(n,id,uid))return;
   const body={p_empresa_id:id,p_inicio:i.value,p_fim:f.value},args={method:'POST',token:session.access_token,timeoutMs:45000,body};
-  const [r,dre,rateio,indicadores]=await Promise.all([request('/rest/v1/rpc/ew_fin_empresa_consultar',args),drePermitido()?request('/rest/v1/rpc/ew_dre_consultar',args).catch(()=>null):null,drePermitido()?request('/rest/v1/rpc/ew_rateio_industrial_consultar',args).catch(()=>null):null,drePermitido()?request('/rest/v1/rpc/ew_indicadores_industriais',args).catch(()=>null):null]);
+  const [r,dre,rateio,indicadores,compras,produtividade]=await Promise.all([request('/rest/v1/rpc/ew_fin_empresa_consultar',args),drePermitido()?request('/rest/v1/rpc/ew_dre_consultar',args).catch(()=>null):null,drePermitido()?request('/rest/v1/rpc/ew_rateio_industrial_consultar',args).catch(()=>null):null,drePermitido()?request('/rest/v1/rpc/ew_indicadores_industriais',args).catch(()=>null):null,comprasFinanceiro()?request('/rest/v1/rpc/ew_fin_compras_previsao',{...args,body:{p_empresa_id:id}}).catch(()=>null):null,drePermitido()?request('/rest/v1/rpc/ew_industrial_produtividade',args).catch(()=>null):null]);
   if(!valid(n,id,uid))return;state=validate(r);state.dre=drePermitido()?dre:null;
   if(state.dre){try{dreCalcular(state.dre);}catch(e){state.dre=null;}}
-  state.indicadores=drePermitido()?indicadores:null;state.rateio=drePermitido()?rateio:null;if(state.rateio){try{rateioValidar(state.rateio);}catch(e){state.rateio=null;}}
+  state.comprasFinanceiro=comprasFinanceiro()?compras:null;state.produtividade=drePermitido()?produtividade:null;state.indicadores=drePermitido()?indicadores:null;state.rateio=drePermitido()?rateio:null;if(state.rateio){try{rateioValidar(state.rateio);}catch(e){state.rateio=null;}}
   render();el('corpStatus').textContent='Consulta concluída.';
  }catch(e){if(valid(n,id,uid)){state=null;el('corpConteudo').replaceChildren();el('corpStatus').textContent='Não foi possível carregar o financeiro: '+e.message;}}
 }
