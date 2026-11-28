@@ -34,9 +34,9 @@ assert.ok(app.includes("apiGet('ew_precificacao_revisoes_categorias',{")&&
 assert.ok(app.includes("billedValues={fabricacao:new Map(),instalacao:new Map()}")&&
  app.includes("Math.round(Number(x.valor_total||0)*100)")&&
  app.includes("row.dataset.autoPrice='0'")&&
- app.includes("finPrecoEfetivo(precificacao,tipo,areaMax,jaArea,finState.billedValues[tipo].get(e.id)||0)")&&
- app.includes("(r.precificacao?' readonly':'')"),
- 'Descontar histórico faturado, preservar centavos aprovados e permitir edição apenas sem precificação');
+ app.includes("finPrecoCompensado(plano,e.id,areaMax)")&&
+ !app.includes("(r.precificacao?' readonly':'')")&&app.includes('finValidaFechamentoCompensado'),
+ 'Descontar histórico faturado e permitir edição com compensação da categoria e teto preservado');
 const valorExato=new Function(app.slice(start,end)+'\nreturn finValorPrecificadoCentavos;')();
 const precoEfetivo=new Function(app.slice(start,end)+'\nreturn finPrecoEfetivo;')();
 const aprovado={fabricacao_centavos:10000,area_m2:3};
