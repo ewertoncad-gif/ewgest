@@ -127,6 +127,23 @@ function distribuirRateioPorQuantidade(total,liberacoes){
  for(const r of rank){if(extra===0n)break;r.centavos++;extra--;}
  return rows.map(r=>({id:r.id,centavos:Number(r.centavos)}));
 }
+function indicadorFabrica(x){
+ const receita=cents(x.receita_centavos),material=cents(x.material_centavos),rateio=cents(x.rateio_centavos),custo=material+rateio,contribuicao=receita-custo;
+ const area=x.area_m2===null?null:Number(x.area_m2);
+ if(!Number.isSafeInteger(custo)||!Number.isSafeInteger(contribuicao)||(area!==null&&(!Number.isFinite(area)||area<=0)))throw Error('Indicadores não conciliados.');
+ return {receita,custo,contribuicao,area,custoM2:area?custo/area:null,margem:receita?100*contribuicao/receita:null};
+}
+function renderIndicadores(r){
+ if(!r||!Array.isArray(r.fabrica))return '<div class="panel section"><h2>Indicadores industriais por fábrica</h2><p class="hint">Consulta indisponível.</p></div>';
+ try{const fmt=n=>Number(n).toLocaleString('pt-BR',{maximumFractionDigits:3});
+ const rows=r.fabrica.map(x=>{const d=indicadorFabrica(x),kg=Number(x.kg_registrado),estimado=Number(x.kg_estimado),pend=cents(x.peso_pendente),base=cents(x.peso_com_base);
+ if(!Number.isFinite(kg)||kg<0||!Number.isFinite(estimado)||estimado<0)throw Error('Peso inválido.');
+ return cells([x.fabrica||'A atribuir',money(d.receita),d.area===null?'—':fmt(d.area),money(d.custo),d.custoM2===null?'—':money(d.custoM2),signed(d.contribuicao),d.margem===null?'—':fmt(d.margem)+'%',base?fmt(kg):'—',base?fmt(estimado):'—',String(pend)]);
+ });
+ return '<div class="panel section"><h2>Indicadores industriais por fábrica</h2><p class="notice">Custo reconhecido/m² faturado e margem de contribuição são parciais, não custo integral de fabricação nem lucro líquido. A área exige atribuição conciliada à receita da fábrica. Peso em kg registrado refere-se a movimentos em kg; peso estimado usa comprimento e peso linear atual do cadastro. Não equivale a pesagem nem a peso líquido da esquadria. Movimentos de lote não são divididos entre itens.</p>'+
+ table(['Fábrica','Receita fabricação','Área faturada (m²)','Custo reconhecido','Custo parcial/m²','Contribuição parcial','Margem parcial','Kg registrados','Kg estimados','Pendências peso'],rows)+'</div>';
+ }catch(e){return '<div class="panel section"><h2>Indicadores industriais por fábrica</h2><p class="hint">Dados não conciliados: '+esc(e.message)+'</p></div>';}
+}
 function renderRateio(r){
  if(!r)return '<div class="section panel"><h2>Custos industriais e rentabilidade</h2><p class="hint">Consulta indisponível neste momento.</p></div>';
  const d=rateioValidar(r),edit=dreEditar(),titles=r.titulos.filter(t=>cents(t.valor_centavos)>cents(t.usado_centavos));
@@ -228,7 +245,7 @@ function render(){
  '<div id="corpTabela"></div><div id="corpBaixaForm"></div></div>'+
  '<div class="section panel"><h2>Movimentos de caixa por centro de custo</h2>'+table(['Centro','Recebimentos','Pagamentos'],r.caixa_centros.map(c=>cells([c.centro_custo,money(c.entradas_centavos),money(c.saidas_centavos)])))+
  '<p class="hint">Movimentos pagos/recebidos, não rentabilidade nem custo industrial. Documentos de obra são inicialmente classificados no centro Geral.</p></div>'+
- (drePermitido()?'<div id="corpDre">'+renderDre(r.dre)+'</div><div id="corpRateio">'+renderRateio(r.rateio)+'</div>':'');
+ (drePermitido()?'<div id="corpDre">'+renderDre(r.dre)+'</div><div id="corpRateio">'+renderRateio(r.rateio)+'</div>'+renderIndicadores(r.indicadores):'');
  if(el('corpForm')){
   el('corpOrigem').addEventListener('change',mudarOrigem);
   el('corpForm').addEventListener('submit',criar);
@@ -270,10 +287,10 @@ async function abrir(){
  scope={id,uid,n};el('corpStatus').textContent='Consultando títulos e baixas…';
  try{await ensureSession();if(!valid(n,id,uid))return;
   const body={p_empresa_id:id,p_inicio:i.value,p_fim:f.value},args={method:'POST',token:session.access_token,timeoutMs:45000,body};
-  const [r,dre,rateio]=await Promise.all([request('/rest/v1/rpc/ew_fin_empresa_consultar',args),drePermitido()?request('/rest/v1/rpc/ew_dre_consultar',args).catch(()=>null):null,drePermitido()?request('/rest/v1/rpc/ew_rateio_industrial_consultar',args).catch(()=>null):null]);
+  const [r,dre,rateio,indicadores]=await Promise.all([request('/rest/v1/rpc/ew_fin_empresa_consultar',args),drePermitido()?request('/rest/v1/rpc/ew_dre_consultar',args).catch(()=>null):null,drePermitido()?request('/rest/v1/rpc/ew_rateio_industrial_consultar',args).catch(()=>null):null,drePermitido()?request('/rest/v1/rpc/ew_indicadores_industriais',args).catch(()=>null):null]);
   if(!valid(n,id,uid))return;state=validate(r);state.dre=drePermitido()?dre:null;
   if(state.dre){try{dreCalcular(state.dre);}catch(e){state.dre=null;}}
-  state.rateio=drePermitido()?rateio:null;if(state.rateio){try{rateioValidar(state.rateio);}catch(e){state.rateio=null;}}
+  state.indicadores=drePermitido()?indicadores:null;state.rateio=drePermitido()?rateio:null;if(state.rateio){try{rateioValidar(state.rateio);}catch(e){state.rateio=null;}}
   render();el('corpStatus').textContent='Consulta concluída.';
  }catch(e){if(valid(n,id,uid)){state=null;el('corpConteudo').replaceChildren();el('corpStatus').textContent='Não foi possível carregar o financeiro: '+e.message;}}
 }

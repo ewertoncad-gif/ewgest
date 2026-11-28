@@ -591,6 +591,29 @@ function renderHistoricoPrecos(){
  records.map(({q,i,sol,status})=>'<tr'+filtroRow(q,status,materialPreco(i)+' '+compraFornecedor(q)+' '+(sol?titleLocal(sol):''))+'><td>'+esc(comprasData(q).split('-').reverse().join('/'))+'</td><td>'+esc(materialPreco(i))+'</td><td>'+esc(i.unidade)+'</td><td>'+esc(compraFornecedor(q))+'</td><td>'+esc(sol?titleLocal(sol):'Local histórico')+'</td><td>'+money(i.preco)+'</td><td>'+esc(status)+'</td></tr>').join('')+'</tbody></table></div>';
  bindFiltrosLista();
 }
+function previsaoEntregaPedido(data,prazo){
+ if(typeof data!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(data)||prazo==null||prazo===''||!Number.isSafeInteger(Number(prazo))||Number(prazo)<0||Number(prazo)>3650)return null;
+ const d=new Date(data+'T00:00:00Z');if(!Number.isFinite(d.getTime())||d.toISOString().slice(0,10)!==data)return null;
+ d.setUTCDate(d.getUTCDate()+Number(prazo));return d.toISOString().slice(0,10);
+}
+function saldoEntregaPedido(p,recebido){
+ const linhas=linhasPreco(p);if(!linhas.length)return null;
+ let total=0;
+ for(const i of linhas){const q=Number(recebido.get(i.chave)||0),m=Math.round(q*1000),n=Math.round(i.quantidade*1000);
+  if(!Number.isSafeInteger(m)||m<0||m>n||Math.abs(q*1000-m)>1e-6)return null;
+  const entregue=Number((BigInt(m)*BigInt(i.preco)+500n)/1000n);
+  total+=i.subtotal-entregue;if(!Number.isSafeInteger(total)||total<0)return null;
+ }
+ return total;
+}
+function painelPrevisaoCompras(){
+ if(!permission('compras.consultar_valores'))return '';
+ const ativos=orders.filter(p=>p.status!=='CANCELADO'&&orderStatus(p)!=='Recebido');
+ const rows=ativos.map(p=>{const c=quotes.find(q=>q.id===p.cotacao_id)?.condicoes_comerciais,saldo=saldoEntregaPedido(p,receivedMap(p.id));return {p,c,saldo,data:previsaoEntregaPedido(comprasData(p),c?.prazo_dias)};});
+ const soma=rows.reduce((a,x)=>a+(x.saldo??0),0),pend=rows.filter(x=>x.saldo===null).length;
+ return '<details class="section panel"><summary>Previsão de compras e entregas pendentes</summary><p class="hint">Estimativa de entrega: data do pedido + prazo em dias corridos informado na cotação. O saldo em valor corresponde à parte ainda não recebida, aos preços do pedido; não é saldo a pagar nem previsão de caixa. Frete fora dos preços não está incluído. Pagamento deve ser programado no Financeiro.</p><p><strong>Saldo contratual de entregas conciliadas: '+(Number.isSafeInteger(soma)?money(soma):'Indisponível')+'</strong> · '+number(pend)+' pedido(s) sem conciliação</p>'+
+ '<div class="ewComprasTableWrap"><table class="ewComprasTable"><thead><tr><th>Pedido</th><th>Destino</th><th>Fornecedor</th><th>Entrega estimada</th><th>Saldo a receber em materiais</th><th>Pagamento informado</th><th>Frete</th></tr></thead><tbody>'+rows.map(({p,c,saldo,data})=>'<tr><td>#'+number(p.numero)+'</td><td>'+esc(titleLocal(p))+'</td><td>'+esc(compraFornecedor(p))+'</td><td>'+esc(data?data.split('-').reverse().join('/'):'Sem prazo')+'</td><td>'+(saldo===null?'Não conciliado':money(saldo))+'</td><td>'+esc(c?.pagamento||'Não informado')+'</td><td>'+esc(freteLabels[c?.frete]||'Não informado')+'</td></tr>').join('')+'</tbody></table></div></details>';
+}
 function renderOrder(aprovacao=false){
  const editable=permission('compras.pedir')&&permission('compras.aprovar_pedido')&&permission('compras.consultar_valores');
  const pending=quotes.filter(q=>q.status!=='CANCELADA'&&sols.some(s=>s.id===q.solicitacao_id&&s.status==='ABERTA')&&!orders.some(p=>p.solicitacao_id===q.solicitacao_id));
@@ -611,6 +634,7 @@ function renderOrder(aprovacao=false){
  try{await rpc('ew_compras_criar_pedido',{p_cotacao_id:id,p_operacao_id:operationToken('pedir',{id})});
  pendingOps.delete('pedir');await reload();if(tab==='aprovacao'&&!$('compras')?.classList.contains('hidden')){renderOrder(true);say('comprasMensagem','Pedido aprovado, disponível para recebimento.');}
  }catch(err){say('comprasMensagem','Erro: '+err.message)}finally{btn.disabled=false;}};
+ if(!aprovacao&&permission('compras.consultar_valores'))$('comprasConteudo').insertAdjacentHTML('beforeend',painelPrevisaoCompras());
  if(!aprovacao&&permission('financeiro.despesas')&&permission('compras.consultar_valores')){
   const box=document.createElement('section');box.id='ewComprasConciliacao';box.className='section panel';
   $('comprasConteudo').appendChild(box);void window.ewComprasNfe?.render(box,contextoConciliacao());

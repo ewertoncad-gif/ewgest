@@ -105,3 +105,30 @@ BEGIN
  SET LOCAL test.perm='yes';
 END $$;
 SELECT 'OK: lote atomico, area, peso informado, previa, centavos e idempotencia' AS resultado;
+
+ALTER TABLE public.ew_estoque_obras_movimentos ADD COLUMN variacao_id uuid, ADD COLUMN comprimento_mm integer, ADD COLUMN unidade text;
+CREATE TABLE public.ew_materiais_variacoes(id uuid PRIMARY KEY,empresa_id uuid,tipo text,perfil_id uuid);
+CREATE TABLE public.ew_perfis(id uuid PRIMARY KEY,empresa_id uuid,peso_kg_m numeric);
+\ir ../database/proposals/20261128_indicadores_industriais_v462949.sql
+SET test.perm='yes';
+DO $$
+DECLARE e uuid:='00000000-0000-0000-0000-000000000001';v uuid:=gen_random_uuid();p uuid:=gen_random_uuid();v2 uuid:=gen_random_uuid();p2 uuid:=gen_random_uuid();m uuid;l uuid;o uuid;r jsonb;row jsonb;negado boolean;
+BEGIN
+ INSERT INTO public.ew_perfis VALUES(p,e,0.5),(p2,e,NULL);
+ INSERT INTO public.ew_materiais_variacoes VALUES(v,e,'perfil',p),(v2,e,'perfil',p2);
+ SELECT id,liberacao_id,obra_id INTO m,l,o FROM public.ew_estoque_obras_movimentos WHERE origem='PLANO_CORTE' LIMIT 1;
+ UPDATE public.ew_estoque_obras_movimentos SET variacao_id=v,comprimento_mm=6000,unidade='BARRA' WHERE id=m;
+ INSERT INTO public.ew_estoque_obras_movimentos(id,empresa_id,obra_id,origem,quantidade_delta,liberacao_id,criado_em,variacao_id,unidade,comprimento_mm) VALUES(gen_random_uuid(),e,o,'PLANO_CORTE',-3,l,'2026-11-05T10:00:00Z',v,'KG',NULL),(gen_random_uuid(),e,o,'PLANO_CORTE',-1,l,'2026-11-05T10:00:00Z',v2,'BARRA',6000);
+ r:=public.ew_indicadores_industriais(e,'2026-11-01','2026-11-30');
+ SELECT x INTO row FROM jsonb_array_elements(r->'fabrica') x WHERE x->>'fabrica'='AFOGADOS';
+ IF (row->>'kg_estimado')::numeric IS DISTINCT FROM 6::numeric OR (row->>'kg_registrado')::numeric IS DISTINCT FROM 3::numeric OR (row->>'peso_pendente')::int IS DISTINCT FROM 1 OR (row->>'area_m2')::numeric IS DISTINCT FROM 1::numeric THEN RAISE EXCEPTION 'indicadores incorretos %',r;END IF;
+ INSERT INTO public.ew_estoque_obras_movimentos(id,empresa_id,obra_id,origem,quantidade_delta,estorno_de_id,criado_em) VALUES(gen_random_uuid(),e,o,'ESTORNO',1,m,'2026-11-06T10:00:00Z');
+ r:=public.ew_indicadores_industriais(e,'2026-11-01','2026-11-30');
+ SELECT x INTO row FROM jsonb_array_elements(r->'fabrica') x WHERE x->>'fabrica'='AFOGADOS';
+ IF (row->>'kg_estimado')::numeric IS DISTINCT FROM 3::numeric THEN RAISE EXCEPTION 'estorno incorreto %',r;END IF;
+ -- Restaurar a fixture usada pelo teste concorrente (nenhum rateio é alterado).
+ IF has_function_privilege('anon','public.ew_indicadores_industriais(uuid,date,date)','EXECUTE') THEN RAISE EXCEPTION 'acesso anonimo';END IF;
+ SET LOCAL test.perm='no';negado:=false;BEGIN PERFORM public.ew_indicadores_industriais(e,'2026-11-01','2026-11-30');EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Sem permissão%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'permissao indevida';END IF;
+END $$;
+SELECT 'OK: peso registrado, estimado, pendências, estorno e área atribuída' AS resultado;
