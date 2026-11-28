@@ -248,3 +248,37 @@ BEGIN
  IF NOT negado OR has_table_privilege('authenticated','ew_financeiro_interna.funcionarios_industriais','SELECT') OR has_function_privilege('anon','public.ew_industrial_cadastros_consultar(uuid,date,date)','EXECUTE') THEN RAISE EXCEPTION 'acesso indevido';END IF;
 END $$;
 SELECT 'OK: folha, depreciação, centavos e restrição de dados de pessoal' AS resultado;
+
+\ir ../database/proposals/20261128_movimentacoes_industriais_v462954.sql
+\ir ../database/proposals/20261128_conferencia_mensal_v462954.sql
+SET test.perm='yes';
+SET test.rh='yes';
+DO $$
+DECLARE e uuid:='00000000-0000-0000-0000-000000000001';g uuid;g2 uuid:=gen_random_uuid();emp uuid;ativo uuid:=gen_random_uuid();op uuid:=gen_random_uuid();r jsonb;negado boolean;
+BEGIN
+ SELECT id INTO g FROM public.ew_locais_fisicos WHERE empresa_id=e AND nome='AFOGADOS' LIMIT 1;
+ INSERT INTO public.ew_locais_fisicos VALUES(g2,e,'IMBIRIBEIRA',true);
+ SELECT id INTO emp FROM ew_financeiro_interna.funcionarios_industriais WHERE empresa_id=e LIMIT 1;
+ PERFORM public.ew_industrial_movimentar(e,op,'FUNCIONARIO',emp,'TRANSFERENCIA','2026-10-01',g2,'Transferência teste');
+ r:=public.ew_industrial_movimentar(e,op,'FUNCIONARIO',emp,'TRANSFERENCIA','2026-10-01',g2,'Transferência teste');
+ IF NOT (r->>'repetido')::boolean THEN RAISE EXCEPTION 'duplicidade';END IF;
+ PERFORM public.ew_industrial_movimentar(e,gen_random_uuid(),'FUNCIONARIO',emp,'DESLIGAMENTO','2026-11-15',NULL,'Desligamento teste');
+ negado:=false;BEGIN PERFORM public.ew_industrial_movimentar(e,gen_random_uuid(),'FUNCIONARIO',emp,'TRANSFERENCIA','2026-11-20',g,'Transferência indevida');EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Histórico encerrado%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'movimentou desligado';END IF;
+ PERFORM public.ew_industrial_cadastrar(e,ativo,'ATIVO',jsonb_build_object('galpao_id',g,'codigo','MAQ-2','nome','Máquina transferência','data','2026-09-01','valor',1200,'residual',0,'vida',12));
+ PERFORM public.ew_industrial_depreciar(e,gen_random_uuid(),ativo,'2026-09-01');
+ PERFORM public.ew_industrial_movimentar(e,gen_random_uuid(),'ATIVO',ativo,'TRANSFERENCIA','2026-10-01',g2,'Transferência máquina');
+ PERFORM public.ew_industrial_depreciar(e,gen_random_uuid(),ativo,'2026-10-01');
+ negado:=false;BEGIN PERFORM public.ew_industrial_movimentar(e,gen_random_uuid(),'ATIVO',ativo,'TRANSFERENCIA','2026-10-01',g,'Retroação indevida');EXCEPTION WHEN OTHERS THEN negado:=true;END;
+ IF NOT negado THEN RAISE EXCEPTION 'alterou histórico';END IF;
+ r:=public.ew_industrial_cadastros_consultar(e,'2026-09-01','2026-11-30');
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'funcionarios') x WHERE x->>'id'=emp::text AND x->>'desligado_em'='2026-11-15') OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'depreciacoes') x WHERE x->>'codigo'='MAQ-2' AND x->>'competencia'='2026-09-01' AND x->>'local'='AFOGADOS') OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'depreciacoes') x WHERE x->>'codigo'='MAQ-2' AND x->>'competencia'='2026-10-01' AND x->>'local'='IMBIRIBEIRA') THEN RAISE EXCEPTION 'histórico patrimonial incorreto %',r;END IF;
+ r:=public.ew_industrial_conferencia_mes(e,'2026-11-01');
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'fabrica') x WHERE x->>'fabrica'='IMBIRIBEIRA' AND (x->>'depreciacoes_pendentes')::int=1) OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'fabrica') x WHERE x->>'fabrica'='AFOGADOS' AND (x->>'folha_centavos')::bigint=17000) THEN RAISE EXCEPTION 'conferência incorreta %',r;END IF;
+ SET LOCAL test.rh='no';
+ r:=public.ew_industrial_movimentos_consultar(e);
+ IF EXISTS(SELECT 1 FROM jsonb_array_elements(r) x WHERE x->>'tipo'='FUNCIONARIO') THEN RAISE EXCEPTION 'movimento pessoal exposto';END IF;
+ negado:=false;BEGIN PERFORM public.ew_industrial_conferencia_mes(e,'2026-11-01');EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Sem acesso à gestão%';END;
+ IF NOT negado OR has_function_privilege('anon','public.ew_industrial_movimentos_consultar(uuid)','EXECUTE') THEN RAISE EXCEPTION 'acesso indevido';END IF;
+END $$;
+SELECT 'OK: transferências, desligamento, histórico de depreciação, conferência mensal e privacidade' AS resultado;
