@@ -129,7 +129,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.44',
+ 'EWGEST • v46.29.45',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2135,7 +2135,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.44')&&
+assert.ok(source.includes('v46.29.45')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2371,7 +2371,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.44</strong>'),
+ source.includes('EWGEST <strong>· v46.29.45</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -3450,3 +3450,16 @@ console.log('OK: custos industriais e contribuição parcial sem duplicar valore
 assert.ok(['OBRAS E PRODUÇÃO','COMPRAS E ESTOQUE','FINANÇAS E RELATÓRIOS','CONFIGURAÇÕES'].every(x=>source.includes(x))&&!source.includes('ESPAÇO DE TRABALHO'));
 assert.ok(source.includes('aria-controls="workspaceNav"')&&source.includes("wrap.classList.toggle('workspaceNavCollapsed')")&&source.includes(".wrap.workspaceOpen.workspaceNavCollapsed>main{margin-left:0}")&&source.includes("if(!autenticado)wrap.classList.remove('workspaceNavCollapsed')"));
 console.log('OK: menu por domínio, controle de recolhimento e reset de sessão.');
+
+// Filtros de compras: acentos, situação, intervalo inclusivo e registros sem data.
+{
+ const code=readFileSync(new URL('../assets/compras-estoque.js',import.meta.url),'utf8');new Function(code);
+ const a=code.indexOf('const filtroNorm='),b=code.indexOf('function comprasData(',a);
+ const match=new Function(code.slice(a,b)+'return comprasFiltroCombina;')();
+ const row={busca:'Obra A · Alumínio',situacao:'ABERTA',data:'2026-11-25'};
+ assert.ok(match(row,{busca:'aluminio',situacao:'ABERTA',de:'2026-11-25',ate:'2026-11-25'}));
+ assert.ok(!match(row,{situacao:'CANCELADA'}));assert.ok(!match(row,{de:'2026-11-26'}));assert.ok(!match({...row,data:''},{ate:'2026-11-26'}));
+ assert.ok(match(row,{}));assert.ok(!match(row,{busca:'vidro'}));
+ assert.ok(code.includes("readAllRows('ew_compras_solicitacoes'")&&code.includes("readAllRows('ew_compras_cotacoes'"));
+}
+console.log('OK: filtros de compras e paginação integral de solicitações e cotações.');
