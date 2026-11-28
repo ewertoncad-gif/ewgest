@@ -145,8 +145,10 @@ async function loadRequestNeeds(){
 }
 async function reload(){
  if((!permission('compras.consultar')&&!permission('compras.receber'))||!currentCompany)return;
+ const empresaId=currentCompany.id;
  await ensureSession();
- const empresa='eq.'+currentCompany.id;
+ if(currentCompany?.id!==empresaId||!session)throw Error('Sessão ou empresa alterada. Atualize a tela.');
+ const empresa='eq.'+empresaId;
  const [ls,fs,gs,vs,ps,as,so,co,po,re]=await Promise.all([
   apiGet('ew_compras_locais_empresa',{select:'id,nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'1000'}),
   apiGet('ew_fornecedores',{select:'id,nome,ativo',empresa_id:empresa,order:'nome.asc',limit:'1000'}),
@@ -154,18 +156,20 @@ async function reload(){
   readAllRows('ew_materiais_variacoes',{select:'id,tipo,perfil_id,acessorio_id,cor,acabamento,ativo',empresa_id:empresa,ativo:'eq.true'}),
   readAllRows('ew_perfis',{select:'id,codigo,descricao,comprimento_comercial_mm',empresa_id:empresa}),
   readAllRows('ew_acessorios',{select:'id,codigo,descricao,unidade_item',empresa_id:empresa}),
-  apiGet('ew_compras_solicitacoes',{select:'*',empresa_id:empresa,order:'criado_em.desc',limit:'1000'}),
-  apiGet('ew_compras_cotacoes',{select:'*',empresa_id:empresa,order:'criado_em.desc',limit:'1000'}),
-  rpc('ew_compras_pedidos_resumo',{p_empresa_id:currentCompany.id}),
+  readAllRows('ew_compras_solicitacoes',{select:'*',empresa_id:empresa}),
+  readAllRows('ew_compras_cotacoes',{select:'*',empresa_id:empresa}),
+  rpc('ew_compras_pedidos_resumo',{p_empresa_id:empresaId}),
   readAllRows('ew_compras_recebimentos',{select:'id,pedido_id,itens,criado_em,galpao,estornado_em,estorno_motivo',empresa_id:empresa})
  ]);
+ if(currentCompany?.id!==empresaId||!session||(!permission('compras.consultar')&&!permission('compras.receber')))throw Error('Sessão ou empresa alterada. Atualize a tela.');
  const perf=new Map((ps||[]).map(p=>[p.id,p])),acc=new Map((as||[]).map(a=>[a.id,a]));
  locals=ls||[];suppliersAll=fs||[];suppliers=suppliersAll.filter(x=>x.ativo);galpoes=(gs||[]).filter(x=>x.ativo).map(x=>x.nome);
  variations=(vs||[]).map(v=>{const m=v.tipo==='perfil'?perf.get(v.perfil_id):acc.get(v.acessorio_id);
  return {...v,unidade:v.tipo==='perfil'?'BARRA':m?.unidade_item||'PC',
   comprimento_mm:v.tipo==='perfil'?Number(m?.comprimento_comercial_mm)||6000:null,
   nome:(m?.codigo||'?')+' · '+(m?.descricao||'Material')+' · '+v.cor};}).filter(x=>x.nome);
- sols=so||[];quotes=co||[];orders=po||[];receipts=re||[];loaded=true;
+ const recentes=(a,b)=>String(b.criado_em||'').localeCompare(String(a.criado_em||''))||String(a.id).localeCompare(String(b.id));
+ sols=(so||[]).sort(recentes);quotes=(co||[]).sort(recentes);orders=po||[];receipts=re||[];loaded=true;
 }
 function receivedMap(pedidoId){const m=new Map();
  for(const rec of receipts.filter(x=>x.pedido_id===pedidoId&&!x.estornado_em))
