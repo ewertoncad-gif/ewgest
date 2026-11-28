@@ -826,7 +826,7 @@
     <button id="navCem" class="workspaceLink hidden" type="button"><span class="navSymbol">⇩</span> Importar arquivo técnico</button>
     <button id="navCadastros" class="workspaceLink hidden" type="button"><span class="navSymbol">▤</span> Cadastros do sistema</button>
     <button id="navAccessLevels" class="workspaceLink hidden" type="button"><span class="navSymbol">⚙</span> Níveis de acesso</button>
-    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.36</strong><small>Gestão em movimento</small></div>
+    <div class="workspaceNavFooter">EWGEST <strong>· v46.29.37</strong><small>Gestão em movimento</small></div>
   </aside>
   <main>
     <section id="startup" class="panel startup" role="status" aria-live="polite" aria-label="Preparando o EWGEST">
@@ -847,7 +847,7 @@
         <button id="restoreSessionBtn" class="btn secondary full hidden" type="button" style="margin-top:10px">Tentar restaurar sessão sem informar senha</button>
         <div id="status" class="status" role="status" aria-live="polite">Página carregada. Preparando autenticação…</div>
         <div id="error" class="error" role="alert"></div>
-        <div class="build">EWGEST • v46.29.36</div>
+        <div class="build">EWGEST • v46.29.37</div>
       </form>
       <button id="installEwgest" class="btn secondary full" type="button">Instalar aplicativo</button>
       <p id="installHelp" class="hint" role="status" aria-live="polite" hidden></p>
@@ -8710,7 +8710,11 @@ async function finLoad(){
    if(!completo)
     throw new Error('O histórico de precificação está incompleto ou não fecha com as esquadrias da obra. Faturamento bloqueado até conferência.');
   }
+  if(fat.length>=1000||linhas.length>=1000)throw Error('Histórico financeiro acima do limite da consulta. Faturamento bloqueado até paginação integral.');
   const header=new Map((fat||[]).filter(x=>x.status==='emitido').map(x=>[x.id,x]));
+  const porDocumento=new Map();
+  for(const x of linhas||[])if(header.has(x.faturamento_id))porDocumento.set(x.faturamento_id,(porDocumento.get(x.faturamento_id)||0)+Math.round(Number(x.valor_total)*100));
+  if([...header.values()].some(f=>porDocumento.get(f.id)!==Math.round(Number(f.valor_total)*100)))throw Error('Histórico de faturamento incompleto. Confira os documentos antes de emitir.');
   for(const x of linhas||[]){
    const tipo=header.get(x.faturamento_id)?.categoria;
    if(tipo&&billed[tipo]){
@@ -9287,9 +9291,77 @@ function finPrecoEfetivo(linha,tipo,areaNova,areaJa,valorJa){
  const preco=Math.round(cents/Number(areaNova)*100)/10000;
  return Number.isFinite(preco)&&preco>0&&preco<=100000000?preco:null;
 }
+// Compensação da obra, separada por categoria. A precificação aprovada permanece intacta.
+function finArredondarRazao(n,d){
+ if(d<=0n||n<0n)return null;
+ const v=(2n*n+d)/(2n*d);return v<=BigInt(Number.MAX_SAFE_INTEGER)?Number(v):null;
+}
+function finPlanoCompensacao(state,tipo){
+ if(!state?.precificacao)return null;
+ const teto=Number(state.precificacao[tipo+'_distribuida_centavos']);
+ const pago=state.faturas.filter(f=>f.status==='emitido'&&f.categoria===tipo).reduce((n,f)=>n+Math.round(Number(f.valor_total)*100),0);
+ const saldo=teto-pago,pendentes=[];
+ if(!Number.isSafeInteger(teto)||!Number.isSafeInteger(pago)||saldo<0)throw Error('Saldo contratual inválido. Confira os faturamentos ativos.');
+ for(const [id,l] of state.precoPorEsquadria){
+  const total=Number(l[tipo+'_centavos']),areaTotal=Math.round(Number(l.area_m2)*1e6);
+  const ja=Math.round(Number(state.billedAreas[tipo].get(id)||0)*1e6);
+  if(![total,areaTotal,ja].every(Number.isSafeInteger)||total<0||areaTotal<=0||ja<0||ja>areaTotal)throw Error('Histórico de área ou precificação inválido.');
+  if(total===0||ja===areaTotal)continue;
+  const nominal=total-finArredondarRazao(BigInt(total)*BigInt(ja),BigInt(areaTotal));
+  pendentes.push({id,restante:areaTotal-ja,peso:Math.max(1,nominal),nominal});
+ }
+ pendentes.sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);
+ if(saldo<pendentes.length||(!pendentes.length&&saldo!==0))throw Error('Saldo incompatível com as áreas restantes. Confira o histórico antes de faturar.');
+ const peso=pendentes.reduce((n,r)=>n+BigInt(r.peso),0n);
+ const nominal=pendentes.reduce((n,r)=>n+r.nominal,0);
+ const livre=saldo-pendentes.length,semAjuste=saldo===nominal&&pendentes.every(x=>x.nominal>0);let acumulado=0n,anterior=0;
+ const porId=new Map();
+ for(const r of pendentes){
+  acumulado+=BigInt(r.peso);
+  const rateado=finArredondarRazao(BigInt(livre)*acumulado,peso);
+  const alvo=semAjuste?r.nominal:1+rateado-anterior;
+  anterior=rateado;porId.set(r.id,{...r,alvo});
+ }
+ return {saldo,nominal,ajuste:saldo-nominal,porId};
+}
+function finSugestaoCompensada(plano,id,areaNova){
+ const r=plano?.porId.get(id),nova=Math.round(Number(areaNova)*1e6);
+ if(!r||!Number.isSafeInteger(nova)||nova<=0||nova>r.restante)return null;
+ if(nova===r.restante)return r.alvo;
+ if(r.alvo<=1)return null;
+ return Math.min(r.alvo-1,Math.max(1,finArredondarRazao(BigInt(r.alvo)*BigInt(nova),BigInt(r.restante))));
+}
+function finPrecoCompensado(plano,id,areaNova){
+ const cents=finSugestaoCompensada(plano,id,areaNova);
+ if(cents===null||cents<=0)return null;
+ const p=finArredondarRazao(BigInt(cents)*100000000n,BigInt(Math.round(Number(areaNova)*1e6)))/10000;
+ return Number.isFinite(p)&&p>0&&p<=100000000?p:null;
+}
+function finValorManualCentavos(qtd,preco){
+ const a=Math.round(qtd*1e6),p=Math.round(preco*1e4);
+ if(!Number.isSafeInteger(a)||!Number.isSafeInteger(p)||a<=0||p<=0)return null;
+ return finArredondarRazao(BigInt(a)*BigInt(p),100000000n);
+}
+function finValorFaturamentoLinha(plano,row,qtd,preco){
+ return plano&&row.dataset.autoPrice==='1'?finSugestaoCompensada(plano,row.dataset.esq,qtd):finValorManualCentavos(qtd,preco);
+}
+function finValidaFechamentoCompensado(plano,itens,total){
+ if(!plano)return '';
+ const encerrados=new Set();
+ for(const i of itens){const r=plano.porId.get(i.esquadria_id);if(!r)return 'Esquadria sem saldo contratual para esta categoria.';
+  if(Math.round(Number(i.area_m2)*1e6)===r.restante)encerrados.add(i.esquadria_id);
+ }
+ const abertas=plano.porId.size-encerrados.size,resto=plano.saldo-total;
+ if(resto<0)return 'O faturamento supera o saldo contratual.';
+ if(abertas===0&&resto!==0)return 'O último faturamento deve quitar exatamente o saldo contratual. Restaure os preços sugeridos.';
+ if(abertas>0&&resto<abertas)return 'Reserve saldo financeiro para as esquadrias ainda não faturadas.';
+ return '';
+}
 function finRenderFaturaveis(){
  if(!finState)return;
  const tipo=node('finBillingCategory').value,items=elements.filter(e=>e.obra_id===finState.obraId);
+ let plano=null;
+ try{plano=finPlanoCompensacao(finState,tipo);}catch(e){node('finBillingRows').textContent=e.message;node('finBillingSum').textContent='';return;}
  node('finInstalledLabel').classList.toggle('hidden',tipo!=='instalacao');
  const rows=items.map(e=>{
   const enviados=Math.min(Number(e.quantidade),finState.shipped.get(e.id)||0);
@@ -9298,18 +9370,18 @@ function finRenderFaturaveis(){
   const precificacao=finState.precoPorEsquadria.get(e.id)||null;
   const areaUnit=area(e,1),jaArea=finState.billedAreas[tipo].get(e.id)||0;
   const areaMax=Math.max(0,Math.round((Math.round(enviados*areaUnit*1000000)/1000000-jaArea)*1000000)/1000000);
-  const sugestao=finPrecoEfetivo(precificacao,tipo,areaMax,jaArea,finState.billedValues[tipo].get(e.id)||0);
+  const sugestao=plano?finPrecoCompensado(plano,e.id,areaMax):null;
   return {e,enviados,ja,jaArea,disponivel,areaUnit,areaMax,precificacao,sugestao};
  }).filter(r=>r.enviados>0);
  node('finBillingRows').innerHTML=rows.length?'<p class="hint">'+
   (finState.precificacao?'Os valores em centavos seguem a precificação aprovada (revisão '+
-   Number(finState.precificacao.versao)+'). O preço efetivo por m² é informativo e não pode ser alterado nesta emissão.':
+   Number(finState.precificacao.versao)+'). O preço sugerido pode ser editado. O saldo é redistribuído automaticamente nos próximos documentos da mesma categoria, sem alterar o contrato. Saldo: '+finMoney(plano.saldo/100)+' · '+(plano.ajuste<0?'Antecipado: '+finMoney(-plano.ajuste/100):'A recuperar: '+finMoney(plano.ajuste/100))+'. <button type="button" id="finResetPrecos" class="btn secondary">Restaurar preços sugeridos</button>':
    'Obra sem precificação individual: informe os preços por m² manualmente.')+'</p>'+
   '<div class="finTableWrap"><table class="finTable"><thead><tr>'+
   '<th>Faturar</th><th>Esquadria</th><th>Categoria da obra</th><th>Expedido (m²)</th><th>Já faturado ('+
   (tipo==='fabricacao'?'fab.':'inst.')+') (m²)</th><th>Disponível (m²)</th><th>Área a faturar (m²)</th><th>Preço (R$/m²)</th><th align="right">Valor a faturar (R$)</th></tr></thead><tbody>'+
  rows.map(r=>'<tr class="finInvoiceRow" data-esq="'+escapeHTML(r.e.id)+
-  '" data-max="'+r.areaMax+'" data-equivalent-max="'+r.disponivel+'" data-area-unit="'+r.areaUnit+'" data-auto-price="'+(r.sugestao!==null?'1':'0')+'">'+
+  '" data-max="'+r.areaMax+'" data-equivalent-max="'+r.disponivel+'" data-area-unit="'+r.areaUnit+'" data-auto-price="'+(plano?.porId.has(r.e.id)?'1':'0')+'">'+
   '<td class="finRowCheck"><input class="finSelected" type="checkbox"'+(r.areaMax===0?' disabled':'')+'></td>'+
   '<td><strong>'+escapeHTML(r.e.codigo)+'</strong><div class="hint">'+escapeHTML(r.e.descricao||'')+'</div></td>'+
   '<td>'+escapeHTML(r.precificacao?.categoria_nome_snapshot||'—')+'</td>'+
@@ -9318,20 +9390,19 @@ function finRenderFaturaveis(){
   '" step="0.000001" value="'+(r.areaMax||'')+'"'+(r.areaMax===0?' disabled':'')+'></td>'+
   '<td><input class="finPrice finSmallInput" type="text" inputmode="decimal" autocomplete="off" placeholder="R$ 0,00" aria-label="Preço em reais por metro quadrado" value="'+
   (r.sugestao===null?'':escapeHTML(finPrecoFormatar(r.sugestao)))+'"'+
-  (r.areaMax===0?' disabled':'')+(r.precificacao?' readonly':'')+'></td>'+
+  (r.areaMax===0?' disabled':'')+'></td>'+
   '<td class="finInvoiceValue" align="right">—</td></tr>').join('')+
   '</tbody></table></div>':'<p class="hint">Nenhuma esquadria com saída registrada em romaneio ativo está disponível nesta obra.</p>';
  node('finBillingRows').querySelectorAll('.finInvoiceRow').forEach(row=>{
   const campo=row.querySelector('.finPrice'),quantidade=row.querySelector('.finQty');
   const recalcSugestao=()=>{
-   const linha=finState.precoPorEsquadria.get(row.dataset.esq);
-   if(!linha)return;
-   const sugestao=finPrecoEfetivo(linha,tipo,Number(quantidade.value),finState.billedAreas[tipo].get(row.dataset.esq)||0,
-    finState.billedValues[tipo].get(row.dataset.esq)||0);
+   if(!plano)return;
+   const sugestao=finPrecoCompensado(plano,row.dataset.esq,Number(quantidade.value));
    campo.value=sugestao===null?'':finPrecoFormatar(sugestao);
+   row.dataset.autoPrice='1';
   };
   quantidade.addEventListener('input',()=>{
-   recalcSugestao();finAtualizarSomaFatura();
+   if(row.dataset.autoPrice==='1')recalcSugestao();finAtualizarSomaFatura();
   });
   campo.addEventListener('input',()=>{
    row.dataset.autoPrice='0';finAtualizarSomaFatura();
@@ -9349,6 +9420,12 @@ function finRenderFaturaveis(){
   });
   row.querySelector('.finSelected').addEventListener('input',finAtualizarSomaFatura);
  });
+ node('finResetPrecos')?.addEventListener('click',()=>{
+  for(const row of node('finBillingRows').querySelectorAll('.finInvoiceRow')){
+   const sugestao=finPrecoCompensado(plano,row.dataset.esq,Number(row.querySelector('.finQty').value));
+   row.querySelector('.finPrice').value=sugestao===null?'':finPrecoFormatar(sugestao);row.dataset.autoPrice='1';
+  }finAtualizarSomaFatura();
+ });
  finAtualizarSomaFatura();
 }
 function finValorLinhaCentavos(linha,tipo,qtd,preco,areaJa,valorJa){
@@ -9356,24 +9433,26 @@ function finValorLinhaCentavos(linha,tipo,qtd,preco,areaJa,valorJa){
 }
 function finAtualizarSomaFatura(){
  let sumCentavos=0,count=0,invalidos=0;
- const tipo=node('finBillingCategory').value;
+ const tipo=node('finBillingCategory').value,itens=[];
+ let plano=null;
+ try{plano=finPlanoCompensacao(finState,tipo);}catch(e){node('finBillingSum').textContent=e.message;return;}
  for(const row of node('finBillingRows').querySelectorAll('.finInvoiceRow')){
   const valor=finPrecoValor(row.querySelector('.finPrice').value);
-  const qtd=Number(row.querySelector('.finQty').value||0),linha=finState?.precoPorEsquadria.get(row.dataset.esq);
+  const qtd=Number(row.querySelector('.finQty').value||0);
   const a=Number(row.dataset.areaUnit),max=Number(row.dataset.max);
   const valida=Number.isFinite(qtd)&&qtd>0&&qtd<=max+1e-9&&
    Math.abs(qtd*1000000-Math.round(qtd*1000000))<=0.00001&&
    Number.isFinite(valor)&&valor>0&&Math.abs(valor*10000-Math.round(valor*10000))<=0.00001&&
    a>0&&Math.round(qtd/a*1000000)>0&&Math.round(valor*a*10000)>0;
-  const cents=valida?finValorLinhaCentavos(linha,tipo,qtd,valor,
-   finState.billedAreas[tipo].get(row.dataset.esq)||0,finState.billedValues[tipo].get(row.dataset.esq)||0):null;
+  const cents=valida?finValorFaturamentoLinha(plano,row,qtd,valor):null;
   const positivo=Number.isSafeInteger(cents)&&cents>0;
   row.querySelector('.finInvoiceValue').textContent=positivo?finMoney(cents/100):(max===0?finMoney(0):'—');
   if(!row.querySelector('.finSelected').checked)continue;
   count++;
-  if(positivo)sumCentavos+=cents;else invalidos++;
+  if(positivo){sumCentavos+=cents;itens.push({esquadria_id:row.dataset.esq,area_m2:qtd});}else invalidos++;
  }
- node('finBillingSum').textContent='Selecionados: '+count+' · Valor calculado: '+finMoney(sumCentavos/100)+(invalidos?' · '+invalidos+' item(ns) sem saldo positivo ou área válida.':'');
+ const aviso=count&&!invalidos?finValidaFechamentoCompensado(plano,itens,sumCentavos):'';
+ node('finBillingSum').textContent='Selecionados: '+count+' · Valor calculado: '+finMoney(sumCentavos/100)+(invalidos?' · '+invalidos+' item(ns) sem saldo positivo ou área válida.':'')+(aviso?' · '+aviso:'');
 }
 
 
@@ -9508,7 +9587,8 @@ async function finRegistrarFaturamento(event){
  event.preventDefault();if(!finState||!temPermissao('financeiro.faturar'))return;
  const tipo=node('finBillingCategory').value,doc=node('finBillingDoc').value.trim();
  const date=node('finBillingDate').value;
- const itens=[];let valueCentavos=0;
+ const itens=[];let valueCentavos=0,plano=null;
+ try{plano=finPlanoCompensacao(finState,tipo);}catch(e){node('finBillingMessage').textContent=e.message;return;}
  const obraFaturamento=finState.obraId,empresaFaturamento=currentCompany.id;
  for(const row of node('finBillingRows').querySelectorAll('.finInvoiceRow')){
   if(!row.querySelector('.finSelected').checked)continue;
@@ -9522,11 +9602,11 @@ async function finRegistrarFaturamento(event){
   const equivalente=Math.round(qtd/a*1000000)/1000000;
   const precoIntegral=Math.round(preco*a*10000)/10000;
   if(!(a>0)||!(equivalente>0)||!(precoIntegral>0)){node('finBillingMessage').textContent='Área ou preço insuficiente para faturamento.';return;}
-  const linha=finState.precoPorEsquadria.get(row.dataset.esq);
-  const cents=finValorLinhaCentavos(linha,tipo,qtd,preco,finState.billedAreas[tipo].get(row.dataset.esq)||0,finState.billedValues[tipo].get(row.dataset.esq)||0);
-  if(cents===null||cents<=0){node('finBillingMessage').textContent='Área sem valor positivo disponível. Confira o saldo e a precificação.';return;}
+  const cents=finValorFaturamentoLinha(plano,row,qtd,preco);
+  if(!Number.isSafeInteger(cents)||cents<=0){node('finBillingMessage').textContent='Área sem valor positivo disponível. Confira o saldo e a precificação.';return;}
   valueCentavos+=cents;
-  itens.push({esquadria_id:row.dataset.esq,quantidade:equivalente,valor_unitario:precoIntegral,area_m2:qtd,preco_m2:preco});
+  itens.push({esquadria_id:row.dataset.esq,quantidade:equivalente,valor_unitario:precoIntegral,area_m2:qtd,preco_m2:preco,
+   ...(plano?{modo_preco:row.dataset.autoPrice==='1'?'auto':'manual',valor_centavos:cents,saldo_antes_centavos:plano.saldo}:{})});
  }
  if(!itens.length||!doc||!date){
   node('finBillingMessage').textContent='Escolha ao menos uma esquadria, informe o documento e a data.';return;
@@ -9535,6 +9615,8 @@ async function finRegistrarFaturamento(event){
  if(tipo==='instalacao'&&!instalado){
   node('finBillingMessage').textContent='Confirme que a instalação dos itens selecionados foi realizada.';return;
  }
+ const aviso=finValidaFechamentoCompensado(plano,itens,valueCentavos);
+ if(aviso){node('finBillingMessage').textContent=aviso;return;}
  const value=valueCentavos/100;
  const billed=finState.faturas.filter(f=>f.status==='emitido'&&f.categoria===tipo)
   .reduce((v,f)=>v+Number(f.valor_total),0);

@@ -1,0 +1,51 @@
+name: Verificar faturamento flexível no PostgreSQL
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  faturamento-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: teste
+          POSTGRES_DB: ewgest_teste
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ewgest_teste"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: teste
+      PGDATABASE: ewgest_teste
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar cliente PostgreSQL
+        run: |
+          command -v psql || (sudo apt-get update && sudo apt-get install -y postgresql-client)
+      - name: Aplicar proposta e validar faturamentos, estornos e autorizações
+        run: psql -X -v ON_ERROR_STOP=1 -f scripts/test-faturamento-flexivel-postgres.sql
+      - name: Verificar concorrência entre duas emissões com o mesmo saldo
+        shell: bash
+        run: |
+          set +e
+          psql -X -v ON_ERROR_STOP=1 -c "SET test.uid='00000000-0000-0000-0000-000000000001'; SET test.perm='yes'; SELECT public.test_fatura('a',.25,800,'manual',20000,100000);" > /tmp/fat-a.log 2>&1 &
+          A=$!
+          psql -X -v ON_ERROR_STOP=1 -c "SET test.uid='00000000-0000-0000-0000-000000000001'; SET test.perm='yes'; SELECT public.test_fatura('b',.25,800,'manual',20000,100000);" > /tmp/fat-b.log 2>&1 &
+          B=$!
+          wait "$A"; RA=$?
+          wait "$B"; RB=$?
+          set -e
+          cat /tmp/fat-a.log /tmp/fat-b.log
+          if [ "$RA" = 0 ]; then [ "$RB" != 0 ]; grep -q 'Saldo ou valor do documento mudou' /tmp/fat-b.log
+          else [ "$RB" = 0 ]; grep -q 'Saldo ou valor do documento mudou' /tmp/fat-a.log; fi
+          [ "$(psql -X -At -v ON_ERROR_STOP=1 -c "SELECT count(*)||':'||sum(valor_total) FROM public.ew_obra_faturamentos WHERE status='emitido';")" = "1:200.00" ]
