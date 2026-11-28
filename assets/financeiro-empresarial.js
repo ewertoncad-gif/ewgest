@@ -105,7 +105,17 @@ function rateioValidar(r){
  for(const lista of [r.fabrica,r.obras]){
   for(const [k,total] of [['receita_centavos',receita],['material_centavos',material],['rateio_centavos',rateado]])if(lista.reduce((a,x)=>a+cents(x[k]),0)!==total)throw Error('Totais de contribuição não conciliam.');
  }
- return {receita,material,industrial,rateado,pend,saldo:industrial-rateado};
+ const itensTotal=cents(r.itens_total),titulosTotal=cents(r.titulos_total);
+ if(r.itens.length>itensTotal||r.titulos.length>titulosTotal)throw Error('Quantidade de registros não concilia.');
+ const completo=r.itens.length===itensTotal;
+ for(const [k,total] of [['receita_centavos',receita],['material_centavos',material],['rateio_centavos',rateado]]){
+  const subtotal=r.itens.reduce((a,x)=>a+cents(x[k]),0);
+  if(!Number.isSafeInteger(subtotal)||subtotal>total||(completo&&subtotal!==total))throw Error('Totais por código não conciliam.');
+ }
+ for(const x of r.itens){const a=Number(x.area_faturada);if(x.area_faturada===null||x.area_faturada===''||!Number.isFinite(a)||a<0)throw Error('Área faturada inválida.');}
+ const contribuicao=receita-material-rateado;
+ if(!Number.isSafeInteger(contribuicao))throw Error('Contribuição fora do limite.');
+ return {receita,material,industrial,rateado,pend,saldo:industrial-rateado,contribuicao,itensTotal,titulosTotal};
 }
 function renderRateio(r){
  if(!r)return '<div class="section panel"><h2>Custos industriais e rentabilidade</h2><p class="hint">Consulta indisponível neste momento.</p></div>';
@@ -115,7 +125,7 @@ function renderRateio(r){
  const headers=['Local','Receita fabricação','Material reconhecido','Custos industriais rateados','Contribuição parcial'];
  const area=x=>{const n=Number(x);if(!Number.isFinite(n)||n<0)throw Error('Área inválida.');return n.toLocaleString('pt-BR',{maximumFractionDigits:6});};
  return '<div class="section panel"><h2>Custos industriais e rentabilidade</h2><p class="notice">Contribuição parcial de fabricação = receita de fabricação menos material reconhecido e custos industriais rateados. Não é lucro definitivo e não inclui instalação, impostos, despesas gerais nem custos sem atribuição. Rateio não cria despesa: o título já está na DRE.</p>'+
- '<div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))">'+kpi('Custos industriais classificados',money(d.industrial))+kpi('Custos industriais rateados',money(d.rateado))+kpi('Custos industriais a atribuir',money(d.saldo))+kpi('Rateios em conferência',String(d.pend))+'</div>'+
+ '<div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))">'+kpi('Custos industriais classificados',money(d.industrial))+kpi('Custos industriais rateados',money(d.rateado))+kpi('Custos industriais a atribuir',money(d.saldo))+kpi('Rateios em conferência',String(d.pend))+kpi('Contribuição parcial de fabricação',signed(d.contribuicao))+'</div>'+
  '<h3>Contribuição por fábrica</h3>'+table(headers,r.fabrica.map(x=>cells([x.fabrica||'A atribuir',...vals(x)])))+
  '<h3>Contribuição por obra</h3>'+table(headers,r.obras.map(x=>cells([x.obra+' · '+x.codigo,...vals(x)])))+
  '<h3>Custo reconhecido por código de esquadria</h3><p class="hint">Material e custos industriais apropriados ao resultado no período. O custo por m² faturado é parcial, não custo completo de uma unidade física. Lotes sem identificação permanecem separados.</p>'+
@@ -125,6 +135,7 @@ function renderRateio(r){
   return cells([x.obra,x.codigo||'Lote / sem código',area(a),money(x.material_centavos),money(x.rateio_centavos),money(c),a>0&&c>0?signed(c/a):'—',signed(resultado(x))]);
  }))+
  '<h3>Ratear mão de obra e despesas industriais</h3><p class="hint">Classifique antes o título na DRE como mão de obra, custo indireto ou serviço. Selecione a liberação completa de uma esquadria e informe somente a parcela efetivamente apropriada. O saldo do título limita a soma dos rateios. A lista apresenta até 500 liberações recentes compatíveis com o mês da competência.</p>'+
+ (d.titulosTotal>r.titulos.length?'<p class="hint">Lista de títulos limitada a 500 registros. Reduza o período para localizar outros.</p>':'')+
  (edit&&titles.length?'<form id="rateioForm"><div class="finFormRows"><label>Título de custo<select id="rateioTitulo">'+option('','Selecione')+titles.map(t=>option(t.id,t.descricao+' · '+t.centro_custo+' · '+t.competencia+' · saldo '+money(cents(t.valor_centavos)-cents(t.usado_centavos)))).join('')+'</select></label><label>Liberação<select id="rateioLiberacao" required><option value="">Selecione o título</option></select></label><label>Valor (R$)<input id="rateioValor" inputmode="decimal" required></label><label>Critério / justificativa<input id="rateioMotivo" minlength="5" maxlength="400" required placeholder="Ex.: horas trabalhadas nesta liberação"></label></div><button id="rateioSubmit" class="btn primary" type="submit">Registrar rateio</button></form>':'<p class="hint">Nenhum título com saldo disponível para rateio, ou acesso somente consulta.</p>')+
  '<h3>Histórico de rateios ativos</h3>'+table(['Obra','Esquadria','Fábrica','Competência','Classe','Valor','Situação / critério','Ação'],r.rateios.map(x=>'<tr>'+[x.obra||'Histórico',x.codigo||'Histórico',x.fabrica,x.competencia,dreClasses[x.classe]||x.classe,money(x.valor_centavos),(x.valido?'Apropriado':'Em conferência')+' · '+x.motivo].map(v=>'<td>'+esc(v)+'</td>').join('')+'<td>'+(temPermissao('financeiro.cancelar_despesas')?'<button type="button" class="btn secondary" data-rateio-reverse="'+esc(x.id)+'">Estornar</button>':'')+'</td></tr>'))+'</div>';
 }

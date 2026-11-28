@@ -129,7 +129,7 @@ for(const token of [
  'function saveVariationFamily(event)',
  'tipologia_principal_id,quantidade_modulos',
  'return classificarTipoTipologia(t)===tipo;',
- 'EWGEST • v46.29.42',
+ 'EWGEST • v46.29.43',
  'id="pendingReviewPanel"',
  'id="recognitionOverlay"',
  'id="recognitionApproval"',
@@ -2135,7 +2135,7 @@ const receiptUndoSQL=readFileSync(fileURLToPath(new URL(
 const deliveryClient=readFileSync(fileURLToPath(new URL(
  '../assets/entregas-producao.js',import.meta.url)),'utf8');
 assert.doesNotThrow(()=>new Function(deliveryClient),'Script de entrega à produção precisa ser sintaticamente válido');
-assert.ok(source.includes('v46.29.42')&&
+assert.ok(source.includes('v46.29.43')&&
  source.includes('id="entregasProducaoPanel"')&&
  source.includes('entregas-producao.js?v=20261125c')&&
  source.includes('entregas-producao.css?v=20261121a')&&
@@ -2371,7 +2371,7 @@ assert.ok(
  !receiveScript.includes("'type=\"number\" inputmode=\"decimal\" min=\"0.001\" max=\"1000000\" step=\"0.001\"'"),
  'Campos do recebimento devem iniciar em uma unidade, usar setas de 1 e permitir frações por digitação');
 assert.ok(source.includes('recebimento-manual.js?v=20261126a')&&
- source.includes('EWGEST <strong>· v46.29.42</strong>'),
+ source.includes('EWGEST <strong>· v46.29.43</strong>'),
  'O novo JS de recebimento deve ter cache invalidado na versão 45.9');
 const testarDecimais=(text)=>{
  const n=Number(text);
@@ -3430,9 +3430,16 @@ console.log('OK: DRE parcial, receitas, custos reconhecidos, despesas e prejuíz
  const code=readFileSync(new URL('../assets/financeiro-empresarial.js',import.meta.url),'utf8');new Function(code);
  const i=code.indexOf('function rateioValidar('),j=code.indexOf('function renderRateio(',i);
  const val=new Function('cents',code.slice(i,j)+'return rateioValidar;')(n=>{const v=Number(n);if(!Number.isSafeInteger(v)||v<0)throw Error('centavos');return v;});
- const linha={receita_centavos:10000,material_centavos:2000,rateio_centavos:4000};
- const r={...linha,industrial_classificado_centavos:8000,rateado_centavos:4000,rateios_pendentes:0,titulos:[],liberacoes:[],rateios:[{valido:true,valor_centavos:4000}],fabrica:[linha],obras:[linha],itens:[linha]};
- assert.equal(val(r).saldo,4000);assert.throws(()=>val({...r,rateado_centavos:9000}),/Rateios não conciliam/);
+ const linha={receita_centavos:10000,material_centavos:2000,rateio_centavos:4000,area_faturada:2};
+ const r={...linha,industrial_classificado_centavos:8000,rateado_centavos:4000,rateios_pendentes:0,titulos_total:0,itens_total:1,titulos:[],liberacoes:[],rateios:[{valido:true,valor_centavos:4000}],fabrica:[linha],obras:[linha],itens:[linha]};
+ assert.equal(val(r).saldo,4000);assert.equal(val(r).contribuicao,4000);
+ assert.equal(val({...r,itens_total:2,itens:[]}).saldo,4000);
+ assert.throws(()=>val({...r,itens:[{...linha,material_centavos:1999}]}),/Totais por código/);
+ assert.throws(()=>val({...r,itens_total:2,itens:[{...linha,material_centavos:2001}]}),/Totais por código/);
+ assert.throws(()=>val({...r,itens:[{...linha,area_faturada:-1}]}),/Área faturada/);
+ assert.throws(()=>val({...r,itens_total:0}),/Quantidade de registros/);
+ assert.throws(()=>val({...r,titulos_total:0,titulos:[{}]}),/Quantidade de registros/);
+ assert.equal(val({...r,receita_centavos:1000,fabrica:[{...linha,receita_centavos:1000}],obras:[{...linha,receita_centavos:1000}],itens:[{...linha,receita_centavos:1000}]}).contribuicao,-5000);assert.throws(()=>val({...r,rateado_centavos:9000}),/Rateios não conciliam/);
  assert.throws(()=>val({...r,fabrica:[{...linha,receita_centavos:10001}]}),/Totais de contribuição/);
  assert.ok(code.includes('Contribuição parcial de fabricação')&&code.includes('Rateio não cria despesa')&&code.includes('não custo completo de uma unidade física'));
  assert.ok(code.includes('ew_rateio_industrial_criar')&&code.includes('ew_rateio_industrial_estornar'));
