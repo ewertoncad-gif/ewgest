@@ -46,7 +46,7 @@ BEGIN
  PERFORM pg_advisory_xact_lock(hashtextextended(p_empresa_id::text||'|FERRAMENTAS',0));
  SELECT * INTO a FROM ew_financeiro_interna.ferramentas_devolucoes WHERE empresa_id=p_empresa_id AND id=p_operacao_id;
  IF FOUND THEN
-  IF a.entrega_id IS DISTINCT FROM p_entrega_id OR a.itens IS DISTINCT FROM v THEN RAISE EXCEPTION 'Operação reutilizada.';END IF;
+  IF a.entrega_id IS DISTINCT FROM p_entrega_id OR (SELECT jsonb_agg(x||jsonb_build_object('estado',coalesce(x->>'estado','CONFERIR')) ORDER BY x->>'id') FROM jsonb_array_elements(a.itens)x) IS DISTINCT FROM v THEN RAISE EXCEPTION 'Operação reutilizada.';END IF;
   RETURN jsonb_build_object('repetido',true,'numero',a.numero);
  END IF;
  SELECT count(*) INTO q FROM ew_financeiro_interna.ferramentas_custodia WHERE empresa_id=p_empresa_id AND entrega_id=p_entrega_id AND item_id=ANY(ids) AND devolucao_id IS NULL AND estornado_em IS NULL;
@@ -119,6 +119,7 @@ BEGIN
  IF NOT FOUND THEN RAISE EXCEPTION 'Devolução indisponível.';END IF;
  IF d.estorno_id=p_operacao_id AND d.estorno_motivo=btrim(p_motivo) THEN RETURN jsonb_build_object('repetido',true);END IF;
  IF d.estornado_em IS NOT NULL OR EXISTS(SELECT 1 FROM ew_financeiro_interna.ferramentas_custodia c WHERE c.empresa_id=p_empresa_id AND c.devolucao_id=d.id AND (EXISTS(SELECT 1 FROM ew_financeiro_interna.ferramentas_custodia z WHERE z.empresa_id=c.empresa_id AND z.item_id=c.item_id AND z.entrega_id<>c.entrega_id AND z.estornado_em IS NULL AND (z.devolucao_id IS NULL OR EXISTS(SELECT 1 FROM ew_financeiro_interna.ferramentas_entregas ee WHERE ee.empresa_id=z.empresa_id AND ee.id=z.entrega_id AND ee.criado_em>=d.criado_em))) OR NOT EXISTS(SELECT 1 FROM ew_financeiro_interna.ferramentas_ocorrencias o WHERE o.empresa_id=c.empresa_id AND o.item_id=c.item_id AND o.operacao_id=d.id AND o.tipo='DEVOLUCAO') OR EXISTS(SELECT 1 FROM ew_financeiro_interna.ferramentas_ocorrencias o JOIN ew_financeiro_interna.ferramentas_ocorrencias original ON original.empresa_id=o.empresa_id AND original.item_id=o.item_id AND original.operacao_id=d.id WHERE o.empresa_id=c.empresa_id AND o.item_id=c.item_id AND o.criado_em>original.criado_em))) THEN RAISE EXCEPTION 'Devolução com movimentação posterior ou sem histórico de condição; conferência necessária.';END IF;
+ INSERT INTO ew_financeiro_interna.ferramentas_ocorrencias(empresa_id,operacao_id,item_id,estado_anterior,estado_novo,motivo,criado_por,tipo) SELECT p_empresa_id,p_operacao_id,o.item_id,o.estado_novo,o.estado_anterior,btrim(p_motivo),auth.uid(),'ESTORNO_DEVOLUCAO' FROM ew_financeiro_interna.ferramentas_ocorrencias o WHERE o.empresa_id=p_empresa_id AND o.operacao_id=d.id AND o.tipo='DEVOLUCAO';
  UPDATE ew_financeiro_interna.ferramentas f SET estado=o.estado_anterior FROM ew_financeiro_interna.ferramentas_ocorrencias o WHERE f.empresa_id=p_empresa_id AND o.empresa_id=f.empresa_id AND o.item_id=f.id AND o.operacao_id=d.id AND o.tipo='DEVOLUCAO';
  UPDATE ew_financeiro_interna.ferramentas_custodia SET devolucao_id=NULL WHERE empresa_id=p_empresa_id AND devolucao_id=d.id;
  UPDATE ew_financeiro_interna.ferramentas_devolucoes SET estornado_em=now(),estornado_por=auth.uid(),estorno_motivo=btrim(p_motivo),estorno_id=p_operacao_id WHERE empresa_id=p_empresa_id AND id=d.id;
@@ -127,4 +128,17 @@ BEGIN
 END $$;
 REVOKE EXECUTE ON FUNCTION public.ew_ferramenta_ocorrencia(uuid,uuid,uuid,text,text),public.ew_ferramenta_estornar(uuid,uuid,text,uuid,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.ew_ferramenta_ocorrencia(uuid,uuid,uuid,text,text),public.ew_ferramenta_estornar(uuid,uuid,text,uuid,text) TO authenticated;
+CREATE OR REPLACE FUNCTION public.ew_rh_consultar(p_empresa_id uuid,p_inicio date,p_fim date)
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+DECLARE r jsonb;
+BEGIN
+ PERFORM ew_financeiro_interna.exigir_rh(p_empresa_id,'rh.consultar');
+ IF p_inicio IS NULL OR p_fim IS NULL OR p_fim<p_inicio OR p_fim-p_inicio>366 THEN RAISE EXCEPTION 'Período inválido.';END IF;
+ SELECT jsonb_build_object(
+ 'locais',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'nome',nome) ORDER BY nome),'[]') FROM public.ew_locais_fisicos WHERE empresa_id=p_empresa_id AND ativo),
+ 'funcionarios',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',f.id,'matricula',f.matricula,'nome',f.nome,'funcao',f.funcao,'admissao',f.admissao,'ferramentas_pendentes',(SELECT count(*) FROM ew_financeiro_interna.ferramentas_entregas e JOIN ew_financeiro_interna.ferramentas_custodia c ON c.empresa_id=e.empresa_id AND c.entrega_id=e.id WHERE e.empresa_id=f.empresa_id AND e.funcionario_id=f.id AND c.devolucao_id IS NULL AND c.estornado_em IS NULL),'local',g.nome,'desligado_em',CASE WHEN m.evento='DESLIGAMENTO' THEN m.data_evento END) ORDER BY f.nome,f.id),'[]') FROM ew_financeiro_interna.funcionarios_industriais f LEFT JOIN LATERAL(SELECT evento,data_evento,origem_id,destino_id FROM ew_financeiro_interna.movimentacoes_industriais m WHERE m.empresa_id=f.empresa_id AND m.tipo='FUNCIONARIO' AND m.entidade_id=f.id ORDER BY data_evento DESC LIMIT 1)m ON true LEFT JOIN public.ew_locais_fisicos g ON g.empresa_id=f.empresa_id AND g.id=coalesce(m.destino_id,m.origem_id,f.galpao_id) WHERE f.empresa_id=p_empresa_id),
+ 'horas',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',h.operacao_id,'local',g.nome,'data',h.data_trabalho,'minutos',h.minutos,'motivo',h.motivo,'estornado_em',h.estornado_em) ORDER BY h.data_trabalho DESC,h.operacao_id),'[]') FROM ew_financeiro_interna.horas_industriais h LEFT JOIN public.ew_locais_fisicos g ON g.empresa_id=h.empresa_id AND g.id=h.galpao_id WHERE h.empresa_id=p_empresa_id AND h.data_trabalho BETWEEN p_inicio AND p_fim),
+ 'folhas',CASE WHEN public.ew_pode(p_empresa_id,'rh.folha') THEN (SELECT coalesce(jsonb_agg(jsonb_build_object('id',f.id,'local',g.nome,'competencia',f.competencia,'salarios',f.salarios,'encargos',f.encargos,'beneficios',f.beneficios,'referencia',f.referencia,'estornado_em',f.estornado_em) ORDER BY f.competencia DESC,f.id),'[]') FROM ew_financeiro_interna.folhas_industriais f LEFT JOIN public.ew_locais_fisicos g ON g.empresa_id=f.empresa_id AND g.id=f.galpao_id WHERE f.empresa_id=p_empresa_id AND f.competencia BETWEEN date_trunc('month',p_inicio::timestamp)::date AND p_fim) ELSE '[]'::jsonb END) INTO r;
+ RETURN r;
+END $$;
 COMMIT;
