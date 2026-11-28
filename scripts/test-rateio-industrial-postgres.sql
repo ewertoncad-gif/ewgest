@@ -330,3 +330,36 @@ BEGIN
 END $$;
 SET test.perm='yes';
 SELECT 'OK: RH independente, kit parcial, custódia única, devolução parcial e permissões' AS resultado;
+
+\ir ../database/proposals/20261128_ferramentas_ocorrencias_v462956.sql
+SET test.tools='yes';
+SET test.rh='yes';
+DO $$
+DECLARE e uuid:='00000000-0000-0000-0000-000000000001';emp uuid;f uuid;b uuid;c uuid;en uuid;op uuid:=gen_random_uuid();dv uuid:=gen_random_uuid();rev uuid:=gen_random_uuid();r jsonb;negado boolean;
+BEGIN
+ SELECT id INTO emp FROM ew_financeiro_interna.funcionarios_industriais WHERE empresa_id=e AND matricula='F002';
+ SELECT id INTO f FROM ew_financeiro_interna.ferramentas WHERE empresa_id=e AND codigo='FUR-1';
+ SELECT id INTO b FROM ew_financeiro_interna.ferramentas WHERE empresa_id=e AND codigo='BAT-1';
+ SELECT id INTO c FROM ew_financeiro_interna.ferramentas WHERE empresa_id=e AND codigo='CAR-1';
+ SELECT entrega_id INTO en FROM ew_financeiro_interna.ferramentas_custodia WHERE empresa_id=e AND item_id=b AND devolucao_id IS NULL;
+ IF (SELECT estado FROM ew_financeiro_interna.ferramentas WHERE empresa_id=e AND id=f)<>'CONFERIR' THEN RAISE EXCEPTION 'devolução antiga não bloqueada';END IF;
+ PERFORM public.ew_ferramenta_ocorrencia(e,gen_random_uuid(),f,'MANUTENCAO','Reparo necessário');
+ negado:=false;BEGIN PERFORM public.ew_ferramenta_entregar(e,gen_random_uuid(),emp,ARRAY[f],'Entrega indevida');EXCEPTION WHEN OTHERS THEN negado:=SQLERRM LIKE 'Item indisponível%';END;
+ IF NOT negado THEN RAISE EXCEPTION 'entregou item em manutenção';END IF;
+ PERFORM public.ew_ferramenta_ocorrencia(e,gen_random_uuid(),f,'DISPONIVEL','Reparo concluído');
+ PERFORM public.ew_ferramenta_entregar(e,op,emp,ARRAY[f],'Entrega após reparo');
+ PERFORM public.ew_ferramenta_devolver(e,dv,op,jsonb_build_array(jsonb_build_object('id',f,'condicao','Avaria identificada','estado','AVARIADA')));
+ IF (SELECT estado FROM ew_financeiro_interna.ferramentas WHERE empresa_id=e AND id=f)<>'AVARIADA' THEN RAISE EXCEPTION 'avaria não registrada';END IF;
+ PERFORM public.ew_ferramenta_estornar(e,rev,'DEVOLUCAO',dv,'Corrigir devolução');
+ r:=public.ew_ferramenta_estornar(e,rev,'DEVOLUCAO',dv,'Corrigir devolução');
+ IF NOT (r->>'repetido')::boolean OR (SELECT estado FROM ew_financeiro_interna.ferramentas WHERE empresa_id=e AND id=f)<>'DISPONIVEL' THEN RAISE EXCEPTION 'estorno incorreto';END IF;
+ PERFORM public.ew_ferramenta_estornar(e,gen_random_uuid(),'ENTREGA',op,'Corrigir entrega');
+ PERFORM public.ew_ferramenta_ocorrencia(e,gen_random_uuid(),b,'EXTRAVIADA','Bateria não localizada');
+ r:=public.ew_rh_consultar(e,'2026-11-01','2026-11-30');
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'funcionarios') x WHERE x->>'id'=emp::text AND (x->>'ferramentas_pendentes')::int=1) THEN RAISE EXCEPTION 'perdeu pendência no extravio %',r;END IF;
+ negado:=false;BEGIN PERFORM public.ew_ferramenta_estornar(e,gen_random_uuid(),'ENTREGA',en,'Estorno indevido');EXCEPTION WHEN OTHERS THEN negado:=true;END;
+ IF NOT negado THEN RAISE EXCEPTION 'estornou entrega com extravio';END IF;
+ r:=public.ew_ferramentas_consultar(e);
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'entregas') x WHERE x->>'id'=op::text AND x->>'estornado_em' IS NOT NULL AND jsonb_array_length(x->'pendentes')=0) OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'itens') x WHERE x->>'id'=b::text AND x->>'estado'='EXTRAVIADA' AND x->>'entrega_id'=en::text) THEN RAISE EXCEPTION 'histórico ou custódia perdida';END IF;
+END $$;
+SELECT 'OK: bloqueio por manutenção, avaria, extravio com custódia, estornos e pendências RH' AS resultado;
